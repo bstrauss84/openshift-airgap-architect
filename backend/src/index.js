@@ -52,6 +52,7 @@ import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallCo
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
 import { migrateStateToV3, isStateV3 } from "../../shared/stateMigration.js";
 import { validateBmcVerifyCA } from "../../shared/bmcVerifyCA.js";
+import { resolveUpdateStatus, isUrgentUpdateStatus } from "../../shared/updateStatus.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import { assertSupportedOpenShiftMinorForGeneration, isSupportedMinor, buildUnsupportedVersionError } from "./versionPolicy.js";
@@ -1095,6 +1096,41 @@ const GITHUB_TIMEOUT_MS = 2000;
 
 let updateInfoCache = null;
 
+/**
+ * No trusted release-identity source is implemented.
+ *
+ * Establishing "a newer PUBLISHED, SUPPORTED release exists" needs a source whose
+ * trust properties have been reviewed — the branch-commit lookup below is not one,
+ * and neither is a bare tag. Until that contract exists this stays null, which
+ * makes UPDATE_STATUS.PUBLISHED_SUPPORTED_UPDATE unreachable and therefore keeps
+ * the urgent upgrade prompt fail-closed. Tests supply a synthetic verified
+ * identity directly to resolveUpdateStatus() to exercise the urgent UI.
+ */
+const RELEASE_IDENTITY_UNAVAILABLE = null;
+
+/**
+ * Attach the truthful status to a raw update-info payload.
+ *
+ * `isOutdated` is retained for backward compatibility with existing clients, but
+ * it is NOT authoritative: it only ever meant "the branch commit differs". Callers
+ * deciding whether to prompt the operator must use `updateStatus` / `urgent`.
+ */
+function withUpdateStatus(info) {
+  const updateStatus = resolveUpdateStatus({
+    disabled: info.enabled === false,
+    currentSha: info.currentSha,
+    latestSha: info.latestSha,
+    fetchError: info.error,
+    releaseIdentity: RELEASE_IDENTITY_UNAVAILABLE
+  });
+  return {
+    ...info,
+    updateStatus,
+    urgent: isUrgentUpdateStatus(updateStatus),
+    releaseIdentity: RELEASE_IDENTITY_UNAVAILABLE
+  };
+}
+
 async function fetchUpdateInfo() {
   const repo = (process.env.APP_REPO || "bstrauss84/openshift-airgap-architect").trim();
   const branch = (process.env.APP_BRANCH || "main").trim();
@@ -1189,7 +1225,8 @@ app.get("/api/update-info", async (_req, res) => {
       return res.json(result);
     }
   }
-  const result = await fetchUpdateInfo();
+  const raw = await fetchUpdateInfo();
+  const result = withUpdateStatus(raw);
   const isSuccess = result.enabled && !result.error && result.latestSha != null;
   updateInfoCache = { result, cachedAt: now, isSuccess };
   res.json(result);

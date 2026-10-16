@@ -134,3 +134,85 @@ describe("release docs — the temporary README notice stays honest", () => {
     assert.match(README, /^## Release history$/m);
   });
 });
+
+/**
+ * The temporary v2.x release notice is a first-class, human-specified release
+ * requirement, not ordinary README prose. It has been partially lost once
+ * already, so each element the maintainer asked for is pinned individually:
+ * an explicit apology for the delay, the solo/spare-time context, the work and
+ * TESTING that went in, thanks to the community, links to the changelog, both
+ * sets of release notes and the v1 -> v2 migration guide, and a maintainer
+ * comment recording that the block is temporary while the PERMANENT release
+ * history stays.
+ *
+ * These assert substance, not exact wording, so the tone can still be edited.
+ */
+describe("README temporary v2.x release notice", () => {
+  const NOTICE_HEADING = "## 🚀 Major v2.x update available";
+
+  /** The notice runs from its heading to the next top-level section. */
+  function notice() {
+    const start = README.indexOf(NOTICE_HEADING);
+    assert.ok(start > -1, "the temporary v2.x update notice heading is missing from README.md");
+    const rest = README.slice(start + NOTICE_HEADING.length);
+    const end = rest.indexOf("\n## ");
+    return end === -1 ? rest : rest.slice(0, end);
+  }
+
+  test("appears near the top, before the table of contents", () => {
+    const noticeIdx = README.indexOf(NOTICE_HEADING);
+    const tocIdx = README.indexOf("## Table of contents");
+    assert.ok(noticeIdx > -1 && tocIdx > -1);
+    assert.ok(noticeIdx < tocIdx, "the notice must stay above the table of contents");
+  });
+
+  test("explicitly apologises for the delay and thanks the community", () => {
+    const body = notice();
+    assert.match(body, /\b(sorry|apolog\w*)\b/i, "the notice must contain an explicit apology");
+    assert.match(body, /\blonger than expected\b/i, "the notice must say the update took longer than expected");
+    assert.match(body, /\bthank you\b/i, "the notice must thank users");
+    assert.match(body, /\bpatience\b/i);
+  });
+
+  test("states the solo spare-time maintenance and the work and testing involved", () => {
+    const body = notice();
+    assert.match(body, /\bone person\b/i, "the notice must say it is maintained by one person");
+    assert.match(body, /\bspare time\b/i);
+    assert.match(body, /\bmonths\b/i, "the notice must convey the scale of work");
+    assert.match(body, /\btesting\b/i, "the notice must mention testing, not only building");
+  });
+
+  test("keeps the changelog, both release notes and the migration guide links", () => {
+    const body = notice();
+    for (const target of [
+      "CHANGELOG.md",
+      "docs/releases/v2.1.0.md",
+      "docs/releases/v2.0.0.md",
+      "docs/MIGRATION_GUIDE_v1_to_v2.md"
+    ]) {
+      assert.ok(body.includes(target), `the notice must keep its link to ${target}`);
+    }
+  });
+
+  test("does not claim the unreleased v2.1 or its 4.22 support has shipped", () => {
+    const body = notice();
+    assert.match(
+      body,
+      /v2\.1[\s\S]{0,120}?\bnot yet released\b/i,
+      "the notice must state that v2.1 is not yet released"
+    );
+    assert.doesNotMatch(body, /\bcertified\b/i, "the notice must not claim certification");
+    assert.doesNotMatch(body, /\bgenerally available\b|\bnow GA\b/i);
+  });
+
+  test("records that the block is temporary while release history is permanent", () => {
+    const start = README.indexOf(NOTICE_HEADING);
+    const preamble = README.slice(0, start);
+    assert.match(preamble, /TEMPORARY RELEASE NOTICE/i, "the maintainer retirement comment must stay");
+    assert.match(preamble, /PERMANENT/i, "the comment must record that release history is permanent");
+    assert.ok(
+      README.includes('<a id="release-history"></a>'),
+      "the permanent release-history section must remain"
+    );
+  });
+});

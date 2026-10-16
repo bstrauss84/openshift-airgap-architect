@@ -36,6 +36,47 @@ combinations are now refused when configuration is generated, not only hidden in
 This affects configurations saved by v2.0.0 that contain combinations the product does
 not support, such as vSphere on arm64.
 
+### Fixed (upgrade safety)
+
+- **Tools → Export Run no longer exports a stale snapshot.** Export downloads the
+  server's copy of the run, but edits reached the server through a 600 ms debounce,
+  so exporting immediately after an edit produced a file that silently predated it —
+  precisely the file an operator would restore from after updating. The export now
+  flushes any pending save first. Save failures, which were previously swallowed
+  entirely, now surface and **cancel** the export rather than emit a backup that
+  does not match what is on screen.
+
+- **The update banner no longer reports an update that does not exist.** It fired on
+  `isOutdated`, which only means "the configured branch head differs from this
+  build". There are no published GitHub Releases for this repository, and
+  `APP_BRANCH` defaults to `main`, which still points at the v1.7.1 commit — so a
+  running v2.1 build was told to update to something five months *older* than
+  itself. The check now reports a distinct state (`up-to-date`,
+  `development-branch-ahead`, `offline`, `unknown`, `disabled`, or
+  `published-supported-update`), and only a **verified published release** raises
+  the urgent banner. No trusted release-identity source exists yet, so that state
+  is unreachable and the urgent banner is fail-closed by design.
+
+- **The urgent banner now carries the backup guidance it always should have.** It
+  names Tools → Export Run before updating and Tools → Import Run afterwards, states
+  that credentials are excluded and must be re-entered, and distinguishes the run
+  JSON from the generated bundle ZIP. It previously said only "See Tools → About for
+  update steps", and Tools → About contained no update steps.
+
+- **Removed an unreachable second copy of the export path.** `ReviewStep.jsx` carried
+  its own `exportRun()` that called `/api/run/export` without flushing. It was dead —
+  the identifier appeared exactly once, its own declaration — so it was never a live
+  defect, but it was a working copy of the bug waiting to be wired up. It and its
+  now-unused helpers are gone, and a guard test pins that exactly one source file
+  reads that endpoint and that it flushes first.
+
+- **Corrected the documented build-SHA mechanism.** `README.md`, `docs/UPDATING.md`
+  and `docs/API.md` claimed that building from a git clone yields a real build SHA.
+  It does not: `.dockerignore` excludes `.git/`, so `APP_GIT_SHA` must be passed from
+  the host or the SHA is `unknown` and update checks cannot run at all. `docs/API.md`
+  also documented `/api/update-info` response fields that the endpoint has never
+  returned.
+
 ### Changed
 
 - **Operator Quick Picks follow the selected OpenShift version.** The ODF presets gain

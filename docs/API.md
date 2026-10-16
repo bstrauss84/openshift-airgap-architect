@@ -99,30 +99,51 @@ Returns build metadata for UI display (Tools → About).
 
 ### `GET /api/update-info`
 
-Checks for available updates against GitHub releases.
+Compares the running build's commit against the newest commit on a configured
+**branch**. It does **not** consult GitHub Releases.
 
-**Query Parameters:**
-- `force` (boolean, optional) - Bypass cache and force fresh check
+**Query Parameters:** none.
 
 **Response:**
 ```json
 {
-  "updateAvailable": true,
-  "latestVersion": "v1.2.3",
-  "currentVersion": "v1.2.0",
-  "releaseUrl": "https://github.com/bstrauss84/openshift-airgap-architect/releases/tag/v1.2.3",
-  "error": null
+  "enabled": true,
+  "currentSha": "e0944b5904c4824e22ac188b2069b498781bab99",
+  "latestSha": "ffed74d0807d7a3bfcd321b660d7145b6d43b44d",
+  "isOutdated": true,
+  "updateStatus": "development-branch-ahead",
+  "urgent": false,
+  "releaseIdentity": null,
+  "checkedAt": "2026-10-16T12:00:00.000Z",
+  "error": null,
+  "branch": "main",
+  "repo": "bstrauss84/openshift-airgap-architect"
 }
 ```
 
+**Fields:**
+- `updateStatus` — the authoritative state. One of `disabled`, `unknown`,
+  `offline`, `up-to-date`, `development-branch-ahead`,
+  `published-supported-update`. Defined in `shared/updateStatus.js`.
+- `urgent` — true only for `published-supported-update`. Clients must use this,
+  not `isOutdated`, to decide whether to prompt the operator.
+- `releaseIdentity` — verified published-release facts, or `null` when no trusted
+  release-identity source was consulted. **Always `null` today.**
+- `isOutdated` — **legacy, not authoritative.** It only ever meant
+  `latestSha !== currentSha`, i.e. "the branch head differs". Retained for
+  backward compatibility.
+
 **Status Codes:**
-- `200 OK` - Check completed (even if error)
-- Returns `updateAvailable: false` with `error` field if check fails
+- `200 OK` — check completed, including when it failed (see `error` / `updateStatus: "offline"`)
 
 **Notes:**
-- Requires `CHECK_UPDATES` enabled and `APP_GIT_SHA` set
-- Caches result for 1 hour
+- Requires `CHECK_UPDATES` enabled (default on; `false`/`0` disables) and `APP_GIT_SHA` set
+- Caches success for 6 hours, failure for 15 minutes
 - Safe to call repeatedly (rate limited by cache)
+- A differing branch commit is **not** evidence of a newer published release. With
+  `APP_BRANCH` defaulting to `main`, the branch head may even be **older** than the
+  running build, which is why `urgent` is gated on a verified release identity and
+  is currently unreachable. See [UPDATING.md](UPDATING.md).
 
 ---
 

@@ -15,18 +15,27 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
 
 ## 🚀 Major v2.x update available
 
-This is a big one — the largest change since the project started, and it took a while.
-Thanks for your patience.
+**I'm sorry this major update has taken longer than expected, and thank you for your
+patience.** This is the largest change since the project started.
 
-OpenShift Airgap Architect is maintained by one person in spare time. Most of the last
-several months went into this update: the app is now built around the OpenShift version
-you select, rather than assuming a single release. It supports **OpenShift 4.20, 4.21
-and 4.22**, and the parameter catalogs, validation, documentation links and Field Guide
-all follow your chosen version.
+OpenShift Airgap Architect is maintained by one person in spare time, and much of the
+past several months has gone into rebuilding, validating and testing version-aware
+configuration support: the app is now built around the OpenShift version you select,
+rather than assuming a single release. The parameter catalogs, validation,
+documentation links and Field Guide all follow your chosen version. I appreciate
+everyone who has continued following and using the project.
 
-**If you are upgrading, please read the release notes before you start.** There are
-changes to how saved configurations work and a required version-confirmation step, and
-a few things behave differently on purpose.
+**v2.0 is released and supports OpenShift 4.20 and 4.21.** Support for **OpenShift
+4.22** arrives in v2.1, which is still in progress and **not yet released** — see
+[Release history](#release-history) for current status.
+
+**If you are upgrading, please read the release notes and the migration guide before
+you start.** There are changes to how saved configurations work and a required
+version-confirmation step, and a few things behave differently on purpose.
+
+**Before upgrading, save your configuration with Tools → Export Run**, and restore it
+afterwards with Tools → Import Run. Credentials are deliberately excluded and must be
+re-entered.
 
 - [Changelog](CHANGELOG.md) — everything, newest first
 - [v2.1 release notes](docs/releases/v2.1.0.md) — OpenShift 4.22 support
@@ -488,7 +497,9 @@ For comprehensive deployment guidance, see:
 <a id="updating-the-app"></a>
 ## Updating the app
 
-When the Landing page or **Tools → About** shows that an update is available, follow **[docs/UPDATING.md](docs/UPDATING.md)** for your deployment. Build info and update checks depend on how the image was built (see [Build info and update checks](#build-info-and-update-checks)); builds from a git clone get real SHA/time; builds from a tarball without `.git` show "unknown" and cannot report update availability.
+Before updating, open **Tools → Export Run** and save your configuration JSON; after updating, restore it with **Tools → Import Run** and re-enter your credentials, which are deliberately excluded. A Run JSON is not a full backup — see **[docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)** for the data volume. Follow **[docs/UPDATING.md](docs/UPDATING.md)** for your deployment.
+
+Build info and update checks depend on the **`APP_GIT_SHA` build-arg being passed from the host** (see [Build info and update checks](#build-info-and-update-checks)); `.git` is excluded from the build context, so building from a git clone is *not* on its own enough — without the build-arg the SHA shows "unknown" and update checks cannot run.
 
 <a id="generating-assets"></a>
 ## Generating assets
