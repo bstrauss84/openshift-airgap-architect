@@ -116,6 +116,74 @@ describe("release docs — relative links resolve", () => {
   }
 });
 
+/**
+ * SBOM discoverability is a release-notes requirement, not an optional extra:
+ * a user asking "where is the SBOM?" must reach an honest answer from the
+ * permanent navigation. These pin the honesty, not the prose — the page may say
+ * anything it likes so long as it does not claim a published artifact that does
+ * not exist.
+ */
+describe("SBOM and provenance page", () => {
+  const SBOM_PATH = path.join(REPO, "docs", "security", "SBOM_AND_PROVENANCE.md");
+
+  test("the page exists", () => {
+    assert.ok(fs.existsSync(SBOM_PATH), "docs/security/SBOM_AND_PROVENANCE.md is missing");
+  });
+
+  test("the permanent release-history section links it", () => {
+    const history = README.slice(README.indexOf('<a id="release-history"></a>'));
+    assert.ok(
+      history.includes("docs/security/SBOM_AND_PROVENANCE.md"),
+      "the permanent release-history navigation must link the SBOM page"
+    );
+  });
+
+  test("the v2.1 release note links it", () => {
+    const body = read("docs", "releases", "v2.1.0.md");
+    assert.ok(
+      body.includes("../security/SBOM_AND_PROVENANCE.md"),
+      "docs/releases/v2.1.0.md must link the SBOM page"
+    );
+  });
+
+  test("it states plainly that nothing is published yet", () => {
+    const body = fs.readFileSync(SBOM_PATH, "utf8");
+    assert.match(body, /not published yet/i, "the page must carry its not-published-yet status");
+  });
+
+  test("it does not claim a published SBOM, signature or clean scan", () => {
+    const body = fs.readFileSync(SBOM_PATH, "utf8");
+    // Each pattern is a claim that would be false today. Absence is the assertion.
+    for (const [label, re] of [
+      ["a downloadable SBOM", /\bdownload (the|our) sbom\b/i],
+      ["signed images", /\bimages are signed\b/i],
+      ["a clean scan", /\bno known vulnerabilities\b|\bscan(s|ned)? clean\b/i],
+      ["a published release", /\bavailable on the releases page\b/i],
+    ]) {
+      assert.doesNotMatch(body, re, `the SBOM page must not claim ${label}`);
+    }
+  });
+});
+
+describe("release docs — unverified claims stay marked unverified", () => {
+  test("restricted-v2 SCC compatibility is never asserted without qualification", () => {
+    // PROD-039 is open: no live admission test has been performed. Any surface
+    // that mentions restricted-v2 must qualify it rather than assert compatibility.
+    for (const [label, body] of [["README.md", README], ["CHANGELOG.md", CHANGELOG]]) {
+      const lines = body.split("\n");
+      lines.forEach((line, i) => {
+        if (!/restricted-v2/i.test(line)) return;
+        const context = lines.slice(Math.max(0, i - 2), i + 12).join("\n");
+        assert.match(
+          context,
+          /unverified|never been tested|not independently verified|PROD-039|unlikely to be admitted|assigns/i,
+          `${label}:${i + 1} mentions restricted-v2 without a nearby qualification: ${line.trim()}`
+        );
+      });
+    }
+  });
+});
+
 describe("release docs — the temporary README notice stays honest", () => {
   const NOTICE = "## 🚀 Major v2.x update available";
 

@@ -12,8 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Not released, and not certified.** The automated test suites pass, but release
 > certification is **RED/INCOMPLETE**: the container-image security scan is bound to a
 > stale candidate, and the API has no authentication while the OpenShift overlay
-> publishes the backend on a public Route. Human QA, an access-control decision, a
-> candidate-bound image scan and release tagging are all outstanding.
+> publishes the backend on a public Route. The authentication *target* is approved —
+> same-origin frontend proxy in front of a protected backend — so what is outstanding
+> is the implementation, not the decision. Human QA, that implementation, a
+> candidate-bound image scan with a real vulnerability disposition, and release
+> tagging are all outstanding.
+>
+> No release artifacts exist: no GitHub Release, no published SBOM, no checksum file,
+> no signature. See [SBOM and provenance](docs/security/SBOM_AND_PROVENANCE.md).
 
 ### Added
 
@@ -207,6 +213,13 @@ credentials must be re-entered after importing.** Non-sensitive configuration, p
 
 > Detailed notes: [docs/releases/v2.0.0.md](docs/releases/v2.0.0.md) ·
 > Upgrading from v1.x: [Migration Guide](docs/MIGRATION_GUIDE_v1_to_v2.md)
+>
+> **Date correction.** The 2026-09-18 above is the date v2.0 scope was declared closed
+> (commit `8cb53ad`). The annotated `v2.0.0` tag was created **2026-10-06** and points
+> at `09703fa`. The heading date is left as written to preserve the historical entry.
+> There is **no GitHub Release** for v2.0.0 — a tag is not a release page, and no
+> artifact, SBOM or checksum file was ever published. See
+> [SBOM and provenance](docs/security/SBOM_AND_PROVENANCE.md).
 
 ### Breaking Changes
 
@@ -572,6 +585,15 @@ None.
 - Complies with OpenShift restricted-v2 Security Context Constraints (SCC)
 - Will pass security scanners and organizational policy checks
 
+> **Correction (2026-10-16), retained rather than rewritten.** The last two bullets
+> above were not verified when written and remain unverified. No `restricted-v2`
+> admission test has ever been performed against a live OpenShift cluster, and no
+> scanner result was recorded. The non-root UID 1001 claim is accurate for the
+> process; the SCC-compliance and scanner claims are not evidence-backed. Tracked as
+> **PROD-039** (`active`) and **PROD-003** (`done_pending_verification`). See the
+> Security section of `README.md` for why the shipped manifests are unlikely to be
+> admitted under `restricted-v2` as written.
+
 ## [1.6.0] - 2026-05-20
 
 ### Added
@@ -606,6 +628,9 @@ All items verified_done and tested. This release makes OpenShift Airgap Architec
 - OpenShift-specific (`manifests/openshift/`):
   - `route-backend.yaml` / `route-frontend.yaml` - TLS edge Routes for external access
 - Security: Restricted-v2 SCC compatible (UID 1001, fsGroup 1001, non-root execution)
+  — **unverified; see the correction under 1.7.0 above.** Hardcoding `runAsUser: 1001`
+  and `fsGroup: 1001` is in tension with `restricted-v2`, which assigns both from the
+  namespace UID range. PROD-039 / PROD-003.
 - Resource limits defined (see PROD-004)
 - Health probes configured (see PROD-006)
 - Comprehensive deployment guide: `manifests/README.md`

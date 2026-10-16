@@ -347,7 +347,8 @@ The `manifests/` directory contains:
 - Resource requests and limits defined (backend: 500m-2000m CPU / 1-4Gi RAM, frontend: 100m-500m CPU / 256-512Mi RAM)
 - Request correlation with X-Request-ID propagation
 - Backend schema validation for all API endpoints (Zod)
-- Restricted-v2 SCC compatible (UID 1001, non-root execution)
+- Non-root execution (UID 1001). **`restricted-v2` SCC admission is unverified** — see
+  the note under [Security](#security) before deploying to OpenShift.
 
 ### Resource Requirements
 
@@ -442,8 +443,27 @@ See `manifests/README.md` for complete configuration reference.
 **Container security:**
 - UBI 9 base images (Red Hat Universal Base Image)
 - Non-root execution (UID 1001, fsGroup 1001)
-- Restricted-v2 SCC compatible (OpenShift)
 - No privileged escalation required
+
+> **`restricted-v2` SCC admission has never been tested, and the manifests as shipped
+> are unlikely to be admitted as-is.** Earlier revisions of this README and the
+> changelog stated "Restricted-v2 SCC compatible". That was never verified against a
+> live OpenShift admission controller, and two things argue against it:
+>
+> - `manifests/base/` hardcodes `runAsUser: 1001` and `fsGroup: 1001`. Under
+>   `restricted-v2` OpenShift **assigns** a UID and fsGroup from the namespace's own
+>   `openshift.io/sa.scc.uid-range`, and an explicitly requested value outside that
+>   range is rejected at admission. 1001 is not in a default namespace range.
+> - The backend image's default entrypoint expects to start as root so it can chown the
+>   data directory.
+>
+> What *has* been verified is narrower: the backend image's files and Node runtime are
+> usable by an arbitrary UID with GID 0, checked locally under Podman with the real
+> entrypoint bypassed. That is a useful signal, not an admission test.
+>
+> Tracked as **PROD-039** (SCC admission and arbitrary-UID validation, `active`) and
+> **PROD-003** (`done_pending_verification`). If you deploy to OpenShift, expect to
+> adjust the securityContext or grant an SCC, and please report what you find.
 
 **Network security:**
 - TLS edge termination on Routes (OpenShift)
@@ -1197,15 +1217,21 @@ Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, 
 | [v2.1 release notes](docs/releases/v2.1.0.md) | OpenShift 4.22 support, operator preset corrections, version-transition safety |
 | [v2.0 release notes](docs/releases/v2.0.0.md) | The version-awareness rebuild; OpenShift 4.20 and 4.21 support |
 | [Migration guide: v1.x → v2.0](docs/MIGRATION_GUIDE_v1_to_v2.md) | What changes when upgrading from v1.x |
+| [SBOM and provenance](docs/security/SBOM_AND_PROVENANCE.md) | Software bill of materials, vulnerability evidence and signing — **nothing published yet**, and what has to be true before anything is |
+| [Release-history evidence](docs/releases/evidence/README.md) | The commit-by-commit audit behind these notes |
 
 **Supported OpenShift versions:** 4.20 (baseline), 4.21, 4.22. Later releases are
 rejected deterministically rather than approximated — see the v2.1 notes for why.
 
+**Downloadable releases:** there are **no published GitHub Releases** for this
+repository. Git tags exist up to `v2.0.0`, but a tag is not a release page: there is no
+release artifact, no SBOM and no checksum file to download.
+
 ### At a glance
 
-- **v2.1.0** *(in progress)* — OpenShift 4.22 support, with per-version parameter catalogs, Field Guide and documentation. Adds the bare-metal provisioning network gateway setting, enforces supported CPU architectures at generation, and makes operator presets version-aware.
-- **v2.0.0** — Version-awareness architecture complete. Supports OpenShift 4.20 (baseline) and 4.21, with version-specific parameter catalogs, Field Guide content and metadata-driven annotations.
-- **v1.7.0** — Latest stable v1.x release (2026-05-28)
+- **v2.1.0** *(in progress, not released)* — OpenShift 4.22 support, with per-version parameter catalogs, Field Guide and documentation. Adds the bare-metal provisioning network gateway setting, enforces supported CPU architectures at generation, and makes operator presets version-aware.
+- **v2.0.0** — Version-awareness architecture complete. Supports OpenShift 4.20 (baseline) and 4.21, with version-specific parameter catalogs, Field Guide content and metadata-driven annotations. Tagged 2026-10-06.
+- **v1.7.1** — Latest stable v1.x release (2026-05-29), and the current head of `main`.
 
 **Version identity:** the application-code version does not by itself imply
 enterprise/customer-distribution readiness, security certification, signed/SBOM/provenance
