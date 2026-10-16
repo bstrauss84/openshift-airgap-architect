@@ -688,6 +688,30 @@ The manifest contains four distinct version/identity concepts that must remain s
 
 This section freezes the API and persistence semantics for a manifest-bearing ZIP upload. M03 route implementation, Express middleware, and integration tests are implemented. M03 implementation and deterministic validation are complete and human-checkpointed at 0ca11266d032dc0216bdc5c4895a5d41984f5dbc. Post-commit certification verified: bundle-import 27/27 pass, import-integrity 174/174 pass, export-integrity 25/25 pass, full backend 1705 pass / 0 fail / 5 todo, git diff --check exit 0, clean working tree. All certification return codes zero (bundle=0, import=0, export=0, full=0, diff=0, clean=0). Persistence/import product semantics resolved: validation-only by design — the generated ZIP contains no `state.json`, so archive import is integrity validation only. Non-persistence contract tests in `backend/test/bundle-import.test.js` prove no filesystem mutation, no state persistence, and idempotent response. DOC-104 remains active/partial (broader testing work outstanding beyond M03).
 
+> **SUPERSEDED (v2.1 Tranche 8, 2026-10-15) — the HTTP endpoint is withdrawn.**
+>
+> This freeze is explicitly superseded rather than silently contradicted. The
+> contract below described a live `POST /api/bundle.import`; that route now
+> answers **410 `ENDPOINT_WITHDRAWN`** for every method that reaches the route
+> (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`). `OPTIONS` is answered `204`
+> by the CORS middleware registered ahead of it; a preflight carries no body and
+> is not a bypass.
+>
+> Reason: the endpoint was an unauthenticated decompression denial of service.
+> It was the only ingress exempt from the 10 MB JSON cap, accepting 512 MiB and
+> inflating every entry into memory synchronously, so a small compressed body
+> cost roughly a gigabyte of RSS and seconds of blocked event loop — measured
+> at 1/10 scale as 96 KB of request producing 114.8 MiB and 240 ms — which
+> starved the `/api/health` liveness probe. No frontend control, CLI, e2e spec
+> or documented workflow ever called it.
+>
+> What is NOT superseded: the validation semantics, the manifest/checksum
+> rules, and the fail-closed error taxonomy below all remain the contract for
+> `validateArchiveBuffer`, which is unchanged, still exported, and still
+> covered by `backend/test/import-integrity.test.js`. Only the HTTP exposure
+> is withdrawn. Reintroduction belongs to **DOC-127** and must first lower the
+> resource limits and add a compression-ratio cap and a concurrency bound.
+
 #### Endpoint
 
 **`POST /api/bundle.import`** — archive validation endpoint, distinct from `POST /api/run/import`.

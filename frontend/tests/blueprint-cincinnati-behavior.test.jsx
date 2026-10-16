@@ -235,6 +235,55 @@ describe("BlueprintStep Cincinnati", () => {
     });
   });
 
+  it("a failing initial channel fetch raises no unhandled rejection and keeps the selection", async () => {
+    // The initial chain ended in `.finally` with no `.catch`, and `.finally`
+    // re-raises. apiFetch rejects on a network failure and on any non-2xx, so
+    // an unreachable backend produced an unhandled rejection on mount.
+    // process, not window: measured in this jsdom setup, a `window`
+    // "unhandledrejection" listener never fires, so a collector built on one
+    // would pass whether or not the defect is present. The Node-level hook
+    // does fire, and is what actually observes it.
+    const unhandled = [];
+    const onUnhandled = (reason) => unhandled.push(String(reason?.message || reason));
+    process.on("unhandledRejection", onUnhandled);
+
+    vi.mocked(apiFetch).mockImplementation((path) => {
+      if (path === "/api/cincinnati/channels") {
+        return Promise.reject(new Error("Failed to fetch"));
+      }
+      return Promise.reject(new Error("Failed to fetch"));
+    });
+
+    const updates = [];
+    const initial = {
+      blueprint: { platform: "Bare Metal", arch: "x86_64", confirmed: false },
+      release: { channel: "4.22", patchVersion: "4.22.16", confirmed: false, followLatestMinor: false },
+      version: { selectedMinor: "4.22" },
+      operators: { stale: false, selected: [], catalogs: {} }
+    };
+
+    try {
+      renderBlueprint(initial, updates);
+
+      // The loading flag is cleared in the `.finally`, so its disappearance is
+      // the signal that the rejected chain has fully settled.
+      await waitFor(() => {
+        expect(screen.queryByText(/Loading channels/i)).not.toBeInTheDocument();
+      });
+      await act(async () => { await Promise.resolve(); });
+      // An unhandled rejection is reported a turn after it is abandoned.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(unhandled).toEqual([]);
+      // And no fallback: a failed lookup must not clear or rewrite the
+      // operator's existing release selection.
+      const clearedChannel = updates.some((u) => u?.patch?.release && u.patch.release.channel === null);
+      expect(clearedChannel).toBe(false);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+
   it("Update shows refresh error and sets highlightJobId when Cincinnati job fails", async () => {
     const channelList = { channels: ["4.17", "4.18"] };
     let capturedState = null;

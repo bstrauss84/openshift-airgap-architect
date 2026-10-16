@@ -4,6 +4,8 @@
   "description": "OpenShift Airgap Installation Configuration Generator",
   "private": true,
   "scripts": {
+    "bootstrap:tooling": "npm ci --no-audit --no-fund",
+    "bootstrap": "npm ci --no-audit --no-fund && npm ci --no-audit --no-fund --prefix backend && npm ci --no-audit --no-fund --prefix frontend",
     "sync-catalogs": "node scripts/sync-catalogs.js",
     "sync-catalogs:check": "node scripts/sync-catalogs.js --check",
     "sync-catalogs:preview": "node scripts/sync-catalogs.js --dry-run",
@@ -27,7 +29,10 @@
     "check:app-version": "node scripts/validate-app-version.mjs",
     "set:app-version": "node scripts/set-app-version.mjs",
     "test:app-version": "node --test scripts/validate-app-version.test.mjs",
-    "test:tooling": "node --test scripts/*.test.js scripts/*.test.mjs scripts/minor/**/*.test.js",
+    "test:tooling": "node --test scripts/*.test.js scripts/*.test.mjs scripts/minor/**/*.test.js scripts/release/*.test.mjs scripts/release/provenance/*.test.mjs scripts/release/vex/*.test.mjs",
+    "release:certify": "node scripts/release/certify.mjs",
+    "release:certify:list": "node scripts/release/certify.mjs --list",
+    "test:release-certify": "node --test scripts/release/*.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
@@ -35,7 +40,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/billstrauss/openshift-airgap-architect.git"
+    "url": "https://github.com/bstrauss84/openshift-airgap-architect.git"
   },
   "author": "Bill Strauss",
   "license": "MIT",

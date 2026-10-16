@@ -159,7 +159,15 @@ describe("T6 §15 — real ZIP bundles for every supported minor", () => {
   });
 
   it("a 4.22 manifest never reports another minor", () => {
-    const m = JSON.stringify(buildVersionManifest(validState("4.22"), {}));
+    const manifest = buildVersionManifest(validState("4.22"), {});
+    // The generated timestamp is excluded, and only the timestamp. It is not
+    // a reported minor, and it collides with these patterns by coincidence:
+    // an ISO instant such as 2026-10-13T23:29:04.216Z contains "4.21" in its
+    // seconds-and-milliseconds. Measured at 60 of every 60000 milliseconds
+    // (0.10%), which made this a latent flake rather than a stable assertion.
+    const { timestamp, ...generatedWithoutTimestamp } = manifest.generated;
+    assert.ok(timestamp, "the manifest must still carry a generated timestamp");
+    const m = JSON.stringify({ ...manifest, generated: generatedWithoutTimestamp });
     assert.doesNotMatch(m, /4\.21/);
     assert.doesNotMatch(m, /4\.20/);
   });

@@ -17,6 +17,7 @@ import * as catalogResolver from "../src/catalogResolver.js";
 const { getScenarioId, getParamMeta, getCatalogForScenario } = catalogResolver;
 import { AppContext } from "../src/store.jsx";
 import PlatformSpecificsStep from "../src/steps/PlatformSpecificsStep.jsx";
+import { SUPPORTED_MINORS } from "../src/shared/versionPolicy.js";
 
 vi.mock("../src/api.js", () => ({ apiFetch: vi.fn() }));
 
@@ -871,17 +872,62 @@ describe("Platform Specifics replacement step (Phase 5 Prompt I)", () => {
       expect(screen.getByRole("button", { name: /Advanced/i })).toBeInTheDocument();
     });
 
-    // Integration test skipped: when run with full file, store sometimes receives default mock state; unit test above covers UPI behavior.
-    it.skip("does not show Bare metal IPI provisioning section and shows UPI message (integration)", async () => {
-      render(<App />);
-      await waitFor(
-        () => {
-          expect(screen.getByText(/Bare metal UPI: No installer-managed provisioning/)).toBeInTheDocument();
-        },
-        { timeout: 5000 }
-      );
-      expect(screen.queryByRole("heading", { name: /Bare metal IPI — Provisioning network/i })).not.toBeInTheDocument();
-    });
+    /**
+     * Replaces a test that was skipped from the initial public release until
+     * v2.1 Tranche 8B.4, and that asserted a contract the product never had.
+     *
+     * It expected bare-metal-upi to render "Bare metal UPI: No installer-managed
+     * provisioning network or host list...". That copy sat behind
+     * `!showAdvancedSection`, and the bare-metal-upi catalog declares six
+     * Advanced-gating params as `supported-ui` / `minVersion: 4.20` in every
+     * supported minor — so the branch was UNREACHABLE, and the skip's stated
+     * reason ("store sometimes receives default mock state") misread a
+     * deterministic failure as flakiness. 8B.4 removed the dead arm.
+     *
+     * What replaces it asserts the behaviour bare-metal-upi actually has, in
+     * both directions, so neither can regress unnoticed:
+     *   - the Advanced section IS the real UPI surface and must stay;
+     *   - the IPI provisioning section must not appear;
+     *   - the impossible fallback copy must not come back.
+     *
+     * Parameterised over every supported minor: the dead arm became dead
+     * because of per-minor catalog content, so a future minor whose catalog
+     * drops those params would silently resurrect it. This fails first.
+     *
+     * The enumeration reads SUPPORTED_MINORS from the canonical authority
+     * (`src/shared/versionPolicy.js`) rather than restating the list. A
+     * hardcoded array would have provided none of the protection this comment
+     * claims: onboarding a new minor would leave it unexercised here, which is
+     * precisely the gap that let the dead arm persist unnoticed.
+     */
+    for (const minor of SUPPORTED_MINORS) {
+      it(`bare-metal-upi at ${minor}: Advanced section is the platform surface, with no IPI section and no unreachable fallback copy`, () => {
+        const base = upiState();
+        const state = { ...base, version: { ...base.version, selectedMinor: minor } };
+        expect(getScenarioId(state)).toBe("bare-metal-upi");
+
+        render(
+          <AppContext.Provider
+            value={{ state, updateState: vi.fn(), loading: false, startOver: vi.fn(), setState: vi.fn() }}
+          >
+            <PlatformSpecificsStep />
+          </AppContext.Provider>
+        );
+
+        // The real supported surface for this scenario.
+        expect(screen.getByRole("button", { name: /Advanced/i })).toBeInTheDocument();
+
+        // UPI has no installer-managed provisioning network, so the IPI section must not render.
+        expect(
+          screen.queryByRole("heading", { name: /Bare metal IPI — Provisioning network/i })
+        ).not.toBeInTheDocument();
+
+        // The removed fallback must stay removed: it is unreachable whenever the
+        // Advanced section shows, so its presence would mean the gating broke.
+        expect(screen.queryByText(/No installer-managed provisioning/)).not.toBeInTheDocument();
+        expect(screen.queryByText(/No platform-specific options for this scenario yet/)).not.toBeInTheDocument();
+      });
+    }
   });
 });
 

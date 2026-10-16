@@ -8,7 +8,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "./api.js";
 import { detectUnknownSchema } from "./shared/versionHelpers.js";
 import { sanitizeStateForPersistence } from "../../shared/stateSanitizer.js";
@@ -16,6 +16,9 @@ import { sanitizeStateForPersistence } from "../../shared/stateSanitizer.js";
 const AppContext = createContext(null);
 
 const STORAGE_KEY = "airgap-architect-state";
+
+/** Debounce window for POST /api/state. Exported so tests cannot drift from it. */
+export const SAVE_DEBOUNCE_MS = 600;
 
 /**
  * State suitable for browser persistence (localStorage).
@@ -75,23 +78,121 @@ const useAppProvider = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  /**
+   * Persistence bookkeeping for the debounced POST /api/state.
+   *
+   * A plain debounce is not enough once anything needs to READ the server copy.
+   * "Tools -> Export Run" downloads GET /api/run/export, which serialises what the
+   * SERVER holds, so during the debounce window the exported file silently predates
+   * the user's most recent edit. The old code also swallowed save failures with
+   * `.catch(() => {})`, so a rejected save left the UI believing it was saved and
+   * the next export would quietly hand back pre-edit data.
+   *
+   * Generations make both cases decidable without guessing:
+   *   - every state change takes the next generation number;
+   *   - a save that succeeds advances `savedGenerationRef` to its own generation;
+   *   - anything pending is simply `pendingRef.generation > savedGenerationRef`.
+   *
+   * Comparing generations rather than storing a boolean is what makes out-of-order
+   * responses safe: a late reply for an older generation cannot move the watermark
+   * backwards, so it cannot mark a newer edit as saved.
+   */
+  const generationRef = useRef(0);
+  const savedGenerationRef = useRef(0);
+  const pendingRef = useRef(null);
+  const timerRef = useRef(null);
+  const controllerRef = useRef(null);
+  const inFlightRef = useRef(null);
+  const [saveError, setSaveError] = useState(null);
+
+  const persist = useCallback(async (entry) => {
+    const { generation, body } = entry;
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
+    const promise = (async () => {
+      try {
+        await apiFetch("/api/state", { method: "POST", body, signal: controller.signal });
+        if (generation > savedGenerationRef.current) {
+          savedGenerationRef.current = generation;
+        }
+        if (pendingRef.current && pendingRef.current.generation <= savedGenerationRef.current) {
+          pendingRef.current = null;
+        }
+        setSaveError(null);
+        return { ok: true };
+      } catch (err) {
+        // An abort is a supersede or an unmount, not a user-visible failure: the
+        // newer generation owns the outcome, so do not surface an error for it.
+        if (err?.name === "AbortError" || controller.signal.aborted) {
+          return { ok: false, aborted: true, error: "superseded" };
+        }
+        const message = err?.message || String(err);
+        setSaveError(message);
+        return { ok: false, error: message };
+      } finally {
+        if (inFlightRef.current?.generation === generation) inFlightRef.current = null;
+        if (controllerRef.current === controller) controllerRef.current = null;
+      }
+    })();
+
+    inFlightRef.current = { generation, promise };
+    return promise;
+  }, []);
+
   useEffect(() => {
     if (!state) return;
     const toPersist = getStateForPersistence(state);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toPersist));
-    const controller = new AbortController();
+    const body = JSON.stringify(toPersist);
+    localStorage.setItem(STORAGE_KEY, body);
+
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
+    pendingRef.current = { generation, body };
+
     const timeout = setTimeout(() => {
-      apiFetch("/api/state", {
-        method: "POST",
-        body: JSON.stringify(toPersist),
-        signal: controller.signal,
-      }).catch(() => {});
-    }, 600);
+      if (timerRef.current === timeout) timerRef.current = null;
+      persist({ generation, body });
+    }, SAVE_DEBOUNCE_MS);
+    timerRef.current = timeout;
+
     return () => {
       clearTimeout(timeout);
-      controller.abort();
+      if (timerRef.current === timeout) timerRef.current = null;
+      controllerRef.current?.abort();
     };
-  }, [state]);
+  }, [state, persist]);
+
+  /**
+   * Force any pending save to complete, and report whether the server copy is now
+   * current. Callers that are about to READ server-side state (Export Run) must
+   * await this and must not proceed on `{ ok: false }` — an export built on a
+   * failed save is a backup the user would trust and should not.
+   */
+  const flushPendingSave = useCallback(async () => {
+    if (inFlightRef.current) {
+      try {
+        await inFlightRef.current.promise;
+      } catch {
+        /* settled below via the generation watermark */
+      }
+    }
+
+    const pending = pendingRef.current;
+    if (!pending || pending.generation <= savedGenerationRef.current) {
+      // Nothing outstanding. Still refuse if the last attempt failed, because the
+      // server copy is then known to be behind the browser.
+      return saveError ? { ok: false, error: saveError } : { ok: true };
+    }
+
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    const result = await persist(pending);
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
+  }, [persist, saveError]);
 
   const updateState = (patch) =>
     setState((prev) => ({
@@ -130,12 +231,12 @@ const useAppProvider = () => {
     return next;
   };
 
-  return { state, setState, updateState, loading, schemaError, startOver };
+  return { state, setState, updateState, loading, schemaError, startOver, flushPendingSave, saveError };
 };
 
 const AppProvider = ({ children }) => {
   const ctx = useAppProvider();
-  const value = useMemo(() => ctx, [ctx.state, ctx.loading, ctx.schemaError]);
+  const value = useMemo(() => ctx, [ctx.state, ctx.loading, ctx.schemaError, ctx.saveError]);
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
 

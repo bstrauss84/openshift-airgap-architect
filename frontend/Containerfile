@@ -87,6 +87,19 @@ RUN chmod 0755 /opt/app-root/bin/oaa-entrypoint.sh \
     && rm -f /run/nginx.pid
 USER 1001
 
+# --- PROOF A: bind the shipped image to the source candidate --------------
+# See the matching block in backend/Containerfile. Empty defaults mean an
+# ad-hoc build stays unbound rather than claiming a revision it does not have;
+# scripts/release/buildImages.mjs supplies the real values. Certifying only
+# one of the two shipping images would certify half a release, so the frontend
+# carries the same labels as the backend.
+ARG APP_GIT_SHA=""
+ARG OAA_CANDIDATE_ID=""
+ARG OAA_BUILD_SUPPLIED_REVISION="false"
+LABEL org.opencontainers.image.revision="$APP_GIT_SHA" \
+      io.oaa.candidate-id="$OAA_CANDIDATE_ID" \
+      io.oaa.build-supplied-revision="$OAA_BUILD_SUPPLIED_REVISION"
+
 EXPOSE 5173
 
 # Writes /runtime-config.js from the environment, then hands off to the base

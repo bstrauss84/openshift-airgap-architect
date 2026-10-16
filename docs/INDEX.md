@@ -19,6 +19,8 @@ These files define current expected behavior and process.
 - Product behavior and operations: `README.md`
 - Contributor workflow: `docs/CONTRIBUTING.md`
 - Security and secrets policy: `docs/SECURITY_NOTES.md`
+- SBOM, vulnerability evidence and provenance status: `docs/security/SBOM_AND_PROVENANCE.md`
+- Release notes and the commit-coverage audit behind them: `docs/releases/`
 - Update workflow: `docs/UPDATING.md`
 - Data and docs source-of-truth rules:
   - `docs/DATA_AND_FRONTEND_COPIES.md`

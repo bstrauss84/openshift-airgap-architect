@@ -167,6 +167,15 @@ coverage/
 **/coverage/
 *.lcov
 
+# Release-certification evidence (scripts/release/certify.mjs).
+# Generated per run and regenerable; large (SBOMs, scanner reports, suite logs).
+# Committing it would also make the tree dirty on every run, which changes the
+# candidate id and invalidates the evidence just produced. Retention policy:
+# CI uploads summary.json/summary.md/axes as workflow artifacts, and a release
+# attaches them to the release bundle. The harness and its waiver file ARE
+# tracked (scripts/release/**) — only generated output is ignored.
+release-certification/
+
 # Research and analysis artifacts (keep local only)
 .research/
 

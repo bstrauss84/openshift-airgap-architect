@@ -152,7 +152,14 @@ describe("SecretInput handleBlur regression", () => {
       onload: null,
       result: fileContent
     };
-    global.FileReader = vi.fn(() => mockFileReader);
+    // `function`, not an arrow: the component calls `new FileReader()`, and
+    // vitest 4 refuses to construct a mock whose implementation is an arrow
+    // (it warns "did not use 'function' or 'class'"). Under vitest 2 the
+    // arrow silently worked, so `readAsText`/`onload` were the mock's; under
+    // vitest 4 construction yielded a bare object and onload was never wired.
+    // A constructor returning an object overrides `this`, so the test keeps
+    // exactly its previous semantics.
+    global.FileReader = vi.fn(function () { return mockFileReader; });
 
     // User drops a file
     const file = new File([fileContent], "pull-secret.json", { type: "application/json" });

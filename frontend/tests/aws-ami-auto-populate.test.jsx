@@ -71,7 +71,15 @@ describe("AMI auto-population behavior", () => {
       return Promise.resolve({});
     });
   });
-  afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+  // `clearAllMocks` is load-bearing, not belt-and-braces. Under vitest 2,
+  // restoreAllMocks() also wiped the call history of `vi.fn()` mocks; under
+  // vitest 4 it only restores spies created by vi.spyOn, so apiFetch's
+  // mock.calls ACCUMULATED across tests in this file. Every assertion below
+  // that does `.find(c => c[0].startsWith("/api/aws/ami"))` then matched the
+  // FIRST call of the whole file rather than of its own test, and silently
+  // asserted against the previous test's region. Clearing restores the
+  // per-test isolation these assertions were always written to assume.
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 
   it("selecting a region with empty AMI triggers auto-lookup", async () => {
     const state = makeAwsState("4.21", { aws: { region: "us-gov-west-1" } });

@@ -66,19 +66,39 @@ export const isVersionedDataReady = (minor) =>
   Boolean(minor) && areCatalogsLoadedForMinor(minor) && isDocsIndexResolvedForMinor(minor);
 import { SUPPORTED_MINORS } from "./shared/versionPolicy.js";
 import { compareVersions } from "../../shared/versionUtils.js";
+import { UPDATE_STATUS, isUrgentUpdateStatus, updateStatusOf } from "../../shared/updateStatus.js";
 import { apiFetch } from "./api.js";
 import { getFeedbackConfig } from "./feedbackApi.js";
 import { getVersionDependentStepIdSet } from "./wizardVersionGate.js";
 import { computeReleaseTransition } from "./shared/versionReleaseTransition.js";
 import { computeOperatorMinorInvalidation } from "./shared/operatorMinorReconciliation.js";
 
-/** Used for Landing banner and tests; true only when update is available and no error/unknown. */
+/**
+ * Whether to raise the URGENT "update recommended" banner.
+ *
+ * This used to be `enabled && isOutdated && !error`, where `isOutdated` is just
+ * `branchHeadSha !== runningSha`. That cannot distinguish "the source branch
+ * moved" from "a newer supported release was published", and in this repository
+ * it gets the answer backwards: there are no published GitHub Releases, and
+ * APP_BRANCH defaults to `main`, which still points at the v1.7.1 commit — so a
+ * running v2.1 build was told to update to something five months older.
+ *
+ * Urgency now requires a VERIFIED published release. No trusted release-identity
+ * source is implemented, so the backend always reports `releaseIdentity: null`
+ * and this is unreachable in production by construction. See
+ * shared/updateStatus.js.
+ */
 export function shouldShowUpdateBanner(updateInfo) {
-  if (!updateInfo?.enabled || !updateInfo?.isOutdated || updateInfo?.error) return false;
-  const cur = updateInfo?.currentSha && String(updateInfo.currentSha).toLowerCase();
-  const lat = updateInfo?.latestSha && String(updateInfo.latestSha).toLowerCase();
-  if (!cur || cur === "unknown" || !lat || lat === "unknown") return false;
-  return true;
+  return isUrgentUpdateStatus(updateStatusOf(updateInfo));
+}
+
+/**
+ * Whether to show the calm, non-urgent note that the configured branch carries a
+ * different commit. This is a development-build observation, not a release claim,
+ * so it is deliberately separate from the banner above.
+ */
+export function shouldShowDevelopmentUpdateNote(updateInfo) {
+  return updateStatusOf(updateInfo) === UPDATE_STATUS.DEVELOPMENT_BRANCH_AHEAD;
 }
 import { logAction } from "./logger.js";
 import { getExportRunFilename } from "./exportRunFilename.js";
@@ -430,7 +450,7 @@ const useShellView = () => {
 };
 
 const AppShell = () => {
-  const { state, loading, schemaError, startOver, updateState, setState } = useApp();
+  const { state, loading, schemaError, startOver, updateState, setState, flushPendingSave } = useApp();
   // `active` and `showLanding` come from ShellViewProvider, which sits ABOVE
   // VersionSupportGate so they survive the gate's per-minor data reload.
   const {
@@ -1315,7 +1335,29 @@ metadata:
   const exportRun = async () => {
     const filename = getExportRunFilename(state);
     logAction("export_run", { filename });
-    const data = await apiFetch("/api/run/export");
+
+    // GET /api/run/export serialises the SERVER's copy of the run, but edits reach
+    // the server through a 600 ms debounce. Exporting without flushing first hands
+    // the user a backup that silently predates their last edit, which is exactly
+    // the file they would restore from after an update. Refuse rather than export
+    // a stale snapshot the user would reasonably trust.
+    const flush = await flushPendingSave();
+    if (!flush.ok) {
+      setBlockedMessage(
+        `Export cancelled: your most recent changes could not be saved to the server (${flush.error}), ` +
+        `so the exported file would not match what you see here. Check that the backend is reachable, then try again.`
+      );
+      return;
+    }
+
+    let data;
+    try {
+      data = await apiFetch("/api/run/export");
+    } catch (err) {
+      setBlockedMessage(`Export failed: ${err?.message || String(err)}. Nothing was downloaded.`);
+      return;
+    }
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1448,12 +1490,38 @@ metadata:
           </div>
         </header>
         {shouldShowUpdateBanner(updateInfo) ? (
-          <div className="update-available-banner" role="status">
-            <strong>Update available</strong>
+          <div className="update-available-banner" role="alert">
+            <strong>Update available — update recommended as soon as practical.</strong>
             {" "}
-            (current: {(updateInfo.currentSha || "").slice(0, 7)}, latest: {(updateInfo.latestSha || "").slice(0, 7)} on {updateInfo.branch || "main"}).
+            Before updating, open <strong>Tools → Export Run</strong> and save a copy of your
+            current configuration. After updating, use <strong>Tools → Import Run</strong> to
+            restore a compatible saved configuration. Saved runs exclude credentials, so
+            re-enter any secrets afterwards. This run JSON is not the generated bundle ZIP,
+            and it does not back up job history, downloaded binaries or server data volumes.
             {" "}
-            See Tools → About for update steps.
+            <a
+              href={`https://github.com/${updateInfo.repo || "bstrauss84/openshift-airgap-architect"}/blob/main/docs/UPDATING.md`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Read the update guide
+            </a>
+            {" "}
+            (current build: {(updateInfo.currentSha || "").slice(0, 7)}).
+          </div>
+        ) : shouldShowDevelopmentUpdateNote(updateInfo) ? (
+          /*
+           * Deliberately NOT an update prompt. All this establishes is that the
+           * configured branch points at a different commit than the running build —
+           * which, with APP_BRANCH defaulting to `main`, can mean the branch is
+           * OLDER. Saying "update available" here would be untrue.
+           */
+          <div className="update-development-note" role="status">
+            This build is from a different commit than <strong>{updateInfo.branch || "main"}</strong>
+            {" "}
+            (build {(updateInfo.currentSha || "").slice(0, 7)}, branch {(updateInfo.latestSha || "").slice(0, 7)}).
+            {" "}
+            That is expected for a development build and does not indicate a published release.
           </div>
         ) : null}
         <div className="app landing-view">

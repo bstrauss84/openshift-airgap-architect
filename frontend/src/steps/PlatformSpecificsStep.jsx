@@ -5559,14 +5559,35 @@ See OpenShift ` + selectedMinor + ` documentation for full list of available fea
           </CollapsibleSection>
         )}
 
+        {/*
+          This block renders only when a scenario contributes NO platform-specific
+          section at all. It used to carry a `bare-metal-upi`-specific message
+          ("Bare metal UPI: No installer-managed provisioning network or host
+          list...") as one arm of a ternary. That arm was UNREACHABLE and was
+          removed in v2.1 Tranche 8B.4.
+
+          Proof: reaching this block requires `!showAdvancedSection`, and
+          `showAdvancedSection` is true whenever the scenario's catalog exposes any
+          of compute/controlPlane hyperthreading, capabilities, cpuPartitioningMode,
+          featureSet, minimalISO, bootArtifactsBaseURL or the vSphere IPI section.
+          The `bare-metal-upi` catalog declares six of those as `supported-ui`, with
+          a minVersion at or below the version-awareness baseline and no maxVersion,
+          in every currently supported minor — so `showAdvancedSection` is
+          unconditionally true for that scenario throughout the supported range. The
+          gating is catalog-driven, not state-driven, so no user input can turn it
+          off.
+
+          Behaviour is unchanged: for `bare-metal-upi` this block never rendered
+          and still never renders; every scenario that does reach it already took
+          the generic arm below.
+
+          frontend/tests/platform-specifics-step.test.jsx holds the executing,
+          per-minor guard against the arm being reintroduced.
+        */}
         {scenarioId && !showBootArtifactsBaseURL && !showProvisioningNetworkSection && !showAdvancedSection && !showVsphereIpiSection && (
           <section className="card">
             <div className="card-body">
-              <p className="note">
-                {scenarioId === "bare-metal-upi"
-                  ? "Bare metal UPI: No installer-managed provisioning network or host list. Configure API and Ingress via your load balancer and DNS (see docs)."
-                  : "No platform-specific options for this scenario yet."}
-              </p>
+              <p className="note">No platform-specific options for this scenario yet.</p>
             </div>
           </section>
         )}

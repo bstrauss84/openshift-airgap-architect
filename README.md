@@ -15,18 +15,27 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
 
 ## 🚀 Major v2.x update available
 
-This is a big one — the largest change since the project started, and it took a while.
-Thanks for your patience.
+**I'm sorry this major update has taken longer than expected, and thank you for your
+patience.** This is the largest change since the project started.
 
-OpenShift Airgap Architect is maintained by one person in spare time. Most of the last
-several months went into this update: the app is now built around the OpenShift version
-you select, rather than assuming a single release. It supports **OpenShift 4.20, 4.21
-and 4.22**, and the parameter catalogs, validation, documentation links and Field Guide
-all follow your chosen version.
+OpenShift Airgap Architect is maintained by one person in spare time, and much of the
+past several months has gone into rebuilding, validating and testing version-aware
+configuration support: the app is now built around the OpenShift version you select,
+rather than assuming a single release. The parameter catalogs, validation,
+documentation links and Field Guide all follow your chosen version. I appreciate
+everyone who has continued following and using the project.
 
-**If you are upgrading, please read the release notes before you start.** There are
-changes to how saved configurations work and a required version-confirmation step, and
-a few things behave differently on purpose.
+**v2.0 is released and supports OpenShift 4.20 and 4.21.** Support for **OpenShift
+4.22** arrives in v2.1, which is still in progress and **not yet released** — see
+[Release history](#release-history) for current status.
+
+**If you are upgrading, please read the release notes and the migration guide before
+you start.** There are changes to how saved configurations work and a required
+version-confirmation step, and a few things behave differently on purpose.
+
+**Before upgrading, save your configuration with Tools → Export Run**, and restore it
+afterwards with Tools → Import Run. Credentials are deliberately excluded and must be
+re-entered.
 
 - [Changelog](CHANGELOG.md) — everything, newest first
 - [v2.1 release notes](docs/releases/v2.1.0.md) — OpenShift 4.22 support
@@ -338,7 +347,8 @@ The `manifests/` directory contains:
 - Resource requests and limits defined (backend: 500m-2000m CPU / 1-4Gi RAM, frontend: 100m-500m CPU / 256-512Mi RAM)
 - Request correlation with X-Request-ID propagation
 - Backend schema validation for all API endpoints (Zod)
-- Restricted-v2 SCC compatible (UID 1001, non-root execution)
+- Non-root execution (UID 1001). **`restricted-v2` SCC admission is unverified** — see
+  the note under [Security](#security) before deploying to OpenShift.
 
 ### Resource Requirements
 
@@ -433,8 +443,27 @@ See `manifests/README.md` for complete configuration reference.
 **Container security:**
 - UBI 9 base images (Red Hat Universal Base Image)
 - Non-root execution (UID 1001, fsGroup 1001)
-- Restricted-v2 SCC compatible (OpenShift)
 - No privileged escalation required
+
+> **`restricted-v2` SCC admission has never been tested, and the manifests as shipped
+> are unlikely to be admitted as-is.** Earlier revisions of this README and the
+> changelog stated "Restricted-v2 SCC compatible". That was never verified against a
+> live OpenShift admission controller, and two things argue against it:
+>
+> - `manifests/base/` hardcodes `runAsUser: 1001` and `fsGroup: 1001`. Under
+>   `restricted-v2` OpenShift **assigns** a UID and fsGroup from the namespace's own
+>   `openshift.io/sa.scc.uid-range`, and an explicitly requested value outside that
+>   range is rejected at admission. 1001 is not in a default namespace range.
+> - The backend image's default entrypoint expects to start as root so it can chown the
+>   data directory.
+>
+> What *has* been verified is narrower: the backend image's files and Node runtime are
+> usable by an arbitrary UID with GID 0, checked locally under Podman with the real
+> entrypoint bypassed. That is a useful signal, not an admission test.
+>
+> Tracked as **PROD-039** (SCC admission and arbitrary-UID validation, `active`) and
+> **PROD-003** (`done_pending_verification`). If you deploy to OpenShift, expect to
+> adjust the securityContext or grant an SCC, and please report what you find.
 
 **Network security:**
 - TLS edge termination on Routes (OpenShift)
@@ -488,7 +517,9 @@ For comprehensive deployment guidance, see:
 <a id="updating-the-app"></a>
 ## Updating the app
 
-When the Landing page or **Tools → About** shows that an update is available, follow **[docs/UPDATING.md](docs/UPDATING.md)** for your deployment. Build info and update checks depend on how the image was built (see [Build info and update checks](#build-info-and-update-checks)); builds from a git clone get real SHA/time; builds from a tarball without `.git` show "unknown" and cannot report update availability.
+Before updating, open **Tools → Export Run** and save your configuration JSON; after updating, restore it with **Tools → Import Run** and re-enter your credentials, which are deliberately excluded. A Run JSON is not a full backup — see **[docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)** for the data volume. Follow **[docs/UPDATING.md](docs/UPDATING.md)** for your deployment.
+
+Build info and update checks depend on the **`APP_GIT_SHA` build-arg being passed from the host** (see [Build info and update checks](#build-info-and-update-checks)); `.git` is excluded from the build context, so building from a git clone is *not* on its own enough — without the build-arg the SHA shows "unknown" and update checks cannot run.
 
 <a id="generating-assets"></a>
 ## Generating assets
@@ -745,9 +776,9 @@ services:
       - /path/to/large-drive/oc-mirror:/data/oc-mirror:Z
 ```
 
-`REGISTRY_AUTH_FILE` is intentionally NOT set in `docker-compose.yml`. The backend reads `REGISTRY_AUTH_FILE` from its own environment to locate the auth JSON, then passes credentials to oc-mirror via `--authfile=<path>` — the env var itself is stripped from the child oc-mirror process because oc-mirror v2's embedded cache registry (distribution/distribution v3) interprets `REGISTRY_*` env vars as registry config keys, causing a goroutine panic at startup (`registry/handlers/app.go NewApp`). Set `REGISTRY_AUTH_FILE` only in a `compose.override.yml` alongside the file mount. This also satisfies the "retain Red Hat pull secret" option in the Blueprint tab — the mounted file is available to both the Operators scan and the Run oc-mirror tab.
+`REGISTRY_AUTH_FILE` is intentionally NOT set in `docker-compose.yml`. The backend reads `REGISTRY_AUTH_FILE` from its own environment to locate the auth JSON, then passes credentials to oc-mirror via `--authfile=<path>` — the env var itself is stripped from the child oc-mirror process because oc-mirror v2's embedded cache registry (distribution/distribution v3) interprets `REGISTRY_*` env vars as registry config keys, causing a goroutine panic at startup (`registry/handlers/app.go NewApp`). Set `REGISTRY_AUTH_FILE` only in a `compose.override.yml` alongside the file mount. A mounted `REGISTRY_AUTH_FILE` is used by both the Operators scan and the Run oc-mirror tab, so you do not need to retain a pull secret from Blueprint for those operations. (`REGISTRY_AUTH_FILE` and the mounted *pull secret* described under [Mounted Red Hat pull secret](#mounted-red-hat-pull-secret) are separate mechanisms: operator scans read only the former.)
 
-Alternatively, on the Blueprint step check **"Retain pull secret for this session"** after entering your Red Hat pull secret. The session-retained secret is then available as a one-click option in the Run oc-mirror Authentication section for the mirror-to-disk and mirror-to-mirror workflows.
+Alternatively, on the Blueprint step tick **"Retain pull secret for use on subsequent pages"** after entering your Red Hat pull secret. The session-retained secret is then available as a one-click option in the Run oc-mirror Authentication section for the mirror-to-disk and mirror-to-mirror workflows.
 
 ### Running oc-mirror without Compose (local / standalone)
 
@@ -964,7 +995,7 @@ See **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** for root cause, design, and Po
 <a id="mounted-red-hat-pull-secret"></a>
 ## Mounted Red Hat pull secret
 
-In pipeline or hardened-container environments you can pre-mount a Red Hat pull secret file into the backend container instead of pasting it in the UI each session.
+In pipeline or hardened-container environments you can pre-mount a Red Hat pull secret file into the backend container instead of pasting it in the UI each session. The file is read by the backend only; **its contents are never sent to the browser**.
 
 **Detection priority (first match wins):**
 1. `PULL_SECRET_FILE` env var — explicit path override
@@ -975,9 +1006,16 @@ In pipeline or hardened-container environments you can pre-mount a Red Hat pull 
 The file must be valid JSON with an `.auths` key containing at least one Red Hat registry entry (`registry.redhat.io`, `quay.io`, `cloud.openshift.com`, or `registry.connect.redhat.com`).
 
 When a mounted secret is detected:
-- **Blueprint step** — the pull secret field is pre-populated automatically (you can override or clear it).
-- **Run oc-mirror step** — a "Use mounted Red Hat pull secret" option appears in the Authentication section for `mirrorToDisk` and `mirrorToMirror` modes.
-- The secret is **never stored to disk or database** — it is held in memory only for the lifetime of the backend process.
+- **Blueprint step** — an informational badge reports that a mounted secret is present on the server. The pull secret field is left **empty**, and the credential's contents are never sent to the browser. Paste a secret there only if you want to use a *different* one.
+- **Run oc-mirror step** — a "Use mounted Red Hat pull secret" option appears in the Authentication section for `mirrorToDisk` and `mirrorToMirror` modes. The backend authenticates with the mounted file server-side.
+- **Operator catalog scans** authenticate separately, through `REGISTRY_AUTH_FILE` — a mounted *pull secret* does not feed a scan. See [Mounting a Red Hat pull secret for oc-mirror](#mounting-a-red-hat-pull-secret-for-oc-mirror-persistent-no-paste-required).
+- The secret is **never stored to disk or database, and never transmitted to the browser** — it is held in backend memory only, for the lifetime of the backend process.
+
+> Prior releases pre-populated the Blueprint field from the mounted file. That required an
+> endpoint which returned the raw credential to any caller, so it was withdrawn in v2.1
+> (`GET /api/secrets/rh-pull-secret/content` now returns `410 ENDPOINT_WITHDRAWN`). Only a
+> non-sensitive `{ available: boolean }` probe remains. Nothing else about the mounted-secret
+> workflow changed: server-side mirror operations still use it.
 
 **Example `compose.override.yml`** to mount a pull secret:
 ```yaml
@@ -1071,7 +1109,7 @@ The wizard walks through Blueprint → Methodology → scenario-specific steps �
 
 ![Landing page: Install, Upgrade, Operator mirroring cards](docs/images/landing.png?v=2)
 
-**Blueprint — Foundational choices.** Target platform, CPU architecture, OpenShift release (channel + patch), and Red Hat pull secret. Check "Retain pull secret for this session" to make it available for operator scan and Run oc-mirror without re-pasting.
+**Blueprint — Foundational choices.** Target platform, CPU architecture, OpenShift release (channel + patch), and Red Hat pull secret. Tick "Retain pull secret for use on subsequent pages" to make it available for operator scan and Run oc-mirror without re-pasting.
 
 ![Blueprint: platform, architecture, release, pull secret](docs/images/blueprint.png?v=2)
 
@@ -1179,15 +1217,21 @@ Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, 
 | [v2.1 release notes](docs/releases/v2.1.0.md) | OpenShift 4.22 support, operator preset corrections, version-transition safety |
 | [v2.0 release notes](docs/releases/v2.0.0.md) | The version-awareness rebuild; OpenShift 4.20 and 4.21 support |
 | [Migration guide: v1.x → v2.0](docs/MIGRATION_GUIDE_v1_to_v2.md) | What changes when upgrading from v1.x |
+| [SBOM and provenance](docs/security/SBOM_AND_PROVENANCE.md) | Software bill of materials, vulnerability evidence and signing — **nothing published yet**, and what has to be true before anything is |
+| [Release-history evidence](docs/releases/evidence/README.md) | The commit-by-commit audit behind these notes |
 
 **Supported OpenShift versions:** 4.20 (baseline), 4.21, 4.22. Later releases are
 rejected deterministically rather than approximated — see the v2.1 notes for why.
 
+**Downloadable releases:** there are **no published GitHub Releases** for this
+repository. Git tags exist up to `v2.0.0`, but a tag is not a release page: there is no
+release artifact, no SBOM and no checksum file to download.
+
 ### At a glance
 
-- **v2.1.0** *(in progress)* — OpenShift 4.22 support, with per-version parameter catalogs, Field Guide and documentation. Adds the bare-metal provisioning network gateway setting, enforces supported CPU architectures at generation, and makes operator presets version-aware.
-- **v2.0.0** — Version-awareness architecture complete. Supports OpenShift 4.20 (baseline) and 4.21, with version-specific parameter catalogs, Field Guide content and metadata-driven annotations.
-- **v1.7.0** — Latest stable v1.x release (2026-05-28)
+- **v2.1.0** *(in progress, not released)* — OpenShift 4.22 support, with per-version parameter catalogs, Field Guide and documentation. Adds the bare-metal provisioning network gateway setting, enforces supported CPU architectures at generation, and makes operator presets version-aware.
+- **v2.0.0** — Version-awareness architecture complete. Supports OpenShift 4.20 (baseline) and 4.21, with version-specific parameter catalogs, Field Guide content and metadata-driven annotations. Tagged 2026-10-06.
+- **v1.7.1** — Latest stable v1.x release (2026-05-29), and the current head of `main`.
 
 **Version identity:** the application-code version does not by itself imply
 enterprise/customer-distribution readiness, security certification, signed/SBOM/provenance

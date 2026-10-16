@@ -226,6 +226,86 @@ describe("security gate — shipped dependency scope is stage-aware", () => {
     );
   });
 
+  test("a copied tree is scoped by the install that BUILT it, not by the copy", () => {
+    // There are two independent implementations of this rule — this shell
+    // function and shippedInstallScope() in axes/dependencies.mjs. They must
+    // not drift: the same cases are asserted in scripts/release/axes.test.mjs.
+    assert.strictEqual(
+      scopeOf("FROM node AS builder\nRUN npm ci --omit=dev\n\nFROM node\nCOPY --from=builder /app/node_modules /app/node_modules\n"),
+      "prod"
+    );
+    assert.strictEqual(
+      scopeOf("FROM node AS builder\nRUN npm ci\n\nFROM node\nCOPY --from=builder /app/node_modules /app/node_modules\n"),
+      "all"
+    );
+  });
+
+  test("the flag and command vocabulary matches the JS classifier", () => {
+    // Parity cases that previously diverged. The matching assertions live in
+    // scripts/release/axes.test.mjs; changing one implementation alone must
+    // break one of these two files.
+    assert.strictEqual(
+      scopeOf("FROM node AS builder\nRUN npm ci --only=prod\n\nFROM node\nCOPY --from=builder /app/node_modules /app/node_modules\n"),
+      "prod"
+    );
+    assert.strictEqual(
+      scopeOf("FROM node AS builder\nRUN npm i --omit=dev\n\nFROM node\nCOPY --from=builder /app/node_modules /app/node_modules\n"),
+      "prod"
+    );
+    assert.strictEqual(scopeOf("FROM node\nRUN npm i\nCMD [\"node\"]\n"), "all");
+  });
+
+  test("a final stage that copies a prod tree AND installs on top ships everything", () => {
+    // Mirror of the same case in scripts/release/axes.test.mjs. This is the
+    // one shape where resolving the builder stage was WEAKER than the
+    // pre-8D "any copy is all" rule.
+    assert.strictEqual(
+      scopeOf("FROM node AS builder\nRUN npm ci --omit=dev\n\nFROM node\nCOPY --from=builder /app/node_modules /app/node_modules\nRUN npm i express\n"),
+      "all"
+    );
+    assert.strictEqual(
+      scopeOf("FROM node AS builder\nRUN npm ci --omit=dev\n\nFROM node\nCOPY --from=builder /app/node_modules /app/node_modules\nRUN npm i --omit=dev express\n"),
+      "prod"
+    );
+  });
+
+  test("a COPY whose --from is not the first flag is still seen", () => {
+    // `--chown` before `--from` used to classify as "none", which here means
+    // an unconditional PASS — the audit would be skipped for a stage that
+    // ships the entire tree.
+    assert.strictEqual(
+      scopeOf("FROM node AS builder\nRUN npm ci\n\nFROM node\nCOPY --chown=1001:0 --from=builder /app/node_modules ./node_modules\n"),
+      "all"
+    );
+    assert.strictEqual(
+      scopeOf("FROM node AS builder\nRUN npm ci --omit=dev\n\nFROM node\nCOPY --chown=1001:0 --from=builder /app/node_modules ./node_modules\n"),
+      "prod"
+    );
+  });
+
+  test("a chained `&&` install is read as two installs, not one", () => {
+    assert.strictEqual(scopeOf("FROM node\nRUN npm ci --omit=dev && npm ci\n"), "all");
+    assert.strictEqual(scopeOf("FROM node\nRUN npm ci --omit=dev && npm i --omit=dev\n"), "prod");
+  });
+
+  test("FROM flags do not hide the stage alias", () => {
+    assert.strictEqual(
+      scopeOf("FROM --platform=linux/amd64 node AS builder\nRUN npm ci --omit=dev\n\nFROM node\nCOPY --from=builder /app/node_modules /app/node_modules\n"),
+      "prod"
+    );
+  });
+
+  test("an unresolvable copy source over-reports rather than under-reports", () => {
+    assert.strictEqual(
+      scopeOf("FROM node\nCOPY --from=somewhere-else /app/node_modules /app/node_modules\n"),
+      "all"
+    );
+    assert.strictEqual(
+      scopeOf("FROM node AS builder\nCOPY node_modules /app/node_modules\n\nFROM node\nCOPY --from=builder /app/node_modules /app/node_modules\n"),
+      "all"
+    );
+  });
+
   test("a single-stage image with a bare `npm ci` is reported as shipping the dev tree", () => {
     // The pre-PROD-026 shape. Reporting this as "prod" is the original defect.
     assert.strictEqual(

@@ -350,11 +350,57 @@ shipped_install_scope() { # containerfile
   # Everything from the last FROM onwards is the shipped stage.
   final_stage="$(printf '%s\n' "$body" | awk 'BEGIN{IGNORECASE=1} /^[[:space:]]*FROM[[:space:]]/{buf=""} {buf=buf $0 "\n"} END{printf "%s", buf}')"
 
-  copied_modules="$(printf '%s\n' "$final_stage" | grep -iE 'COPY[[:space:]]+--from=' | grep -E 'node_modules' || true)"
+  # `--from=` need not be the first flag: `COPY --chown=1001:0 --from=builder`
+  # is idiomatic, and requiring it first classified that shape as "none" —
+  # which records an unconditional PASS below, skipping the audit for a stage
+  # that ships the whole tree.
+  copied_modules="$(printf '%s\n' "$final_stage" | grep -iE 'COPY([[:space:]]+--[^[:space:]]+)*[[:space:]]+--from=' | grep -E 'node_modules' || true)"
   installs="$(printf '%s\n' "$final_stage" | grep -oE 'npm (ci|install|i)[^&|]*' || true)"
 
   if [ -z "$installs" ] && [ -z "$copied_modules" ]; then echo "none"; return; fi
-  if [ -n "$copied_modules" ]; then echo "all"; return; fi
+
+  # A copied tree ships whatever the stage that BUILT it installed. Reading
+  # this as unconditionally "all" was accurate only while every such copy came
+  # from a bare `npm ci`; a builder that ran `--omit=dev` ships a
+  # production-only tree, and calling that "all" audits dev advisories as
+  # though they shipped. Resolve the `--from=` stage and read ITS installs.
+  # An unresolvable source stays "all": this value decides whether dev
+  # advisories count against the release, so unknown provenance must
+  # over-report, never under-report.
+  if [ -n "$copied_modules" ]; then
+    local src_stage src_body src_installs
+    src_stage="$(printf '%s\n' "$copied_modules" | grep -oiE -- '--from=[^[:space:]]+' | head -1 | cut -d= -f2)"
+    if [ -z "$src_stage" ]; then echo "all"; return; fi
+    src_body="$(printf '%s\n' "$body" | awk -v want="$src_stage" '
+      BEGIN{IGNORECASE=1; idx=-1; cur=-1; found=0}
+      /^[[:space:]]*FROM[[:space:]]/{
+        cur++; alias="";
+        if (match($0, /[[:space:]]+[Aa][Ss][[:space:]]+[^[:space:]]+[[:space:]]*$/)) {
+          alias=substr($0, RSTART); gsub(/^[[:space:]]*[Aa][Ss][[:space:]]*/, "", alias); gsub(/[[:space:]]*$/, "", alias);
+        }
+        sel = (alias != "" && tolower(alias) == tolower(want)) || (want ~ /^[0-9]+$/ && cur == want+0);
+        if (sel) { found=1; buf="" } else { found=0 }
+      }
+      found { buf = buf $0 "\n" }
+      END { printf "%s", buf }')"
+    src_installs="$(printf '%s\n' "$src_body" | grep -oE 'npm (ci|install|i)[^&|]*' || true)"
+    if [ -z "$src_installs" ]; then echo "all"; return; fi
+    if printf '%s\n' "$src_installs" | grep -qvE -- '--omit=dev|--production|--only=prod'; then
+      echo "all"; return
+    fi
+    # The builder shipped a prod-only tree — but the final stage may install on
+    # top of what it copied. Returning the builder's scope alone made
+    # `COPY --from=builder …` + `RUN npm i express` report "prod" for a stage
+    # that installs the full dev tree, strictly weaker than the pre-8D
+    # behaviour of returning "all" for any copy. Both sources ship, so the
+    # result is the weaker of the two.
+    if [ -n "$installs" ] && printf '%s\n' "$installs" | grep -qvE -- '--omit=dev|--production|--only=prod'; then
+      echo "all"
+    else
+      echo "prod"
+    fi
+    return
+  fi
   if printf '%s\n' "$installs" | grep -qvE -- '--omit=dev|--production|--only=prod'; then
     echo "all"
   else
@@ -415,19 +461,46 @@ audit_shipped frontend "$REPO_ROOT/frontend" "$REPO_ROOT/frontend/Containerfile"
 
 # ---------------------------------------------------------------------------
 # 8. Container / base-image applicability
-#    N/A only when no shipping-image surface changed, with diff evidence.
+#
+# THREE DEFECTS WERE FIXED HERE TOGETHER, because fixing any one alone makes
+# another worse. All three are documented at length in image-surface.sh.
+#
+#   1. FALSE GREEN ON COMMITTED CHANGES. This block used to diff against HEAD,
+#      i.e. uncommitted work only. Reproduced end-to-end: commit a runtime
+#      base-image swap, re-run, and the gate reported
+#        "Container scan N/A ... nothing changed in this tranche"  OVERALL: GREEN
+#      The window opened at exactly the moment a release was cut. The baseline
+#      is now explicit and the comparison includes committed work.
+#
+#   2. FILENAME-ONLY CLASSIFICATION. Any package.json edit forced INCOMPLETE,
+#      including a one-line test-glob change with zero dependency lines. A
+#      gate that cries wolf on metadata gets waved through on real bumps.
+#      Manifests are now classified on PARSED CONTENT, and only ever to
+#      REMOVE a hit that JSON proves cannot change installed bytes.
+#
+#   3. NO ROUTE TO PASS. Even with a scanner installed the old block returned
+#      INCOMPLETE unconditionally, so candidate-bound evidence could never be
+#      recognised and the check was decorative. There is now exactly one route
+#      to PASS, and it requires evidence bound to each image's own config
+#      digest with a database inside the freshness window.
+#
+# NET POLICY EFFECT, stated explicitly rather than left to be discovered:
+# STRICTER on (1) and (3); NARROWER on (2) but only on reproducible semantic
+# evidence, never on a path convention. Absent a declared baseline the answer
+# is INCOMPLETE — never N/A, never GREEN, and never a silently substituted
+# origin/main or origin/develop.
 # ---------------------------------------------------------------------------
-CHANGED="$(git diff --name-only HEAD; git ls-files --others --exclude-standard)"
-IMAGE_SURFACE="$(printf '%s\n' "$CHANGED" | grep -iE '(^|/)(Containerfile|Dockerfile)|(^|/)(backend|frontend|shared)/package(-lock)?\.json$|^package(-lock)?\.json$|\.containerignore$|(^|/)entrypoint' || true)"
-if [ -n "$IMAGE_SURFACE" ]; then
-  if have trivy || have grype; then
-    record "Container scan" "INCOMPLETE" "shipping-image surface changed; image scan not executed by this gate"
-  else
-    record "Container scan" "INCOMPLETE" "shipping-image surface changed and no image scanner installed"
-  fi
-else
-  record "Container scan" "N/A" "no Containerfile/Dockerfile, base image, or production dependency/lockfile changed in this tranche"
-fi
+# shellcheck source=scripts/security/image-surface.sh
+. "$REPO_ROOT/scripts/security/image-surface.sh"
+SCAN_VERDICT="$(cd "$REPO_ROOT" && oaa_container_scan_verdict "$REPO_ROOT")"
+SCAN_STATUS="$(printf '%s' "$SCAN_VERDICT" | cut -f1)"
+SCAN_DETAIL="$(printf '%s' "$SCAN_VERDICT" | cut -f2-)"
+case "$SCAN_STATUS" in
+  PASS|"N/A"|INCOMPLETE|RED) ;;
+  # An unrecognised status must not reach record() and be treated as a pass.
+  *) SCAN_STATUS="INCOMPLETE"; SCAN_DETAIL="container scan verdict was unrecognised: $SCAN_VERDICT" ;;
+esac
+record "Container scan" "$SCAN_STATUS" "$SCAN_DETAIL"
 
 # ---------------------------------------------------------------------------
 # Report

@@ -263,7 +263,14 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           };
         });
       })
-      .finally(() => setLoadingCatalogs(false));
+      .finally(() => setLoadingCatalogs(false))
+      // Same shape as the initial Cincinnati channel load: apiFetch rejects on
+      // a network failure and on any non-2xx, and `.finally` re-raises what it
+      // was handed, so an unreachable backend on this step produced an
+      // unhandled rejection. Behaviour is otherwise unchanged — the loading
+      // flag is already cleared above and the existing catalogs are left
+      // alone rather than being replaced with an empty set.
+      .catch(() => {});
   }, [selectionsKey]);
 
   useEffect(() => {
@@ -823,11 +830,11 @@ Authentication credentials for pulling Operator catalog metadata from Red Hat re
 
 **Pull secret sources:**
 
-**1. Mounted pull secret:**
-If running in a container with a pull secret mounted, it's automatically detected and used. No need to paste one here.
+**1. Mounted registry auth file:**
+If the backend has \`REGISTRY_AUTH_FILE\` mounted, the scan uses it automatically. No need to paste one here. (A mounted \`PULL_SECRET_FILE\` is a different mechanism and is used for oc-mirror runs, not for scans.)
 
 **2. Retained from Blueprint:**
-If you provided a pull secret on the Blueprint tab and checked "Retain for oc-mirror runs", it's carried forward here.
+If you provided a pull secret on the Blueprint tab and ticked "Retain pull secret for use on subsequent pages", it's carried forward here.
 
 **3. Paste for this scan only:**
 Paste a fresh pull secret just for this operator scan. It's not stored or exported.

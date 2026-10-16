@@ -15,15 +15,16 @@ import cors from "cors";
 import fs from "node:fs";
 import path from "node:path";
 import { ZipArchive } from "archiver";
+import { pipeline } from "node:stream/promises";
 import { spawn } from "node:child_process";
 import { nanoid } from "nanoid";
-import logger, { generateErrorId } from "./logger.js";
+import logger from "./logger.js";
 import { loggingMiddleware } from "./middleware/logging.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
 import { getMetrics, getMetricsContentType } from "./metrics.js";
 import { fetchChannels, fetchPatchesForChannel } from "./cincinnati.js";
 import { runCincinnatiBackgroundJob } from "./cincinnatiJob.js";
-import { authAvailable, getCatalogs, getResults, runScanJob } from "./operators.js";
+import { authAvailable, getCatalogs, getResults, runScanJob, createSharedAuthRelease } from "./operators.js";
 import { resolveOcMirrorBinary, getRuntimeArch, getLocalBinaryArch, getBinariesForExportArch } from "./ocMirrorRuntime.js";
 import { db, dataDir } from "./db.js";
 import { ensureInstaller, getAwsAmi, getAwsRegions, installerPathFor, warmInstallerStream } from "./installer.js";
@@ -43,6 +44,7 @@ import {
   safeUnlink,
   createJob,
   updateJob,
+  updateJobUnlessTerminal,
   updateJobMetadata,
   appendJobOutput
 } from "./utils.js";
@@ -50,11 +52,20 @@ import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallCo
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
 import { migrateStateToV3, isStateV3 } from "../../shared/stateMigration.js";
 import { validateBmcVerifyCA } from "../../shared/bmcVerifyCA.js";
+import { resolveUpdateStatus, isUrgentUpdateStatus } from "../../shared/updateStatus.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import { assertSupportedOpenShiftMinorForGeneration, isSupportedMinor, buildUnsupportedVersionError } from "./versionPolicy.js";
-import { createIntegrityTracker, MANIFEST_FILENAME, validateArchiveBuffer, ZIP_LIMITS } from "./exportIntegrity.js";
-import { sanitizeStateForPersistence } from "./stateSanitizer.js";
+// validateArchiveBuffer and ZIP_LIMITS are intentionally not imported here: the
+// only route that used them was the withdrawn /api/bundle.import (see below).
+// They remain exported from exportIntegrity.js for its own unit tests and for
+// the eventual DOC-127 validator UI.
+import { createIntegrityTracker, MANIFEST_FILENAME } from "./exportIntegrity.js";
+import { trackTempArtifact, untrackTempArtifact, releaseAllTempArtifacts } from "./tempArtifacts.js";
+import { createShutdownHandler } from "./shutdown.js";
+import { activeProcesses } from "./processRegistry.js";
+import { sanitizeStateForPersistence, sanitizeCredentialFields } from "./stateSanitizer.js";
+import { assertExportableMirrorOutput, MirrorOutputPolicyError } from "./mirrorOutputPolicy.js";
 import {
   validateBody,
   stateUpdateSchema,
@@ -104,70 +115,40 @@ const port = process.env.PORT || 4000;
 
 app.use(cors());
 
-const BUNDLE_IMPORT_COMPATIBILITY_CODES = new Set([
-  'UNSUPPORTED_VERSION', 'UNSUPPORTED_MANIFEST_SCHEMA',
-  'INCOMPATIBLE_STATE_SCHEMA', 'INCOMPATIBLE_MANIFEST_SCHEMA', 'UNLOCKED_VERSION'
-]);
-
-app.post("/api/bundle.import",
-  (req, res, next) => {
-    const mediaType = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
-    if (mediaType !== 'application/zip' && mediaType !== 'application/octet-stream') {
-      return res.status(415).json({ error: 'Unsupported media type', code: 'WRONG_MEDIA_TYPE' });
-    }
-    next();
-  },
-  (req, res, next) => {
-    express.raw({
-      type: ['application/zip', 'application/octet-stream'],
-      limit: ZIP_LIMITS.MAX_ARCHIVE_BYTES
-    })(req, res, (err) => {
-      if (err) {
-        if (err.type === 'entity.too.large') {
-          return res.status(413).json({
-            error: 'Request body exceeds maximum archive size',
-            code: 'PAYLOAD_TOO_LARGE'
-          });
-        }
-        const errorId = generateErrorId();
-        logger.error({ err, errorId }, 'Unexpected error parsing archive upload');
-        return res.status(500).json({
-          error: 'Internal validation error',
-          code: 'INTERNAL_ERROR',
-          errorId
-        });
-      }
-      next();
-    });
-  },
-  (req, res) => {
-    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      return res.status(400).json({ error: 'Empty or missing request body', code: 'EMPTY_BODY' });
-    }
-    try {
-      const result = validateArchiveBuffer(req.body);
-      return res.json({
-        valid: true,
-        manifestSchemaVersion: result.manifestSchemaVersion,
-        stateSchemaVersion: result.stateSchemaVersion,
-        selectedMinor: result.selectedMinor,
-        fileCount: result.fileCount
-      });
-    } catch (err) {
-      if (err.code) {
-        const status = BUNDLE_IMPORT_COMPATIBILITY_CODES.has(err.code) ? 422 : 400;
-        return res.status(status).json({ error: err.message, code: err.code });
-      }
-      const errorId = generateErrorId();
-      logger.error({ err, errorId }, 'Unexpected error during archive validation');
-      return res.status(500).json({
-        error: 'Internal validation error',
-        code: 'INTERNAL_ERROR',
-        errorId
-      });
-    }
-  }
-);
+// POST /api/bundle.import is WITHDRAWN in v2.1. See DOC-127.
+//
+// The endpoint was an unauthenticated archive validator. It was the only
+// ingress that escaped the 10 MB JSON cap (it accepted 512 MiB), and
+// validateArchiveBuffer inflates every entry into memory, CRC32s it in a
+// per-byte JS loop and SHA-256s it again — all synchronously, with no
+// concurrency cap. A small compressed body therefore bought ~1 GiB of RSS and
+// seconds of blocked event loop, which starved the /api/health liveness probe.
+// No frontend, CLI, e2e test or documented workflow ever called it, so the
+// whole surface was a liability with no user.
+//
+// This handler MUST stay here — after cors(), before express.json() below —
+// and MUST remain terminal (never call next()). It replies without reading the
+// request body, so no bytes are buffered, inflated or hashed; Node drains the
+// unread remainder in streaming fashion when the response finishes. Moving it
+// below a body parser, or restoring the old handlers, reopens the DoS.
+//
+// app.all, not app.post, so no other verb can reach a differently-shaped path.
+// 410 rather than 404: a 404 here is indistinguishable from a routing or
+// reverse-proxy misconfiguration during incident triage, and Express's default
+// 404 would emit HTML, breaking the JSON error contract every other route
+// keeps. The endpoint is already named in published docs, so 410 leaks nothing.
+//
+// The validator itself (exportIntegrity.js) is deliberately NOT deleted: the
+// export path shares it, and DOC-127 will reintroduce validation behind a real
+// UI. Its unit tests stay green as the regression net for that future work.
+// Before any such reintroduction the resource limits must come down and gain a
+// compression-ratio cap and a concurrency bound — see the Findings Queue.
+app.all("/api/bundle.import", (req, res) => {
+  res.status(410).json({
+    error: "The bundle validation endpoint has been withdrawn.",
+    code: "ENDPOINT_WITHDRAWN"
+  });
+});
 
 app.use(express.json({ limit: "10mb" }));
 
@@ -182,6 +163,53 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 markStaleJobs();
+
+/**
+ * Collect temporary artifacts a previous run left behind.
+ *
+ * The shutdown sequence releases everything this process owns, but it only
+ * runs for SIGTERM/SIGINT. A SIGKILL — which is what the compose profile
+ * delivers if an export is mid-`podman save`, and what an OOM or a host loss
+ * delivers always — leaves registry pull secrets, ssh key material,
+ * registries.d directories and generated imageset configs on the /data
+ * volume indefinitely. `markStaleJobs()` above reconciles the job rows; this
+ * reconciles the files, and it is the only thing that ever retries an
+ * artifact whose removal failed during a previous shutdown.
+ *
+ * Boot is the one moment when nothing of ours is in flight, so this is safe
+ * by construction. Scoped to DATA_DIR/tmp and to our own filename prefixes on
+ * purpose: DATA_DIR is single-instance (one SQLite writer), whereas
+ * os.tmpdir() is shared, and sweeping that by pattern could destroy a
+ * concurrent process's live staging. The temp-artifact registry makes the
+ * same promise for the same reason.
+ */
+const OWNED_TEMP_PREFIXES = /^(registry-auth-|airgap-key-|registries\.d-|imageset-)/;
+const sweepAbandonedTempArtifacts = () => {
+  const tmpDir = path.join(dataDir, "tmp");
+  let removed = 0;
+  let failed = 0;
+  try {
+    if (!fs.existsSync(tmpDir)) return;
+    for (const name of fs.readdirSync(tmpDir)) {
+      if (!OWNED_TEMP_PREFIXES.test(name)) continue;
+      try {
+        fs.rmSync(path.join(tmpDir, name), { recursive: true, force: true });
+        removed += 1;
+      } catch (err) {
+        failed += 1;
+        logger.warn({ err, tag: "startup", name }, "Abandoned temp artifact could not be removed");
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, tag: "startup" }, "Abandoned temp artifact sweep failed");
+    return;
+  }
+  if (removed > 0 || failed > 0) {
+    logger.info({ tag: "startup", removed, failed }, "Swept temp artifacts from a previous run");
+  }
+};
+
+sweepAbandonedTempArtifacts();
 
 // Only trust X-Forwarded-For header from known proxy IPs to prevent spoofing
 const TRUSTED_PROXIES = (process.env.TRUSTED_PROXIES || "").split(",").filter(Boolean);
@@ -247,7 +275,6 @@ const warmCincinnatiCache = async () => {
 
 warmCincinnatiCache();
 
-const activeProcesses = new Map();
 const pendingBundleStates = new Map();
 const BUNDLE_STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -826,6 +853,10 @@ const generateSshKeypair = (algorithm = "ed25519") => new Promise((resolve, reje
   const tmpDir = path.join(dataDir, "tmp");
   fs.mkdirSync(tmpDir, { recursive: true });
   const keyPath = path.join(tmpDir, `airgap-key-${nanoid()}`);
+  // Private key material. Short-lived, but it must not survive an exit that
+  // lands between ssh-keygen writing it and the handler unlinking it.
+  trackTempArtifact(keyPath, "file", "ssh-key");
+  trackTempArtifact(`${keyPath}.pub`, "file", "ssh-key");
   const args = ["-N", "", "-f", keyPath];
   if (alg === "rsa") {
     args.unshift("-b", "4096", "-t", "rsa");
@@ -1065,6 +1096,41 @@ const GITHUB_TIMEOUT_MS = 2000;
 
 let updateInfoCache = null;
 
+/**
+ * No trusted release-identity source is implemented.
+ *
+ * Establishing "a newer PUBLISHED, SUPPORTED release exists" needs a source whose
+ * trust properties have been reviewed — the branch-commit lookup below is not one,
+ * and neither is a bare tag. Until that contract exists this stays null, which
+ * makes UPDATE_STATUS.PUBLISHED_SUPPORTED_UPDATE unreachable and therefore keeps
+ * the urgent upgrade prompt fail-closed. Tests supply a synthetic verified
+ * identity directly to resolveUpdateStatus() to exercise the urgent UI.
+ */
+const RELEASE_IDENTITY_UNAVAILABLE = null;
+
+/**
+ * Attach the truthful status to a raw update-info payload.
+ *
+ * `isOutdated` is retained for backward compatibility with existing clients, but
+ * it is NOT authoritative: it only ever meant "the branch commit differs". Callers
+ * deciding whether to prompt the operator must use `updateStatus` / `urgent`.
+ */
+function withUpdateStatus(info) {
+  const updateStatus = resolveUpdateStatus({
+    disabled: info.enabled === false,
+    currentSha: info.currentSha,
+    latestSha: info.latestSha,
+    fetchError: info.error,
+    releaseIdentity: RELEASE_IDENTITY_UNAVAILABLE
+  });
+  return {
+    ...info,
+    updateStatus,
+    urgent: isUrgentUpdateStatus(updateStatus),
+    releaseIdentity: RELEASE_IDENTITY_UNAVAILABLE
+  };
+}
+
 async function fetchUpdateInfo() {
   const repo = (process.env.APP_REPO || "bstrauss84/openshift-airgap-architect").trim();
   const branch = (process.env.APP_BRANCH || "main").trim();
@@ -1159,7 +1225,8 @@ app.get("/api/update-info", async (_req, res) => {
       return res.json(result);
     }
   }
-  const result = await fetchUpdateInfo();
+  const raw = await fetchUpdateInfo();
+  const result = withUpdateStatus(raw);
   const isSuccess = result.enabled && !result.error && result.latestSha != null;
   updateInfoCache = { result, cachedAt: now, isSuccess };
   res.json(result);
@@ -1346,9 +1413,30 @@ app.get("/api/secrets/rh-pull-secret", (req, res) => {
   res.json({ available: Boolean(mountedRhPullSecret) });
 });
 
-app.get("/api/secrets/rh-pull-secret/content", (req, res) => {
-  if (!mountedRhPullSecret) return res.status(404).json({ error: "No mounted pull secret." });
-  res.json({ pullSecret: mountedRhPullSecret });
+// Raw disclosure of the mounted pull secret is WITHDRAWN.
+//
+// This endpoint returned the operator's full Red Hat pull secret to any
+// caller. The backend has no authentication on any route, and the shipped
+// OpenShift overlay (manifests/openshift/route-backend.yaml) publishes it on
+// an edge-TLS Route with no auth, so anyone who could reach that Route could
+// read the cluster's pull secret. Compose binds 127.0.0.1 and was contained.
+//
+// It existed only to pre-fill the Blueprint pull-secret textarea in the
+// browser. Nothing else needed it: the operations that genuinely use the
+// mounted credential — /api/ocmirror/preflight and /api/ocmirror/run —
+// resolve it server-side via rhAuthSource: "mounted" and never send it to the
+// client, and the operator catalog scan authenticates through the separate
+// REGISTRY_AUTH_FILE mechanism. So the credential never has to reach the
+// browser at all, and now does not.
+//
+// The availability probe above is kept deliberately: { available: boolean }
+// discloses nothing and is what the UI now uses to tell the operator a
+// mounted secret is present.
+app.all("/api/secrets/rh-pull-secret/content", (req, res) => {
+  res.status(410).json({
+    error: "Raw mounted pull secret retrieval has been withdrawn.",
+    code: "ENDPOINT_WITHDRAWN"
+  });
 });
 
 app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
@@ -1393,7 +1481,10 @@ app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
       const fullPath = path.join(tmpDir, file);
       try {
         const realPath = fs.realpathSync(fullPath); // Resolve symlinks
-        if (realPath.startsWith(tmpDir)) { // Ensure within tmpDir
+        // Same boundary fix: `${tmpDir}evil/x` is not inside tmpDir. This
+        // check matters more here than elsewhere because the path has
+        // already been symlink-resolved, so a pass deletes the TARGET.
+        if (realPath.startsWith(tmpDir + path.sep)) {
           safeUnlink(realPath);
         } else {
           logger.debug({ realPath, tmpDir }, "Skipping file outside tmpDir");
@@ -1573,7 +1664,21 @@ app.post("/api/run/import", validateBody(runImportSchema), (req, res) => {
     }
   }
 
-  const sanitized = sanitizeStateForExport(v3State, { ...(v3State.exportOptions || {}), includeCredentials: false });
+  // Persistence-grade, not export-grade.
+  //
+  // This used sanitizeStateForExport, which only blanks four `credentials.*`
+  // fields and the Blueprint ephemeral. It left `credentials.sshPrivateKey`,
+  // every `platformConfig.*` password, `hostInventory.nodes[].bmc.password`
+  // and userinfo embedded in a proxy URL untouched — and this value is both
+  // PERSISTED and returned, so an imported run laundered those credentials
+  // into stored state, from which GET /api/state, GET /api/run/export and
+  // POST /api/run/duplicate served them back.
+  //
+  // POST /api/state has always persisted through sanitizeStateForPersistence,
+  // which additionally runs a recursive sweep over credential-shaped keys.
+  // Both write paths now agree; the import surface was the odd one out, and
+  // it is the one the update banner tells operators to use when upgrading.
+  const sanitized = sanitizeStateForPersistence(v3State);
   setState(sanitized);
   res.json({ ok: true, state: sanitized, migrated: stateMigrationResult.wasV1 || stateMigrationResult.wasV2 });
 });
@@ -1732,16 +1837,29 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
       });
       jobs[catalog.id] = jobId;
     }
+    // No scan was started, so nothing will ever settle and release the
+    // credential this request wrote. Without this the pull secret sits on the
+    // /data volume for the lifetime of the process. (The temp-artifact
+    // registry would still catch it at shutdown — that is defence in depth,
+    // not a reason to leak it.)
+    if (tempAuthFile) safeUnlink(tempAuthFile);
     return res.json({ jobs });
   }
-  for (const catalog of getCatalogs()) {
+  // One pull secret is shared by every catalog in this request, so it is
+  // released when the LAST scan settles. Letting each child unlink it meant
+  // the first one to finish deleted the credential the other two were still
+  // passing to --authfile.
+  const catalogsToScan = getCatalogs();
+  const releaseScanAuth = createSharedAuthRelease(tempAuthFile, catalogsToScan.length);
+  for (const catalog of catalogsToScan) {
     const jobId = runScanJob({
       version: catalogMinor,
       catalogId: catalog.id,
       catalogImage: catalog.image(catalogMinor),
       authFile: tempAuthFile,
       jobType: "operator-scan",
-      ocMirrorPath: resolved.path
+      ocMirrorPath: resolved.path,
+      onSettled: releaseScanAuth
     });
     jobs[catalog.id] = jobId;
 
@@ -1897,7 +2015,10 @@ app.post("/api/jobs/:id/stop", validateBody(jobStopSchema), (req, res) => {
   if (!proc) return res.status(404).json({ error: "Job not running." });
   proc.kill("SIGTERM");
   activeProcesses.delete(jobId);
-  updateJob(jobId, { status: "cancelled", message: "Stopped by user.", progress: 0 });
+  // Guarded: a job can still be in the registry after reaching a terminal
+  // state (a timed-out scan awaiting SIGKILL), and "cancelled" must not
+  // overwrite the real outcome.
+  updateJobUnlessTerminal(jobId, { status: "cancelled", message: "Stopped by user.", progress: 0 });
   res.json({ ok: true });
 });
 
@@ -2449,6 +2570,9 @@ function writeRegistriesDConfigs(signatureOptions) {
 
   try {
     fs.mkdirSync(registriesDDir, { recursive: true });
+    // Removed by the oc-mirror child's close handler, which a terminating
+    // process never reaches.
+    trackTempArtifact(registriesDDir, "dir", "registries-d");
 
     for (const hostname of hostnames) {
       // Sanitize hostname for filename (replace : and / with -)
@@ -2472,6 +2596,7 @@ function cleanupRegistriesDDir(registriesDDir) {
   if (!registriesDDir) return;
   try {
     fs.rmSync(registriesDDir, { recursive: true, force: true });
+    untrackTempArtifact(registriesDDir);
   } catch (err) {
     logger.error({ err }, "Failed to cleanup registries.d directory");
   }
@@ -2518,6 +2643,9 @@ function writePerImageRegistriesDConfigs(imagePathsArray) {
 
   try {
     fs.mkdirSync(registriesDDir, { recursive: true });
+    // Removed by the oc-mirror child's close handler, which a terminating
+    // process never reaches.
+    trackTempArtifact(registriesDDir, "dir", "registries-d");
 
     for (const imagePath of imagePathsArray) {
       // Sanitize image path for filename
@@ -2646,7 +2774,7 @@ async function retryWithPerImageSignatureDisable(originalJobId, signatureFailure
 
   child.on("error", (err) => {
     appendJobOutput(retryJobId, `\n${String(err)}\n`);
-    updateJob(retryJobId, { status: "failed", message: "oc-mirror retry failed to start." });
+    updateJobUnlessTerminal(retryJobId, { status: "failed", message: "oc-mirror retry failed to start." });
     activeProcesses.delete(retryJobId);
     cleanupRegistriesDDir(registriesDDir);
   });
@@ -2699,7 +2827,7 @@ async function retryWithPerImageSignatureDisable(originalJobId, signatureFailure
     if (releaseResult) message += ` Release: ${releaseResult.succeeded}/${releaseResult.total}.`;
     if (operatorResult) message += ` Operators: ${operatorResult.succeeded}/${operatorResult.total}.`;
 
-    updateJob(retryJobId, { status, progress: 100, message });
+    updateJobUnlessTerminal(retryJobId, { status, progress: 100, message });
     updateJobMetadata(retryJobId, {
       ...getJob(retryJobId)?.metadata,
       finishedAt,
@@ -2806,6 +2934,8 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   }
 
   let configPathToUse = null;
+  // Only a config this backend generated is ours to remove.
+  let configPathIsOurs = false;
   const tmpDir = path.join(dataDir, "tmp");
   fs.mkdirSync(tmpDir, { recursive: true });
   const jobId = createJob("oc-mirror-run", "oc-mirror run starting.");
@@ -2829,7 +2959,18 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
       throw error;
     }
     const configContents = buildImageSetConfig(v3State);
-    configPathToUse = path.join(tmpDir, `imageset-${jobId}.yaml`);
+    // This backend generated it, so this backend may delete it. The external
+    // branch below does NOT set this: that path is an operator-supplied file
+    // on their own disk, and unlinking it destroys user data.
+    configPathIsOurs = true;
+    // Sits in DATA_DIR/tmp beside the auth file and registries.d dir and is
+    // cleaned by the same child `close` handler, so it needs the same
+    // shutdown ownership. Carries mirror FQDNs and the operator selection.
+    configPathToUse = trackTempArtifact(
+      path.join(tmpDir, `imageset-${jobId}.yaml`),
+      "file",
+      "imageset-config"
+    );
     fs.writeFileSync(configPathToUse, configContents, "utf8");
   } else {
     try {
@@ -2873,7 +3014,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     }
   } catch (err) {
     updateJob(jobId, { status: "failed", message: "Invalid pull secret JSON.", progress: 100 });
-    safeUnlink(configPathToUse);
+    if (configPathIsOurs) safeUnlink(configPathToUse);
     return res.json({ jobId });
   }
 
@@ -2891,7 +3032,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
       message: resolved.error,
       output: resolved.rawStderr || resolved.error
     });
-    safeUnlink(configPathToUse);
+    if (configPathIsOurs) safeUnlink(configPathToUse);
     if (authFile) safeUnlink(authFile);
     return res.json({ jobId });
   }
@@ -2902,7 +3043,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     if (cachePath && mode !== "mirrorToMirror") fs.mkdirSync(path.resolve(cachePath), { recursive: true });
   } catch (err) {
     updateJob(jobId, { status: "failed", message: String(err?.message || err), progress: 100 });
-    safeUnlink(configPathToUse);
+    if (configPathIsOurs) safeUnlink(configPathToUse);
     if (authFile) safeUnlink(authFile);
     return res.json({ jobId });
   }
@@ -2918,7 +3059,19 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     configSourceType,
     configPath: configPathExternal || "",
     startedAt,
-    requestBody: body, // Store entire request for potential retry
+    // Credential-stripped. This used to store `body` verbatim, which put the
+    // operator's rhPullSecret and mirrorPullSecret in plaintext into SQLite —
+    // contradicting this module's own "Pull secrets never persisted to disk"
+    // contract (utils.js) — and then served them to anyone, because
+    // GET /api/jobs and GET /api/jobs/:id return the whole row unauthenticated
+    // and updateJobMetadata performs no redaction.
+    //
+    // Nothing is lost. The only consumer is the smart-retry path, which reads
+    // `getJob(jobId)?.metadata` — a property that does not exist, because
+    // getJob returns the raw row carrying `metadata_json` and nothing in this
+    // file ever parses it. That retry is already inert; see the handoff.
+    // Restoring it must not restore plaintext credential storage.
+    requestBody: sanitizeCredentialFields(body),
     authFile // Store authFile path for retry
   };
   updateJobMetadata(jobId, meta);
@@ -2957,10 +3110,11 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   child.stderr.on("data", (data) => appendJobOutput(jobId, data.toString()));
   child.on("error", (err) => {
     appendJobOutput(jobId, `\n${String(err)}\n`);
-    updateJob(jobId, { status: "failed", message: "oc-mirror failed to start." });
+    // Guarded: a stop or a shutdown may already have recorded this job.
+    updateJobUnlessTerminal(jobId, { status: "failed", message: "oc-mirror failed to start." });
     activeProcesses.delete(jobId);
     if (registriesDDir) cleanupRegistriesDDir(registriesDDir);
-    safeUnlink(configPathToUse);
+    if (configPathIsOurs) safeUnlink(configPathToUse);
     if (authFile) safeUnlink(authFile);
   });
   child.on("close", (code) => {
@@ -3039,14 +3193,24 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
       message = `oc-mirror exited with code ${code}.`;
     }
 
-    updateJob(jobId, {
+    // Guarded: a SIGTERMed child reports code === null, which this block
+    // turns into "failed" — relabelling a job that was deliberately cancelled.
+    const outcomeRecorded = updateJobUnlessTerminal(jobId, {
       status,
       progress: status === "completed" ? 100 : status === "completed_with_warnings" ? 100 : 0,
       message
     });
 
-    // Trigger smart retry if signature failures detected
-    if (status === "completed_with_warnings" && signatureFailures.length > 0) {
+    // Trigger smart retry if signature failures detected.
+    //
+    // Gated on the write above having been ACCEPTED. `status` is computed
+    // locally from the exit code and output, not read back from the job: a
+    // SIGTERMed child reports code === null, and if the partial output already
+    // showed every release image mirrored it is classified
+    // `completed_with_warnings`. So a run the operator explicitly stopped
+    // could reach here, spawn a brand-new oc-mirror child, and overwrite
+    // "Stopped by user." — restarting work that was deliberately cancelled.
+    if (outcomeRecorded && status === "completed_with_warnings" && signatureFailures.length > 0) {
       const currentMetadata = getJob(jobId)?.metadata || {};
       const originalRequestBody = currentMetadata.requestBody;
 
@@ -3064,7 +3228,9 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
 
               // Update message to inform user about auto-retry
               const opFailed = operatorResult ? operatorResult.total - operatorResult.succeeded : "?";
-              updateJob(jobId, {
+              // Guarded too: this lands after an await, so a stop can have
+              // been recorded in the meantime.
+              updateJobUnlessTerminal(jobId, {
                 message: `oc-mirror completed with ${opFailed} operator image(s) failed (${signatureFailures.length} signature error(s)). Auto-retry launched (job ${retryJobId}).`
               });
               logger.info({ tag: "smart-retry", retryJobId, originalJobId: jobId }, "Launched retry job");
@@ -3080,7 +3246,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
 
     activeProcesses.delete(jobId);
     if (registriesDDir) cleanupRegistriesDDir(registriesDDir);
-    safeUnlink(configPathToUse);
+    if (configPathIsOurs) safeUnlink(configPathToUse);
     if (authFile) safeUnlink(authFile);
   });
   res.json({ jobId });
@@ -3112,11 +3278,54 @@ app.post("/api/docs/update", validateBody(docsUpdateSchema), async (req, res) =>
   res.json({ jobId: job.jobId, links: job.validated });
 });
 
+/**
+ * Gate an AWS installer-backed request on a well-formed, SUPPORTED version.
+ *
+ * Two separate holes closed here, both reachable from `?version=`:
+ *
+ *   1. NO FALLBACK RULE. These three endpoints never consulted
+ *      isSupportedMinor, so an unsupported minor (4.23) was passed straight to
+ *      the mirror fetch and the downloaded binary was then EXECUTED
+ *      (installer.js: `openshift-install coreos print-stream-json`). The
+ *      project rule is 422 UNSUPPORTED_VERSION at every boundary — release
+ *      selection, imported state, catalogs, preview, generation — and this was
+ *      a boundary that had been missed.
+ *
+ *   2. The value is interpolated into a mirror URL and into
+ *      `path.join(toolsDir, \`openshift-install-${version}\`)`
+ *      (installer.js:45, :57) with no format check, so `../` traverses. The
+ *      strict x.y.z shape removes that whole class rather than escaping it.
+ *
+ * Returns true when the caller has already responded.
+ */
+const rejectUnsupportedInstallerVersion = (version, res) => {
+  if (!/^\d+\.\d+\.\d+$/.test(String(version))) {
+    res.status(400).json({
+      error: "Version must be an exact OpenShift patch version, e.g. 4.22.17.",
+      code: "MALFORMED_VERSION"
+    });
+    return true;
+  }
+  const minor = String(version).split(".").slice(0, 2).join(".");
+  if (!isSupportedMinor(minor)) {
+    const vErr = buildUnsupportedVersionError(minor);
+    res.status(422).json({
+      error: vErr.message,
+      code: vErr.code,
+      requestedVersion: vErr.requestedVersion,
+      supportedVersions: vErr.supportedVersions
+    });
+    return true;
+  }
+  return false;
+};
+
 app.post("/api/aws/warm-installer", validateBody(awsWarmInstallerSchema), (req, res) => {
   const version = req.body?.version || req.query.version;
   if (!version) {
     return res.status(400).json({ error: "Version is required." });
   }
+  if (rejectUnsupportedInstallerVersion(version, res)) return;
   warmInstallerStream(version);
   res.status(202).json({ status: "started", version });
 });
@@ -3133,6 +3342,7 @@ app.get("/api/aws/regions", async (req, res) => {
   if (!version || !arch) {
     return res.status(400).json({ error: "Version and architecture are required." });
   }
+  if (rejectUnsupportedInstallerVersion(version, res)) return;
   try {
     const regions = await getAwsRegions(version, arch, force);
     res.json({ version, arch, regions });
@@ -3154,6 +3364,7 @@ app.get("/api/aws/ami", async (req, res) => {
   if (!version || !arch || !region) {
     return res.status(400).json({ error: "Version, architecture, and region are required." });
   }
+  if (rejectUnsupportedInstallerVersion(version, res)) return;
   try {
     const ami = await getAwsAmi(version, arch, region, force);
     if (!ami) {
@@ -3523,15 +3734,96 @@ const buildBundleZip = async (state, res) => {
   const ntpMachineConfigs = buildNtpMachineConfigs(v3State);
   const fieldManual = buildFieldManual(v3State, links);
 
+  // Validate the caller-supplied mirror-output directory HERE, while a clean
+  // JSON error is still possible. Everything below this point runs after the
+  // response headers commit, where the only honest ending is a truncated
+  // transfer — and answering an unsafe path with a 200 and a silent omission
+  // would be worse than either: it tells the operator the export succeeded.
+  //
+  // The roots here are deliberately NARROWER than ALLOWED_BASE_PATHS, which
+  // also contains /tmp. /tmp is a reasonable place to let an operator BROWSE
+  // (GET /api/fs/ls) and a terrible one to recursively archive into an
+  // unauthenticated download: it is world-writable and full of other
+  // processes' scratch files, including this server's own staged auth files.
+  // Mirror output belongs under the data directory — that is where the
+  // product puts it by default (mirrorWorkflow.archivePath above) and where
+  // the README tells operators to mount a large drive.
+  let mirrorOutputRealPath = null;
+  const requestedMirrorOutput =
+    v3State.mirrorWorkflow?.archivePath || v3State.mirrorWorkflow?.outputPath;
+  if (v3State.mirrorWorkflow?.includeInExport && requestedMirrorOutput) {
+    mirrorOutputRealPath = assertExportableMirrorOutput(requestedMirrorOutput, [dataDir]);
+  }
+
   const bundleName = `airgap-${v3State.release?.patchVersion || "unknown"}-install-configs-bundle.zip`;
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename=${bundleName}`);
 
   const archive = new ZipArchive({ zlib: { level: 9 } });
-  archive.on("error", (err) => {
-    res.status(500).end(String(err));
-  });
-  archive.pipe(res);
+
+  // One owner for every way this export can fail, so the response is
+  // terminated exactly once and a failure can never be served as a complete
+  // archive.
+  let bundleFailure = null;
+  const failBundleStream = (err) => {
+    if (bundleFailure) return;
+    bundleFailure = err instanceof Error ? err : new Error(String(err));
+    const clientGone = bundleFailure.code === "ERR_STREAM_PREMATURE_CLOSE";
+    logger[clientGone ? "warn" : "error"]({
+      err: bundleFailure,
+      tag: "bundle:stream",
+      code: bundleFailure.code,
+      headersSent: res.headersSent
+    }, clientGone ? "Bundle transfer ended before completion" : "Bundle export failed");
+    if (res.headersSent) {
+      // Bytes are already on the wire. The only honest ending is a truncated
+      // transfer: the client's decoder fails instead of receiving a
+      // well-formed archive. Never write an error string into ZIP output, and
+      // never try to send a second response.
+      res.destroy(bundleFailure);
+    } else {
+      // Nothing is on the wire yet, but the ZIP headers were already set at the
+      // top of buildBundleZip and Express does not clear an explicitly-set
+      // Content-Type: res.json() on this response yields
+      // "application/zip; charset=utf-8" with the attachment header intact, so
+      // the browser would save this error as bundle.zip. Drop both so the
+      // failure arrives as a failure.
+      res.removeHeader("Content-Disposition");
+      res.removeHeader("Content-Type");
+      res.status(500).end(String(err));
+    }
+    try {
+      archive.abort();
+    } catch (abortErr) {
+      logger.debug({ err: abortErr, tag: "bundle:stream" }, "Archive abort after failure threw");
+    }
+  };
+
+  archive.on("error", failBundleStream);
+  // Archiver downgrades an unreadable entry SOURCE to a warning, decrements the
+  // entry count and finalizes a ZIP that is simply missing that member. Only
+  // streamFile() members are stat'ed by archiver — append(Buffer) members
+  // cannot produce a warning — so any warning here means a streamed member was
+  // silently dropped, which must fail the export rather than ship a smaller
+  // archive that still looks successful. The warning necessarily precedes
+  // finalization, because the stat queue must drain before archiver finalizes.
+  archive.on("warning", failBundleStream);
+
+  // pipeline(), not pipe(): streamed members (see tracked.streamFile below) are
+  // opened by archiver while the response drains, so the staging that owns them
+  // can only be released once this settles. pipeline's promise always settles —
+  // it resolves on completion and rejects with ERR_STREAM_PREMATURE_CLOSE
+  // within milliseconds of a client disconnect, tearing the archive down with
+  // it. archive.finalize()'s own promise is NOT a usable anchor here: on a
+  // disconnect it never settles at all, even after archive.abort().
+  const archiveDone = pipeline(archive, res);
+  // Observed the moment it exists. A client can disconnect while the awaits
+  // below are still running, which rejects this long before the final await is
+  // reached; without an immediate handler that is an unhandled rejection. The
+  // outcome is still awaited at the end — marking a rejection handled does not
+  // consume it.
+  archiveDone.catch(() => {});
+
   const tracked = createIntegrityTracker(archive);
   tracked.append(installConfig, { name: "install-config.yaml" });
   if (agentConfig) {
@@ -3549,6 +3841,11 @@ const buildBundleZip = async (state, res) => {
     );
   }
   if (v3State.exportOptions?.includeClientTools) {
+    // One option, two promised binaries. Declared BEFORE the attempt so the
+    // promise survives a throw, and declared by name so the `fs.existsSync`
+    // guards below can no longer drop a binary silently: an unregistered
+    // member now fails the export whether or not anything threw.
+    tracked.requestDeliverable("includeClientTools", ["tools/oc", "tools/oc-mirror"]);
     try {
       const exportArch = v3State.exportOptions?.exportBinaryArch || getLocalBinaryArch();
       // oc must match the selected target minor; oc-mirror is global-latest.
@@ -3601,44 +3898,49 @@ const buildBundleZip = async (state, res) => {
         );
       }
     } catch (e) {
-      tracked.append(
-        `Failed to include oc/oc-mirror: ${String(e?.message || e)}\n`,
-        { name: "tools/oc-mirror.ERROR.txt" }
-      );
+      // Deliberately no `.ERROR.txt` member. A text file standing where a
+      // verified binary was requested is a broken promise the operator can
+      // only discover across the air gap, with the mirror unreachable by
+      // definition. Record the reason; the fatal check before the manifest
+      // ends the export through the single failure owner.
+      tracked.failDeliverable("includeClientTools", e);
     }
   }
   if (v3State.exportOptions?.includeInstaller) {
+    // Hoisted out of the try: the member name is part of the promise and has
+    // to be known before the attempt, not only after it succeeds.
+    const useFips = v3State.exportOptions?.installerUseFips || false;
+    // Preserve binary name (openshift-install-fips for FIPS, openshift-install for standard)
+    const binaryName = useFips ? 'openshift-install-fips' : 'openshift-install';
+    tracked.requestDeliverable("includeInstaller", [`tools/${binaryName}`]);
     try {
       const version = v3State.release?.patchVersion;
       if (!version) {
         throw new Error("Version not selected.");
       }
 
-      const useFips = v3State.exportOptions?.installerUseFips || false;
       const platformArch = v3State.exportOptions?.installerPlatformArch || ""; // "" means default
 
       // Download (or retrieve from cache) the requested binary variant
       const installerPath = await ensureOpenshiftInstaller(version, platformArch, useFips, dataDir);
 
       if (fs.existsSync(installerPath)) {
-        // Preserve binary name (openshift-install-fips for FIPS, openshift-install for standard)
-        const binaryName = useFips ? 'openshift-install-fips' : 'openshift-install';
         tracked.file(installerPath, { name: `tools/${binaryName}` });
       } else {
         throw new Error("Binary not found after download");
       }
     } catch (error) {
-      tracked.append(
-        `Failed to include openshift-install: ${String(error?.message || error)}\n`,
-        { name: "tools/openshift-install.ERROR.txt" }
-      );
+      tracked.failDeliverable("includeInstaller", error);
     }
   }
   if (v3State.exportOptions?.includeMirrorRegistry) {
+    // Hoisted: the promised member name, and the manual-download URL the
+    // failure reason quotes, were previously recomputed verbatim in the catch.
+    const mirrorRegistryArch = v3State.exportOptions?.mirrorRegistryArch || "amd64";
+    const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
+    const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
+    tracked.requestDeliverable("includeMirrorRegistry", [`tools/${mirrorRegistryFilename}`]);
     try {
-      const mirrorRegistryArch = v3State.exportOptions?.mirrorRegistryArch || "amd64";
-      const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
-      const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
       const mirrorRegistryPath = path.join(dataDir, "cache", mirrorRegistryFilename);
 
       // Ensure cache directory exists
@@ -3675,41 +3977,44 @@ const buildBundleZip = async (state, res) => {
         } else {
           throw new Error("Cached file is 0 bytes (corrupt)");
         }
+      } else {
+        // Previously fell through with no member and no note at all — the
+        // quietest of the three omission paths.
+        throw new Error(`Cached file is missing after download: ${mirrorRegistryPath}`);
       }
     } catch (error) {
-      const mirrorRegistryArch = v3State.exportOptions?.mirrorRegistryArch || "amd64";
-      const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
-      const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
-      tracked.append(
-        `Failed to include mirror-registry: ${String(error?.message || error)}\nDownload manually from: ${mirrorRegistryUrl}\n`,
-        { name: "tools/mirror-registry.ERROR.txt" }
+      tracked.failDeliverable(
+        "includeMirrorRegistry",
+        `${String(error?.message || error)} — download manually from ${mirrorRegistryUrl}`
       );
     }
   }
-  const mirrorOutputPath = v3State.mirrorWorkflow?.archivePath || v3State.mirrorWorkflow?.outputPath;
-  if (v3State.mirrorWorkflow?.includeInExport && mirrorOutputPath) {
-    const rawPath = mirrorOutputPath;
-    try {
-      const resolved = path.resolve(rawPath);
-      const stat = fs.statSync(resolved);
-      if (stat.isDirectory()) {
-        tracked.directory(resolved, "mirror-output");
-      } else {
-        tracked.append(
-          `Mirror output path is not a directory: ${resolved}\n`,
-          { name: "mirror-output/MIRROR_OUTPUT_NOT_INCLUDED.txt" }
-        );
-      }
-    } catch (error) {
-      tracked.append(
-        `Mirror output could not be included: ${String(error?.message || error)}. Path: ${rawPath}\n`,
-        { name: "mirror-output/MIRROR_OUTPUT_NOT_INCLUDED.txt" }
-      );
-    }
+  if (mirrorOutputRealPath) {
+    // Already canonicalised and tree-verified before the headers committed,
+    // so there is no second decision to make here and no path from the
+    // request body left to trust.
+    //
+    // The symlink filter is deliberate belt-and-braces against the window
+    // between validation and streaming: a link planted in that interval would
+    // otherwise be followed. `false` omits the entry rather than resolving it,
+    // and the integrity tracker's post-conditions fail the transfer if a
+    // member it was promised never arrives.
+    tracked.directory(mirrorOutputRealPath, "mirror-output", (entry) =>
+      entry.stats?.isSymbolicLink?.() ? false : entry
+    );
   }
 
   // High-side runtime package export (DOC-083)
+  //
+  // Released by the archive-stream `finally` at the end of this function, not
+  // here: L2 streams these members, so archiver opens the staged paths while
+  // the response drains. Releasing them at registration time (what L1 did,
+  // correctly, while members were buffered) would now delete the files out
+  // from under archiver, which reports a missing source as a `warning` and
+  // silently omits the entry.
+  let releaseRuntimePackageStaging = null;
   if (v3State.exportOptions?.includeHighSideRuntimePackage) {
+    let runtimePackage = null;
     try {
       // SECURITY: Sanitize state in runPayload to prevent credential leakage
       // High-side runtime package is written to bundle.zip which may be transferred/stored
@@ -3729,7 +4034,7 @@ const buildBundleZip = async (state, res) => {
         method: v3State.methodology?.method
       };
 
-      const runtimePackage = createRuntimePackageArtifacts({
+      runtimePackage = createRuntimePackageArtifacts({
         state: v3State, // createRuntimePackageArtifacts needs full state for other purposes
         exportOptions: v3State.exportOptions,
         runPayload, // But runPayload uses sanitized state
@@ -3737,9 +4042,23 @@ const buildBundleZip = async (state, res) => {
       });
 
       if (runtimePackage.included) {
-        // Add all runtime package files to archive under runtime-package/ directory
+        // Add all runtime package files to archive under runtime-package/ directory.
+        //
+        // streamFile, not file: these include `podman save` / `docker save`
+        // image archives, and tracked.file() would hold every one of them in
+        // memory at once — registration is a single synchronous pass, so the
+        // Buffers accumulate rather than alternate. Measured on the reference
+        // host: 590 MB of staged members (podman oci-archive, layers already
+        // compressed) grew peak RSS by 628 MB eagerly versus 71 MB streamed.
+        // The `docker save` path stages uncompressed layers instead — 1.67 GB
+        // for the same two images — so it is the worse of the two. streamFile's
+        // precondition
+        // holds here and nowhere else in this function: the staging directory
+        // is a private 0700 mkdtemp this request created moments ago, nothing
+        // else can reach it, and it is released only after the archive stream
+        // settles.
         for (const entry of runtimePackage.entries) {
-          tracked.file(entry.absolutePath, { name: `runtime-package/${entry.relativePath}` });
+          tracked.streamFile(entry.absolutePath, { name: `runtime-package/${entry.relativePath}` });
         }
         logger.info({
           tag: "runtime-package",
@@ -3768,12 +4087,71 @@ const buildBundleZip = async (state, res) => {
         error: error?.message || String(error),
         stack: error?.stack
       }, "Runtime package creation failed");
+    } finally {
+      // Hand ownership to the archive-stream finally below. cleanup() is
+      // idempotent and never throws, so running it there once is enough, and
+      // it still runs when nothing was staged or staging threw part-way.
+      if (runtimePackage) releaseRuntimePackageStaging = runtimePackage.cleanup;
     }
   }
 
-  const versionManifest = tracked.buildManifest(v3State);
-  archive.append(JSON.stringify(versionManifest, null, 2), { name: MANIFEST_FILENAME });
-  archive.finalize();
+  try {
+    // Pre-condition, and the counterpart to the missingStreamedMembers()
+    // post-condition below. That one catches a member archiver LOST; this one
+    // catches a requested member the producer never registered at all.
+    //
+    // A tool the operator explicitly ticked and this export could not produce
+    // is a promise broken on the far side of the air gap — they carry the
+    // archive across and find a text file where a binary should be, with the
+    // mirror unreachable by definition. It must terminate through the same
+    // single failure owner, never ship as a note inside an otherwise valid
+    // archive. Checked BEFORE the manifest is written, so no manifest ever
+    // records an unfulfilled request.
+    //
+    // Documented degraded modes are not registered as deliverables and are
+    // deliberately unaffected (see the runtime-package note in
+    // exportIntegrity.js).
+    const unfulfilled = tracked.unfulfilledRequests();
+    if (unfulfilled.length > 0) {
+      throw new Error(
+        `Bundle omitted requested members: ${unfulfilled
+          .map((r) => `${r.option} [${r.missing.join(", ")}]${r.reason ? `: ${r.reason}` : ""}`)
+          .join("; ")}`
+      );
+    }
+    const versionManifest = tracked.buildManifest(v3State);
+    archive.append(JSON.stringify(versionManifest, null, 2), { name: MANIFEST_FILENAME });
+    // finalize() resolves only on a clean end; on a disconnect it never
+    // settles, so archiveDone owns the outcome. Its rejection is routed
+    // through the same single failure owner rather than discarded, so an
+    // aborted archive cannot finish quietly.
+    archive.finalize().catch(failBundleStream);
+    await archiveDone;
+
+    // Post-condition. Archiver drops an unreadable streamed member with a
+    // warning rather than an error, so prove the archive actually carries
+    // every member the manifest claims. failBundleStream above is the fast
+    // path that truncates the response while that is still possible; this is
+    // the backstop that guarantees a silent omission can never be recorded as
+    // a successful export.
+    const missing = tracked.missingStreamedMembers();
+    if (missing.length > 0) {
+      failBundleStream(new Error(`Bundle omitted streamed members: ${missing.join(", ")}`));
+    }
+  } catch (error) {
+    failBundleStream(error);
+  } finally {
+    if (releaseRuntimePackageStaging) {
+      const release = releaseRuntimePackageStaging();
+      if (!release.released) {
+        logger.warn({
+          err: release.error,
+          tag: "runtime-package",
+          stagingRoot: release.stagingRoot
+        }, "Runtime package staging directory could not be removed");
+      }
+    }
+  }
 };
 
 // Path traversal protection: whitelist allowed base directories for filesystem operations
@@ -3784,8 +4162,21 @@ const ALLOWED_BASE_PATHS = [
 
 function isPathAllowed(requestedPath) {
   const resolved = path.resolve(requestedPath);
-  return ALLOWED_BASE_PATHS.some(base => resolved.startsWith(base));
+  // Boundary-aware, not a bare string prefix: `/datax` and `/tmpfoo` are
+  // siblings of the allowed roots, not children of them, and a bare
+  // startsWith admitted both. The root itself stays allowed.
+  return ALLOWED_BASE_PATHS.some(
+    (base) => resolved === base || resolved.startsWith(base.endsWith(path.sep) ? base : base + path.sep)
+  );
 }
+
+// The mirror-output export boundary used to live here as isExportableDirectory,
+// a lexical prefix test plus a four-name credential blacklist. It was bypassed
+// by a symlink lexically inside an allowed root, by a symlinked parent, and by
+// any credential file named something the blacklist did not list. It now lives
+// in ./mirrorOutputPolicy.js, which canonicalises with realpath and walks the
+// tree, and is applied before the response headers commit so an unsafe path
+// fails as a 400 instead of producing a ZIP with a silent omission.
 
 app.get("/api/fs/ls", (req, res) => {
   const reqPath = (req.query.path || "/").toString();
@@ -3834,6 +4225,22 @@ app.get("/api/fs/ls", (req, res) => {
 });
 
 const handleBundleZipError = (res, error) => {
+  // Every branch below answers with JSON, but buildBundleZip may already have
+  // set Content-Type: application/zip and Content-Disposition: attachment.
+  // Express does not replace an explicitly-set Content-Type, so res.json()
+  // would ship "application/zip; charset=utf-8" and the browser would save the
+  // error object as bundle.zip. Clear both before any of the responses below.
+  //
+  // Guarded, not unconditional: removeHeader throws ERR_HTTP_HEADERS_SENT once
+  // the headers are on the wire, which would turn a handled error into a
+  // second, unhandled one. Reaching here post-flush is not believed possible
+  // (that path truncates through failBundleStream), but this handler is the
+  // error path and must not be the thing that throws.
+  if (!res.headersSent) {
+    res.removeHeader("Content-Disposition");
+    res.removeHeader("Content-Type");
+  }
+
   // DOC-102 Slice 5F.13: Handle unsupported version errors from bundle generation
   //
   // FIELD_GUIDE_VERSION_ERROR is mapped alongside CONFIGURATION_VALIDATION
@@ -3869,6 +4276,13 @@ const handleBundleZipError = (res, error) => {
     });
   }
   if (error.code === 'CONFIGURATION_VALIDATION' || error.code === 'FIELD_GUIDE_VERSION_ERROR') {
+    return res.status(400).json({ error: error.message, code: error.code });
+  }
+  // A refused mirror-output directory is caller input, not a server fault.
+  // Answered as a clean 400 because the check runs before headers commit;
+  // the message names the offending entry but never the resolved absolute
+  // path, so this cannot be used as a filesystem oracle.
+  if (error instanceof MirrorOutputPolicyError) {
     return res.status(400).json({ error: error.message, code: error.code });
   }
   return res.status(500).json({ error: String(error?.message || error) });
@@ -4006,8 +4420,9 @@ if (process.env.NODE_ENV !== "test") {
     const maxJobCount = parseInt(process.env.JOB_MAX_COUNT, 10) || 100;
     const cleanupIntervalMs = 24 * 60 * 60 * 1000; // 24 hours
 
-    // Run initial cleanup on startup (after 60 seconds to allow any startup jobs to complete)
-    setTimeout(() => {
+    // Run initial cleanup on startup (after 60 seconds to allow any startup
+    // jobs to complete). Stored globally so shutdown can clear it too.
+    global.startupCleanupTimeout = setTimeout(() => {
       try {
         const result = cleanupOldJobs({ retentionDays, maxCount: maxJobCount });
         if (result.totalDeleted > 0) {
@@ -4030,29 +4445,24 @@ if (process.env.NODE_ENV !== "test") {
       }
     }, cleanupIntervalMs);
   });
-  const shutdown = (signal) => {
-    // Clear cleanup interval if it exists
-    if (global.cleanupInterval) {
-      clearInterval(global.cleanupInterval);
-      global.cleanupInterval = null;
-    }
-    logger.info({ tag: "shutdown", signal }, "Shutting down");
-    // Kill any active child processes (oc-mirror runs, scan jobs).
-    for (const [, child] of activeProcesses.entries()) {
-      try {
-        child.kill("SIGTERM");
-      } catch (err) {
-        logger.debug({ err }, "Kill child process failed during shutdown");
+  const shutdown = createShutdownHandler({
+    getServer: () => server,
+    activeProcesses,
+    updateJob,
+    getJob,
+    releaseAllTempArtifacts,
+    clearTimers: () => {
+      if (global.cleanupInterval) {
+        clearInterval(global.cleanupInterval);
+        global.cleanupInterval = null;
       }
-    }
-    activeProcesses.clear();
-    // Exit immediately. Waiting on server.close() hangs because Node's built-in
-    // fetch() uses undici connection pools with ref'd TCP sockets for outgoing
-    // requests (Cincinnati API, GitHub) that outlive the express server itself —
-    // server.close() never calls back. SQLite (better-sqlite3) flushes
-    // synchronously via process.on('exit') so there is no data-loss risk.
-    process.exit(0);
-  };
+      if (global.startupCleanupTimeout) {
+        clearTimeout(global.startupCleanupTimeout);
+        global.startupCleanupTimeout = null;
+      }
+    },
+    logger
+  });
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 }

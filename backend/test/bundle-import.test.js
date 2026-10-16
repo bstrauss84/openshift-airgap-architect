@@ -151,7 +151,32 @@ function buildManifestZip(fileMap, manifestOverrides = {}) {
   return buildZipBuffer(entries);
 }
 
-describe('POST /api/bundle.import — HTTP integration', () => {
+/**
+ * POST /api/bundle.import is withdrawn in v2.1. See DOC-127.
+ *
+ * This file previously held 27 HTTP integration tests for the archive
+ * validation endpoint. That endpoint was an unauthenticated decompression
+ * denial of service: the only ingress exempt from the 10 MB JSON cap, it
+ * accepted 512 MiB and then inflated every entry into memory, CRC32'd it in a
+ * per-byte JS loop and SHA-256'd it again, all synchronously and with no
+ * concurrency cap. A small compressed body bought ~1 GiB of RSS and seconds of
+ * blocked event loop, which starved the /api/health liveness probe. Nothing
+ * called it — no frontend control, no CLI, no e2e spec, no documented workflow.
+ *
+ * Those tests are rewritten rather than skipped because
+ * backend/test/test-integrity.test.js forbids it.skip / describe.skip and
+ * every aliased and option-object form of them.
+ *
+ * Coverage is not lost. What those tests really asserted was that the
+ * validator is correct, and that lives in import-integrity.test.js, which
+ * exercises validateArchiveBuffer directly and stays green as the regression
+ * net for the eventual DOC-127 validator UI. What is gone is only the claim
+ * that the validator is reachable over HTTP, which is the point.
+ *
+ * The ZIP builders above are kept deliberately: the central proof below has to
+ * send a genuinely valid archive to be worth anything.
+ */
+describe('POST /api/bundle.import — withdrawn', () => {
   let server, baseUrl;
 
   before(async () => {
@@ -162,443 +187,175 @@ describe('POST /api/bundle.import — HTTP integration', () => {
     await closeTestServer(server);
   });
 
-  describe('valid archive success', () => {
-    it('accepts a valid archive with application/zip', async () => {
-      const zip = buildManifestZip(
-        { 'install-config.yaml': 'apiVersion: v1\n' },
-        { openshift: { selectedMinor: '4.21', selectedPatch: '4.21.20', lockedVersion: true } }
-      );
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 200);
-      const body = await res.json();
-      assert.strictEqual(body.valid, true);
-      assert.strictEqual(body.manifestSchemaVersion, MANIFEST_SCHEMA_VERSION);
-      assert.strictEqual(body.stateSchemaVersion, COMPATIBLE_STATE_SCHEMA_VERSION);
-      assert.strictEqual(body.selectedMinor, '4.21');
-      assert.strictEqual(body.fileCount, 1);
-    });
+  const post = (body, contentType) => fetch(`${baseUrl}/api/bundle.import`, {
+    method: 'POST',
+    headers: contentType ? { 'Content-Type': contentType } : {},
+    body
+  });
 
-    it('accepts a valid archive with application/octet-stream', async () => {
-      const zip = buildManifestZip({ 'install-config.yaml': 'apiVersion: v1\n' });
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 200);
-      const body = await res.json();
-      assert.strictEqual(body.valid, true);
-    });
-
-    it('returns exactly five fields on success', async () => {
-      const zip = buildManifestZip({
-        'install-config.yaml': 'a',
-        'agent-config.yaml': 'b',
-        'FIELD_MANUAL.md': 'c'
-      });
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 200);
-      const body = await res.json();
-      const keys = Object.keys(body).sort();
-      assert.deepStrictEqual(keys, ['fileCount', 'manifestSchemaVersion', 'selectedMinor', 'stateSchemaVersion', 'valid']);
-      assert.strictEqual(body.fileCount, 3);
-    });
-
-    it('accepts a valid 4.20 archive', async () => {
-      const zip = buildManifestZip(
-        { 'install-config.yaml': 'data' },
-        { openshift: { selectedMinor: '4.20', selectedPatch: '4.20.8', lockedVersion: true } }
-      );
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 200);
-      const body = await res.json();
-      assert.strictEqual(body.selectedMinor, '4.20');
+  it('answers 410 ENDPOINT_WITHDRAWN for a body that used to validate', async () => {
+    const zip = buildManifestZip(
+      { 'install-config.yaml': 'apiVersion: v1\n' },
+      { openshift: { selectedMinor: '4.21', selectedPatch: '4.21.20', lockedVersion: true } }
+    );
+    const res = await post(zip, 'application/zip');
+    assert.strictEqual(res.status, 410);
+    assert.deepStrictEqual(await res.json(), {
+      error: 'The bundle validation endpoint has been withdrawn.',
+      code: 'ENDPOINT_WITHDRAWN'
     });
   });
 
-  describe('rejected media types', () => {
-    it('rejects application/json with 415', async () => {
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ test: true }),
-      });
-      assert.strictEqual(res.status, 415);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'WRONG_MEDIA_TYPE');
-    });
+  /**
+   * The actual attack, pinned as a regression test.
+   *
+   * A deflate stream of zeros amplifies about 1020:1, and the only gate before
+   * the inflate loop is a central-directory NAME check for
+   * version-manifest.json (exportIntegrity.js:745) — the manifest's contents
+   * are not parsed until every entry has been inflated, CRC32'd and retained.
+   * So a one-byte junk manifest entry buys the full cost, and the archive is
+   * ultimately rejected as MALFORMED_MANIFEST only after the damage is done.
+   *
+   * Measured against the validator directly, in an isolated memory-capped
+   * child process at this scale: 32 KiB of request body produced ~115 MiB of
+   * RSS and ~240ms of blocked event loop at 4x this size. The endpoint's own
+   * limits permitted 1 GiB, i.e. roughly 2.2s of blocking per request, with no
+   * concurrency cap and no authentication.
+   *
+   * Scaled down deliberately: the assertion is that this body is now ignored,
+   * so it costs nothing to send. If the route is ever reconnected to the
+   * parser this test starts allocating for real and fails loudly on time.
+   */
+  it('ignores a decompression bomb that used to cost ~115 MiB and block the loop', async () => {
+    const bomb = buildZipBuffer([
+      ...Array.from({ length: 4 }, (_, i) => (
+        { name: `pad-${i}.bin`, content: Buffer.alloc(8 * 1024 * 1024, 0) })),
+      { name: MANIFEST_FILENAME, content: 'x' }
+    ]);
+    assert.ok(bomb.length < 128 * 1024,
+      `bomb should be tiny on the wire, was ${bomb.length} bytes`);
 
-    it('rejects multipart/form-data with 415', async () => {
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'multipart/form-data; boundary=----WebKitFormBoundary' },
-        body: '------WebKitFormBoundary\r\nContent-Disposition: form-data; name="file"\r\n\r\ndata\r\n------WebKitFormBoundary--',
-      });
-      assert.strictEqual(res.status, 415);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'WRONG_MEDIA_TYPE');
-    });
+    const started = Date.now();
+    const res = await post(bomb, 'application/zip');
+    const elapsed = Date.now() - started;
 
-    it('rejects text/plain with 415', async () => {
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: 'hello',
-      });
-      assert.strictEqual(res.status, 415);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'WRONG_MEDIA_TYPE');
-    });
-
-    it('rejects absent content-type with 415', async () => {
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        body: null,
-      });
-      assert.strictEqual(res.status, 415);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'WRONG_MEDIA_TYPE');
-    });
+    assert.strictEqual(res.status, 410);
+    assert.strictEqual((await res.json()).code, 'ENDPOINT_WITHDRAWN');
+    assert.ok(elapsed < 1000,
+      `request took ${elapsed}ms — the body looks like it was still inflated`);
   });
 
-  describe('empty or missing body', () => {
-    it('rejects empty body with 400 EMPTY_BODY', async () => {
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: new Uint8Array(0),
-      });
-      assert.strictEqual(res.status, 400);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'EMPTY_BODY');
-    });
-  });
+  /**
+   * The core proof that no parsing happens.
+   *
+   * These three bodies used to take three visibly different routes through the
+   * server: a valid archive returned 200 with manifest fields, random bytes
+   * returned 400 INVALID_ARCHIVE, and a truncated archive returned 400 only
+   * after the central directory had been read. Each of those outcomes was
+   * reachable solely by inflating and hashing the payload.
+   *
+   * So asserting the three responses are now identical is a behavioural proof
+   * that the parser is never entered: any residual inspection of the body
+   * would have to make them diverge again. This is preferable to mocking
+   * validateArchiveBuffer, which is impossible anyway — ESM namespace objects
+   * are frozen, so mock.method cannot patch the export.
+   */
+  it('cannot tell a valid archive from garbage — the parser is never entered', async () => {
+    const valid = buildManifestZip({ 'install-config.yaml': 'apiVersion: v1\n' });
+    const garbage = Buffer.alloc(2 * 1024 * 1024, 0x41);
+    const truncated = valid.subarray(0, Math.floor(valid.length / 2));
 
-  describe('malformed ZIP', () => {
-    it('rejects non-ZIP bytes with 400 INVALID_ARCHIVE', async () => {
-      const garbage = Buffer.from('this is not a zip file at all');
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: garbage,
-      });
-      assert.strictEqual(res.status, 400);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'INVALID_ARCHIVE');
-    });
-
-    it('rejects truncated ZIP with 400', async () => {
-      const validZip = buildManifestZip({ 'test.txt': 'data' });
-      const truncated = validZip.subarray(0, 20);
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: truncated,
-      });
-      assert.strictEqual(res.status, 400);
-      const body = await res.json();
-      assert.ok(body.code);
-    });
-  });
-
-  describe('missing manifest', () => {
-    it('rejects ZIP without version-manifest.json with 400 MISSING_MANIFEST', async () => {
-      const zip = buildZipBuffer([
-        { name: 'install-config.yaml', content: 'apiVersion: v1\n' }
-      ]);
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 400);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'MISSING_MANIFEST');
-    });
-  });
-
-  describe('invalid manifest', () => {
-    it('rejects invalid JSON manifest with 400 MALFORMED_MANIFEST', async () => {
-      const zip = buildZipBuffer([
-        { name: MANIFEST_FILENAME, content: 'not valid json {{{' }
-      ]);
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 400);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'MALFORMED_MANIFEST');
-    });
-  });
-
-  describe('checksum failure', () => {
-    it('rejects archive with mismatched checksums with 400 CHECKSUM_MISMATCH', async () => {
-      const fileContent = 'apiVersion: v1\n';
-      const wrongChecksum = 'sha256:' + '0'.repeat(64);
-      const manifest = validManifest({
-        integrity: {
-          algorithm: 'sha-256',
-          format: 'lowercase-hex',
-          files: { 'install-config.yaml': wrongChecksum }
-        }
-      });
-      const zip = buildZipBuffer([
-        { name: 'install-config.yaml', content: fileContent },
-        { name: MANIFEST_FILENAME, content: JSON.stringify(manifest) }
-      ]);
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 400);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'CHECKSUM_MISMATCH');
-    });
-  });
-
-  describe('incompatible manifest/state schema (422)', () => {
-    it('rejects unsupported manifest schema version with 422', async () => {
-      const fileContent = 'data';
-      const checksum = computeSha256(Buffer.from(fileContent, 'utf8'));
-      const manifest = validManifest({
-        manifestSchemaVersion: '99.0.0',
-        integrity: {
-          algorithm: 'sha-256',
-          format: 'lowercase-hex',
-          files: { 'test.txt': checksum }
-        }
-      });
-      const zip = buildZipBuffer([
-        { name: 'test.txt', content: fileContent },
-        { name: MANIFEST_FILENAME, content: JSON.stringify(manifest) }
-      ]);
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 422);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'UNSUPPORTED_MANIFEST_SCHEMA');
-    });
-
-    it('rejects incompatible state schema with 422', async () => {
-      const fileContent = 'data';
-      const checksum = computeSha256(Buffer.from(fileContent, 'utf8'));
-      const manifest = validManifest({
-        generated: { stateSchemaVersion: 99 },
-        integrity: {
-          algorithm: 'sha-256',
-          format: 'lowercase-hex',
-          files: { 'test.txt': checksum }
-        }
-      });
-      const zip = buildZipBuffer([
-        { name: 'test.txt', content: fileContent },
-        { name: MANIFEST_FILENAME, content: JSON.stringify(manifest) }
-      ]);
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 422);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'INCOMPATIBLE_STATE_SCHEMA');
-    });
-
-    it('rejects unsupported OpenShift version with 422', async () => {
-      const fileContent = 'data';
-      const checksum = computeSha256(Buffer.from(fileContent, 'utf8'));
-      const manifest = validManifest({
-        openshift: { selectedMinor: '4.99', selectedPatch: '4.99.0', lockedVersion: true },
-        integrity: {
-          algorithm: 'sha-256',
-          format: 'lowercase-hex',
-          files: { 'test.txt': checksum }
-        }
-      });
-      const zip = buildZipBuffer([
-        { name: 'test.txt', content: fileContent },
-        { name: MANIFEST_FILENAME, content: JSON.stringify(manifest) }
-      ]);
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 422);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'UNSUPPORTED_VERSION');
-    });
-
-    it('rejects unlocked version with 422', async () => {
-      const fileContent = 'data';
-      const checksum = computeSha256(Buffer.from(fileContent, 'utf8'));
-      const manifest = validManifest({
-        openshift: { selectedMinor: '4.21', selectedPatch: '4.21.20', lockedVersion: false },
-        integrity: {
-          algorithm: 'sha-256',
-          format: 'lowercase-hex',
-          files: { 'test.txt': checksum }
-        }
-      });
-      const zip = buildZipBuffer([
-        { name: 'test.txt', content: fileContent },
-        { name: MANIFEST_FILENAME, content: JSON.stringify(manifest) }
-      ]);
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 422);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'UNLOCKED_VERSION');
-    });
-  });
-
-  describe('unsafe entry name', () => {
-    it('rejects path traversal with 400 UNSAFE_ENTRY_NAME', async () => {
-      const manifest = validManifest();
-      const zip = buildZipBuffer([
-        { name: '../../../etc/passwd', content: 'root:x:0:0' },
-        { name: MANIFEST_FILENAME, content: JSON.stringify(manifest) }
-      ]);
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 400);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'UNSAFE_ENTRY_NAME');
-    });
-  });
-
-  describe('archive limit exceeded', () => {
-    it('rejects archive with too many entries through API', async () => {
-      const manifest = validManifest();
-      const zip = buildZipBuffer([
-        { name: MANIFEST_FILENAME, content: JSON.stringify(manifest), method: 0 }
-      ]);
-      const overridden = Buffer.from(zip);
-      const eocdPos = overridden.length - 22;
-      overridden.writeUInt16LE(10001, eocdPos + 8);
-      overridden.writeUInt16LE(10001, eocdPos + 10);
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: overridden,
-      });
-      assert.strictEqual(res.status, 400);
-      const body = await res.json();
-      assert.strictEqual(body.code, 'ARCHIVE_LIMIT_EXCEEDED');
-    });
-  });
-
-  describe('validation-only non-persistence contract', () => {
-    function snapshotDir(dir) {
-      if (!fs.existsSync(dir)) return [];
-      const entries = [];
-      for (const dirent of fs.readdirSync(dir, { withFileTypes: true })) {
-        const full = path.join(dir, dirent.name);
-        entries.push(full);
-        if (dirent.isDirectory()) entries.push(...snapshotDir(full));
-      }
-      return entries.sort();
+    const seen = [];
+    for (const body of [valid, garbage, truncated]) {
+      const res = await post(body, 'application/zip');
+      seen.push({ status: res.status, body: await res.text() });
     }
 
-    it('successful validation does not create files in DATA_DIR', async () => {
-      const before = snapshotDir(process.env.DATA_DIR);
-      const zip = buildManifestZip(
-        { 'install-config.yaml': 'apiVersion: v1\n', 'agent-config.yaml': 'agent' },
-        { openshift: { selectedMinor: '4.21', selectedPatch: '4.21.20', lockedVersion: true } }
-      );
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      assert.strictEqual(res.status, 200);
-      const after = snapshotDir(process.env.DATA_DIR);
-      assert.deepStrictEqual(after, before);
-    });
-
-    it('failed validation does not create files in DATA_DIR', async () => {
-      const before = snapshotDir(process.env.DATA_DIR);
-      await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: Buffer.from('not a zip'),
-      });
-      const after = snapshotDir(process.env.DATA_DIR);
-      assert.deepStrictEqual(after, before);
-    });
-
-    it('response excludes persistence indicators (state, runId, imported, ok, entries, manifest)', async () => {
-      const zip = buildManifestZip({ 'install-config.yaml': 'apiVersion: v1\n' });
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: zip,
-      });
-      const body = await res.json();
-      assert.strictEqual(body.state, undefined);
-      assert.strictEqual(body.runId, undefined);
-      assert.strictEqual(body.imported, undefined);
-      assert.strictEqual(body.ok, undefined);
-      assert.strictEqual(body.entries, undefined);
-      assert.strictEqual(body.manifest, undefined);
-    });
-
-    it('repeated validation of identical archive is idempotent', async () => {
-      const zip = buildManifestZip({ 'install-config.yaml': 'apiVersion: v1\n' });
-      const results = [];
-      for (let i = 0; i < 3; i++) {
-        const res = await fetch(`${baseUrl}/api/bundle.import`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/zip' },
-          body: zip,
-        });
-        results.push(await res.json());
-      }
-      assert.deepStrictEqual(results[0], results[1]);
-      assert.deepStrictEqual(results[1], results[2]);
-    });
+    assert.strictEqual(seen[0].status, 410);
+    for (const response of seen.slice(1)) {
+      assert.deepStrictEqual(response, seen[0],
+        'responses differ, so something still inspected the request body');
+    }
   });
 
-  describe('does not leak internals', () => {
-    it('error responses contain only error and code fields', async () => {
-      const garbage = Buffer.from('this is not a zip file at all');
-      const res = await fetch(`${baseUrl}/api/bundle.import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/zip' },
-        body: garbage,
-      });
-      assert.strictEqual(res.status, 400);
-      const body = await res.json();
-      assert.ok(body.error);
-      assert.ok(body.code);
-      assert.strictEqual(body.stack, undefined);
-      assert.strictEqual(body.entries, undefined);
-      assert.strictEqual(body.manifest, undefined);
+  it('answers 410 for every content type, including those that used to 415', async () => {
+    for (const contentType of [
+      'application/zip', 'application/octet-stream',
+      'application/json', 'multipart/form-data', 'text/plain', null
+    ]) {
+      const res = await post('{"not":"a zip"}', contentType);
+      assert.strictEqual(res.status, 410, `content-type ${contentType}`);
+      assert.strictEqual((await res.json()).code, 'ENDPOINT_WITHDRAWN');
+    }
+  });
+
+  it('answers 410 for an empty body, which used to be 400 EMPTY_BODY', async () => {
+    const res = await post(Buffer.alloc(0), 'application/zip');
+    assert.strictEqual(res.status, 410);
+    assert.strictEqual((await res.json()).code, 'ENDPOINT_WITHDRAWN');
+  });
+
+  it('is withdrawn for every method that reaches the route', async () => {
+    for (const method of ['GET', 'PUT', 'DELETE', 'PATCH']) {
+      const res = await fetch(`${baseUrl}/api/bundle.import`, { method });
+      assert.strictEqual(res.status, 410, `${method} should be withdrawn`);
+      assert.strictEqual((await res.json()).code, 'ENDPOINT_WITHDRAWN');
+    }
+  });
+
+  it('answers OPTIONS from the CORS layer, which is not a bypass', async () => {
+    // Pinned because the documentation used to claim 410 "on every verb",
+    // which is not what happens: app.use(cors()) is registered before this
+    // route and terminates the preflight itself. That is correct behaviour —
+    // a preflight carries no body and reveals nothing — but the claim was
+    // wrong, and asserting the real shape keeps the docs honest.
+    const res = await fetch(`${baseUrl}/api/bundle.import`, {
+      method: 'OPTIONS',
+      headers: { Origin: 'https://example.invalid', 'Access-Control-Request-Method': 'POST' }
     });
+    assert.strictEqual(res.status, 204, 'preflight is answered by cors(), not the route');
+    assert.strictEqual((await res.text()).length, 0, 'a preflight must carry no body');
+  });
+
+  it('leaves /api/health responsive under repeated oversized uploads', async () => {
+    // Deliberately a responsiveness assertion and not a load test. 40 x 1 MiB
+    // is enough to pin the regression and nothing like the ~1 GiB per request
+    // the old handler allowed; reproducing the original blow-up on a developer
+    // workstation is not an acceptable way to test for it. Traffic of this
+    // shape previously drove /api/health to ~15s against a 5s liveness
+    // threshold, so a health probe failing here is the regression itself.
+    const payload = Buffer.alloc(1024 * 1024, 0x42);
+    const started = Date.now();
+    for (let i = 0; i < 40; i++) {
+      await post(payload, 'application/zip');
+      const health = await fetch(`${baseUrl}/api/health`);
+      assert.strictEqual(health.status, 200, `health degraded on iteration ${i}`);
+    }
+    const elapsed = Date.now() - started;
+    assert.ok(elapsed < 10_000, `40 rejected uploads plus health probes took ${elapsed}ms`);
+  });
+});
+
+/**
+ * Static guard against an accidental revert.
+ *
+ * Paired with the behavioural proof above rather than standing alone, because
+ * it catches a different failure: someone re-registering the route *below* a
+ * body parser, where the behavioural test could still pass while the DoS was
+ * back.
+ *
+ * Matches call syntax rather than the bare identifiers. index.js names both
+ * symbols in the comment explaining why they are gone, so an identifier-only
+ * regex would fire on that comment and fail for the wrong reason.
+ */
+describe('bundle import parser is unreachable from any route', () => {
+  it('index.js contains no express.raw and no validateArchiveBuffer call', async () => {
+    const source = await fs.promises.readFile(
+      new URL('../src/index.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /express\s*\.\s*raw\s*\(/,
+      'express.raw reintroduces an unbounded request body buffer');
+    assert.doesNotMatch(source, /validateArchiveBuffer\s*\(/,
+      'validateArchiveBuffer reintroduces synchronous inflate over request bytes');
   });
 });
 

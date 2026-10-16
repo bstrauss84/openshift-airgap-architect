@@ -54,6 +54,33 @@ function computeSha256(content) {
   return `sha256:${hash.digest('hex')}`;
 }
 
+/** Reused read window for streamed hashing. Never scales with file size. */
+const STREAM_HASH_CHUNK_BYTES = 64 * 1024;
+
+/**
+ * sha256 a file without ever holding more than one chunk of it.
+ *
+ * Synchronous on purpose: the tracker's callers register entries in one
+ * synchronous pass and then build the manifest from the collected checksums,
+ * so a digest that is not ready by the time registration returns would have to
+ * be awaited somewhere, and the manifest-last ordering would become event
+ * choreography.
+ */
+function computeSha256File(filePath) {
+  const hash = crypto.createHash('sha256');
+  const window = Buffer.allocUnsafe(STREAM_HASH_CHUNK_BYTES);
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    let bytesRead;
+    while ((bytesRead = fs.readSync(fd, window, 0, STREAM_HASH_CHUNK_BYTES, null)) > 0) {
+      hash.update(window.subarray(0, bytesRead));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  return `sha256:${hash.digest('hex')}`;
+}
+
 function getAppIdentity() {
   const commit = (process.env.APP_GIT_SHA || 'unknown').trim();
   const buildTime = (process.env.APP_BUILD_TIME || 'unknown').trim();
@@ -87,7 +114,7 @@ function walkDirectorySync(dirPath, prefix) {
   return results;
 }
 
-function buildVersionManifest(v3State, fileChecksums) {
+function buildVersionManifest(v3State, fileChecksums, requestedDeliverables = []) {
   return {
     manifestSchemaVersion: MANIFEST_SCHEMA_VERSION,
     generated: {
@@ -105,6 +132,23 @@ function buildVersionManifest(v3State, fileChecksums) {
       stateFormatCompatible: [3],
       warnings: []
     },
+    // What the operator explicitly ASKED for, beside what the archive carries.
+    //
+    // Additive on purpose, and `manifestSchemaVersion` is deliberately NOT
+    // bumped: validateArchiveManifest compares it by EXACT equality (see the
+    // UNSUPPORTED_MANIFEST_SCHEMA check below), so a bump would reject every
+    // bundle that already exists as well as every new one. The validator is
+    // field-by-field with no unknown-key rejection, so an added section is
+    // backward compatible in both directions.
+    //
+    // A delivered bundle always has every entry here fulfilled, because an
+    // unfulfilled request terminates the export before the manifest is built.
+    // The unfulfilled shape is therefore only ever observed by the producer
+    // and by tests — it exists so the promise is machine-checkable without
+    // unpacking and hashing the tools themselves.
+    delivery: {
+      requested: requestedDeliverables.map((entry) => ({ ...entry }))
+    },
     integrity: {
       algorithm: 'sha-256',
       format: 'lowercase-hex',
@@ -115,17 +159,139 @@ function buildVersionManifest(v3State, fileChecksums) {
 
 function createIntegrityTracker(archive) {
   const checksums = {};
+  // Members archiver opens later, and the ones it has actually written. Only
+  // streamFile() members can go missing: an append(Buffer) member is already
+  // in memory, while a streamed source can vanish or become unreadable
+  // between registration and consumption, which archiver reports as a
+  // `warning` and then silently omits.
+  const streamedMembers = new Set();
+  const archivedMembers = new Set();
+  archive.on('entry', (data) => {
+    if (data?.name) archivedMembers.add(data.name);
+  });
+
+  // Deliverables the operator EXPLICITLY requested via exportOptions, keyed by
+  // the option name, each carrying the exact member names that fulfil it.
+  //
+  // Orthogonal to streamedMembers above. That set catches a member archiver
+  // LOST after registration; this map catches a member the producer never
+  // managed to register AT ALL — a requested tool whose download failed. Both
+  // end the same way, because both yield an archive that does not contain what
+  // it promised, and the operator only discovers it on the far side of the air
+  // gap, where the mirror is unreachable by definition.
+  //
+  // Documented degraded modes are deliberately NOT registered here. The
+  // high-side runtime package is absent by design when no container engine is
+  // present (the shipped image contains none), and that behaviour is pinned as
+  // REQUIRED by backend/test/image-runtime-parity/parity-check.sh. Declaring a
+  // deliverable is precisely what makes its absence fatal, so not declaring one
+  // is how a degradation stays a degradation.
+  const requested = new Map();
+  const hasMember = (name) => Object.prototype.hasOwnProperty.call(checksums, name);
+  const deliveryRecord = () =>
+    [...requested.values()].map((entry) => {
+      const included = entry.members.filter(hasMember);
+      return {
+        option: entry.option,
+        requested: [...entry.members],
+        included,
+        fulfilled: included.length === entry.members.length,
+        ...(entry.reason === null ? {} : { failureReason: entry.reason })
+      };
+    });
 
   return {
     append(content, options) {
       archive.append(content, options);
       checksums[options.name] = computeSha256(content);
     },
+    /**
+     * Snapshot a file into the archive.
+     *
+     * Reads the whole file into memory on purpose: the Buffer handed to
+     * archiver and the bytes hashed are the same bytes, so a file that is
+     * mutated after registration cannot make the manifest disagree with the
+     * archive. That atomicity is asserted by the "file mutation after tracking
+     * cannot cause checksum/content divergence (TOCTOU)" test and is why this
+     * method stays eager for files the caller does not exclusively own.
+     *
+     * Memory cost is the file's size, and costs accumulate across members
+     * because registration is one synchronous pass. Use `streamFile` for large
+     * members whose exclusive ownership the caller can guarantee.
+     */
     file(filePath, options) {
       const content = fs.readFileSync(filePath);
       const { mode } = fs.statSync(filePath);
       archive.append(content, { ...options, mode });
       checksums[options.name] = computeSha256(content);
+    },
+    /**
+     * Add a file to the archive without ever buffering it.
+     *
+     * Peak memory is one 64 KB hash window plus archiver's own deflate state,
+     * independent of the file's size. The digest is computed up front so the
+     * manifest can still be built synchronously and appended last.
+     *
+     * CALLER PRECONDITION — exclusive ownership. Unlike `file`, this takes no
+     * snapshot: archiver opens the path later, while the archive streams. The
+     * caller must guarantee that nothing mutates or removes the file until the
+     * archive stream has ended, otherwise the manifest checksum can disagree
+     * with the archived bytes, or the entry can vanish entirely (archiver
+     * reports a missing source as a `warning` and silently omits it). Only use
+     * this for files the caller created and solely controls.
+     */
+    streamFile(filePath, options) {
+      const { mode } = fs.statSync(filePath);
+      checksums[options.name] = computeSha256File(filePath);
+      streamedMembers.add(options.name);
+      archive.file(filePath, { ...options, mode });
+    },
+    /**
+     * Streamed members the manifest claims but the archive does not contain.
+     *
+     * Meaningful once the archive has finished: a non-empty result means the
+     * ZIP is incomplete relative to its own manifest, and the export must be
+     * reported as failed rather than served.
+     */
+    missingStreamedMembers() {
+      return [...streamedMembers].filter((name) => !archivedMembers.has(name));
+    },
+    /**
+     * Declare a requested deliverable and every member name that fulfils it.
+     *
+     * Call this BEFORE attempting the work, so the promise survives a throw —
+     * a request recorded only on success could never detect a failure. Every
+     * declared name must be registered for the request to count as kept: an
+     * option promising two binaries is not satisfied by one of them.
+     */
+    requestDeliverable(option, members) {
+      requested.set(option, { option, members: [...members], reason: null });
+    },
+    /**
+     * Record WHY a declared deliverable could not be produced. Deliberately
+     * never adds a member: a note inside the archive, standing where a binary
+     * was requested, is exactly the failure mode this replaces.
+     */
+    failDeliverable(option, reason) {
+      const entry = requested.get(option);
+      if (entry) entry.reason = String(reason?.message || reason);
+    },
+    /**
+     * Requested deliverables missing at least one declared member.
+     *
+     * Meaningful as soon as registration is complete, i.e. before the manifest
+     * is built. Non-empty means the export did not deliver what was asked for
+     * and must be failed rather than served with an explanation in place of a
+     * binary.
+     */
+    unfulfilledRequests() {
+      return [...requested.values()]
+        .map((entry) => ({
+          option: entry.option,
+          missing: entry.members.filter((name) => !hasMember(name)),
+          reason: entry.reason
+        }))
+        .filter((entry) => entry.missing.length > 0);
     },
     directory(dirPath, prefix) {
       for (const entry of walkDirectorySync(dirPath, prefix)) {
@@ -136,7 +302,7 @@ function createIntegrityTracker(archive) {
       }
     },
     buildManifest(v3State) {
-      return buildVersionManifest(v3State, checksums);
+      return buildVersionManifest(v3State, checksums, deliveryRecord());
     },
     getChecksums() {
       return { ...checksums };
@@ -805,6 +971,7 @@ export {
   CHECKSUM_PATTERN,
   ZIP_LIMITS,
   computeSha256,
+  computeSha256File,
   crc32,
   getAppIdentity,
   buildVersionManifest,

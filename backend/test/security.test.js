@@ -27,6 +27,35 @@ test("Path Traversal: should block access to /etc/passwd", async () => {
   }
 });
 
+test("Path Traversal: a sibling of an allowed root is not inside it", async () => {
+  // `/tmpfoo` and `/datax` share a string prefix with the allowed roots but
+  // are not children of them. A bare startsWith admitted both.
+  const { server, baseUrl } = await createTestServer(app);
+  try {
+    for (const target of ["/tmpfoo", "/tmp-evil", "/datax"]) {
+      const res = await fetch(`${baseUrl}/api/fs/ls?path=${encodeURIComponent(target)}`);
+      assert.strictEqual(res.status, 403, `${target} must not be treated as an allowed root`);
+      const data = await res.json();
+      assert.ok(data.error.includes("Access denied"));
+    }
+  } finally {
+    await closeTestServer(server);
+  }
+});
+
+test("Path Traversal: a genuine child of an allowed root is still permitted", async () => {
+  // The tightening must not break the feature it guards.
+  const { server, baseUrl } = await createTestServer(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/fs/ls?path=${encodeURIComponent("/tmp")}`);
+    assert.notStrictEqual(res.status, 403, "/tmp itself must remain listable");
+    const nested = await fetch(`${baseUrl}/api/fs/ls?path=${encodeURIComponent("/tmp/any-nested-path")}`);
+    assert.notStrictEqual(nested.status, 403, "a path under /tmp must remain listable");
+  } finally {
+    await closeTestServer(server);
+  }
+});
+
 test("Path Traversal: should block access to /etc directory", async () => {
   const { server, baseUrl } = await createTestServer(app);
   try {

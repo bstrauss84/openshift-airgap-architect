@@ -181,7 +181,13 @@ describe("the real gate, driven from a cold cache", () => {
     await act(async () => {
       rerender(<Harness />);
     });
-    expect(isVersionedDataReady(BASELINE)).toBe(true);
+    // `waitFor`, not a bare assertion after one act(): BASELINE's own fetch
+    // has to complete, and vitest 4 no longer happens to flush it inside that
+    // single act(). The claim under test is unchanged and is NOT relaxed —
+    // readiness is still keyed on BASELINE, so NEWEST's already-resident data
+    // cannot satisfy it; this only stops asserting on a specific microtask
+    // boundary. The same file already waits this way at line 160.
+    await waitFor(() => expect(isVersionedDataReady(BASELINE)).toBe(true));
     expect(screen.getByTestId("child")).toBeInTheDocument();
   });
 });

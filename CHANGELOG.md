@@ -9,8 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Detailed notes: [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md)
 >
-> Code complete and certified by automated testing. Final human QA and release tagging
-> are outstanding, so this version is not yet released.
+> **Not released, and not certified.** The automated test suites pass, but release
+> certification is **RED/INCOMPLETE**: the container-image security scan is bound to a
+> stale candidate, and the API has no authentication while the OpenShift overlay
+> publishes the backend on a public Route. The authentication *target* is approved —
+> same-origin frontend proxy in front of a protected backend — so what is outstanding
+> is the implementation, not the decision. Human QA, that implementation, a
+> candidate-bound image scan with a real vulnerability disposition, and release
+> tagging are all outstanding.
+>
+> No release artifacts exist: no GitHub Release, no published SBOM, no checksum file,
+> no signature. See [SBOM and provenance](docs/security/SBOM_AND_PROVENANCE.md).
 
 ### Added
 
@@ -32,6 +41,47 @@ network, outside the DHCP range, and distinct from the cluster provisioning IP.
 combinations are now refused when configuration is generated, not only hidden in the UI.
 This affects configurations saved by v2.0.0 that contain combinations the product does
 not support, such as vSphere on arm64.
+
+### Fixed (upgrade safety)
+
+- **Tools → Export Run no longer exports a stale snapshot.** Export downloads the
+  server's copy of the run, but edits reached the server through a 600 ms debounce,
+  so exporting immediately after an edit produced a file that silently predated it —
+  precisely the file an operator would restore from after updating. The export now
+  flushes any pending save first. Save failures, which were previously swallowed
+  entirely, now surface and **cancel** the export rather than emit a backup that
+  does not match what is on screen.
+
+- **The update banner no longer reports an update that does not exist.** It fired on
+  `isOutdated`, which only means "the configured branch head differs from this
+  build". There are no published GitHub Releases for this repository, and
+  `APP_BRANCH` defaults to `main`, which still points at the v1.7.1 commit — so a
+  running v2.1 build was told to update to something five months *older* than
+  itself. The check now reports a distinct state (`up-to-date`,
+  `development-branch-ahead`, `offline`, `unknown`, `disabled`, or
+  `published-supported-update`), and only a **verified published release** raises
+  the urgent banner. No trusted release-identity source exists yet, so that state
+  is unreachable and the urgent banner is fail-closed by design.
+
+- **The urgent banner now carries the backup guidance it always should have.** It
+  names Tools → Export Run before updating and Tools → Import Run afterwards, states
+  that credentials are excluded and must be re-entered, and distinguishes the run
+  JSON from the generated bundle ZIP. It previously said only "See Tools → About for
+  update steps", and Tools → About contained no update steps.
+
+- **Removed an unreachable second copy of the export path.** `ReviewStep.jsx` carried
+  its own `exportRun()` that called `/api/run/export` without flushing. It was dead —
+  the identifier appeared exactly once, its own declaration — so it was never a live
+  defect, but it was a working copy of the bug waiting to be wired up. It and its
+  now-unused helpers are gone, and a guard test pins that exactly one source file
+  reads that endpoint and that it flushes first.
+
+- **Corrected the documented build-SHA mechanism.** `README.md`, `docs/UPDATING.md`
+  and `docs/API.md` claimed that building from a git clone yields a real build SHA.
+  It does not: `.dockerignore` excludes `.git/`, so `APP_GIT_SHA` must be passed from
+  the host or the SHA is `unknown` and update checks cannot run at all. `docs/API.md`
+  also documented `/api/update-info` response fields that the endpoint has never
+  returned.
 
 ### Changed
 
@@ -76,6 +126,75 @@ not support, such as vSphere on arm64.
   file paths or stack traces.
 - Production dependency audits clean for backend and frontend.
 
+**Removed: `POST /api/bundle.import`** (now `410 ENDPOINT_WITHDRAWN`). The archive
+validation endpoint was an unauthenticated decompression denial of service: the only
+ingress exempt from the 10 MB JSON cap, it accepted 512 MiB and inflated every entry
+into memory synchronously, so a small compressed body cost roughly a gigabyte of RSS
+and seconds of blocked event loop, starving the `/api/health` liveness probe. No UI,
+CLI or documented workflow used it, so there is no user-visible loss. The validator
+itself is unchanged and still covered by tests; re-exposing it is tracked as DOC-127
+and requires much lower limits, a compression-ratio cap and a concurrency bound.
+
+**Removed: `GET /api/secrets/rh-pull-secret/content`** (now `410 ENDPOINT_WITHDRAWN`).
+It returned the operator's full mounted Red Hat pull secret to any caller, and the
+OpenShift overlay publishes the backend on a Route with no authentication. The secret
+is no longer sent to the browser at all. The `{ available: boolean }` probe is kept, so
+the UI still reports that a mounted secret exists; mirror operations authenticate with
+it server-side via `rhAuthSource: "mounted"`.
+
+**Fixed: directory read via bundle export.** `mirrorWorkflow.archivePath` (or
+`.outputPath`) from the request body was archived verbatim into the returned ZIP with no
+boundary check, which could exfiltrate the data directory — where a mounted pull secret
+lives — `/run/secrets`, or a service-account token directory.
+
+The export boundary is now a filesystem boundary rather than a string comparison. Every
+path is canonicalised with `realpath` before comparison, the target must be a strict
+subdirectory of the **application data directory**, and the whole tree is walked: any
+symbolic link and any file whose name looks like credential material is refused. An
+unsafe path now fails the request with a `400` **before any response headers commit**,
+instead of returning a ZIP with a silent omission.
+
+Two deliberate narrowings, which may affect existing setups:
+
+- `/tmp` is no longer an exportable root. It is still browsable, but recursively
+  archiving a world-writable directory into an unauthenticated download is not
+  defensible. Point `mirrorWorkflow.archivePath` at a subdirectory of the data
+  directory (the product default already does).
+- A mirror-output directory that contains credential-shaped filenames is refused
+  outright, naming the offending entry, rather than being exported without it.
+
+The earlier changelog entry for this claimed "arbitrary directory read" was closed by a
+lexical prefix check plus a four-name blacklist. That was not accurate: a symlink
+lexically inside an allowed root, a symlinked parent, and any differently-named
+credential all defeated it. Each is now covered by an end-to-end test that inspects the
+returned bytes.
+
+**Fixed: pull secrets stored in plaintext and served by `/api/jobs`.** The oc-mirror run
+request body was persisted verbatim into job metadata in SQLite — contradicting the
+"pull secrets never persisted to disk" contract — and `GET /api/jobs` and
+`GET /api/jobs/:id` returned the whole row to unauthenticated callers. Request bodies
+are now credential-stripped before storage, and the shared sanitiser now recognises the
+`rhPullSecret` and `mirrorPullSecret` spellings it previously missed.
+
+**Fixed: JSON Run import persisted credentials.** `POST /api/run/import` sanitised with
+the *export* sanitiser before persisting, which only blanks four `credentials.*` fields.
+An imported run therefore wrote `credentials.sshPrivateKey`, every `platformConfig.*`
+password, `hostInventory.nodes[].bmc.password` and userinfo embedded in a proxy URL into
+stored state, from which `GET /api/state`, `GET /api/run/export` and
+`POST /api/run/duplicate` served them back. It now uses the same persistence-grade
+sanitiser as `POST /api/state`. This matters for upgrades specifically, because the
+recommended path is Export Run → upgrade → Import Run.
+
+Consequence for operators: **a re-imported run no longer carries credentials, so
+credentials must be re-entered after importing.** Non-sensitive configuration, proxy
+*endpoints* (minus any embedded userinfo) and v1/v2 → v3 migration are unaffected.
+
+> **Not fixed, and release-blocking:** the backend still has **no authentication on any
+> route** and unrestricted CORS, while the OpenShift overlay publishes it on a public
+> Route. Several endpoints remain able to run privileged work with mounted credentials
+> for an anonymous caller. See the Tranche 8 handoff; this requires a deployment-topology
+> decision and is not closed by the fixes above.
+
 ### Known limitations
 
 - Human QA is not yet complete; this release is not final.
@@ -94,6 +213,13 @@ not support, such as vSphere on arm64.
 
 > Detailed notes: [docs/releases/v2.0.0.md](docs/releases/v2.0.0.md) ·
 > Upgrading from v1.x: [Migration Guide](docs/MIGRATION_GUIDE_v1_to_v2.md)
+>
+> **Date correction.** The 2026-09-18 above is the date v2.0 scope was declared closed
+> (commit `8cb53ad`). The annotated `v2.0.0` tag was created **2026-10-06** and points
+> at `09703fa`. The heading date is left as written to preserve the historical entry.
+> There is **no GitHub Release** for v2.0.0 — a tag is not a release page, and no
+> artifact, SBOM or checksum file was ever published. See
+> [SBOM and provenance](docs/security/SBOM_AND_PROVENANCE.md).
 
 ### Breaking Changes
 
@@ -459,6 +585,15 @@ None.
 - Complies with OpenShift restricted-v2 Security Context Constraints (SCC)
 - Will pass security scanners and organizational policy checks
 
+> **Correction (2026-10-16), retained rather than rewritten.** The last two bullets
+> above were not verified when written and remain unverified. No `restricted-v2`
+> admission test has ever been performed against a live OpenShift cluster, and no
+> scanner result was recorded. The non-root UID 1001 claim is accurate for the
+> process; the SCC-compliance and scanner claims are not evidence-backed. Tracked as
+> **PROD-039** (`active`) and **PROD-003** (`done_pending_verification`). See the
+> Security section of `README.md` for why the shipped manifests are unlikely to be
+> admitted under `restricted-v2` as written.
+
 ## [1.6.0] - 2026-05-20
 
 ### Added
@@ -493,6 +628,9 @@ All items verified_done and tested. This release makes OpenShift Airgap Architec
 - OpenShift-specific (`manifests/openshift/`):
   - `route-backend.yaml` / `route-frontend.yaml` - TLS edge Routes for external access
 - Security: Restricted-v2 SCC compatible (UID 1001, fsGroup 1001, non-root execution)
+  — **unverified; see the correction under 1.7.0 above.** Hardcoding `runAsUser: 1001`
+  and `fsGroup: 1001` is in tension with `restricted-v2`, which assigns both from the
+  namespace UID range. PROD-039 / PROD-003.
 - Resource limits defined (see PROD-004)
 - Health probes configured (see PROD-006)
 - Comprehensive deployment guide: `manifests/README.md`

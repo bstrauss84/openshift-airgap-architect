@@ -116,6 +116,74 @@ describe("release docs — relative links resolve", () => {
   }
 });
 
+/**
+ * SBOM discoverability is a release-notes requirement, not an optional extra:
+ * a user asking "where is the SBOM?" must reach an honest answer from the
+ * permanent navigation. These pin the honesty, not the prose — the page may say
+ * anything it likes so long as it does not claim a published artifact that does
+ * not exist.
+ */
+describe("SBOM and provenance page", () => {
+  const SBOM_PATH = path.join(REPO, "docs", "security", "SBOM_AND_PROVENANCE.md");
+
+  test("the page exists", () => {
+    assert.ok(fs.existsSync(SBOM_PATH), "docs/security/SBOM_AND_PROVENANCE.md is missing");
+  });
+
+  test("the permanent release-history section links it", () => {
+    const history = README.slice(README.indexOf('<a id="release-history"></a>'));
+    assert.ok(
+      history.includes("docs/security/SBOM_AND_PROVENANCE.md"),
+      "the permanent release-history navigation must link the SBOM page"
+    );
+  });
+
+  test("the v2.1 release note links it", () => {
+    const body = read("docs", "releases", "v2.1.0.md");
+    assert.ok(
+      body.includes("../security/SBOM_AND_PROVENANCE.md"),
+      "docs/releases/v2.1.0.md must link the SBOM page"
+    );
+  });
+
+  test("it states plainly that nothing is published yet", () => {
+    const body = fs.readFileSync(SBOM_PATH, "utf8");
+    assert.match(body, /not published yet/i, "the page must carry its not-published-yet status");
+  });
+
+  test("it does not claim a published SBOM, signature or clean scan", () => {
+    const body = fs.readFileSync(SBOM_PATH, "utf8");
+    // Each pattern is a claim that would be false today. Absence is the assertion.
+    for (const [label, re] of [
+      ["a downloadable SBOM", /\bdownload (the|our) sbom\b/i],
+      ["signed images", /\bimages are signed\b/i],
+      ["a clean scan", /\bno known vulnerabilities\b|\bscan(s|ned)? clean\b/i],
+      ["a published release", /\bavailable on the releases page\b/i],
+    ]) {
+      assert.doesNotMatch(body, re, `the SBOM page must not claim ${label}`);
+    }
+  });
+});
+
+describe("release docs — unverified claims stay marked unverified", () => {
+  test("restricted-v2 SCC compatibility is never asserted without qualification", () => {
+    // PROD-039 is open: no live admission test has been performed. Any surface
+    // that mentions restricted-v2 must qualify it rather than assert compatibility.
+    for (const [label, body] of [["README.md", README], ["CHANGELOG.md", CHANGELOG]]) {
+      const lines = body.split("\n");
+      lines.forEach((line, i) => {
+        if (!/restricted-v2/i.test(line)) return;
+        const context = lines.slice(Math.max(0, i - 2), i + 12).join("\n");
+        assert.match(
+          context,
+          /unverified|never been tested|not independently verified|PROD-039|unlikely to be admitted|assigns/i,
+          `${label}:${i + 1} mentions restricted-v2 without a nearby qualification: ${line.trim()}`
+        );
+      });
+    }
+  });
+});
+
 describe("release docs — the temporary README notice stays honest", () => {
   const NOTICE = "## 🚀 Major v2.x update available";
 
@@ -132,5 +200,87 @@ describe("release docs — the temporary README notice stays honest", () => {
   test("the permanent release-history section exists whether or not the notice does", () => {
     assert.match(README, /<a id="release-history"><\/a>/);
     assert.match(README, /^## Release history$/m);
+  });
+});
+
+/**
+ * The temporary v2.x release notice is a first-class, human-specified release
+ * requirement, not ordinary README prose. It has been partially lost once
+ * already, so each element the maintainer asked for is pinned individually:
+ * an explicit apology for the delay, the solo/spare-time context, the work and
+ * TESTING that went in, thanks to the community, links to the changelog, both
+ * sets of release notes and the v1 -> v2 migration guide, and a maintainer
+ * comment recording that the block is temporary while the PERMANENT release
+ * history stays.
+ *
+ * These assert substance, not exact wording, so the tone can still be edited.
+ */
+describe("README temporary v2.x release notice", () => {
+  const NOTICE_HEADING = "## 🚀 Major v2.x update available";
+
+  /** The notice runs from its heading to the next top-level section. */
+  function notice() {
+    const start = README.indexOf(NOTICE_HEADING);
+    assert.ok(start > -1, "the temporary v2.x update notice heading is missing from README.md");
+    const rest = README.slice(start + NOTICE_HEADING.length);
+    const end = rest.indexOf("\n## ");
+    return end === -1 ? rest : rest.slice(0, end);
+  }
+
+  test("appears near the top, before the table of contents", () => {
+    const noticeIdx = README.indexOf(NOTICE_HEADING);
+    const tocIdx = README.indexOf("## Table of contents");
+    assert.ok(noticeIdx > -1 && tocIdx > -1);
+    assert.ok(noticeIdx < tocIdx, "the notice must stay above the table of contents");
+  });
+
+  test("explicitly apologises for the delay and thanks the community", () => {
+    const body = notice();
+    assert.match(body, /\b(sorry|apolog\w*)\b/i, "the notice must contain an explicit apology");
+    assert.match(body, /\blonger than expected\b/i, "the notice must say the update took longer than expected");
+    assert.match(body, /\bthank you\b/i, "the notice must thank users");
+    assert.match(body, /\bpatience\b/i);
+  });
+
+  test("states the solo spare-time maintenance and the work and testing involved", () => {
+    const body = notice();
+    assert.match(body, /\bone person\b/i, "the notice must say it is maintained by one person");
+    assert.match(body, /\bspare time\b/i);
+    assert.match(body, /\bmonths\b/i, "the notice must convey the scale of work");
+    assert.match(body, /\btesting\b/i, "the notice must mention testing, not only building");
+  });
+
+  test("keeps the changelog, both release notes and the migration guide links", () => {
+    const body = notice();
+    for (const target of [
+      "CHANGELOG.md",
+      "docs/releases/v2.1.0.md",
+      "docs/releases/v2.0.0.md",
+      "docs/MIGRATION_GUIDE_v1_to_v2.md"
+    ]) {
+      assert.ok(body.includes(target), `the notice must keep its link to ${target}`);
+    }
+  });
+
+  test("does not claim the unreleased v2.1 or its 4.22 support has shipped", () => {
+    const body = notice();
+    assert.match(
+      body,
+      /v2\.1[\s\S]{0,120}?\bnot yet released\b/i,
+      "the notice must state that v2.1 is not yet released"
+    );
+    assert.doesNotMatch(body, /\bcertified\b/i, "the notice must not claim certification");
+    assert.doesNotMatch(body, /\bgenerally available\b|\bnow GA\b/i);
+  });
+
+  test("records that the block is temporary while release history is permanent", () => {
+    const start = README.indexOf(NOTICE_HEADING);
+    const preamble = README.slice(0, start);
+    assert.match(preamble, /TEMPORARY RELEASE NOTICE/i, "the maintainer retirement comment must stay");
+    assert.match(preamble, /PERMANENT/i, "the comment must record that release history is permanent");
+    assert.ok(
+      README.includes('<a id="release-history"></a>'),
+      "the permanent release-history section must remain"
+    );
   });
 });

@@ -15,8 +15,44 @@ import Switch from "./Switch.jsx";
 import OptionRow from "./OptionRow.jsx";
 import Button from "./Button.jsx";
 import AboutModal from "./AboutModal.jsx";
+import { UPDATE_STATUS, updateStatusOf } from "../../../shared/updateStatus.js";
 
 const DRAWER_Z = 10060;
+
+const checkedSuffix = (updateInfo) =>
+  updateInfo.checkedAt ? ` (checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : "";
+
+/**
+ * About-card update line.
+ *
+ * Driven by the shared update status rather than the legacy `isOutdated` boolean,
+ * which only ever meant "the configured branch head differs from this build" and
+ * so cannot tell a published release from an ordinary development commit — or
+ * from a branch that is OLDER than what is running. Only a verified published
+ * release offers an update link; everything else states plainly what is known.
+ */
+function renderUpdateLine(updateInfo) {
+  const guideHref = `https://github.com/${updateInfo.repo || "bstrauss84/openshift-airgap-architect"}/blob/main/docs/UPDATING.md`;
+
+  switch (updateStatusOf(updateInfo)) {
+    case UPDATE_STATUS.DISABLED:
+      return "Update checks disabled.";
+    case UPDATE_STATUS.OFFLINE:
+      return `Update check unavailable${updateInfo.checkedAt ? ` (last checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`;
+    case UPDATE_STATUS.UNKNOWN:
+      return "This build cannot be identified, so update checks are unavailable.";
+    case UPDATE_STATUS.DEVELOPMENT_BRANCH_AHEAD:
+      return `Development build; ${updateInfo.branch || "main"} is at a different commit. No published release detected${checkedSuffix(updateInfo)}.`;
+    case UPDATE_STATUS.PUBLISHED_SUPPORTED_UPDATE:
+      return (
+        <a href={guideHref} target="_blank" rel="noopener noreferrer">
+          Update available — export your run before updating
+        </a>
+      );
+    default:
+      return `Up to date${checkedSuffix(updateInfo)}.`;
+  }
+}
 
 function FocusTrap({ children, onClose, className }) {
   const ref = useRef(null);
@@ -152,7 +188,10 @@ export default function ToolsDrawer({
                 </Button>
               </div>
               <p className="note" style={{ marginTop: 12, marginBottom: 0 }}>
-                Export saves your current selections and run state to a JSON file. Import restores from a previously exported file.
+                Export saves your current selections and run state to a JSON file — save one before
+                updating the app. Import restores from a previously exported file. Credentials are
+                deliberately excluded and must be re-entered. This is not the generated bundle ZIP,
+                and it does not back up job history, downloaded binaries or server data volumes.
               </p>
             </section>
 
@@ -194,13 +233,7 @@ export default function ToolsDrawer({
               )}
               {updateInfo && (
                 <div className="about-update-info">
-                  {updateInfo.enabled === false
-                    ? "Update checks disabled."
-                    : updateInfo.error
-                      ? `Update check unavailable${updateInfo.checkedAt ? ` (last checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`
-                      : updateInfo.isOutdated
-                        ? <a href={`https://github.com/${updateInfo.repo || "bstrauss84/openshift-airgap-architect"}/blob/main/docs/UPDATING.md`} target="_blank" rel="noopener noreferrer">Update available</a>
-                        : `Up to date${updateInfo.checkedAt ? ` (checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`}
+                  {renderUpdateLine(updateInfo)}
                 </div>
               )}
               <div className="about-reward-note">

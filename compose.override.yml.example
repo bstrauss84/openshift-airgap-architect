@@ -36,6 +36,9 @@ services:
     #   - /path/to/large-drive/oc-mirror:/data/oc-mirror:Z
 
     # --- Mount Red Hat pull secret ---
+    # Read by the backend server-side only; the contents are never sent to the
+    # browser. Used for oc-mirror runs when "Use mounted Red Hat pull secret" is
+    # selected. Operator catalog scans use REGISTRY_AUTH_FILE instead.
     # environment:
     #   - PULL_SECRET_FILE=/run/secrets/pull-secret
     # secrets:

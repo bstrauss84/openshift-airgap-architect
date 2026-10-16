@@ -13,7 +13,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, API_BASE } from "../api.js";
 import { useApp, getStateForPersistence } from "../store.jsx";
 import { validateStep } from "../validation.js";
-import { getExportRunFilename } from "../exportRunFilename.js";
 import { logAction } from "../logger.js";
 import Switch from "../components/Switch.jsx";
 import OptionRow from "../components/OptionRow.jsx";
@@ -56,22 +55,6 @@ const MAX_PREVIEW_HEIGHT = 800;
 
 const PULLSECRET_PLACEHOLDER_LINE = "pullSecret: '{\"auths\":{}}'";
 const SENSITIVE_REDACTED = "*** REDACTED (click Show sensitive values to reveal) ***";
-const DOWNLOAD_REVOKE_DELAY_MS = 60 * 60 * 1000;
-
-function triggerBrowserDownload(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.style.display = "none";
-  document.body.appendChild(anchor);
-  anchor.click();
-  window.setTimeout(() => {
-    URL.revokeObjectURL(url);
-    anchor.remove();
-  }, DOWNLOAD_REVOKE_DELAY_MS);
-}
-
 /** Masks or replaces pullSecret value in install-config YAML. For obscured preview use replacement; for placeholder use replacement. */
 function replacePullSecretInYaml(yamlContent, replacementLine) {
   if (!yamlContent || typeof yamlContent !== "string") return yamlContent;
@@ -364,12 +347,6 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
     await apiFetch("/api/docs/update", { method: "POST" });
     await refresh();
     setDocsUpdating(false);
-  };
-
-  const exportRun = async () => {
-    const data = await apiFetch("/api/run/export");
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    triggerBrowserDownload(blob, getExportRunFilename(state));
   };
 
   const importRun = async (file) => {

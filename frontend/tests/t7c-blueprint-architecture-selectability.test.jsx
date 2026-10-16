@@ -48,6 +48,10 @@ import {
 } from "../../shared/installMethods.js";
 import { getScenarioId } from "../../shared/scenarioId.js";
 
+vi.mock("../src/api.js", () => ({
+  apiFetch: vi.fn(() => Promise.resolve({})),
+}));
+
 /**
  * Documented architecture support, per Red Hat installation-overview
  * Table 2.1/2.2 for 4.20, 4.21 and 4.22 (identical in all three).

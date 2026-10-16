@@ -284,15 +284,18 @@ FEEDBACK_BURST_MAX=1                   # 1 per 30 seconds
 - **Type:** Path (absolute)
 - **Default:** None (uses discovery fallback)
 - **Required:** No
-- **Description:** Path to Red Hat pull secret JSON file for operator scans and oc-mirror
+- **Description:** Path to a Red Hat pull secret JSON file used by oc-mirror operations
 - **Example:** `PULL_SECRET_FILE=/opt/secrets/pull-secret.json`
-- **Security:** File must be readable by backend process
-- **Discovery Fallback (if not set):**
-  1. `${HOME}/.openshift/pull-secret`
-  2. `/run/secrets/pull-secret` (Kubernetes secret mount)
+- **Security:** File must be readable by backend process. **The contents are never sent to the browser** — the backend holds them in memory and uses them server-side only.
+- **Discovery Fallback (if not set), first match wins:**
+  1. `/run/secrets/pull-secret` (Docker/Podman native `--secret` mount)
+  2. `<DATA_DIR>/pull-secret.json` (bind-mount into the data directory)
+  3. `${HOME}/.openshift/pull-secret` (`oc` CLI default, non-container dev runs)
 - **Notes:**
-  - Required for operator scan and oc-mirror operations
-  - Can be overridden by wizard-provided pull secret in state
+  - Used by `POST /api/ocmirror/preflight` and `POST /api/ocmirror/run` when the request selects `rhAuthSource: "mounted"`
+  - **Not** used by operator catalog scans — those authenticate via `REGISTRY_AUTH_FILE`, a separate mechanism
+  - Can be overridden by a wizard-provided pull secret in state
+  - As of v2.1 the Blueprint pull-secret field is **not** pre-populated from this file, and `GET /api/secrets/rh-pull-secret/content` returns `410 ENDPOINT_WITHDRAWN`. Only `GET /api/secrets/rh-pull-secret` → `{ available: boolean }` is exposed.
 
 ### `REGISTRY_AUTH_FILE`
 - **Type:** Path (absolute)
@@ -564,7 +567,8 @@ services:
 - **Fix:** Add reverse proxy IPs to `TRUSTED_PROXIES`
 
 ### Operator scan fails with auth errors
-- **Check:** `PULL_SECRET_FILE` points to valid pull secret
+- **Check:** `REGISTRY_AUTH_FILE` points to a valid pull secret. Operator scans read
+  **only** this variable; a `PULL_SECRET_FILE` mount will not authenticate a scan.
 - **Check:** File is readable by UID 1001 (backend user in containers)
 - **Check:** Pull secret contains `registry.redhat.io` and `quay.io` auth
 
