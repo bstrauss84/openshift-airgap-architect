@@ -220,7 +220,7 @@ class ErrorBoundary extends React.Component {
 
 /**
  * Version Support Gate - blocks AppShell mount for unsupported OpenShift versions.
- * Prevents catalog-dependent validation and hooks from running for 4.22+.
+ * Prevents catalog-dependent validation and hooks from running for 4.23+.
  * Shows recoverable UI with explicit version selection instead of generic error boundary.
  */
 // Exported for tests/version-gate-data-loading.test.jsx: this gate is the single

@@ -48,8 +48,11 @@ function fixtureRoot(overrides = {}) {
     "frontend/Containerfile",
     "frontend/index.html",
     "frontend/src/api.js",
-    "frontend/container/nginx-oaa.conf",
+    "frontend/container/nginx-oaa.conf.template",
     "frontend/container/oaa-entrypoint.sh",
+    // The listen directives are generated at container start, so the port
+    // contract now lives in the renderer and the guard reads it there.
+    "frontend/container/oaa-render-nginx.sh",
     "docker-compose.yml",
     "manifests/base/frontend-service.yaml",
     "manifests/base/frontend-deployment.yaml",
@@ -164,8 +167,8 @@ describe("frontend production runtime — each regression is caught", () => {
     [
       "the SPA fallback is removed",
       {
-        "frontend/container/nginx-oaa.conf": fs
-          .readFileSync(path.join(REPO_ROOT, "frontend", "container", "nginx-oaa.conf"), "utf8")
+        "frontend/container/nginx-oaa.conf.template": fs
+          .readFileSync(path.join(REPO_ROOT, "frontend", "container", "nginx-oaa.conf.template"), "utf8")
           .replace(/try_files \$uri \$uri\/ \/index\.html;/, "try_files $uri =404;"),
       },
       /no index\.html fallback/,

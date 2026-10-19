@@ -203,7 +203,26 @@ export function buildOneImage(spec, { engine, repoRoot, buildArgs = {}, runner =
     buildArgs: applied,
     argsNotDeclared: argsNotDeclared.sort(),
     declaredLabels: [...declaredLabels(containerfileText)].sort(),
-    command: [engine, ...argv].join(" "),
+    // Recorded with host paths folded back to repo-relative form.
+    //
+    // The build genuinely runs with absolute paths — the iidfile must sit
+    // outside the repo so it cannot join the untracked set and move the
+    // candidate id mid-build. But the RECORD of that command is release
+    // evidence meant to be read elsewhere, and verbatim it embedded the
+    // build host's home directory, username and a random temp path. The
+    // command stays faithful in shape and arguments; only the machine-
+    // specific prefixes are normalised.
+    command: [engine, ...argv]
+      .map((token) => {
+        if (typeof token !== "string") return token;
+        if (token.startsWith(repoRoot)) {
+          const rel = path.relative(repoRoot, token);
+          return rel === "" ? "." : rel.split(path.sep).join("/");
+        }
+        if (token === iidFile) return "<tmp>/iid";
+        return token;
+      })
+      .join(" "),
     startedAt: started.toISOString(),
     completedAt: completed.toISOString(),
     durationMs: completed.getTime() - started.getTime(),

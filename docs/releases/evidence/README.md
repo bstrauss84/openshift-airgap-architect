@@ -38,20 +38,33 @@ has no single answer without them.
 | range | count |
 |---|---|
 | `main..develop` | 188 |
-| `develop..work/v2.1-release-hardening` | 20 |
-| `main..work/v2.1-release-hardening` | **208** |
+| `develop..work/v2.1-release-hardening` | 21 |
+| `main..work/v2.1-release-hardening` | **209** |
 
 `main` is `ffed74d0807d7a3bfcd321b660d7145b6d43b44d`, which is exactly the `v1.7.1`
-tag — the production anchor. The head is
-`f1459a532344eca714316b137d8aac21f4780ded`.
+tag — the production anchor. The ledger now covers through
+`f9d59e39d53d0a08bdff034da6d832c8032f97bf`.
 
-**All three counting modes agree at 208**: `--all` (reachable), `--no-merges`, and
+**All counting modes agree**: `--all` (reachable), `--no-merges`, and
 `--first-parent` return the same number, because the range contains **zero merge
 commits**. Every row in the ledger has `parent_count = 1`. There is therefore no
 first-parent-versus-reachable ambiguity to resolve, and no merge to explain.
 
+> **A ledger cannot contain the commit that writes it.** The first published
+> version of this file counted 209 commits as 208 and named `f1459a5` as the head.
+> That was correct at the moment it was drafted and wrong the moment it was
+> committed: the act of committing the ledger created commit
+> `f9d59e3`, a 209th commit that the ledger it contained did not list.
+>
+> This is structural, not a one-off mistake, so it needs a rule rather than a
+> patch. **The commit that updates this ledger must be appended to it by the next
+> update**, and the counts above name an explicit head rather than saying "HEAD".
+> Verify with `git rev-list --no-merges --count <main>..<stated head>`; if the
+> working head is ahead of the stated head, the difference should be exactly the
+> commits added since, and they belong in the next revision.
+
 No commit in the range is a cherry-pick duplicate of another: comparing
-`git patch-id --stable` across all 208 commits yields no duplicate patch ids. Two
+`git patch-id --stable` across all 209 commits yields no duplicate patch ids. Two
 *subjects* repeat (`DOC-102: Complete version-aware UI standards` and
 `DOCS: Move platform audit docs to local archive`), but they are distinct patches.
 
@@ -62,8 +75,8 @@ The `v2.0.0` tag is an annotated tag (`a9063d4`) pointing at
 `develop` and the hardening head, which makes the boundary unambiguous:
 
 - `main..09703fa` = **176** commits → classified `v2.0`
-- `09703fa..HEAD` = **32** commits → classified `v2.1`
-- 176 + 32 = 208 ✓
+- `09703fa..f9d59e3` = **33** commits → classified `v2.1`
+- 176 + 33 = 209 ✓
 
 ### Branches that are *not* counted separately
 
@@ -82,11 +95,11 @@ already an ancestor of the hardening head. They are not double counted:
 
 ```
 represented                          137
-not applicable (infrastructure-only)  63
+not applicable (infrastructure-only)  64
 missing                                7
 needs verification                     1
                                      ---
-total unique commits                 208
+total unique commits                 209
 ```
 
 The identity `represented + excluded-with-reason + pending = total` holds exactly.

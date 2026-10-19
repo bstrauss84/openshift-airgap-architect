@@ -641,12 +641,16 @@ describe("A requested tool that cannot be produced fails the export", () => {
    * requests to the test server use the real fetch. No network, no podman —
    * every state below disables the high-side runtime package.
    *
-   * `includeInstaller` is deliberately NOT exercised over HTTP here.
-   * backend/src/openshiftInstaller.js downloads via runCmd("curl", ...), so a
-   * globalThis.fetch stub does NOT intercept it: the request escapes to the
-   * real mirror and pulls a 717 MiB binary. Measured, not assumed. That
-   * option's contract is covered at the tracker level above until the path is
-   * made stubbable.
+   * `includeInstaller` is deliberately NOT exercised over HTTP here, but the
+   * REASON changed in this wave and the note is corrected rather than left to
+   * mislead. It used to be that backend/src/openshiftInstaller.js downloaded
+   * via runCmd("curl", ...), which a globalThis.fetch stub cannot intercept —
+   * the request escaped to the real mirror and pulled a 717 MiB binary
+   * (measured, not assumed). It now goes through
+   * acquireVerifiedArtifact/fetch and IS interceptable; the stub below simply
+   * makes the mirror unreachable, which is what these cases need. The
+   * option's success contract is covered at the tracker level above and, for
+   * the cache path, in installer-cache-provenance.test.js.
    */
   const offlineMirror = (input, init) => {
     const url = typeof input === "string" ? input : String(input?.url ?? input);

@@ -45,6 +45,21 @@ spec:
               key: PORT
         - name: DATA_DIR
           value: "/data"
+        # The backend binds exactly the address resolved in
+        # backend/src/accessControl.js, and unauthenticated mode defaults to
+        # loopback. A pod that binds loopback has no reachable Service endpoint
+        # and fails both kubelet probes, so the pod network namespace is
+        # declared here explicitly.
+        #
+        # THE BASE OVERLAY IS UNAUTHENTICATED. It is for plain Kubernetes behind
+        # a boundary you provide. Anything in the cluster that can reach this
+        # Service reaches the API with no identity — the OpenShift overlay
+        # (manifests/openshift/) is the one that adds oauth-proxy, the shared
+        # secret and NetworkPolicy.
+        - name: BIND_ADDRESS
+          value: "0.0.0.0"
+        - name: OAA_CONTAINER_NETWORK
+          value: "isolated"
         - name: NODE_ENV
           valueFrom:
             configMapKeyRef:

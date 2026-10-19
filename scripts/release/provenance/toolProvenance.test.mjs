@@ -228,19 +228,54 @@ describe("the binaries no image contains", () => {
     }
   });
 
-  test("the full inventory surfaces the verification gaps alongside the verified tools", () => {
+  // These three assertions replace a pair that pinned verificationGaps.length
+  // === 2. That count was the DEFECT, not the contract: openshift-install and
+  // mirror-registry were downloaded with no integrity check at all, and the
+  // tests encoded that state as the expected result — the same trap Tranche 7B
+  // hit, where a backend test pinned the broken SR-IOV shape. Closing the gaps
+  // in backend/src/verifiedDownload.js turned those tests red for the right
+  // reason. What is pinned now is the MECHANISM and the HONESTY of the
+  // document, neither of which may regress, rather than a number that is only
+  // correct while the product is broken.
+
+  test("gap reporting is driven by checksumVerified, so a regression reappears in the document", () => {
+    const unverified = RUNTIME_ACQUIRED_TOOLS.filter((t) => !t.checksumVerified);
+    const inv = externalBinaryInventory("podman", "sha256:deadbeef", { runner: fakeImageRunner() });
+    assert.equal(
+      inv.verificationGaps.length,
+      unverified.length,
+      "verificationGaps must mirror the tools declaring checksumVerified false"
+    );
+    assert.deepEqual(
+      inv.verificationGaps.map((g) => g.tool).sort(),
+      unverified.map((t) => t.tool).sort()
+    );
+  });
+
+  test("every runtime-acquired tool is now checksum-verified, and says how without overclaiming", () => {
+    for (const t of RUNTIME_ACQUIRED_TOOLS) {
+      assert.equal(t.checksumVerified, true, `${t.tool} is no longer expected to be unverified`);
+      assert.ok(t.verificationMethod, `${t.tool} must state how it is verified`);
+      // The distinction that matters: a checksum fetched from the artifact's own
+      // origin is not a signature. The document must not let a reader infer one.
+      assert.match(t.verificationMethod, /SHA256/);
+      assert.match(t.verificationMethod, /signature NOT verified/);
+    }
+  });
+
+  test("the full inventory still carries its companion-document contract", () => {
     const inv = externalBinaryInventory("podman", "sha256:deadbeef", { runner: fakeImageRunner() });
     assert.equal(inv.complete, true);
     assert.equal(inv.baked.length, 2);
-    assert.equal(inv.verificationGaps.length, 2);
-    assert.deepEqual(inv.verificationGaps.map((g) => g.tool).sort(), ["mirror-registry", "openshift-install"]);
     assert.match(inv.contract, /appear in NO generated SBOM/);
+    assert.equal(inv.runtimeAcquired.length, 2);
   });
 
-  test("a broken baked inventory makes the whole document incomplete, but the gaps are still reported", () => {
+  test("a broken baked inventory makes the whole document incomplete", () => {
     const inv = externalBinaryInventory("podman", "id", { runner: fakeImageRunner({ envStatus: 1 }) });
     assert.equal(inv.complete, false);
     assert.match(inv.reason, /absent or empty/);
-    assert.equal(inv.verificationGaps.length, 2);
+    // Gaps are still reported from the declarations regardless of baked state.
+    assert.ok(Array.isArray(inv.verificationGaps));
   });
 });

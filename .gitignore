@@ -155,6 +155,11 @@ claude_chat_history.txt
 *.chat.txt
 /local-docs/
 backend/tmp-installer-test/
+# Repository-root scratch directory. Tests that write here must not be able to
+# dirty the working tree: a dirty tree changes the release candidate id and
+# invalidates certification evidence bound to it (the last full run was recorded
+# as "f860d7db...+dirty" for exactly this class of reason).
+/tmp/
 
 # Playwright E2E test artifacts
 test-results/

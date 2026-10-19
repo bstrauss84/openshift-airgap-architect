@@ -29,7 +29,7 @@ of those is evidence of retirement.
 | `node scripts/validate-supported-minors.mjs` | `SUPPORTED_MINORS` is a superset of every previously released minor recorded in `scripts/lib/released-minor-support.json`; `SUPPORTED_MINORS[0]` still equals the recorded `baselineMinor`; the backend and frontend declarations agree. |
 | `node scripts/validate-version-lists.mjs` | No tracked JSON carries a `supportedVersions`/`versionRange` array that disagrees with `SUPPORTED_MINORS`. |
 
-Both run in CI. Current state: supported `[4.20, 4.21]`, baseline `4.20`.
+Both run in CI. Current state: supported `[4.20, 4.21, 4.22]`, baseline `4.20`.
 
 **The version-awareness baseline is `4.20`** — `SUPPORTED_MINORS[0]`, and the
 minor `catalogFieldMeta.js` compares against for "New in OpenShift X.Y" badges.

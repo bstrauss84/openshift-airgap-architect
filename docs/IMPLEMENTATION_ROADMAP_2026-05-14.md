@@ -1,7 +1,33 @@
 # Implementation Roadmap (Semantic Versioning)
 
+> ## 📜 HISTORICAL PLANNING RECORD — NOT CURRENT STATUS
+>
+> **This document describes the plan as it stood on 2026-08-13, when the
+> current release was v1.7.0.** It is retained as a record of what was
+> intended and why. It is **not** a statement of what the product supports
+> today, and the "Current Version" line below is historical.
+>
+> For current truth use, in this order:
+>
+> 1. [`docs/BACKLOG_STATUS.md`](BACKLOG_STATUS.md) — the single source of
+>    truth for status claims.
+> 2. [`CLAUDE.md`](../CLAUDE.md) — durable product scope and rules.
+> 3. [`docs/releases/v2.1.0.md`](releases/v2.1.0.md) — the current release
+>    note, including what is not certified.
+>
+> Two specific statements in the body below were accurate when written and
+> are **wrong as present-tense claims**; both are annotated in place rather
+> than rewritten, so the record stays intact:
+>
+> - a forward-looking mention of OpenShift **4.23** support (§ "Deferred to
+>   v2.0.0"). The supported set is **4.20, 4.21 and 4.22**. 4.23 is
+>   unsupported and rejected at every boundary.
+> - a claim of **restricted-v2 SCC compatibility** (§ v1.6.0). That was never
+>   verified against a cluster and the manifests of the time pinned
+>   `runAsUser: 1001`, which a default namespace UID range rejects.
+
 **Created:** 2026-05-14
-**Last Updated:** 2026-08-13
+**Last Updated:** 2026-08-13 (content frozen; banner added 2026-10-16)
 **Based on:** BACKLOG_STATUS.md + REVISED_PHASED_PLAN_2026-05-10.md + version-aware planning (local-docs/version-aware-planning/)
 **Replaces:** docs/REVISED_PHASED_PLAN_2026-05-10.md (as active roadmap)
 **Current Version:** 1.7.0 (released 2026-05-29)
@@ -750,6 +776,13 @@ This document organizes remaining backlog work by semantic versioning to provide
 - Archiver upgrade to 8.0.0 (eliminates memory leak from deprecated `inflight` dependency)
 - Build performance optimization (reduced Docker context size)
 - Container security verification (non-root execution, restricted-v2 SCC compatible)
+  <!-- HISTORICAL, AND NOT TRUE AS WRITTEN. Recorded 2026-08-13; corrected
+       2026-10-16. restricted-v2 compatibility was never verified against a
+       cluster, and the manifests of this period pinned runAsUser: 1001 and
+       fsGroup: 1001 — outside a default namespace uid-range, so admission
+       would have rejected the pod. The OpenShift overlay now removes both
+       pins (manifests/openshift/patch-restricted-v2.yaml); that correction
+       is still unverified on a live cluster. See PROD-039 / PROD-003. -->
 
 **Testing:**
 - 117 new regression tests added across 5 test suites
@@ -998,6 +1031,11 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 **Deferred to v2.0.0 (8-12 weeks, separate project):**
 - DOC-059: Version-aware system (OpenShift 4.20/4.21/4.22/4.23 support)
+  <!-- HISTORICAL SCOPE GUESS, NOT A SUPPORT CLAIM. Written 2026-08-13 when
+       the supported set was still being chosen. The shipped set is 4.20,
+       4.21 and 4.22. 4.23 is UNSUPPORTED and is rejected at every boundary
+       (HTTP 422 UNSUPPORTED_VERSION), with no fallback to a supported
+       minor. See CLAUDE.md "Product Scope". -->
 - Comprehensive testing/validation (after version-aware stabilizes)
 - Phase 4: Testing & Validation (visual regression, accessibility, E2E matrix)
 

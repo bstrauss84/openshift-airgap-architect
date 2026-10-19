@@ -239,12 +239,42 @@ function createIntegrityTracker(archive) {
      * with the archived bytes, or the entry can vanish entirely (archiver
      * reports a missing source as a `warning` and silently omits it). Only use
      * this for files the caller created and solely controls.
+     *
+     * `options.expectedSha256` — optional, and the bridge between this method
+     * and an artifact verified somewhere else (mirror-registry is verified by
+     * verifiedDownload.js against the channel's sha256sum.txt, then hard-linked
+     * into a private staging directory for exclusive ownership). Supplying it
+     * proves THE INODE BEING ARCHIVED is the one that was verified, closing the
+     * window between the verification and the link.
+     *
+     * The check happens BEFORE any mutation, and that ordering is load-bearing:
+     * a member registered and then rejected would already be present in
+     * `checksums`, so `unfulfilledRequests()` would report the request as
+     * fulfilled and the export would ship an unverified member. On a mismatch
+     * this leaves the tracker exactly as it found it, so the pre-condition
+     * still fires.
      */
     streamFile(filePath, options) {
       const { mode } = fs.statSync(filePath);
-      checksums[options.name] = computeSha256File(filePath);
+      const digest = computeSha256File(filePath);
+      const { expectedSha256, ...archiveOptions } = options;
+      if (expectedSha256) {
+        // Accept bare hex or the `sha256:`-prefixed form this module emits, so
+        // a caller holding a digest from verifiedDownload.js (bare hex) does
+        // not have to remember which convention applies.
+        const normalized = String(expectedSha256).startsWith('sha256:')
+          ? String(expectedSha256)
+          : `sha256:${expectedSha256}`;
+        if (digest !== normalized) {
+          throw new Error(
+            `Refusing to archive ${options.name}: expected ${normalized}, found ${digest}. ` +
+            `The bytes at ${filePath} are not the bytes that were verified.`
+          );
+        }
+      }
+      checksums[options.name] = digest;
       streamedMembers.add(options.name);
-      archive.file(filePath, { ...options, mode });
+      archive.file(filePath, { ...archiveOptions, mode });
     },
     /**
      * Streamed members the manifest claims but the archive does not contain.

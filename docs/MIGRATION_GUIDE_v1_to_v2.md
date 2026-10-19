@@ -6,7 +6,7 @@ This guide covers what changes when upgrading from OpenShift Airgap Architect v1
 
 v2.0.0 supports exactly **OpenShift 4.20** (baseline) and **4.21** (current).
 
-- OpenShift 4.22 and later are **unsupported** and deterministically rejected at every boundary (UI, API, generation, Field Guide). There is no silent fallback to a supported version.
+- In v2.0.0, OpenShift 4.22 and later are **unsupported** and deterministically rejected at every boundary (UI, API, generation, Field Guide). There is no silent fallback to a supported version. (**v2.1 adds 4.22**, moving that boundary to 4.23; the rejection behaviour itself is unchanged. See the [v2.1.0 release notes](releases/v2.1.0.md).)
 - OpenShift versions before 4.20 are not supported.
 
 ## State Schema Migration (Automatic)
@@ -72,7 +72,7 @@ vSphere failure-domain topology fields (`computeCluster`, `datastore`) now requi
 
 ## Breaking Changes Summary
 
-1. **OpenShift version scope**: Only 4.20 and 4.21 are supported. 4.22+ is rejected.
+1. **OpenShift version scope**: in v2.0.0, only 4.20 and 4.21 are supported and 4.22+ is rejected. (v2.1 adds 4.22 and rejects 4.23+.)
 2. **Version lock required**: Generation requires a locked version selection.
 3. **Export format**: v2.0.0 exports use manifest schema 1.0.0 with state schema v3. Not importable by v1.x.
 4. **vSphere paths**: Full inventory paths required for `computeCluster` and `datastore` in failure-domain mode.

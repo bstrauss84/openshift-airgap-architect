@@ -150,16 +150,41 @@ export function canonicalDigest(value) {
 }
 
 /**
+ * Record a path in a form that survives being copied somewhere else.
+ *
+ * Evidence is meant to be archived and re-verified on a machine that is not
+ * this one. An absolute path like
+ * `/home/<user>/code/<worktree>/release-certification/runs/.../backend.json`
+ * does two unhelpful things at once: it discloses the build host's directory
+ * layout and username, and it describes a location the verifying machine does
+ * not have. Relative-to-root is both portable and sufficient, because the
+ * digest is what identifies the bytes.
+ *
+ * Falls back to the basename when the file genuinely lies outside the root —
+ * never to the absolute path, so there is no silent leak path.
+ */
+function portablePath(filePath, root) {
+  if (!root) return path.basename(filePath);
+  const rel = path.relative(root, filePath);
+  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) return path.basename(filePath);
+  return rel.split(path.sep).join("/");
+}
+
+/**
  * Hash one evidence file on disk. A file that cannot be read is reported as
  * unreadable rather than skipped: a missing evidence file must not quietly
  * shrink the manifest it was supposed to appear in.
+ *
+ * `root` makes the recorded path portable. It is optional for backward
+ * compatibility with callers that pass already-relative paths.
  */
-export function hashEvidenceFile(filePath, { fsImpl = fs } = {}) {
+export function hashEvidenceFile(filePath, { fsImpl = fs, root = null } = {}) {
+  const recorded = root ? portablePath(filePath, root) : filePath;
   try {
     const bytes = fsImpl.readFileSync(filePath);
-    return { path: filePath, name: path.basename(filePath), bytes: bytes.length, sha256: `sha256:${sha256Hex(bytes)}`, ok: true };
+    return { path: recorded, name: path.basename(filePath), bytes: bytes.length, sha256: `sha256:${sha256Hex(bytes)}`, ok: true };
   } catch (err) {
-    return { path: filePath, name: path.basename(filePath), bytes: null, sha256: null, ok: false, reason: err.message };
+    return { path: recorded, name: path.basename(filePath), bytes: null, sha256: null, ok: false, reason: err.message };
   }
 }
 
@@ -167,15 +192,20 @@ export function hashEvidenceFile(filePath, { fsImpl = fs } = {}) {
  * Manifest of every evidence file, plus a single digest OVER the manifest.
  * That roll-up is what makes the set tamper-evident as a set: changing any one
  * file, or adding or removing a file, changes `manifestDigest`.
+ *
+ * `manifestDigest` covers only `{name, sha256}` and is therefore unaffected by
+ * the path form — a bundle verified on another host produces the same digest,
+ * which is the property that makes a copied bundle checkable at all.
  */
-export function evidenceManifest(filePaths, { fsImpl = fs } = {}) {
-  const files = filePaths.map((f) => hashEvidenceFile(f, { fsImpl })).sort((a, b) => a.name.localeCompare(b.name));
+export function evidenceManifest(filePaths, { fsImpl = fs, root = null } = {}) {
+  const files = filePaths.map((f) => hashEvidenceFile(f, { fsImpl, root })).sort((a, b) => a.name.localeCompare(b.name));
   const unreadable = files.filter((f) => !f.ok);
   return {
     files,
     complete: unreadable.length === 0,
     unreadable: unreadable.map((f) => f.path),
     manifestDigest: canonicalDigest(files.map((f) => ({ name: f.name, sha256: f.sha256 }))),
+    ...(root ? { pathsRelativeTo: "run evidence directory" } : {}),
   };
 }
 

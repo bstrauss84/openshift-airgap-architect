@@ -12,10 +12,54 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { acquireVerifiedArtifact } from "./verifiedDownload.js";
+import {
+  verifyCachedBinary,
+  discardUnverifiedBinary,
+  writeBinaryProvenance,
+  describeCacheRejection
+} from "./binaryProvenance.js";
 
 const dataDir = process.env.DATA_DIR || "/data";
 const toolsDir = path.join(dataDir, "tools");
 const cacheDir = path.join(dataDir, "cache");
+
+const MIRROR_BASE = "https://mirror.openshift.com/pub/openshift-v4";
+const INSTALLER_TARBALL = "openshift-install-linux.tar.gz";
+
+/**
+ * Mirror directory for the architecture THIS PROCESS RUNS ON.
+ *
+ * This is the execution-host axis, and it is not the target cluster architecture.
+ * `getAwsRegions(version, arch)` takes a *cluster* arch used to index CoreOS
+ * stream metadata; the binary that prints that metadata has to match the host
+ * that executes it. Conflating the two is the two-axis error Tranche 1.5 called
+ * out as a permanent lesson.
+ *
+ * This mattered in practice. The URL here used to be
+ * `/pub/openshift-v4/clients/ocp/<version>/openshift-install-linux.tar.gz`, with
+ * no architecture segment at all. That path is an alias for x86_64 — verified
+ * 2026-10-16: it returns a manifest byte-identical to the x86_64 one, and the
+ * four architectures publish four DIFFERENT binaries under the same file name
+ * (x86_64 8398d94d…, aarch64 757f3442…, ppc64le 25de5bbe…, s390x 440b0210…).
+ * So on any non-x86_64 host the backend downloaded an x86_64 binary and then
+ * spawned it for `coreos print-stream-json`, which cannot execute — breaking the
+ * AWS region and AMI lookups on aarch64 hosts, including Apple Silicon.
+ */
+function hostInstallerArchDir(nodeArch = process.arch) {
+  const s = String(nodeArch || "").toLowerCase().trim();
+  if (s === "x64" || s === "amd64" || s === "x86_64") return "x86_64";
+  // aarch64 and arm64 are aliases on the mirror and resolve to the same digest.
+  if (s === "arm64" || s === "aarch64") return "aarch64";
+  if (s === "ppc64le") return "ppc64le";
+  if (s === "s390x") return "s390x";
+  return null;
+}
+
+/** Channel base for one version and host architecture. */
+function installerChannelBase(version, archDir) {
+  return `${MIRROR_BASE}/${archDir}/clients/ocp/${version}`;
+}
 
 const runCmd = (cmd, args, options = {}) =>
   new Promise((resolve, reject) => {
@@ -44,25 +88,121 @@ const runCmd = (cmd, args, options = {}) =>
 
 const installerPathFor = (version) => path.join(toolsDir, `openshift-install-${version}`);
 
-const ensureInstaller = async (version) => {
+/**
+ * Download (or reuse) openshift-install for the execution host, verified against
+ * the channel's own sha256sum.txt before anything is extracted or executed.
+ *
+ * Previously this fetched the tarball with `curl -fsSL` and extracted it with no
+ * integrity check whatsoever, then handed the result to `getStreamMetadata`,
+ * which SPAWNS it. That made every byte on the path from the mirror to a child
+ * process unverified. The extraction now happens only after the digest matches.
+ *
+ * `fetchImpl` and `nodeArch` are injectable so the failure modes can be tested
+ * hermetically; neither is used by production callers.
+ */
+const ensureInstaller = async (version, { fetchImpl, nodeArch = process.arch, toolsDirOverride } = {}) => {
   if (!version) {
     throw new Error("OpenShift version is required to download openshift-install.");
   }
-  await fs.promises.mkdir(toolsDir, { recursive: true });
-  const target = installerPathFor(version);
-  if (fs.existsSync(target)) {
+  const archDir = hostInstallerArchDir(nodeArch);
+  if (!archDir) {
+    throw new Error(
+      `Unsupported host architecture for openshift-install: ${nodeArch}. ` +
+      `Supported: x86_64, aarch64, ppc64le, s390x.`
+    );
+  }
+  const effectiveToolsDir = toolsDirOverride || toolsDir;
+  await fs.promises.mkdir(effectiveToolsDir, { recursive: true });
+  const target = toolsDirOverride
+    ? path.join(effectiveToolsDir, `openshift-install-${version}`)
+    : installerPathFor(version);
+
+  const channelBase = installerChannelBase(version, archDir);
+  const tarPath = path.join(effectiveToolsDir, `openshift-install-${version}-${archDir}.tar.gz`);
+  const artifactUrl = `${channelBase}/${INSTALLER_TARBALL}`;
+  const manifestUrl = `${channelBase}/sha256sum.txt`;
+
+  // Identity the cached executable must prove before it is spawned.
+  //
+  // `arch` is the load-bearing field here. The cache path is
+  // `openshift-install-<version>` with NO architecture segment, so a binary
+  // extracted earlier on an x86_64 host occupies exactly the path an aarch64
+  // host looks in — and the old `fs.existsSync(target)` returned it, after
+  // which `getStreamMetadata` SPAWNS it. The four architectures publish four
+  // different binaries under one file name, so that is an Exec format error
+  // at best. The digest is recomputed below regardless; this just states what
+  // the bytes are required to be.
+  //
+  // `tarballSha256` is left to the acquisition step, which is the only thing
+  // that knows the channel's published digest. On a cache hit it is read back
+  // out of the record rather than re-asserted, so a valid cache needs no
+  // network — see the undefined-field skip in verifyCachedBinary.
+  const identity = {
+    tool: "openshift-install",
+    version,
+    platform: "linux",
+    arch: archDir,
+    variant: "standard"
+  };
+
+  const verdict = await verifyCachedBinary(target, identity);
+  if (verdict.usable) {
     return target;
   }
-  const tarPath = path.join(toolsDir, `openshift-install-${version}.tar.gz`);
-  const url = `https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${version}/openshift-install-linux.tar.gz`;
-  await runCmd("curl", ["-fsSL", url, "-o", tarPath]);
-  await runCmd("tar", ["-xzf", tarPath, "-C", toolsDir]);
-  const extracted = path.join(toolsDir, "openshift-install");
-  if (!fs.existsSync(extracted)) {
-    throw new Error("openshift-install binary not found after extraction.");
+  if (verdict.reason !== "absent") {
+    // Bytes exist that cannot be proven. They are never returned, never
+    // spawned and never exported; they are removed so no later call can find
+    // them either.
+    await discardUnverifiedBinary(target);
   }
-  await fs.promises.rename(extracted, target);
-  await runCmd("chmod", ["+x", target]);
+
+  let provenance;
+  try {
+    provenance = await acquireVerifiedArtifact({
+      artifactUrl,
+      manifestUrl,
+      fileName: INSTALLER_TARBALL,
+      destPath: tarPath,
+      ...(fetchImpl ? { fetchImpl } : {})
+    });
+  } catch (err) {
+    // Fail closed, and say which of the two things went wrong. Silently
+    // reusing the rejected cache here is precisely the defect being fixed, so
+    // the offline case is an error with a reason, not a fallback.
+    if (verdict.reason !== "absent") {
+      throw new Error(
+        `Cached openshift-install at ${target} was rejected because ` +
+        `${describeCacheRejection(verdict.reason, verdict.detail)}, and it could not be ` +
+        `re-acquired: ${err?.message || err}`
+      );
+    }
+    throw err;
+  }
+
+  // Extract into a private directory: the tarball also carries README/LICENSE,
+  // and the old code extracted straight into toolsDir alongside the cache.
+  const extractDir = await fs.promises.mkdtemp(path.join(effectiveToolsDir, `install-${version}-`));
+  try {
+    await runCmd("tar", ["-xzf", tarPath, "-C", extractDir, "openshift-install"]);
+    const extracted = path.join(extractDir, "openshift-install");
+    if (!fs.existsSync(extracted)) {
+      throw new Error("openshift-install binary not found after extraction.");
+    }
+    await fs.promises.rename(extracted, target);
+    await runCmd("chmod", ["+x", target]);
+    // Recorded AFTER chmod, so the digest covers the file in exactly the state
+    // a later reuse will hash it in. A crash between the rename and this write
+    // leaves a binary with no record, which the next call treats as
+    // `no-provenance-record` and discards — the safe direction.
+    await writeBinaryProvenance(target, {
+      ...identity,
+      tarballSha256: provenance.sha256,
+      sourceUrl: artifactUrl,
+      manifestUrl
+    });
+  } finally {
+    await fs.promises.rm(extractDir, { recursive: true, force: true }).catch(() => {});
+  }
   return target;
 };
 
@@ -117,4 +257,14 @@ const getAwsAmi = async (version, arch, region, force = false) => {
   return metadata?.architectures?.[archKey]?.images?.aws?.regions?.[region]?.image || null;
 };
 
-export { ensureInstaller, getStreamMetadata, getAwsRegions, getAwsAmi, installerPathFor, warmInstallerStream };
+export {
+  ensureInstaller,
+  getStreamMetadata,
+  getAwsRegions,
+  getAwsAmi,
+  installerPathFor,
+  warmInstallerStream,
+  hostInstallerArchDir,
+  installerChannelBase,
+  INSTALLER_TARBALL
+};

@@ -13,6 +13,27 @@ services:
     environment:
       - PORT=4000
       - DATA_DIR=/data
+      # The backend binds the address it was told to bind (backend/src/accessControl.js).
+      # A published port forwards to the CONTAINER's address, never to the container's
+      # loopback, so a container that binds 127.0.0.1 is unreachable through `ports:`
+      # below. These two lines are that exception, stated explicitly rather than
+      # inherited from a default:
+      #
+      #   BIND_ADDRESS          — the interface inside the container's own network
+      #                           namespace;
+      #   OAA_CONTAINER_NETWORK — the declaration that the namespace IS the boundary.
+      #                           The backend refuses it unless it can also see that it
+      #                           is genuinely in a container, so copying these lines
+      #                           into a systemd unit on a host fails closed.
+      #
+      # THE OPERATOR-FACING BOUNDARY IS THE `ports:` MAPPING BELOW, which publishes to
+      # 127.0.0.1 only. A process inside a container cannot observe how its ports were
+      # published: change `127.0.0.1:4000:4000` to `4000:4000`, or run with
+      # --network=host, and an UNAUTHENTICATED API is on every interface. Set
+      # OAA_AUTH_MODE=proxy (with OAA_PROXY_SHARED_SECRET and OAA_ALLOWED_ORIGINS)
+      # before exposing this to anything but your own machine.
+      - BIND_ADDRESS=0.0.0.0
+      - OAA_CONTAINER_NETWORK=isolated
       # REGISTRY_AUTH_FILE is intentionally NOT set here. oc-mirror v2's internal
       # distribution/distribution storage registry reads REGISTRY_* env vars as YAML
       # registry config parameters — setting it to a JSON auth file path causes a

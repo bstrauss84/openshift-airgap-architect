@@ -669,7 +669,7 @@ The manifest contains four distinct version/identity concepts that must remain s
 ### ZIP Creation Requirements
 
 - The user must have a **locked, supported** OpenShift version (`state.version.locked === true`, `state.version.selectedMinor` in `SUPPORTED_MINORS`) before ZIP creation proceeds
-- Unsupported versions (4.22+) must return the established HTTP 422 UNSUPPORTED_VERSION response. The no-fallback rule applies: the bundle must not silently fall back to 4.21 or any other version.
+- Unsupported versions (4.23+) must return the established HTTP 422 UNSUPPORTED_VERSION response. The no-fallback rule applies: the bundle must not silently fall back to the newest supported minor or any other version. (This clause was written when the boundary was 4.22; the Tranche 5 flip moved it to 4.23. The contract is unchanged — only the boundary moved.)
 - The locked version is recorded in the manifest's `openshift` section
 
 ### Import Behavior

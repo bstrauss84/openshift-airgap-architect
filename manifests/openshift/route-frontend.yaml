@@ -1,7 +1,63 @@
+# The ONE externally reachable endpoint of this application.
+#
+# Renamed from `airgap-architect-frontend` to `airgap-architect` because the
+# ServiceAccount's oauth-redirectreference annotation names this Route, and
+# the OAuth redirect URI is derived from it. The two must agree or login
+# fails with a redirect_uri mismatch.
+#
+# Terminates at `public` (8443, oauth-proxy), NOT at `http` (5173, nginx).
+# Pointing it at 5173 would publish the UI and — through the same-origin /api
+# proxy — the whole API, with no authentication at all.
+#
+# reencrypt, not edge: oauth-proxy serves TLS using the service CA
+# certificate, so the hop from the router to the pod stays encrypted and the
+# session cookie (marked Secure) is never carried in clear text inside the
+# cluster.
+#
+# ───────────────────────────────────────────────────────────────────────────
+# HOW THE ROUTER TRUSTS THE POD — the mechanism, corrected.
+#
+# A previous revision carried `service.beta.openshift.io/inject-cabundle: "true"`
+# here and claimed "the service CA operator injects it via the annotation
+# below". THAT ANNOTATION DOES NOTHING ON A ROUTE. The service-ca operator's
+# injectors cover ConfigMaps, APIServices, CRDs, MutatingWebhookConfigurations
+# and ValidatingWebhookConfigurations — Route is not an injection target, so
+# the annotation was inert and the comment described a mechanism that was not
+# running. The arrangement happened to work for the real reason below, which
+# is not the reason that was written down.
+#
+# THE REAL MECHANISM, and why `destinationCACertificate` stays absent:
+#
+#   openshift/api route/v1 types.go, TLSConfig.DestinationCACertificate —
+#     "If this field is not specified, the router may provide its own
+#      destination CA and perform hostname validation using the short service
+#      name (service.namespace.svc), which allows infrastructure generated
+#      certificates to automatically verify."
+#
+#   openshift/cluster-ingress-operator, pkg/manifests/assets/router/deployment.yaml —
+#     mounts the `service-ca-bundle` ConfigMap at /var/run/configmaps/service-ca
+#     and sets DEFAULT_DESTINATION_CA_PATH=/var/run/configmaps/service-ca/service-ca.crt.
+#     (That ConfigMap is where inject-cabundle genuinely applies — on the
+#     ingress operator's own object, not on this Route.)
+#
+#   openshift/router, images/router/haproxy/conf/haproxy-config.template —
+#     for a reencrypt backend with no per-route CA:
+#       {{- if gt (len $defaultDestinationCA) 0 }} verify required ca-file {{ $defaultDestinationCA }}
+#
+# So: the Service is annotated for a service-CA serving certificate
+# (patch-frontend-service.yaml), the router already trusts the service CA, and
+# OMITTING destinationCACertificate is what selects that path. Pasting a CA in
+# here, or re-adding the annotation, would be worse than useless — one pins a
+# rotating CA into git, the other restores a comment that misdescribes the
+# system.
+#
+# NOT VERIFIED ON A CLUSTER. The citations above are upstream source; no
+# reencrypt handshake was observed, because no cluster was reachable. See
+# "Verifying the authenticated deployment" in manifests/README.md.
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: airgap-architect-frontend
+  name: airgap-architect
   labels:
     app: airgap-architect
     component: frontend
@@ -14,8 +70,8 @@ spec:
     name: airgap-architect-frontend
     weight: 100
   port:
-    targetPort: http
+    targetPort: public
   tls:
-    termination: edge
+    termination: reencrypt
     insecureEdgeTerminationPolicy: Redirect
   wildcardPolicy: None

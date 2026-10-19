@@ -530,7 +530,14 @@ export default {
 
     // Tamper-evidence over the whole set: changing, adding or removing any one
     // evidence file moves `manifestDigest`.
-    const evidence = evidenceManifest(artifactPaths);
+    //
+    // `root` is passed so recorded paths are relative to the run directory.
+    // `store.artifactPath()` returns absolute paths, and without this the
+    // manifest baked the build host's home directory and username into
+    // evidence that is meant to be copied elsewhere and re-verified there.
+    // `manifestDigest` covers only {name, sha256}, so this changes the
+    // recorded paths without moving the digest.
+    const evidence = evidenceManifest(artifactPaths, { root: store.root });
 
     const summary = {
       documents: {

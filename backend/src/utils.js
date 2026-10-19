@@ -157,6 +157,40 @@ const updateJobMetadata = (id, patch) => {
 const getJob = (id) => db.prepare("SELECT * FROM jobs WHERE id = ?").get(id);
 
 /**
+ * Parsed job metadata, or {} when the job has none or it is unreadable.
+ *
+ * `getJob` returns the raw row, which carries `metadata_json` as a STRING and
+ * has no `metadata` property at all. Several call sites in index.js read
+ * `getJob(id)?.metadata`, which is therefore always `undefined`:
+ *
+ *   - the oc-mirror signature smart-retry resolved its config path from it, so
+ *     the retry could only ever work when the caller had passed an explicit
+ *     `configPath` — i.e. never for a generated ImageSetConfig, whose path is
+ *     recorded only in metadata. It logged "Cannot retry: no config path
+ *     available" and gave up. The whole feature was inert.
+ *   - a retry's duration was computed against `metadata.startedAt`, so it was
+ *     always reported as 0 ms.
+ *   - two metadata updates spread `...getJob(id)?.metadata` before their patch,
+ *     intending a merge and in fact spreading nothing.
+ *
+ * This reads the same column `updateJobMetadata` already writes and parses, so
+ * it introduces no new storage and no new disclosure. What is stored there is
+ * credential-stripped at the writer (`sanitizeCredentialFields`); parsing it
+ * here must never become a reason to put raw request bodies back.
+ */
+const getJobMetadata = (id) => {
+  const row = db.prepare("SELECT metadata_json FROM jobs WHERE id = ?").get(id);
+  if (!row || !row.metadata_json) return {};
+  try {
+    const parsed = JSON.parse(row.metadata_json);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (err) {
+    logger.debug({ err, jobId: id }, "Job metadata JSON parse failed");
+    return {};
+  }
+};
+
+/**
  * Write a job's outcome only if it does not already have one.
  *
  * Opt-in at the writer rather than inside `updateJob`, which must stay able
@@ -333,6 +367,7 @@ export {
   updateJobUnlessTerminal,
   updateJobMetadata,
   getJob,
+  getJobMetadata,
   listJobs,
   listJobsByType,
   deleteCompletedJobs,

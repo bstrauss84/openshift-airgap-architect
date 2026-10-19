@@ -105,32 +105,75 @@ export const BAKED_TOOLS = Object.freeze([
  * artifacts users receive. Not in the image, therefore not in `rpm -qa`, not
  * in any npm tree, and not in `tools-provenance.env`.
  *
- * `checksumVerified` is a statement about the code at the cited location, read
- * at Tranche 8D. Both `false` entries are findings, not design: backend/src/
- * installer.js and backend/src/openshiftInstaller.js both open with a header
- * claiming "download, caching, and verification", and neither file contains
- * any hashing, checksum fetch or integrity comparison — the only post-download
- * check in the mirror-registry path is `stat.size > 0`.
+ * `checksumVerified` is a statement about the code at the cited location.
+ *
+ * BOTH ENTRIES WERE `false` WHEN READ AT TRANCHE 8D, AND BOTH ARE NOW `true`.
+ * The original finding was real: backend/src/installer.js and
+ * backend/src/openshiftInstaller.js each opened with a header claiming
+ * "download, caching, and verification" while containing no hashing, checksum
+ * fetch or integrity comparison at all, and the only post-download check in the
+ * mirror-registry path was `stat.size > 0`.
+ *
+ * That was closed by `backend/src/verifiedDownload.js`, which resolves each
+ * artifact's expected digest from the publishing channel's own `sha256sum.txt`
+ * and fails closed on download failure, missing or unparseable checksum
+ * metadata, a manifest with no entry for the file, or a digest mismatch.
+ *
+ * A SECOND, NARROWER GAP WAS FOUND AND CLOSED ON 2026-10-16, and the entries
+ * below were widened in the same change rather than left to overstate the
+ * earlier fix. Tarball verification said nothing about the EXTRACTED
+ * executable, and both cache hits returned one on an `fs.existsSync` check
+ * alone — so a binary predating the checksum work, corrupted on disk, or (the
+ * `installer.js` cache path carries no architecture segment) extracted for a
+ * different execution host, was spawned and packaged unverified.
+ * `backend/src/binaryProvenance.js` now binds each extracted executable's own
+ * digest to its full identity and re-hashes it on every reuse. Separately, the
+ * verified mirror-registry tarball is hard-linked into private export staging
+ * and re-proved against its digest as it is streamed into the bundle, so the
+ * bytes archived are provably the bytes verified.
+ *
+ * THIS BLOCK IS HAND-MAINTAINED AND THAT IS A HAZARD. It is a hardcoded
+ * assertion about source code, emitted verbatim into shipped release evidence
+ * (`external-binaries.json` -> `verificationGaps`). It therefore keeps claiming
+ * whatever it last said, regardless of what the code does — which is exactly
+ * what happened: the generator went on reporting both gaps as open after they
+ * were fixed, so a consumer reading the evidence would have been told the
+ * product was less safe than it is. When either file's verification posture
+ * changes, THIS CONSTANT MUST CHANGE IN THE SAME COMMIT.
+ *
+ * What is still NOT claimed: this is SHA256 manifest verification, not
+ * signature verification. The manifest and the artifact share an origin, so it
+ * does not prove authenticity. Detached GPG signatures exist on the mirror but
+ * are not checked — that needs a pinned Red Hat trust anchor, which is a human
+ * decision recorded in
+ * docs/security/DECISION_RECORD_API_EXPOSURE_AND_TRUST_ANCHORS.md (Decision B).
  */
 export const RUNTIME_ACQUIRED_TOOLS = Object.freeze([
   {
     tool: "openshift-install",
     acquisition: "downloaded at request time into DATA_DIR/cache and packaged into the generated bundle",
-    source: "backend/src/installer.js, backend/src/openshiftInstaller.js",
-    urlTemplate: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/<version>/openshift-install-linux.tar.gz",
+    source: "backend/src/installer.js, backend/src/openshiftInstaller.js, backend/src/verifiedDownload.js, backend/src/binaryProvenance.js",
+    urlTemplate: "https://mirror.openshift.com/pub/openshift-v4/<arch>/clients/ocp/<version>/openshift-install-linux.tar.gz",
     bakedIntoImage: false,
-    checksumVerified: false,
-    finding:
-      "no SHA256 verification on download or before packaging; the module header claims verification that the code does not perform",
+    checksumVerified: true,
+    verificationMethod:
+      "SHA256 against the channel's own sha256sum.txt, fail-closed, verified before the cache path is written; " +
+      "the EXTRACTED executable additionally carries a provenance record binding its own SHA256 to the verified " +
+      "tarball, version, platform, architecture and FIPS variant, re-hashed on every reuse; signature NOT verified",
+    finding: null,
   },
   {
     tool: "mirror-registry",
     acquisition: "downloaded at request time into DATA_DIR/cache and packaged into the generated bundle",
-    source: "backend/src/index.js (mirror-registry export path)",
+    source: "backend/src/index.js (mirror-registry export path), backend/src/verifiedDownload.js",
     urlTemplate: "https://mirror.openshift.com/pub/cgw/mirror-registry/latest/mirror-registry-<arch>.tar.gz",
     bakedIntoImage: false,
-    checksumVerified: false,
-    finding: "integrity check is `stat.size > 0` only; no checksum is fetched or compared",
+    checksumVerified: true,
+    verificationMethod:
+      "SHA256 against the published sha256sum.txt, fail-closed, verified before the cache path is written; " +
+      "the verified inode is hard-linked into private export staging and re-proved against that digest as it is " +
+      "streamed into the bundle; signature NOT verified",
+    finding: null,
   },
 ]);
 

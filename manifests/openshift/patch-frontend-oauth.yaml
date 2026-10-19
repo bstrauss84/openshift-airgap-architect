@@ -1,0 +1,161 @@
+# Adds the oauth-proxy sidecar to the frontend pod and makes the pod
+# restricted-v2 admissible.
+#
+# ───────────────────────────────────────────────────────────────────────────
+# THE TOPOLOGY
+#
+#   Route (reencrypt TLS, :8443) -> oauth-proxy -> nginx 127.0.0.1:5173 -> /api -> backend
+#
+# One Route, one origin, one session. oauth-proxy authenticates against the
+# cluster's built-in OpenShift OAuth server using this pod's ServiceAccount as
+# the OAuth client (see serviceaccount.yaml), then forwards the request to
+# nginx with X-Forwarded-User / -Email / -Groups set. nginx proxies /api to
+# the backend Service and attaches the shared secret that proves the request
+# passed through here.
+#
+# ───────────────────────────────────────────────────────────────────────────
+# WHY runAsUser AND fsGroup ARE REMOVED
+#
+# The base manifests pin runAsUser: 1001 and fsGroup: 1001. OpenShift's
+# restricted-v2 SCC assigns each namespace a UID range from
+# `openshift.io/sa.scc.uid-range`, and 1001 is almost never inside it — so
+# admission REJECTS the pod outright. The repository's historical claim of
+# restricted-v2 compatibility was never verified against a real cluster, and
+# this is why it could not have been true.
+#
+# Removing the fields (JSON Patch `remove`, not setting them to null) lets the
+# SCC inject a compliant UID. Both images already tolerate an arbitrary UID:
+# the frontend inherits the UBI nginx s2i arbitrary-UID handling, and the
+# backend entrypoint has a non-root branch that depends on fsGroup for PVC
+# access. fsGroup is likewise assigned by the SCC when not pinned.
+#
+# NOT YET VERIFIED ON A CLUSTER. No cluster was reachable when this was
+# written, so this is a corrected manifest, not an admission test result.
+# manifests/README.md carries the exact smoke commands.
+# ───────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airgap-architect-frontend
+spec:
+  template:
+    spec:
+      serviceAccountName: airgap-architect
+      containers:
+        - name: frontend
+          ports:
+            - containerPort: 8081
+              name: probe
+              protocol: TCP
+          # nginx serves 5173 on the pod's LOOPBACK here, so the kubelet —
+          # which connects to the pod IP — cannot use the base manifests'
+          # probes on `/`. The probe-only listener answers /healthz on 8081
+          # and nothing else: no static root, no SPA fallback, no /api proxy,
+          # no identity forwarding, no shared secret.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+          env:
+            # Same origin. The browser now calls /api on the page's own
+            # origin, which is what carries the oauth-proxy session cookie.
+            - name: VITE_API_BASE
+              value: "/api"
+            # THE AUTHENTICATION BOUNDARY. oauth-proxy reaches nginx over the
+            # pod's loopback (--upstream=http://localhost:5173 below); nothing
+            # else is supposed to. Serving 5173 on the pod IP would let any
+            # pod that can reach this pod send a forged X-Forwarded-User and
+            # have nginx attach the backend shared secret to it — an
+            # unauthenticated caller proxied as an authenticated one, with
+            # NetworkPolicy the only thing in the way. The entrypoint refuses
+            # to render a non-loopback address while OAA_REQUIRE_PROXY_SECRET
+            # is set, so this cannot be quietly widened.
+            - name: OAA_NGINX_LISTEN_ADDRESS
+              value: "127.0.0.1"
+            - name: OAA_BACKEND_ORIGIN
+              value: "http://airgap-architect-backend:4000"
+            # nginx attaches this to every proxied /api request so the backend
+            # can tell a request that came through the proxy from one that
+            # reached its Service directly.
+            - name: OAA_PROXY_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: airgap-architect-proxy
+                  key: proxy_shared_secret
+            # Refuse to start if the secret is absent, rather than serving a
+            # UI whose every API call will 401 for no visible reason.
+            - name: OAA_REQUIRE_PROXY_SECRET
+              value: "1"
+        - name: oauth-proxy
+          # Pinned to the OpenShift 4.x oauth-proxy. A disconnected cluster
+          # must mirror this image; it is listed in the offline prerequisites
+          # in manifests/README.md.
+          image: registry.redhat.io/openshift4/ose-oauth-proxy:v4.22
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8443
+              name: public
+              protocol: TCP
+          args:
+            - --https-address=:8443
+            - --http-address=
+            - --provider=openshift
+            # Binds the proxy to the SA-as-OAuth-client declared by the
+            # redirect-reference annotation on the ServiceAccount.
+            - --openshift-service-account=airgap-architect
+            - --upstream=http://localhost:5173
+            - --tls-cert=/etc/tls/private/tls.crt
+            - --tls-key=/etc/tls/private/tls.key
+            - --cookie-secret-file=/etc/proxy/secrets/session_secret
+            # Identity headers the backend consumes. Without these the proxy
+            # authenticates the user and then tells the backend nothing.
+            - --pass-user-headers=true
+            - --set-xauthrequest=true
+            # Only users who can actually use this namespace. Without a
+            # delegation rule ANY cluster user who can log in is admitted,
+            # which is authentication without authorization.
+            - '--openshift-sar={"namespace":"$(NAMESPACE)","resource":"services","verb":"get"}'
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --skip-provider-button=false
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: proxy-tls
+              mountPath: /etc/tls/private
+              readOnly: true
+            - name: proxy-secrets
+              mountPath: /etc/proxy/secrets
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: proxy-tls
+          secret:
+            # Created by the service.beta.openshift.io/serving-cert-secret-name
+            # annotation on the frontend Service. The service CA operator
+            # issues and rotates it; nothing here holds a private key.
+            secretName: airgap-architect-proxy-tls
+        - name: proxy-secrets
+          secret:
+            secretName: airgap-architect-proxy

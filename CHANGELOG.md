@@ -9,14 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Detailed notes: [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md)
 >
-> **Not released, and not certified.** The automated test suites pass, but release
-> certification is **RED/INCOMPLETE**: the container-image security scan is bound to a
-> stale candidate, and the API has no authentication while the OpenShift overlay
-> publishes the backend on a public Route. The authentication *target* is approved —
-> same-origin frontend proxy in front of a protected backend — so what is outstanding
-> is the implementation, not the decision. Human QA, that implementation, a
-> candidate-bound image scan with a real vulnerability disposition, and release
-> tagging are all outstanding.
+> **Not released, and not certified.** The automated test suites pass and release
+> certification is **RED/INCOMPLETE**.
+>
+> API authentication is now **implemented** — built-in OpenShift OAuth in front of a
+> single Route, a same-origin `/api` proxy, no public backend Route, identity and CSRF
+> enforcement in the backend, and a NetworkPolicy so the proxy cannot be skipped — but
+> **none of it has been exercised on a cluster**. OAuth login, `restricted-v2`
+> admission and NetworkPolicy enforcement are unverified; rendering a manifest is not
+> admission. Clusters configured for direct external OIDC are not supported by this
+> mode and the backend refuses to start rather than failing at login.
+>
+> A review on **2026-10-19** found and closed five defects in that implementation
+> before any of it shipped: the server bound every interface while the guard checked
+> an unused variable; the overlay would have blanked the operator's proxy Secret on
+> re-apply; nginx served the pre-authentication port on the pod IP while attaching the
+> backend's shared secret; a Route annotation named a CA-injection mechanism that does
+> not apply to Routes; and the nginx DNS resolver named a Service that does not exist
+> on OpenShift. Details in
+> [docs/BACKLOG_STATUS.md](docs/BACKLOG_STATUS.md) and the ledger at
+> `docs/releases/evidence/REQUIREMENT_LEDGER_AUTH_CORRECTIONS_20261019.md`.
+>
+> Still outstanding: human QA, live cluster verification, and a candidate-bound image
+> scan with a real vulnerability disposition. Release tagging has not happened.
 >
 > No release artifacts exist: no GitHub Release, no published SBOM, no checksum file,
 > no signature. See [SBOM and provenance](docs/security/SBOM_AND_PROVENANCE.md).

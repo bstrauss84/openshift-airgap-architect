@@ -11,7 +11,7 @@
  */
 import "./configureFetchProxy.js";
 import express from "express";
-import cors from "cors";
+import { installAccessControl } from "./accessControl.js";
 import fs from "node:fs";
 import path from "node:path";
 import { ZipArchive } from "archiver";
@@ -29,11 +29,13 @@ import { resolveOcMirrorBinary, getRuntimeArch, getLocalBinaryArch, getBinariesF
 import { db, dataDir } from "./db.js";
 import { ensureInstaller, getAwsAmi, getAwsRegions, installerPathFor, warmInstallerStream } from "./installer.js";
 import { ensureOpenshiftInstaller } from "./openshiftInstaller.js";
+import { acquireVerifiedArtifact } from "./verifiedDownload.js";
 import {
   getState,
   setState,
   markStaleJobs,
   getJob,
+  getJobMetadata,
   listJobs,
   listJobsByType,
   deleteCompletedJobs,
@@ -113,7 +115,22 @@ import { assertCanonicalDataAvailable } from "./canonicalDataIntegrity.js";
 const app = express();
 const port = process.env.PORT || 4000;
 
-app.use(cors());
+// API access control boundary: origin allowlist, CSRF defence, identity.
+//
+// This REPLACES `app.use(cors())`, which sent `Access-Control-Allow-Origin: *`
+// on every response and so let arbitrary cross-origin JavaScript both invoke
+// and READ every route — including GET /api/generate, which renders the pull
+// secret, and POST /api/ssh/keypair, which returns a private key.
+//
+// Installed first, before the withdrawn-endpoint handler and the body parser,
+// because a forbidden origin or a missing identity must be refused before any
+// request body is read or any handler runs. See backend/src/accessControl.js
+// for why there are three layers and why none of them is sufficient alone.
+//
+// Startup fails closed on an incoherent or dangerous configuration — notably
+// OAA_AUTH_MODE=disabled bound to anything other than loopback, and
+// OAA_AUTH_MODE=proxy without a shared secret.
+const accessControlConfig = installAccessControl(app);
 
 // POST /api/bundle.import is WITHDRAWN in v2.1. See DOC-127.
 //
@@ -126,7 +143,8 @@ app.use(cors());
 // No frontend, CLI, e2e test or documented workflow ever called it, so the
 // whole surface was a liability with no user.
 //
-// This handler MUST stay here — after cors(), before express.json() below —
+// This handler MUST stay here — after the access-control boundary, before
+// express.json() below —
 // and MUST remain terminal (never call next()). It replies without reading the
 // request body, so no bytes are buffered, inflated or hashed; Node drains the
 // unread remainder in streaming fashion when the response finishes. Moving it
@@ -274,6 +292,12 @@ const warmCincinnatiCache = async () => {
 };
 
 warmCincinnatiCache();
+
+// Architectures Red Hat actually publishes mirror-registry for. There is no
+// arm64/aarch64 build: /pub/cgw/mirror-registry/latest/mirror-registry-arm64.tar.gz
+// and -aarch64 both answer 404 (verified 2026-10-16), while amd64, ppc64le and
+// s390x answer 200 and are the three entries in the published sha256sum.txt.
+const MIRROR_REGISTRY_ARCHES = Object.freeze(["amd64", "ppc64le", "s390x"]);
 
 const pendingBundleStates = new Map();
 const BUNDLE_STATE_TTL_MS = 10 * 60 * 1000;
@@ -2702,7 +2726,7 @@ async function retryWithPerImageSignatureDisable(originalJobId, signatureFailure
   const advanced = originalBody.advanced || {};
 
   // Get config path (either from original configPath or use the one from metadata)
-  const originalMetadata = getJob(originalJobId)?.metadata || {};
+  const originalMetadata = getJobMetadata(originalJobId);
   const configPathToUse = originalBody.configPath || originalMetadata.configPath;
 
   if (!configPathToUse) {
@@ -2821,7 +2845,7 @@ async function retryWithPerImageSignatureDisable(originalJobId, signatureFailure
       status = "failed";
     }
 
-    const duration = finishedAt - (getJob(retryJobId)?.metadata?.startedAt || finishedAt);
+    const duration = finishedAt - (getJobMetadata(retryJobId).startedAt || finishedAt);
     const durationMinutes = (duration / 1000 / 60).toFixed(1);
     let message = `oc-mirror retry ${status} in ${durationMinutes} minutes.`;
     if (releaseResult) message += ` Release: ${releaseResult.succeeded}/${releaseResult.total}.`;
@@ -2829,7 +2853,7 @@ async function retryWithPerImageSignatureDisable(originalJobId, signatureFailure
 
     updateJobUnlessTerminal(retryJobId, { status, progress: 100, message });
     updateJobMetadata(retryJobId, {
-      ...getJob(retryJobId)?.metadata,
+      ...getJobMetadata(retryJobId),
       finishedAt,
       duration,
       releaseResult,
@@ -3066,11 +3090,14 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     // GET /api/jobs and GET /api/jobs/:id return the whole row unauthenticated
     // and updateJobMetadata performs no redaction.
     //
-    // Nothing is lost. The only consumer is the smart-retry path, which reads
-    // `getJob(jobId)?.metadata` — a property that does not exist, because
-    // getJob returns the raw row carrying `metadata_json` and nothing in this
-    // file ever parses it. That retry is already inert; see the handoff.
-    // Restoring it must not restore plaintext credential storage.
+    // Nothing is lost. The only consumer is the smart-retry path.
+    //
+    // That path used to read `getJob(jobId)?.metadata`, a property that does
+    // not exist — getJob returns the raw row carrying `metadata_json`, and
+    // nothing parsed it — so the retry was inert. It now reads through
+    // `getJobMetadata`, which parses the same column `updateJobMetadata`
+    // writes. The retry works; the stored body stays credential-stripped.
+    // Repairing the read must never become a reason to store a raw body here.
     requestBody: sanitizeCredentialFields(body),
     authFile // Store authFile path for retry
   };
@@ -3211,7 +3238,7 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
     // could reach here, spawn a brand-new oc-mirror child, and overwrite
     // "Stopped by user." — restarting work that was deliberately cancelled.
     if (outcomeRecorded && status === "completed_with_warnings" && signatureFailures.length > 0) {
-      const currentMetadata = getJob(jobId)?.metadata || {};
+      const currentMetadata = getJobMetadata(jobId);
       const originalRequestBody = currentMetadata.requestBody;
 
       if (originalRequestBody) {
@@ -3494,7 +3521,7 @@ const buildPreviewArtifacts = (state, { isolate = false } = {}) => {
   const v3State = stateMigrationResult.migrated;
 
   // DOC-102 Slice 5F.13: Unsupported version boundary - check support BEFORE confirmation
-  // An unconfirmed 4.22 state must throw UNSUPPORTED_VERSION, not return null
+  // An unconfirmed 4.23 state must throw UNSUPPORTED_VERSION, not return null
   assertSupportedOpenShiftVersion(v3State);
 
   const confirmed = v3State.version?.locked ?? v3State.release?.confirmed;
@@ -3707,7 +3734,7 @@ const buildBundleZip = async (state, res) => {
   const v3State = stateMigrationResult.migrated;
 
   // DOC-102 Slice 5F.13: Unsupported version boundary - check support BEFORE confirmation
-  // An unconfirmed 4.22 state must return 422 UNSUPPORTED_VERSION, not "version not confirmed"
+  // An unconfirmed 4.23 state must return 422 UNSUPPORTED_VERSION, not "version not confirmed"
   assertSupportedOpenShiftVersion(v3State);
 
   const confirmed = v3State.version?.locked ?? v3State.release?.confirmed;
@@ -3933,55 +3960,143 @@ const buildBundleZip = async (state, res) => {
       tracked.failDeliverable("includeInstaller", error);
     }
   }
+  // Released by the archive-stream `finally` at the end of this function, for
+  // the same reason the runtime package is: archiver opens a streamed member's
+  // path while the response drains, so releasing at registration time would
+  // delete the file out from under it.
+  let releaseMirrorRegistryStaging = null;
   if (v3State.exportOptions?.includeMirrorRegistry) {
     // Hoisted: the promised member name, and the manual-download URL the
     // failure reason quotes, were previously recomputed verbatim in the catch.
-    const mirrorRegistryArch = v3State.exportOptions?.mirrorRegistryArch || "amd64";
-    const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch}.tar.gz`;
-    const mirrorRegistryUrl = `https://mirror.openshift.com/pub/cgw/mirror-registry/latest/${mirrorRegistryFilename}`;
+    // Architecture is caller-supplied and is interpolated into BOTH a URL and a
+    // filesystem path, so it is matched against the set Red Hat actually
+    // publishes rather than trusted. Verified 2026-10-16: amd64, ppc64le and
+    // s390x exist; arm64/aarch64 return 404 — there is no ARM mirror-registry
+    // build. The frontend already offers exactly these three
+    // (frontend/src/steps/ReviewStep.jsx), so this rejects only values that
+    // never came from the UI.
+    const requestedMirrorRegistryArch = v3State.exportOptions?.mirrorRegistryArch || "amd64";
+    const mirrorRegistryArch = MIRROR_REGISTRY_ARCHES.includes(requestedMirrorRegistryArch)
+      ? requestedMirrorRegistryArch
+      : null;
+    const mirrorRegistryFilename = `mirror-registry-${mirrorRegistryArch || "amd64"}.tar.gz`;
+    const mirrorRegistryBase = "https://mirror.openshift.com/pub/cgw/mirror-registry/latest";
+    const mirrorRegistryUrl = `${mirrorRegistryBase}/${mirrorRegistryFilename}`;
     tracked.requestDeliverable("includeMirrorRegistry", [`tools/${mirrorRegistryFilename}`]);
     try {
+      if (!mirrorRegistryArch) {
+        throw new Error(
+          `Unsupported mirror-registry architecture "${requestedMirrorRegistryArch}". ` +
+          `Red Hat publishes mirror-registry for ${MIRROR_REGISTRY_ARCHES.join(", ")} only.`
+        );
+      }
       const mirrorRegistryPath = path.join(dataDir, "cache", mirrorRegistryFilename);
 
-      // Ensure cache directory exists
-      fs.mkdirSync(path.join(dataDir, "cache"), { recursive: true });
+      // Verified download, streamed. Two defects closed here:
+      //
+      //   Integrity: the only check used to be `size > 0`, so any complete
+      //   response — a captive-portal page, a truncated-then-padded body, a
+      //   tampered artifact — was packaged into the offline bundle and shipped
+      //   across the air gap as a trusted installer. Red Hat publishes
+      //   sha256sum.txt beside the artifact; it is now authoritative.
+      //
+      //   Memory: this artifact is 1.19 GiB (measured content-length
+      //   1280705659 on 2026-10-16). `Buffer.from(await response.arrayBuffer())`
+      //   held it whole, twice — roughly 2.4 GiB of peak allocation for one
+      //   export, inside a container with a memory limit. It is now piped to
+      //   disk and hashed by streaming, so peak allocation is a buffer, not the
+      //   artifact.
+      //
+      // Both the manifest and the tarball answer 307 to a token-signed CDN URL,
+      // which `redirect: "follow"` handles. If the `latest` pointer moves
+      // between the two fetches the digests disagree and the export fails with
+      // the mismatch message — the correct outcome, not a silent mixed pair.
+      const provenance = await acquireVerifiedArtifact({
+        artifactUrl: mirrorRegistryUrl,
+        manifestUrl: `${mirrorRegistryBase}/sha256sum.txt`,
+        fileName: mirrorRegistryFilename,
+        destPath: mirrorRegistryPath
+      });
+      logger.info(
+        {
+          tag: "mirror-registry",
+          filename: mirrorRegistryFilename,
+          sizeMB: (provenance.bytes / 1024 / 1024).toFixed(2),
+          sha256: provenance.sha256,
+          cached: provenance.cached
+        },
+        "Mirror registry verified against published sha256sum.txt"
+      );
 
-      // Download if not already cached or if cached file is invalid
-      const needsDownload = !fs.existsSync(mirrorRegistryPath) || fs.statSync(mirrorRegistryPath).size === 0;
-
-      if (needsDownload) {
-        // Use Node's built-in fetch which handles redirects automatically (301, 302, 307, 308)
-        const response = await fetch(mirrorRegistryUrl);
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        // Stream response to file
-        const buffer = await response.arrayBuffer();
-        fs.writeFileSync(mirrorRegistryPath, Buffer.from(buffer));
-
-        // Verify download succeeded and file is not empty
-        const stat = fs.statSync(mirrorRegistryPath);
-        if (stat.size === 0) {
-          fs.unlinkSync(mirrorRegistryPath); // Remove corrupt file
-          throw new Error("Downloaded file is 0 bytes (download failed)");
-        }
-
-        logger.info({ tag: "mirror-registry", filename: mirrorRegistryFilename, sizeMB: (stat.size / 1024 / 1024).toFixed(2) }, "Mirror registry downloaded");
-      }
-
-      if (fs.existsSync(mirrorRegistryPath)) {
-        const stat = fs.statSync(mirrorRegistryPath);
-        if (stat.size > 0) {
-          tracked.file(mirrorRegistryPath, { name: `tools/${mirrorRegistryFilename}` });
-        } else {
-          throw new Error("Cached file is 0 bytes (corrupt)");
-        }
-      } else {
+      if (!fs.existsSync(mirrorRegistryPath)) {
         // Previously fell through with no member and no note at all — the
         // quietest of the three omission paths.
         throw new Error(`Cached file is missing after download: ${mirrorRegistryPath}`);
       }
+      if (fs.statSync(mirrorRegistryPath).size === 0) {
+        throw new Error("Cached file is 0 bytes (corrupt)");
+      }
+
+      // STREAM THE TARBALL INTO THE ZIP — the other half of the memory fix.
+      //
+      // Streaming the DOWNLOAD and then calling `tracked.file()` gave the
+      // saving straight back: that helper does `fs.readFileSync`, so all
+      // 1.19 GiB landed in one Buffer at registration time, inside a container
+      // with a memory limit. `tracked.streamFile()` is the bounded path
+      // (64 KB window, independent of file size).
+      //
+      // It carries a precondition the cache path CANNOT satisfy: exclusive
+      // ownership, because archiver opens the path later, while the response
+      // drains. `dataDir/cache` is shared — a concurrent export can rename a
+      // fresh download over this very path, and the member would then be
+      // archived from bytes that are not the bytes in the manifest.
+      //
+      // A hard link is how the precondition is met without copying 1.19 GiB:
+      // a second name for the same inode, in a private 0700 directory this
+      // request created. Unlinking or renaming the cache name cannot affect
+      // it — the inode survives until the last link goes, which is when the
+      // archive stream has settled and the `finally` below runs.
+      const mirrorRegistryStagingDir = await fs.promises.mkdtemp(
+        path.join(dataDir, "cache", "export-mirror-registry-")
+      );
+      await fs.promises.chmod(mirrorRegistryStagingDir, 0o700);
+      releaseMirrorRegistryStaging = () => {
+        try {
+          fs.rmSync(mirrorRegistryStagingDir, { recursive: true, force: true });
+          return { released: true, stagingRoot: mirrorRegistryStagingDir };
+        } catch (err) {
+          return { released: false, error: err, stagingRoot: mirrorRegistryStagingDir };
+        }
+      };
+      const stagedPath = path.join(mirrorRegistryStagingDir, mirrorRegistryFilename);
+      try {
+        await fs.promises.link(mirrorRegistryPath, stagedPath);
+      } catch (linkError) {
+        // EXDEV (staging and cache on different filesystems) or a filesystem
+        // with no hard-link support. Copy instead — reflink first where the
+        // filesystem offers it, so this usually costs no extra blocks either.
+        // This spends DISK, never memory; the streamed read is unchanged.
+        logger.warn(
+          { tag: "mirror-registry", err: { message: linkError?.message }, code: linkError?.code },
+          "Hard link unavailable for export staging, falling back to a copy"
+        );
+        await fs.promises.copyFile(
+          mirrorRegistryPath,
+          stagedPath,
+          fs.constants.COPYFILE_FICLONE
+        );
+      }
+
+      // Proves the inode about to be archived is the one that was verified
+      // against the published sha256sum.txt, closing the window between
+      // acquisition and linking. Checked inside streamFile BEFORE the member
+      // is registered, so a mismatch leaves the request unfulfilled and the
+      // export terminates through the single failure owner rather than
+      // shipping an unverified tool.
+      tracked.streamFile(stagedPath, {
+        name: `tools/${mirrorRegistryFilename}`,
+        expectedSha256: provenance.sha256
+      });
     } catch (error) {
       tracked.failDeliverable(
         "includeMirrorRegistry",
@@ -4149,6 +4264,20 @@ const buildBundleZip = async (state, res) => {
           tag: "runtime-package",
           stagingRoot: release.stagingRoot
         }, "Runtime package staging directory could not be removed");
+      }
+    }
+    // Only the extra LINK goes here, never the cache file: removing the last
+    // name for the inode is exactly what must not happen until the archive has
+    // settled, and removing the cache entry itself would defeat the verified
+    // cache the next export depends on. Runs on success, failure and abort.
+    if (releaseMirrorRegistryStaging) {
+      const release = releaseMirrorRegistryStaging();
+      if (!release.released) {
+        logger.warn({
+          err: release.error,
+          tag: "mirror-registry",
+          stagingRoot: release.stagingRoot
+        }, "Mirror registry export staging directory could not be removed");
       }
     }
   }
@@ -4381,7 +4510,16 @@ if (process.env.NODE_ENV !== "test") {
     process.exit(1);
   }
 
-  server = app.listen(port, () => {
+  // BIND THE ADDRESS THAT WAS VALIDATED, not whatever Node defaults to.
+  //
+  // This used to be `app.listen(port)`. With no host argument Node binds the
+  // unspecified address (`::`, i.e. every interface), so the loopback check in
+  // accessControl.js was validating a variable nothing consumed: unauthenticated
+  // mode passed its own guard and then served the whole network. The address is
+  // resolved in one place and bound here; backend/test/listener-bind-boundary.test.js
+  // connects over a real interface to prove the two still agree.
+  server = app.listen(port, accessControlConfig.bindAddress, () => {
+    const bound = server.address();
     // Match /api/build-info (APP_*); optional GIT_SHA / BUILD_TIME for alternate injectors.
     const bannerSha = (process.env.APP_GIT_SHA || process.env.GIT_SHA || process.env.BUILD_GIT_SHA || "").trim();
     const bannerTime = (process.env.APP_BUILD_TIME || process.env.BUILD_TIME || "").trim();
@@ -4394,6 +4532,14 @@ if (process.env.NODE_ENV !== "test") {
       "╚═══════════════════════════════════════════════════════════════════╝",
       "",
       `  Server:        http://localhost:${port}`,
+      `  Listening on:  ${accessControlConfig.bindAddress}:${bound?.port ?? port}` +
+        (accessControlConfig.bindLoopbackOnly
+          ? " (loopback only)"
+          : accessControlConfig.bindContainerException
+            ? ` (container network namespace — ${accessControlConfig.bindContainerEvidence};` +
+              " host exposure is decided by the container engine's port publishing, not by this process)"
+            : ""),
+      `  Auth mode:     ${accessControlConfig.mode}`,
       `  Mode:          ${process.env.MOCK_MODE === "true" ? "MOCK" : "Production"}`,
       `  Data Dir:      ${process.env.DATA_DIR || "/data"}`,
     ];
@@ -4412,7 +4558,22 @@ if (process.env.NODE_ENV !== "test") {
     );
     // Use process.stdout.write for startup banner (visual output, not a log event)
     process.stdout.write(bannerLines.join("\n") + "\n");
-    logger.info({ tag: "startup", port, mode: process.env.MOCK_MODE === "true" ? "MOCK" : "Production", dataDir: process.env.DATA_DIR || "/data" }, "Server started");
+    logger.info(
+      {
+        tag: "startup",
+        port,
+        // Machine-readable, so an operator or a test can assert the real
+        // listening socket rather than inferring it from configuration.
+        boundAddress: bound?.address ?? accessControlConfig.bindAddress,
+        boundPort: bound?.port ?? port,
+        authMode: accessControlConfig.mode,
+        loopbackOnly: accessControlConfig.bindLoopbackOnly,
+        containerNetworkException: accessControlConfig.bindContainerException,
+        mode: process.env.MOCK_MODE === "true" ? "MOCK" : "Production",
+        dataDir: process.env.DATA_DIR || "/data"
+      },
+      "Server started"
+    );
 
     // PROD-012: Automated job cleanup/retention policy
     // Run daily cleanup to prevent unbounded database growth

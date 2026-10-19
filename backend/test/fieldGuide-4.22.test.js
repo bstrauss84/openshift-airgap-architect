@@ -1,12 +1,17 @@
 /**
  * Field Guide v4.22 — SOURCE-TREE tests (v2.1 Tranche 2)
  *
- * 4.22 IS STILL UNSUPPORTED AND FAIL-CLOSED. These assertions are deliberately
- * limited to the source tree: structural completeness, copy classification and
- * provenance. Runtime compartment certification needs
- * getAuthoritativeExport("4.22") and a supported-minor flip, which belong to the
- * later atomic enablement tranche — so this file also asserts that 4.22 is NOT
- * reachable through any runtime path yet.
+ * 4.22 IS SUPPORTED. The v2.1 Tranche 5 atomic flip added it to
+ * SUPPORTED_MINORS and wired the v4.22 compartments into every runtime path.
+ *
+ * This header is corrected rather than rewritten, because the original wording
+ * matters: when Tranche 2 authored this file, 4.22 was still unsupported and
+ * fail-closed, and the file asserted that 4.22 was NOT reachable through any
+ * runtime path. Tranche 5 inverted the S3/S4/S5 block below — see the comment
+ * above "4.22 IS wired into every runtime path" — but left this header saying
+ * the opposite, so the file contradicted itself for the whole of Tranche 8.
+ * The source-tree assertions (1-7) were always independent of support status
+ * and are unchanged.
  *
  * Proves:
  *   1. the v4.22 module family matches the v4.21 family, file for file and
@@ -20,8 +25,8 @@
  *   6. the templated binary-download contract was copied VERBATIM and oc-mirror
  *      is NOT pinned to the target minor (gap list GAP-08);
  *   7. the deliberate 4.22 content decisions are present;
- *   8. 4.22 remains unreachable from assembler.js, versionResolution.js and
- *      provenance.js.
+ *   8. 4.22 IS reachable from assembler.js, versionResolution.js and
+ *      provenance.js, and 4.23 is not.
  */
 
 import { describe, it } from "node:test";

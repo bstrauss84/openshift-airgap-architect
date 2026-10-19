@@ -1,7 +1,16 @@
 /**
- * Regression tests: unsupported 4.22 run import must surface a visible
- * error with the requested version and supported versions, must not
- * replace live state, and must leave the app usable.
+ * Regression tests: an unsupported run import must surface a visible error
+ * naming the requested version and the supported versions, must not replace
+ * live state, and must leave the app usable.
+ *
+ * The version under test is 4.23, not 4.22. 4.22 BECAME SUPPORTED in the v2.1
+ * Tranche 5 atomic flip, so asserting its rejection stopped exercising the real
+ * boundary. The suite still passed, because the backend is mocked here and the
+ * mock was asserting against itself — it would not have caught a regression in
+ * the guard it is named after. Keep this pointed at the newest UNsupported
+ * minor whenever the supported set moves; see
+ * frontend/tests/unsupported-version-guard.test.jsx, which records the same
+ * rule.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, cleanup, waitFor, fireEvent } from "@testing-library/react";
@@ -29,14 +38,14 @@ function setupMock(initialState) {
     if (path === "/api/run/import") {
       const body = JSON.parse(options.body);
       const version = body?.state?.version?.selectedMinor || body?.state?.release?.channel;
-      if (version === "4.22") {
-        const err = new Error("OpenShift version 4.22 is not supported");
+      if (version === "4.23") {
+        const err = new Error("OpenShift version 4.23 is not supported");
         err.status = 422;
         err.payload = {
-          error: "OpenShift version 4.22 is not supported",
+          error: "OpenShift version 4.23 is not supported",
           code: "UNSUPPORTED_VERSION",
-          requestedVersion: "4.22",
-          supportedVersions: ["4.20", "4.21"]
+          requestedVersion: "4.23",
+          supportedVersions: ["4.20", "4.21", "4.22"]
         };
         throw err;
       }
@@ -85,7 +94,7 @@ describe("Import unsupported version error handling", () => {
     vi.restoreAllMocks();
   });
 
-  it("4.22 import surfaces visible blocked-banner mentioning 4.22 and supported versions", async () => {
+  it("4.23 import surfaces visible blocked-banner mentioning 4.23 and supported versions", async () => {
     setupMock(validState);
     render(<App />);
     await waitFor(() => {
@@ -98,8 +107,8 @@ describe("Import unsupported version error handling", () => {
     const importPayload = {
       state: {
         ...validState,
-        version: { _schemaVersion: 3, selectedMinor: "4.22", selectedPatch: "4.22.1", locked: true },
-        release: { channel: "4.22", patchVersion: "4.22.1", confirmed: true },
+        version: { _schemaVersion: 3, selectedMinor: "4.23", selectedPatch: "4.23.1", locked: true },
+        release: { channel: "4.23", patchVersion: "4.23.1", confirmed: true },
       }
     };
     const blob = new Blob([JSON.stringify(importPayload)], { type: "application/json" });
@@ -114,12 +123,13 @@ describe("Import unsupported version error handling", () => {
 
     const banner = document.querySelector('.blocked-banner');
     const bannerText = banner.textContent;
-    expect(bannerText).toContain("4.22");
+    expect(bannerText).toContain("4.23");
     expect(bannerText).toContain("4.20");
     expect(bannerText).toContain("4.21");
+    expect(bannerText).toContain("4.22");
   });
 
-  it("4.22 import does not replace live state", async () => {
+  it("4.23 import does not replace live state", async () => {
     setupMock(validState);
     render(<App />);
     await waitFor(() => {
@@ -130,8 +140,8 @@ describe("Import unsupported version error handling", () => {
     const importPayload = {
       state: {
         ...validState,
-        version: { _schemaVersion: 3, selectedMinor: "4.22", selectedPatch: "4.22.1", locked: true },
-        release: { channel: "4.22", patchVersion: "4.22.1", confirmed: true },
+        version: { _schemaVersion: 3, selectedMinor: "4.23", selectedPatch: "4.23.1", locked: true },
+        release: { channel: "4.23", patchVersion: "4.23.1", confirmed: true },
       }
     };
     const blob = new Blob([JSON.stringify(importPayload)], { type: "application/json" });
@@ -150,7 +160,7 @@ describe("Import unsupported version error handling", () => {
     const any422State = postStateCalls.some(c => {
       try {
         const body = JSON.parse(c[1].body);
-        return body?.version?.selectedMinor === "4.22" || body?.release?.channel === "4.22";
+        return body?.version?.selectedMinor === "4.23" || body?.release?.channel === "4.23";
       } catch { return false; }
     });
     expect(any422State).toBe(false);
@@ -164,7 +174,7 @@ describe("Import unsupported version error handling", () => {
     });
 
     const fileInput = document.querySelector('input[type="file"][accept=".json"]');
-    const importPayload = { state: { ...validState, version: { _schemaVersion: 3, selectedMinor: "4.22", selectedPatch: "4.22.1", locked: true }, release: { channel: "4.22", patchVersion: "4.22.1", confirmed: true } } };
+    const importPayload = { state: { ...validState, version: { _schemaVersion: 3, selectedMinor: "4.23", selectedPatch: "4.23.1", locked: true }, release: { channel: "4.23", patchVersion: "4.23.1", confirmed: true } } };
     const blob = new Blob([JSON.stringify(importPayload)], { type: "application/json" });
     const file = new File([blob], "test-run.json", { type: "application/json" });
 
@@ -189,7 +199,7 @@ describe("Import unsupported version error handling", () => {
       if (path === "/api/run/import") {
         const err = new Error("Unsupported version");
         err.status = 422;
-        err.payload = { code: "UNSUPPORTED_VERSION", requestedVersion: "4.22" };
+        err.payload = { code: "UNSUPPORTED_VERSION", requestedVersion: "4.23" };
         throw err;
       }
       return Promise.resolve({});
@@ -201,7 +211,7 @@ describe("Import unsupported version error handling", () => {
     });
 
     const fileInput = document.querySelector('input[type="file"][accept=".json"]');
-    const importPayload = { state: { ...validState, version: { _schemaVersion: 3, selectedMinor: "4.22", selectedPatch: "4.22.1", locked: true }, release: { channel: "4.22", patchVersion: "4.22.1", confirmed: true } } };
+    const importPayload = { state: { ...validState, version: { _schemaVersion: 3, selectedMinor: "4.23", selectedPatch: "4.23.1", locked: true }, release: { channel: "4.23", patchVersion: "4.23.1", confirmed: true } } };
     const blob = new Blob([JSON.stringify(importPayload)], { type: "application/json" });
     const file = new File([blob], "test-run.json", { type: "application/json" });
 
@@ -214,9 +224,10 @@ describe("Import unsupported version error handling", () => {
 
     const banner = document.querySelector('.blocked-banner');
     const bannerText = banner.textContent;
-    expect(bannerText).toContain("4.22");
+    expect(bannerText).toContain("4.23");
     expect(bannerText).toContain("4.20");
     expect(bannerText).toContain("4.21");
+    expect(bannerText).toContain("4.22");
   });
 
   it("generic import error also surfaces visible blocked-banner", async () => {

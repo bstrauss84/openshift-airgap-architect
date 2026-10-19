@@ -482,7 +482,7 @@ Each scenario has per-version catalogs at `frontend/src/data/catalogs/<version>/
 
 Two distinct concepts govern version-aware fields:
 
-**Product support policy:** `SUPPORTED_MINORS` from `frontend/src/shared/versionPolicy.js` defines which OpenShift minors the application currently supports (currently `["4.20", "4.21"]`). This is not the user's selected version — it is the set of versions the tool can serve.
+**Product support policy:** `SUPPORTED_MINORS` from `frontend/src/shared/versionPolicy.js` defines which OpenShift minors the application currently supports (currently `["4.20", "4.21", "4.22"]`). This is not the user's selected version — it is the set of versions the tool can serve. Treat the module as authoritative and this sentence as a convenience: the list is cumulative and moves when a minor is onboarded.
 
 **Canonical selected-version state:** `state.version.selectedMinor`, `state.version.selectedPatch`, and `state.version.locked` are the authoritative representation of the user's chosen version. `state.release` is backward-compatibility only and is never authoritative over the complete `state.version` object. Stale `selectedMinor` was the root cause of the visibility defect repaired in `310c0c8`.
 

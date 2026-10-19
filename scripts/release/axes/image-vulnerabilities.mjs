@@ -87,6 +87,7 @@ import { verifyShippingSet } from "../lib/provenance.mjs";
 import { parseTrivyDb, parseGrypeDb, evaluateDb, ageDays } from "../lib/scannerdb.mjs";
 import { classifyDigests } from "../provenance/candidateBinding.mjs";
 import { reportSubjectConsistency, summarizeFindings, topFindings } from "../provenance/releaseEvidence.mjs";
+import { attributeFindings, assertNoProjectFindingAccepted } from "../vex/vendorInheritedRisk.mjs";
 import {
   TRIVY_CONTAINER_CACHE,
   cacheMountArgs,
@@ -567,6 +568,14 @@ export default {
         findings: scan.findings,
         summary: scan.format === "trivy-json" ? summarizeFindings(scan.report) : null,
         top: scan.format === "trivy-json" ? topFindings(scan.report, 25) : null,
+        // WHO CAN FIX EACH FINDING. Attribution only — nothing is filtered,
+        // no count is reduced, and this does not touch the verdict below.
+        // The owner's approval covers inherited risk in unmodified Red Hat
+        // binaries; it is a recorded decision about risk, not a claim the
+        // risk is absent, and `image-vulnerabilities` stays non-waivable.
+        // Splitting the counts is what makes "54 of 97 are not ours to fix"
+        // a checkable statement instead of an assertion in a document.
+        attribution: scan.format === "trivy-json" ? attributeFindings(scan.report) : null,
         provenance: provenanceRecord,
         provenanceVerdict,
         run: scan.run,
@@ -592,6 +601,32 @@ export default {
       provenance: set,
       perImage,
     };
+    // Fail the RUN, not the scope, if attribution ever drifts: an app or UBI
+    // finding accepted as inherited vendor risk is precisely what the
+    // approval forbids, and it would otherwise be invisible in a total.
+    for (const img of perImage) {
+      if (img.attribution) assertNoProjectFindingAccepted(img.attribution);
+    }
+
+    // Project-owned totals, which are what this project can actually act on.
+    summary.ownership = perImage.reduce(
+      (acc, img) => {
+        if (!img.attribution) return acc;
+        acc.project.critical += img.attribution.project.CRITICAL;
+        acc.project.high += img.attribution.project.HIGH;
+        acc.vendor.critical += img.attribution.vendor.CRITICAL;
+        acc.vendor.high += img.attribution.vendor.HIGH;
+        return acc;
+      },
+      {
+        project: { critical: 0, high: 0 },
+        vendor: { critical: 0, high: 0 },
+        note:
+          "vendor = unmodified official Red Hat binaries shipped verbatim (oc, oc-mirror), attributed by " +
+          "in-image path. Owner-accepted inherited risk. NOT suppressed, NOT subtracted from the verdict.",
+      },
+    );
+
     const artifacts = [store.writeArtifact(ID, "scan-summary.json", summary)];
 
     // Belt and braces against a false PASS: an empty result set has proven

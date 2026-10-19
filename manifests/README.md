@@ -48,12 +48,17 @@ podman build -t localhost/openshift-airgap-architect-backend:latest \
 podman build -t localhost/openshift-airgap-architect-frontend:latest \
   -f frontend/Containerfile .
 
-# 2. Populate the Secret with your pull secret
-#    Prefer creating it out of tree rather than pasting a live credential into
-#    the tracked manifests/base/secret.yaml:
+# 2. Create the Secret with your pull secret, OUT OF TREE.
+#    `manifests/base/secret.yaml` is a template and is NOT applied by the
+#    kustomization — its empty values would otherwise overwrite your real
+#    credential on the next `apply -k`, because an empty string is a value.
+kubectl create secret generic airgap-architect-secrets \
+  --from-file=pull-secret.json=/path/to/pull-secret.json
+#    Re-running this fails with AlreadyExists, which is the safe outcome: it
+#    will not silently replace a working credential. To change it deliberately:
 #      kubectl create secret generic airgap-architect-secrets \
 #        --from-file=pull-secret.json=/path/to/pull-secret.json \
-#        --dry-run=client -o yaml | kubectl apply -f -
+#        --dry-run=client -o yaml | kubectl replace -f -
 #    NOTE (PROD-035): the backend Deployment does not yet reference this Secret,
 #    so this step has no effect on the running backend today.
 #    A mounted pull secret is read server-side only; its contents are never sent
@@ -202,16 +207,283 @@ kubectl create secret docker-registry airgap-architect-pull \
 
 ## OpenShift Security Context Constraints (SCC)
 
-The manifests are designed for the **restricted-v2** SCC (OpenShift 4.12+ default):
+The manifests were **written with** the **restricted-v2** SCC (OpenShift 4.12+
+default) in mind, and set:
 
 - `runAsNonRoot: true`, `runAsUser: 1001`
 - `allowPrivilegeEscalation: false`
 - `capabilities.drop: [ALL]`
 - `seccompProfile.type: RuntimeDefault`
 
-No custom SCC should be required. If the backend entrypoint's `chown` call fails
-in a restricted context, the `fsGroup: 1001` on the pod spec ensures the PVC is
-writable.
+> **CORRECTED 2026-10-16, AND STILL UNVERIFIED ON A CLUSTER.**
+>
+> The `manifests/openshift/` overlay now **removes** the hardcoded
+> `runAsUser: 1001` and `fsGroup: 1001`
+> (`patch-restricted-v2.yaml`, `patch-restricted-v2-frontend.yaml`), letting
+> `restricted-v2` assign both from the namespace's own
+> `openshift.io/sa.scc.uid-range`. That was the specific reason the previous
+> manifests would have been rejected at admission. The controls the SCC
+> actually wants asserted — `runAsNonRoot`, `allowPrivilegeEscalation: false`,
+> `capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault` — all remain,
+> and a rendering test pins that
+> (`scripts/validate-openshift-manifests.test.mjs`).
+>
+> `manifests/base/` **deliberately keeps the pins**, and that asymmetry is not
+> an oversight. Plain Kubernetes has no SCC to assign a UID, and the backend
+> image's final stage is `USER root` (it drops privileges itself in
+> `entrypoint.sh` via `runuser`). Removing `runAsUser` from the base while
+> `runAsNonRoot: true` stays would make the kubelet refuse the pod with
+> "container has runAsNonRoot and image will run as root". The base targets
+> vanilla Kubernetes; the overlay adapts it to OpenShift.
+>
+> **Rendering is not admission.** No OpenShift cluster was reachable when this
+> was written, so nothing below has been observed:
+> admission accepting the pod, the PVC being writable under an assigned
+> fsGroup, OAuth login completing, or the NetworkPolicy actually being
+> enforced by the installed network plugin. Run the smoke checks in
+> [Verifying the authenticated deployment](#verifying-the-authenticated-deployment)
+> before describing this as `restricted-v2` compatible.
+>
+> Tracked as **PROD-039** (SCC admission and arbitrary-UID validation) and
+> **PROD-003**.
+
+An earlier revision of this page said "No custom SCC should be required" and
+that `fsGroup: 1001` would keep the PVC writable if the entrypoint's `chown`
+failed. Both were unverified inferences from the YAML rather than observed
+behaviour, and the second does not follow: an fsGroup outside the namespace
+range is itself a reason for admission to reject the pod.
+
+## Deploying the authenticated OpenShift overlay
+
+`manifests/openshift/` deploys an **authenticated** topology. `manifests/base/`
+on its own is unauthenticated and is intended for plain Kubernetes behind your
+own boundary.
+
+```
+Route (reencrypt TLS, :8443)
+  └─ oauth-proxy                  built-in OpenShift OAuth + SubjectAccessReview
+       └─ nginx 127.0.0.1:5173    serves the UI, proxies /api SAME-ORIGIN
+            └─ backend Service :4000   requires the proxy shared secret
+                                        NetworkPolicy: frontend pod only
+       nginx 0.0.0.0:8081/healthz  probe-only; serves nothing else
+```
+
+There is **no backend Route**. The file that used to create one was deleted,
+not commented out.
+
+**nginx listens on the pod's loopback, not the pod IP**, and that is load
+bearing rather than tidy. That server block forwards the caller's identity
+headers and attaches the backend's shared secret, so when it answered on the
+pod IP any pod in the namespace could send `X-Forwarded-User: admin` straight
+to it and be proxied to the backend as an authenticated user — with the
+shared secret added on its behalf, and NetworkPolicy the only thing in the
+way. oauth-proxy's upstream was already `http://localhost:5173`; the bind now
+matches. Because the kubelet connects to the pod IP and cannot reach
+loopback, probes use the separate `/healthz` listener on 8081, which has no
+root, no SPA fallback, no `/api` proxy and no secret.
+
+The reencrypt Route carries **no `destinationCACertificate` and no
+`inject-cabundle` annotation**. The annotation would do nothing — service-ca
+injects into ConfigMaps, APIServices, CRDs and webhook configurations, not
+Routes — and omitting the certificate is what makes the router fall back to
+its own mounted service-CA bundle
+(`DEFAULT_DESTINATION_CA_PATH=/var/run/configmaps/service-ca/service-ca.crt`
+in the ingress operator's router Deployment), which is exactly the CA that
+signed the Service's serving certificate.
+
+### Before you apply
+
+Two secrets must be generated, and **they are yours, not the overlay's**.
+
+`airgap-architect-proxy` is created by you and never appears in
+`manifests/openshift/`. An earlier revision shipped a `secret-proxy.yaml` with
+empty `stringData` for this exact Secret while this page told you to create it
+first — and because `oc apply` three-way merges, an empty string is a *present*
+value that wins. The documented two-apply sequence below therefore used to
+blank both keys on the second apply, taking down an authenticated deployment
+with a `fails closed` message and no obvious cause. Nothing in the overlay now
+creates, patches or generates it; the Deployments only read it through
+`secretKeyRef`, and a test fails the build if a Secret reappears in that
+directory.
+
+```bash
+NS=airgap-architect            # your namespace
+
+# Create once. Re-running fails with AlreadyExists — deliberately, so a repeated
+# setup run cannot replace a live secret with fresh random values and log every
+# user out.
+oc -n "$NS" create secret generic airgap-architect-proxy \
+  --from-literal=session_secret="$(head -c 32 /dev/urandom | base64)" \
+  --from-literal=proxy_shared_secret="$(head -c 32 /dev/urandom | base64)"
+
+# Preflight: the overlay no longer carries a placeholder, so applying without
+# this Secret leaves both Deployments unable to start. Check before you apply.
+oc -n "$NS" get secret airgap-architect-proxy \
+  -o jsonpath='{range .data}{""}{end}{.metadata.name} exists{"\n"}' \
+  || echo "CREATE IT FIRST — see above"
+```
+
+Neither value is printed by these commands and neither is ever committed.
+`session_secret` is oauth-proxy's cookie encryption key; rotating it logs
+everyone out and authenticates nothing by itself. `proxy_shared_secret` is the
+trust anchor for the identity headers: anything holding it can assert any
+identity, so treat it as an admin credential — that is why NetworkPolicy backs
+it rather than replacing it.
+
+Then set the origin allowlist to your Route's real external URL in
+`manifests/openshift/patch-backend-auth.yaml` (it ships with an
+`apps.example.com` placeholder):
+
+```bash
+oc apply -k manifests/openshift/            # creates the Route first
+oc get route airgap-architect -o jsonpath='https://{.spec.host}{"\n"}'
+# put that value in OAA_ALLOWED_ORIGINS, then re-apply
+oc apply -k manifests/openshift/
+```
+
+Applying twice is now safe: the overlay has no opinion about the contents of
+`airgap-architect-proxy`.
+
+### Rotating the proxy secrets
+
+Rotation is an explicit act, never a side effect of re-applying. Patch the one
+key you mean to change, then restart what reads it — both Deployments mount
+`proxy_shared_secret`, and a pod keeps the value it started with.
+
+```bash
+# proxy_shared_secret — the backend/proxy trust anchor.
+oc -n "$NS" patch secret airgap-architect-proxy --type=merge \
+  -p "{\"stringData\":{\"proxy_shared_secret\":\"$(head -c 32 /dev/urandom | base64)\"}}"
+oc -n "$NS" rollout restart deploy/airgap-architect-frontend deploy/airgap-architect-backend
+oc -n "$NS" rollout status  deploy/airgap-architect-backend
+
+# session_secret — oauth-proxy's cookie key. Rotating it invalidates every
+# session, so every signed-in user is sent back through login.
+oc -n "$NS" patch secret airgap-architect-proxy --type=merge \
+  -p "{\"stringData\":{\"session_secret\":\"$(head -c 32 /dev/urandom | base64)\"}}"
+oc -n "$NS" rollout restart deploy/airgap-architect-frontend
+```
+
+**Expect a short window of 401s** while the two Deployments restart out of
+step: the frontend sends the new secret before the backend expects it, or the
+reverse. The restarts above are ordered to keep it to the rollout, and the
+window is why rotation is a maintenance action rather than something a
+deployment script should do on every run. Nothing degrades to unauthenticated
+during it — a mismatched secret is rejected, not ignored.
+
+**Disconnected clusters** must also mirror the proxy image:
+`registry.redhat.io/openshift4/ose-oauth-proxy:v4.22`.
+
+### Not supported: clusters using direct external OIDC
+
+OpenShift 4.22 can be configured with external OIDC, which **removes the
+built-in OAuth server** and the `oauth.openshift.io` APIs. `oauth-proxy` then
+has nothing to authenticate against. This overlay integrates with the built-in
+server, so it does not work there — and says so instead of failing at login:
+setting `OAA_OIDC_ISSUER` makes the backend exit at startup with an
+explanation. Deploy behind your own authenticating proxy instead, setting
+`OAA_AUTH_MODE=proxy` and `OAA_PROXY_SHARED_SECRET` to a value only that proxy
+knows.
+
+## Verifying the authenticated deployment
+
+> **These have NOT been run.** No OpenShift cluster was reachable when this
+> overlay was written, so OAuth login, `restricted-v2` admission and
+> NetworkPolicy enforcement are **unverified**. What *is* verified is that the
+> overlay renders correctly, that the backend rejects forged identity, direct
+> access, cross-site POSTs, cross-origin reads and forged group claims, that
+> the backend binds the address it was configured with (tested by connecting
+> over a real interface, not by reading the configuration), and that the
+> rendered nginx configuration binds loopback only — tested by binding the
+> directives it produced and failing to connect from a non-loopback address
+> (`backend/test/access-control-boundary.test.js`,
+> `backend/test/listener-bind-boundary.test.js`,
+> `scripts/validate-nginx-runtime-config.test.mjs`,
+> `scripts/validate-openshift-manifests.test.mjs`). The rendered config was
+> also loaded by a real `nginx` from `registry.access.redhat.com/ubi9/nginx-124`
+> under podman, which is syntax validation and a local bind check — not a
+> cluster.
+>
+> **Operational risk of deferring these:** if admission rejects the pods the
+> application simply does not start, which is loud and safe. The quieter risk
+> is the NetworkPolicy: if the cluster's network plugin does not enforce
+> NetworkPolicy, the objects apply without error and restrict nothing, leaving
+> the backend Service reachable from any pod in the namespace. The shared
+> secret still stands in the way, but one of the two layers would be silently
+> absent. **Check 4 below is the one not to skip.**
+
+Required access: a user who can create these objects in the target namespace
+(`oc auth can-i create deployment,route,networkpolicy,secret,serviceaccount`),
+and for check 4 the ability to run a throwaway pod. No cluster-admin is needed
+unless your namespace lacks a `uid-range` annotation.
+
+```bash
+NS=airgap-architect            # your namespace
+ROUTE=$(oc -n "$NS" get route airgap-architect -o jsonpath='https://{.spec.host}')
+
+# 1. ADMISSION — did restricted-v2 accept the pods, and what UID was assigned?
+oc -n "$NS" get pods -l app=airgap-architect
+oc -n "$NS" get pod -l component=backend \
+  -o jsonpath='{.items[0].spec.securityContext}{"\n"}{.items[0].spec.containers[0].securityContext}{"\n"}'
+oc -n "$NS" get namespace "$NS" -o jsonpath='{.metadata.annotations.openshift\.io/sa\.scc\.uid-range}{"\n"}'
+# EXPECT: pods Running; no runAsUser in the pod spec; an assigned UID inside the range.
+# A pod stuck in CreateContainerConfigError with "unable to validate against any
+# security context constraint" means admission refused it.
+
+# 2. PVC WRITABILITY under the assigned fsGroup (the backend exits with a clear
+#    message if this fails, so check the log rather than guessing).
+oc -n "$NS" logs deploy/airgap-architect-backend | head -20
+# EXPECT: no "DATA_DIR is not writable" message.
+
+# 3. OAUTH — an unauthenticated request must be redirected to login, not served.
+curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' "$ROUTE/"
+# EXPECT: 302/303 to the cluster OAuth server. 200 with the UI means the Route
+# is terminating at nginx (5173) instead of oauth-proxy (8443).
+
+# 4. THE BYPASS CHECK — the most important one. From an UNRELATED pod, try to
+#    reach the backend Service directly, skipping the proxy entirely.
+oc -n "$NS" run bypass-probe --rm -it --restart=Never --image=registry.access.redhat.com/ubi9/ubi-minimal \
+  -- curl -sS -o /dev/null -w 'direct=%{http_code}\n' --max-time 10 \
+     http://airgap-architect-backend:4000/api/state
+# EXPECT: a connection timeout/failure (NetworkPolicy enforced).
+# A 401 means NetworkPolicy is NOT enforced but the shared secret held — one
+# layer is missing; investigate the network plugin.
+# A 200 means BOTH layers failed. Stop and do not use this deployment.
+
+# 5. FORGED IDENTITY — the shared-secret check, from the same unrelated pod.
+oc -n "$NS" run forge-probe --rm -it --restart=Never --image=registry.access.redhat.com/ubi9/ubi-minimal \
+  -- curl -sS -o /dev/null -w 'forged=%{http_code}\n' --max-time 10 \
+     -H 'X-Forwarded-User: admin' http://airgap-architect-backend:4000/api/state
+# EXPECT: timeout (policy) or 401 (secret). NEVER 200.
+
+# 5b. THE PRE-AUTHENTICATION nginx PORT — the AUTH-03 check, and the one that
+#     does not depend on NetworkPolicy being enforced. Send a forged identity
+#     DIRECTLY to the frontend pod's IP on 5173, which is what nginx used to
+#     answer on. nginx would have attached the backend's shared secret to it.
+FE_IP=$(oc -n "$NS" get pod -l component=frontend -o jsonpath='{.items[0].status.podIP}')
+oc -n "$NS" run nginx-bypass-probe --rm -it --restart=Never --image=registry.access.redhat.com/ubi9/ubi-minimal \
+  -- curl -sS -o /dev/null -w 'nginx_direct=%{http_code}\n' --max-time 10 \
+     -H 'X-Forwarded-User: admin' "http://${FE_IP}:5173/api/state"
+# EXPECT: connection refused. nginx binds 127.0.0.1 in this overlay, so the
+# pod's own kernel refuses it whether or not the network plugin enforces
+# NetworkPolicy. A 200 or a 401 both mean something is listening there that
+# should not be — check OAA_NGINX_LISTEN_ADDRESS on the frontend container.
+
+# 5c. The probe listener is reachable and discloses nothing.
+oc -n "$NS" run probe-probe --rm -it --restart=Never --image=registry.access.redhat.com/ubi9/ubi-minimal \
+  -- sh -c "curl -sS -w ' healthz=%{http_code}\n' --max-time 10 http://${FE_IP}:8081/healthz;
+            curl -sS -o /dev/null -w 'root=%{http_code}\n' --max-time 10 http://${FE_IP}:8081/"
+# EXPECT: `ok healthz=200` and `root=404`. Anything else served on 8081 is a
+# second way in and must not be there.
+
+# 6. AUTHENTICATED USE — log in through the browser at $ROUTE and confirm the
+#    wizard loads, an Operator scan runs, and a bundle downloads. The bundle
+#    download and the job log stream are the two paths that do not go through
+#    the JSON fetch wrapper, so they exercise cookie auth separately.
+```
+
+Record the results against **PROD-039** before describing the deployment as
+`restricted-v2` verified.
 
 ## Troubleshooting
 

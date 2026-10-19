@@ -32,6 +32,7 @@
     "test:tooling": "node --test scripts/*.test.js scripts/*.test.mjs scripts/minor/**/*.test.js scripts/release/*.test.mjs scripts/release/provenance/*.test.mjs scripts/release/vex/*.test.mjs",
     "release:certify": "node scripts/release/certify.mjs",
     "release:certify:list": "node scripts/release/certify.mjs --list",
+    "release:bundle-evidence": "node scripts/release/bundleEvidence.mjs",
     "test:release-certify": "node --test scripts/release/*.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",

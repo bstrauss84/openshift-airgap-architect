@@ -2117,7 +2117,7 @@ const buildImageSetConfig = (state) => {
   const version = state.release?.patchVersion;
   // Fail closed at the GENERATION BOUNDARY, using the same policy buildInstallConfig
   // applies: throws UNSUPPORTED_VERSION for an unresolvable minor AND for a resolvable
-  // but unsupported one (4.22 today).
+  // but unsupported one (4.23 today; 4.22 became supported in the v2.1 flip).
   //
   // Not delegated to callers. Route-level guards are necessary but not sufficient — a
   // caller that forgets one must not be able to produce an unsupported configuration,

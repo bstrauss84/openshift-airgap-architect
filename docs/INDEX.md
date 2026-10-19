@@ -20,6 +20,7 @@ These files define current expected behavior and process.
 - Contributor workflow: `docs/CONTRIBUTING.md`
 - Security and secrets policy: `docs/SECURITY_NOTES.md`
 - SBOM, vulnerability evidence and provenance status: `docs/security/SBOM_AND_PROVENANCE.md`
+- API exposure, authentication and trust-anchor decisions awaiting human sign-off: `docs/security/DECISION_RECORD_API_EXPOSURE_AND_TRUST_ANCHORS.md`
 - Release notes and the commit-coverage audit behind them: `docs/releases/`
 - Update workflow: `docs/UPDATING.md`
 - Data and docs source-of-truth rules:
@@ -50,15 +51,29 @@ These files are valuable but may include historical context, implementation note
   - `docs/*_FINDINGS*.md`
   - `docs/*_VERIFICATION*.md`
 - Comparative docs (role-scoped):
+
+  > **NOT TRACKED IN THIS REPOSITORY.** The six comparative documents listed
+  > below are local working notes that were never committed. They are kept in
+  > this index as a record of the analysis the architecture drew on, and are
+  > explicitly marked absent so a reader does not hunt for them — this file's
+  > own rule at the bottom ("confirm linked files exist and are tracked") was
+  > being violated by these entries.
+  >
+  > `BACKLOG_STATUS.md` names the umbrella document as #2 in its authority
+  > chain. Since that file is not in the repository, the operative authority
+  > chain for anyone working from a clone is: `docs/BACKLOG_STATUS.md`, then
+  > `CLAUDE.md`, then `docs/IMPLEMENTATION_ROADMAP_2026-05-14.md` (historical).
+  > No substitute document is invented here to satisfy the link.
+
   - Umbrella/master comparative strategy (not canonical status authority):
-    - `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md`
+    - `docs/COMPREHENSIVE_COMPARATIVE_INTEGRATION_MASTER.md` — *absent (untracked local note)*
   - Tool-specific deep-dive comparative dossiers (implementation-grade planning; not canonical status authority):
-    - `docs/ABA_COMPARISON_REVISED_PLAN_2026-03-24.md`
-    - `docs/DISCOVERY_ISO_COMPARISON_REVISED_PLAN_2026-03-24.md`
-    - `docs/CLUSTERFILE_COMPARISON_REVISED_PLAN_2026-03-17.md`
-    - `docs/AUTOSHIFTV2_COMPARISON_REVISED_PLAN_2026-03-23.md`
+    - `docs/ABA_COMPARISON_REVISED_PLAN_2026-03-24.md` — *absent (untracked local note)*
+    - `docs/DISCOVERY_ISO_COMPARISON_REVISED_PLAN_2026-03-24.md` — *absent (untracked local note)*
+    - `docs/CLUSTERFILE_COMPARISON_REVISED_PLAN_2026-03-17.md` — *absent (untracked local note)*
+    - `docs/AUTOSHIFTV2_COMPARISON_REVISED_PLAN_2026-03-23.md` — *absent (untracked local note)*
   - Historical/background comparative docs (non-primary for current implementation guidance):
-    - `docs/CLUSTERFILE_FEATURE_ANALYSIS_AND_PLAN.md`
+    - `docs/CLUSTERFILE_FEATURE_ANALYSIS_AND_PLAN.md` — *absent (untracked local note)*
   - Related comparative/context planning docs:
     - `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`
     - `docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md`

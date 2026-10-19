@@ -72,8 +72,16 @@ FROM registry.access.redhat.com/ubi9/nginx-124:latest
 # package.json, no Node.js runtime.
 COPY --from=builder --chown=1001:0 /build/frontend/dist/ /opt/app-root/src/
 
-COPY --chown=1001:0 frontend/container/nginx-oaa.conf /opt/app-root/etc/nginx.d/oaa.conf
+# The server block is a TEMPLATE, rendered at container start.
+#
+# It must NOT be installed into nginx.d/ as a .conf: the image includes
+# `nginx.d/*.conf`, and the unrendered template contains literal
+# OAA_BACKEND_ORIGIN / OAA_PROXY_SHARED_SECRET placeholders that are not valid
+# nginx syntax. Shipping it there would mean every container start loaded a
+# broken config before the entrypoint could fix it.
+COPY --chown=1001:0 frontend/container/nginx-oaa.conf.template /opt/app-root/etc/oaa-nginx.conf.template
 COPY --chown=1001:0 frontend/container/oaa-entrypoint.sh /opt/app-root/bin/oaa-entrypoint.sh
+COPY --chown=1001:0 frontend/container/oaa-render-nginx.sh /opt/app-root/bin/oaa-render-nginx.sh
 
 USER root
 # `nginx -t` validates the config at BUILD time so a broken server block fails
@@ -81,8 +89,26 @@ USER root
 # root-owned /run/nginx.pid behind, which then makes the real (uid 1001)
 # startup fail with `open() "/run/nginx.pid" failed (13: Permission denied)`.
 # Removing it is not cosmetic — without this the image does not start.
-RUN chmod 0755 /opt/app-root/bin/oaa-entrypoint.sh \
+#
+# The template is rendered once here BY THE SAME SCRIPT the entrypoint uses,
+# so what `nginx -t` validates is the shape that actually ships — including
+# the generated listen and resolver directives, which is where the two worst
+# config defects lived. It uses the build container's own resolv.conf and the
+# default (Compose) listen address; the entrypoint overwrites the file with
+# the deployment's real values on every start. Validating the rendered shape
+# at build time is what keeps a syntax error in the proxy block out of a
+# running cluster.
+#
+# nginx.d must be group-writable: OpenShift runs this container as an
+# arbitrary UID whose only predictable attribute is membership of group 0, and
+# that UID has to be able to write the rendered config at start.
+RUN chmod 0755 /opt/app-root/bin/oaa-entrypoint.sh /opt/app-root/bin/oaa-render-nginx.sh \
     && chmod -R g+rX /opt/app-root/src \
+    && /opt/app-root/bin/oaa-render-nginx.sh \
+         /opt/app-root/etc/oaa-nginx.conf.template \
+         /opt/app-root/etc/nginx.d/oaa.conf \
+    && chown 1001:0 /opt/app-root/etc/nginx.d/oaa.conf \
+    && chmod g+w /opt/app-root/etc/nginx.d /opt/app-root/etc/nginx.d/oaa.conf \
     && nginx -t -c /etc/nginx/nginx.conf \
     && rm -f /run/nginx.pid
 USER 1001

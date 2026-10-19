@@ -191,8 +191,14 @@ All 7 DOCSRC findings resolved via production edits in PlatformSpecificsStep.jsx
 
 ## OCP 4.22 Asset Surfaces (v2.1 Tranche 2)
 
-> **4.22 is still unsupported and fail-closed.** The surfaces below exist on disk as
-> data and source; none of them is reachable through a public support boundary.
+> **[Historical as of v2.1 Tranche 2.]** When this section was written, 4.22 was
+> still unsupported and fail-closed, and the surfaces below existed on disk as data
+> and source without being reachable through a public support boundary. **That is no
+> longer true:** the Tranche 5 atomic flip added 4.22 to `SUPPORTED_MINORS`, and these
+> surfaces are now live. The inventory of which files carry 4.22 copy is still
+> accurate and is why this section is retained; only its support statement is
+> historical. See `scripts/find-hardcoded-versions.sh`, which records the same
+> correction at its own exemption list.
 
 Tranche 2 added five new 4.22-bearing surfaces. **None required a new exemption in
 `scripts/find-hardcoded-versions.sh`**, because `--check` scans
@@ -225,12 +231,19 @@ allowlist is checked in both directions so a stale entry fails the test.
 
 ### `OpenShift 4.22+` in frontend copy REMAINS a violation
 
-`VIOLATE_thresh_4_22` stays in the self-test as a **violation** fixture. While 4.22 is
-unsupported, 4.22 copy in production frontend code is exactly the defect the guard exists
-to catch, and Tranche 2 adds no UI copy. Runbook Phase 5's instruction to "re-point the
-unsupported-sentinel fixtures to the next unsupported minor" belongs to the enablement
-tranche that actually widens `SUPPORTED_MINORS`; doing it here would disarm the guard
-ahead of the flip.
+`VIOLATE_thresh_4_22` stays in the self-test as a **violation** fixture. The
+conclusion is unchanged; the *reason* recorded here originally was wrong and was
+corrected in v2.1 Tranche 8B.2. `scripts/find-hardcoded-versions.sh` is authoritative:
+
+> It is NOT because 4.22 is unsupported. 4.22 IS supported by v2.1 […] The reason is
+> unchanged by support status: version-dependent USER-FACING COPY must be DERIVED from
+> the selected minor or GATED on it, never hardcoded. […] Support status was never the
+> test.
+
+So the fixtures deliberately cover both a not-yet-supported minor (4.30) and a
+currently-supported one (4.22), and — contrary to the superseded plan quoted in
+Runbook Phase 5 and in `docs/minor-release/SCRIPTS_MINOR_SPECIFICATION.md` — they do
+**not** need re-pointing when `SUPPORTED_MINORS` moves. They are correct as they stand.
 
 Likewise, the enumerated `THRESH` and `VGATED` adjudications still list only
 4.11/4.12/4.13/4.20/4.21. They are **not** widened to 4.22.

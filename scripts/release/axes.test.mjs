@@ -20,7 +20,7 @@ import { normalizeWorkflowRuns, REQUIRED_WORKFLOWS } from "./axes/ci-integrity.m
 import { provesPrivilegeDrop, stripShellComments } from "./axes/containers.mjs";
 import { normaliseTrivy, normaliseGrype, selectStrategy } from "./axes/image-vulnerabilities.mjs";
 import { selectGenerator, parseToolProvenance, REQUIRED_TOOL_FIELDS } from "./axes/sbom.mjs";
-import plannedAxes from "./axes/planned.mjs";
+import plannedAxes, { plannedAxis } from "./axes/planned.mjs";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..");
 
@@ -80,14 +80,41 @@ describe("axis registry", () => {
     for (const id of CONTAINER_AXES) assert.ok(axisById(id), `${id} must exist`);
   });
 
-  test("planned axes report INCOMPLETE with an owner and a closure plan", async () => {
-    for (const axis of plannedAxes) {
-      const r = await axis.run();
-      assert.equal(r.status, INCOMPLETE, `${axis.id} must not claim a status it has not proven`);
-      assert.ok(r.evidence.backlogItem, `${axis.id} must name its canonical backlog item`);
-      assert.ok(r.evidence.closesIn, `${axis.id} must name the tranche that closes it`);
-      assert.ok(r.evidence.closure.length, `${axis.id} must carry concrete closure steps`);
+  test("the four formerly-planned axes are now real, not placeholders", () => {
+    // They were lifecycle/compatibility/connectivity/artifacts, each
+    // hard-coded to INCOMPLETE. The ids must survive the substitution (the
+    // registry contract) while the placeholder marker must not.
+    for (const id of ["lifecycle", "compatibility", "connectivity", "artifacts"]) {
+      const axis = axisById(id);
+      assert.ok(axis, `${id} must still be registered`);
+      assert.notEqual(axis.planned, true, `${id} must no longer be a placeholder`);
+      assert.equal(typeof axis.run, "function", `${id} must have a real runner`);
     }
+    assert.deepEqual(plannedAxes, [], "no axis should currently be in the planned state");
+  });
+
+  test("the plannedAxis factory still produces a conforming placeholder", async () => {
+    // Asserted against a synthetic spec rather than by iterating the (now
+    // empty) export, which would pass vacuously — the DOC-224 trap. The
+    // factory is retained for the NEXT gap, so its contract is still live.
+    const axis = plannedAxis({
+      id: "synthetic-gap",
+      title: "A gap registered so it cannot be forgotten",
+      inputs: ["backend/src"],
+      owner: "PROD-000",
+      tranche: "9X",
+      reason: "the proof requires infrastructure that does not exist",
+      closure: ["provision the infrastructure", "write the probe"],
+    });
+
+    assert.equal(axis.required, true, "a planned axis must stay required or the gap hides");
+    assert.equal(axis.planned, true);
+
+    const r = await axis.run();
+    assert.equal(r.status, INCOMPLETE, "a planned axis must not claim a status it has not proven");
+    assert.equal(r.evidence.backlogItem, "PROD-000", "it must name its canonical backlog item");
+    assert.equal(r.evidence.closesIn, "9X", "it must name the tranche that closes it");
+    assert.ok(r.evidence.closure.length, "it must carry concrete closure steps");
   });
 });
 

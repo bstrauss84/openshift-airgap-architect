@@ -126,7 +126,21 @@ function run(root) {
     add(`the final stage does not EXPOSE ${PORT}`);
   }
   const surfaces = [
-    ["frontend/container/nginx-oaa.conf", new RegExp(`listen\\s+${PORT}\\b`)],
+    // The nginx server block ships as a TEMPLATE, rendered at container start
+    // so the same-origin /api proxy can be pointed at the backend Service and
+    // given the proxy shared secret. It must not sit in nginx.d/*.conf
+    // unrendered: the image includes that glob and the placeholders are not
+    // valid nginx syntax.
+    //
+    // The listen line is GENERATED, because the address differs between the
+    // authenticated topology (loopback, so oauth-proxy is the only way in)
+    // and Compose (the container boundary). So the port contract is checked
+    // where it now lives — the renderer — and the template is checked for
+    // the placeholder the renderer fills. Matching `listen 5173` in the
+    // template would now match a COMMENT about the old behaviour, which is a
+    // green test asserting nothing.
+    ["frontend/container/nginx-oaa.conf.template", /^OAA_LISTEN_DIRECTIVES$/m],
+    ["frontend/container/oaa-render-nginx.sh", new RegExp(`^PORT=${PORT}$`, "m")],
     ["docker-compose.yml", new RegExp(`${PORT}:${PORT}`)],
     ["manifests/base/frontend-service.yaml", new RegExp(`port:\\s*${PORT}\\b`)],
     ["manifests/base/frontend-deployment.yaml", new RegExp(`containerPort:\\s*${PORT}\\b`)],
@@ -155,7 +169,11 @@ function run(root) {
   else if (!/__OAA_RUNTIME_CONFIG__/.test(apiJs)) {
     add("frontend/src/api.js ignores the runtime config, so VITE_API_BASE would be build-time only");
   }
-  for (const rel of ["frontend/container/oaa-entrypoint.sh", "frontend/container/nginx-oaa.conf"]) {
+  for (const rel of [
+    "frontend/container/oaa-entrypoint.sh",
+    "frontend/container/oaa-render-nginx.sh",
+    "frontend/container/nginx-oaa.conf.template",
+  ]) {
     if (read(path.join(root, rel)) === null) add(`missing ${rel}`);
   }
   const entry = read(path.join(root, "frontend", "container", "oaa-entrypoint.sh"));
@@ -164,7 +182,7 @@ function run(root) {
   }
 
   /* ---- 8. SPA fallback, so a reload cannot 404 ---- */
-  const nginxConf = read(path.join(root, "frontend", "container", "nginx-oaa.conf"));
+  const nginxConf = read(path.join(root, "frontend", "container", "nginx-oaa.conf.template"));
   if (nginxConf && !/try_files[^;]*\/index\.html/.test(nginxConf)) {
     add("nginx has no index.html fallback — a reload or deep path would 404");
   }

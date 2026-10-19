@@ -77,12 +77,21 @@ These variables are typically set during CI/CD builds and displayed in the UI (T
 - **Type:** String (`"true"` | `"false"`)
 - **Default:** `"true"` (enabled when `APP_GIT_SHA` is set)
 - **Required:** No
-- **Description:** Enable/disable automatic update checks against GitHub releases
+- **Description:** Enable/disable the automatic update check
 - **Example:** `CHECK_UPDATES=false`
 - **Notes:**
-  - When enabled, fetches latest release tag from GitHub API
+  - When enabled, the backend asks the GitHub **commits** API for the newest
+    commit on the configured branch (`APP_BRANCH`, default `main`) and compares
+    it to `APP_GIT_SHA`. It does **not** consult GitHub Releases and does not
+    read a release tag — this page previously said it fetched "the latest
+    release tag from GitHub API", which was never what the code did.
+  - A differing commit is reported as `development-branch-ahead`, which is not
+    an available release. The only state that raises an urgent upgrade banner is
+    `published-supported-update`, and that state is currently **unreachable**:
+    there is no trusted release-identity source, so the backend always reports
+    `releaseIdentity: null`. See [docs/UPDATING.md](UPDATING.md#what-the-update-states-mean).
   - Set to `false` in fully disconnected environments
-  - Failure to check is non-blocking (warning only)
+  - Failure to check is non-blocking (warning only) and reports `offline`
 
 ---
 
@@ -378,6 +387,93 @@ FEEDBACK_BURST_MAX=1                   # 1 per 30 seconds
 
 ## Security and Rate Limiting
 
+### `BIND_ADDRESS`
+- **Type:** IP address
+- **Default:** `127.0.0.1` when `OAA_AUTH_MODE=disabled`, `0.0.0.0` when `OAA_AUTH_MODE=proxy`
+- **Required:** No
+- **Scope:** Backend
+- **Description:** The interface the HTTP server binds. **This is the address
+  the server actually binds**, not a hint: it is resolved once in
+  `backend/src/accessControl.js` and passed to `listen`. Before the AUTH-01
+  correction the server called `app.listen(port)` with no host — which binds
+  the unspecified address `::`, every interface — while the startup guard
+  checked this variable, so unauthenticated mode passed its own loopback check
+  and served the network anyway.
+- **Startup refusal:** `OAA_AUTH_MODE=disabled` with a non-loopback value is
+  refused unless the container exception below applies. The whole
+  `127.0.0.0/8` range counts as loopback.
+- **`HOST`** is accepted as an alias, for compatibility.
+
+### `OAA_CONTAINER_NETWORK`
+- **Type:** `isolated` (the only accepted value)
+- **Default:** unset
+- **Required:** Only to bind a non-loopback address in `OAA_AUTH_MODE=disabled`
+- **Scope:** Backend
+- **Description:** Declares that the bind is confined to a container's own
+  network namespace. A published port forwards to the *container's* address
+  and never to the container's loopback, so a containerised backend must bind
+  a wildcard address for `ports:` to work at all — which is a different fact
+  from "the API is exposed on the operator's network".
+- **Not a bare flag:** the backend also requires evidence that it really is in
+  a container (`/run/.containerenv`, `/.dockerenv`, or a container cgroup) and
+  refuses the declaration on a host. That is what stops these lines being
+  lifted out of `docker-compose.yml` into a systemd unit.
+- **What it cannot do:** a process cannot see how its ports were published, nor
+  whether the container shares the host network namespace. `--network=host` or
+  publishing on `0.0.0.0` exposes an unauthenticated API regardless. The
+  shipped `docker-compose.yml` pins `127.0.0.1:4000:4000`; keep it that way, or
+  use `OAA_AUTH_MODE=proxy`.
+- **Example:** `BIND_ADDRESS=0.0.0.0` + `OAA_CONTAINER_NETWORK=isolated`
+
+### `OAA_AUTH_MODE`
+- **Type:** `disabled` | `proxy`
+- **Default:** `disabled`
+- **Scope:** Backend
+- **Description:** `proxy` requires a proven identity on every `/api` route
+  except `/api/health`, `/api/ready`, `/api/metrics`, and requires
+  `OAA_PROXY_SHARED_SECRET` (≥32 chars) and `OAA_ALLOWED_ORIGINS`. `disabled`
+  is the historical single-user local behaviour. See `docs/API.md` →
+  Authentication and the decision record in
+  `docs/security/DECISION_RECORD_API_EXPOSURE_AND_TRUST_ANCHORS.md`.
+
+### `OAA_PROXY_SHARED_SECRET` / `OAA_ALLOWED_ORIGINS` / `OAA_OIDC_ISSUER`
+- **Scope:** Backend. The shared secret proves a request traversed the
+  authenticating proxy; the allowlist replaces wildcard CORS; setting
+  `OAA_OIDC_ISSUER` makes the backend exit at startup, because external OIDC
+  removes the built-in OAuth server this topology needs.
+- **Never committed.** Both secrets are operator-created
+  (`manifests/README.md` → "Before you apply"), and no manifest in this
+  repository declares them — an empty value in an applied manifest would
+  overwrite the live one.
+
+### `OAA_NGINX_LISTEN_ADDRESS`
+- **Type:** `127.0.0.1` | `0.0.0.0`
+- **Default:** `0.0.0.0`
+- **Scope:** Frontend container
+- **Description:** The address nginx serves 5173 on. **`127.0.0.1` in the
+  authenticated OpenShift overlay**, because oauth-proxy reaches nginx over
+  the pod's loopback and nothing else should: that server block forwards the
+  caller's identity headers and attaches the backend shared secret, so serving
+  it on the pod IP is a complete authentication bypass for any pod that can
+  reach the pod. `0.0.0.0` under Compose, where the container boundary plays
+  that role.
+- **Startup refusal:** rendering fails if `OAA_REQUIRE_PROXY_SECRET` is set and
+  this is not loopback.
+
+### `OAA_NGINX_RESOLVER` / `OAA_RESOLV_CONF`
+- **Type:** IP address(es) / path
+- **Default:** derived from the pod's `/etc/resolv.conf`
+- **Scope:** Frontend container
+- **Description:** nginx re-resolves the backend Service per request and needs
+  a resolver to do it. It is read from `resolv.conf`, which is correct on
+  OpenShift (`dns-default` in `openshift-dns`), on vanilla Kubernetes and under
+  Compose. The old hard-coded default,
+  `kube-dns.kube-system.svc.cluster.local`, is an upstream-Kubernetes name that
+  does not exist on OpenShift — and nginx resolves a named resolver through the
+  *system* resolver at config load, so it failed the config load rather than
+  degrading. Set `OAA_NGINX_RESOLVER` explicitly only if your container has no
+  usable `resolv.conf`; rendering fails closed if neither is available.
+
 ### `NODE_EXTRA_CA_CERTS`
 - **Type:** Path (absolute)
 - **Default:** None
@@ -454,6 +550,14 @@ These are set on the **frontend** container/service, not the backend.
 | Variable | Default | Required | Scope | Purpose |
 |----------|---------|----------|-------|---------|
 | `PORT` | 4000 | No | Backend | HTTP server port |
+| `BIND_ADDRESS` | 127.0.0.1 (disabled) / 0.0.0.0 (proxy) | No | Backend | Interface the server actually binds |
+| `OAA_CONTAINER_NETWORK` | None | Only for a non-loopback bind in `disabled` | Backend | Declares a container network namespace; corroborated, not believed |
+| `OAA_AUTH_MODE` | disabled | No | Backend | `proxy` requires identity on every `/api` route |
+| `OAA_PROXY_SHARED_SECRET` | None | Yes in `proxy` | Backend + frontend | Proves a request traversed the authenticating proxy |
+| `OAA_ALLOWED_ORIGINS` | None | Yes in `proxy` | Backend | Origin allowlist replacing wildcard CORS |
+| `OAA_OIDC_ISSUER` | None | No | Backend | If set, startup fails: external OIDC is unsupported here |
+| `OAA_NGINX_LISTEN_ADDRESS` | 0.0.0.0 | No | Frontend | `127.0.0.1` in the authenticated overlay |
+| `OAA_NGINX_RESOLVER` | (from resolv.conf) | No | Frontend | Override for the /api proxy's DNS resolver |
 | `DATA_DIR` | /data | No | Backend | SQLite + job outputs |
 | `APP_GIT_SHA` | "unknown" | No | Backend | Build version (About page) |
 | `APP_BUILD_TIME` | "unknown" | No | Backend | Build timestamp |

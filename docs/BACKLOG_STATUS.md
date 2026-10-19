@@ -12,20 +12,82 @@ currently allocated `DOC-` ID is **DOC-227**. A human must allocate IDs before
 these become tracked entries. They are recorded here so the findings are not
 lost in the meantime, and so no status claim elsewhere implies they are closed.
 
-1. **No authentication on any API route — RELEASE BLOCKER, open.** The backend
-   has no auth middleware and unrestricted `cors()`, while
-   `manifests/openshift/route-backend.yaml` publishes it on an edge-TLS Route
-   with no authentication. Unauthenticated callers can still initiate
-   privileged work with mounted credentials via `POST /api/ocmirror/preflight`,
-   `POST /api/ocmirror/run` (`rhAuthSource: "mounted"`) and
-   `POST /api/operators/scan` / `prefetch` (`REGISTRY_AUTH_FILE`).
-   *Human-approved target direction* (topology and implementation still require
-   a reviewed proposal **before** any code is written): OpenShift
-   OAuth-protected UI, a same-origin nginx reverse proxy in the frontend for
-   `/api`, **no public backend Route**, and authorization on privileged
-   operations. Local Compose/development must not silently widen API exposure.
-   **Not started. Withdrawing individual endpoints does not constitute API
-   authentication.**
+1. **API authentication — IMPLEMENTED 2026-10-16, `done_pending_verification`.**
+   *Was:* "No authentication on any API route — RELEASE BLOCKER, open… Not
+   started." The backend had no auth middleware and unrestricted `cors()`,
+   while `manifests/openshift/route-backend.yaml` published it on an edge-TLS
+   Route; unauthenticated callers could initiate privileged work with mounted
+   credentials via `POST /api/ocmirror/preflight`, `POST /api/ocmirror/run`
+   (`rhAuthSource: "mounted"`) and `POST /api/operators/scan` / `prefetch`
+   (`REGISTRY_AUTH_FILE`).
+
+   *Now:* the approved topology is implemented.
+   `backend/src/accessControl.js` enforces identity, an origin allowlist and
+   CSRF defence, and refuses to start in an unsafe configuration (proxy mode
+   without a ≥32-char shared secret; unauthenticated mode on a non-loopback
+   bind; external OIDC, which this mode does not support). The OpenShift
+   overlay adds an `oauth-proxy` sidecar against the cluster's built-in OAuth
+   server with a SubjectAccessReview, proxies `/api` same-origin through
+   nginx, **deletes** `route-backend.yaml`, and backs the proxy with a
+   NetworkPolicy plus a shared secret so the backend cannot be reached by
+   skipping it. `runAsUser`/`fsGroup` pins are removed in the overlay for
+   `restricted-v2` admission.
+
+   Evidence: `backend/test/access-control-boundary.test.js` (35 cases,
+   mostly negative — forged identity, direct Service access, cross-site form
+   POST, cross-origin read, preflight refusal, forged group claim),
+   `scripts/validate-openshift-manifests.test.mjs` (26 rendering guards).
+
+   **CORRECTED 2026-10-19 — five defects in that implementation, all closed,
+   still `done_pending_verification`.** Ledger:
+   `docs/releases/evidence/REQUIREMENT_LEDGER_AUTH_CORRECTIONS_20261019.md`.
+   The first three were exploitable or destructive, not cosmetic:
+
+   - **AUTH-01.** The startup guard refused a non-loopback `BIND_ADDRESS`
+     while `index.js` called `app.listen(port)` with no host, which binds
+     `::` — every interface. Unauthenticated mode passed its own check and
+     served the network. The address is now resolved once and bound; proven
+     by connecting over a real interface
+     (`backend/test/listener-bind-boundary.test.js`, 5 cases). Compose needs a
+     wildcard bind inside its container, so that case is a declared
+     (`OAA_CONTAINER_NETWORK=isolated`) **and** corroborated exception, not a
+     flag.
+   - **AUTH-02.** The overlay shipped `Secret/airgap-architect-proxy` with
+     empty `stringData` for the same Secret the guide says to create first;
+     `oc apply -k` would blank the operator's live keys on the documented
+     second apply. The Secret is operator-owned now and no manifest declares
+     it. The same correction was applied to the base pull-secret placeholder.
+   - **AUTH-03.** nginx listened on 5173 on the pod IP while forwarding
+     client `X-Forwarded-*` and attaching the backend shared secret, so any
+     pod reaching the frontend pod IP was proxied as an authenticated user —
+     with NetworkPolicy the only thing in the way. nginx binds the pod
+     loopback now (where oauth-proxy's upstream already pointed), probes moved
+     to a probe-only `/healthz` listener, and the Service publishes 8443 only.
+     `X-Forwarded-Groups` is dropped at both hops: `openshift/oauth-proxy`
+     never sets or strips it, so it was forgeable.
+   - **AUTH-04.** `service.beta.openshift.io/inject-cabundle` on a Route does
+     nothing (service-ca injects into ConfigMaps/APIServices/CRDs/webhooks).
+     Removed; the router's real `DEFAULT_DESTINATION_CA_PATH` mechanism is
+     cited in place.
+   - **AUTH-05.** The nginx resolver named
+     `kube-dns.kube-system.svc.cluster.local`, which does not exist on
+     OpenShift (`dns-default` in `openshift-dns`) and would have failed the
+     config load. Derived from the pod's `resolv.conf` now
+     (`scripts/validate-nginx-runtime-config.test.mjs`, 21 cases).
+
+   Related, from the same review: `vendorRiskDisposition` accepted
+   `toolIdentity: []`, so vendor CVE acceptance could be recorded against no
+   named artifact (EVIDENCE-01). It now requires identity coverage of every
+   accepted finding. No count, scanner result or axis verdict changed.
+
+   **Why `done_pending_verification` and not `verified_done`:** no OpenShift
+   cluster was reachable. OAuth login, `restricted-v2` admission and
+   NetworkPolicy enforcement have **not** been exercised against a real
+   cluster, and rendering is not admission. Smoke commands are in
+   `manifests/README.md`; the NetworkPolicy check is the one not to skip,
+   because an unenforcing network plugin applies the object without error and
+   restricts nothing. Live verification is owner-deferred to post-release.
+   See PROD-024, PROD-025, PROD-027, PROD-028, PROD-039.
 
 2. **Pull-secret `/content` withdrawal** (`GET /api/secrets/rh-pull-secret/content`
    → 410) and the removal of automatic Blueprint prepopulation. Implemented and
@@ -44,16 +106,98 @@ lost in the meantime, and so no status claim elsewhere implies they are closed.
    stored state. Implemented and tested; needs an ID.
 
 6. **`getJob(...)?.metadata` is always `undefined`** — `backend/src/utils.js`
-   returns the raw row carrying `metadata_json`, and nothing in
-   `backend/src/index.js` parses it, so the oc-mirror smart-retry path at
-   `index.js` can never fire. Pre-existing, **not fixed**, no behaviour change
-   made. If it is ever repaired, it must not restore plaintext credential
-   storage.
+   returned the raw row carrying `metadata_json`, and nothing in
+   `backend/src/index.js` parsed it, so the oc-mirror smart-retry path could
+   never fire. **Fixed 2026-10-16** by `getJobMetadata` in
+   `backend/src/utils.js`, which parses the same column `updateJobMetadata`
+   already writes; four call sites in `index.js` were rewired (smart-retry
+   config-path resolution, retry duration, and two metadata merges that were
+   spreading `undefined`). Plaintext credential storage was **not** restored —
+   the writer still stores `sanitizeCredentialFields(body)`, and
+   `backend/test/job-metadata-smart-retry.test.js` pins that. Needs an ID.
 
-7. **`manifests/base/secret.yaml` is not referenced by the backend Deployment**
+7. **`openshift-install` and `mirror-registry` were acquired with no integrity
+   check** — `backend/src/installer.js`, `backend/src/openshiftInstaller.js` and
+   the mirror-registry branch of the bundle export fetched tarballs and accepted
+   them on `curl` exit status or a non-zero file size. The `installer.js` binary
+   is then **executed** (`openshift-install coreos print-stream-json`), and the
+   others are shipped across an air gap. **Fixed 2026-10-16** by
+   `backend/src/verifiedDownload.js`, which verifies against each channel's own
+   `sha256sum.txt` and fails closed. This is checksum verification, **not**
+   signature verification — see the GPG trust-anchor decision record. Needs an ID.
+
+8. **`installer.js` downloaded an x86_64 binary on every host** — the URL
+   carried no architecture segment, and that path is an x86_64 alias. The four
+   architectures publish four different binaries under the same file name
+   (verified against the live mirror 2026-10-16), so on aarch64 hosts the
+   backend fetched an x86_64 binary and spawned it, breaking `GET /api/aws/regions`
+   and `GET /api/aws/ami` on ARM64 including Apple Silicon. **Fixed 2026-10-16**;
+   `backend/test/installer-host-arch-integrity.test.js` pins the host axis.
+   Needs an ID.
+
+9. **`backend/test/mirror-registry-download.test.js` was flaky, wrote into the
+   repository root, and tested nothing** — it downloaded the real 1.19 GiB
+   artifact on every backend run, wrote to a non-gitignored `tmp/` at the repo
+   root (a tree-dirtying path, and a dirty tree is what invalidated the last
+   certification run), and re-implemented the download inline so it never
+   exercised `index.js`. **It was red at `f9d59e3`** while the continuity record
+   reported backend green. Replaced 2026-10-16 with hermetic tests against the
+   real module plus an opt-in `OAA_NETWORK_TESTS=1` real-mirror contract check;
+   `/tmp/` added to `.gitignore`. Needs an ID.
+
+10. **`manifests/base/secret.yaml` is not referenced by the backend Deployment**
    (tracked as PROD-035). Mounted-secret support in the Kubernetes manifests is
    therefore **not ready**; documentation now says so rather than implying it
    works. No production topology was changed.
+
+11. **Shipping-image vulnerabilities cannot be closed from inside this
+   repository — RELEASE BLOCKER, open.** A candidate-bound scan on 2026-10-16
+   (`f9d59e3+dirty:7a7dd8e2215b`, Trivy `af6acf9a…`, DB 2026-10-16) reports
+   backend **1 critical / 96 high** and frontend **0 critical / 30 high** —
+   higher than the previously published 1/86 and 0/22, because the database
+   moved, not because this project regressed. Attribution: 43 backend findings
+   are UBI 9.8 base RPMs, **34 are inside `oc-mirror` and 20 inside `oc`** —
+   Red Hat binaries shipped verbatim, already at the newest release (4.22.18).
+   The only CRITICAL (**CVE-2026-33186**, `google.golang.org/grpc` 1.73.0 →
+   1.79.3) is inside `oc-mirror`. All 30 frontend findings are base-image RPMs
+   with **no fix available**, and none implicates nginx. Remaining routes: a
+   newer base image, newer Red Hat binaries, removing unneeded base packages
+   (precedent: the `nodejs-nodemon` removal in `backend/Containerfile`), or an
+   explicit human risk disposition. **No waiver has been applied.** Needs an ID.
+
+12. **The external-binaries evidence generator asserted stale source facts.**
+   `RUNTIME_ACQUIRED_TOOLS` in `scripts/release/provenance/toolProvenance.mjs`
+   hardcodes `checksumVerified` and a `finding` string that are emitted verbatim
+   into shipped evidence (`external-binaries.json` → `verificationGaps`). After
+   finding 7 closed the gaps, the generator kept publishing "no SHA256
+   verification on download" — understating the product's own safety to anyone
+   reading the evidence. Corrected 2026-10-16, and two tooling tests that pinned
+   `verificationGaps.length === 2` were rewritten to pin the mechanism instead of
+   the count. **The constant remains hand-maintained**: it must change in the same
+   commit as any change to either file's verification posture. Needs an ID.
+
+13. **The commit-coverage ledger could not contain the commit that wrote it.**
+   `docs/releases/evidence/v2-commit-coverage-ledger.csv` held 208 rows ending at
+   `f1459a5` while `main..HEAD` was 209, and the evidence README asserted "all
+   three counting modes agree at 208". Structural, not a slip: committing the
+   ledger creates the commit the ledger omits. Row 209 appended and the README now
+   names an explicit head plus a maintenance rule. **The human's acceptance commit
+   will reopen the same one-commit gap by construction** and must be appended next.
+   Needs an ID.
+
+14. **`buildImages.mjs` can emit a stale candidate label on a layer cache hit.**
+   A rebuild after changes that touch no file copied into the image reuses the
+   cached `LABEL io.oaa.candidate-id` layer, so the image carries the *previous*
+   candidate id and the manifest correctly reports `DOES NOT BIND` (exit 2).
+   Fail-closed and detected, so not a correctness defect — but the operator
+   remedy (`--no-cache`) is not stated anywhere, and the failure reads like a
+   build error rather than an instruction. Observed 2026-10-16. Needs an ID.
+
+15. **Pre-existing repo-hygiene advisory, not introduced by this wave.** The
+   `repo-hygiene` axis reports `tracked-but-ignored` for `.research/` and
+   `local-docs/**` — paths that are both tracked and matched by `.gitignore`, so
+   one of the two is wrong. Advisory, non-blocking, left alone: untracking files
+   is destructive and is a human decision. Needs an ID.
 
 ## Canonical status vocabulary
 
@@ -332,7 +476,7 @@ Production readiness assessment completed 2026-04-24. These items are sequenced 
 | PROD-020 | Dependency and container-image scanning with severity policy | active | p1 | production readiness assessment 2026-04-24; priority raised 2026-08-03 (required before customer delivery) | `.github/workflows/ci.yml` (no dependency scanning), `docs/SECURITY_NOTES.md` (gitleaks for secret scanning exists but no dependency scanning) | Required: (1) Automated dependency vulnerability scanning (npm audit, Snyk, Dependabot, or equivalent), (2) Container-image scanning (Trivy, Grype, or equivalent) for both backend and frontend images, (3) Severity policy with release-blocking threshold (e.g., no Critical/High unmitigated), (4) Documented exception process with expiry dates, (5) Base-image update policy and cadence, (6) Configure alerts for new vulnerabilities in existing dependencies. **Relationship:** PROD-023 (SBOM) provides the component inventory that scanning operates on. PROD-044 (release gate) aggregates scan results. **Priority rationale (2026-08-03):** Raised from p3 to p1 — dependency and image vulnerability scanning is a baseline supply-chain requirement for customer-delivered artifacts.  **Not closed by the Tranche Security Gate (DOC-171).** That gate runs production `npm audit --omit=dev` with a Critical/High block policy per tranche, which is a narrow slice of this item. Container/base-image scanning is still unimplemented: the gate reports `N/A` with diff evidence when no shipping-image surface changed and `INCOMPLETE` when one did, and no image scanner (Trivy/Grype) is installed or wired. Severity policy, image scanning, CI enforcement and evidence retention remain open here.|
 | PROD-021 | Document multi-instance deployment and high availability | active | p3 | production readiness assessment 2026-04-24 | README (single-instance only documented) | Document multi-instance considerations, SQLite limitations for HA, session affinity requirements, shared storage for archives. |
 | PROD-022 | Add test coverage reporting and enforce minimums | active | p3 | production readiness assessment 2026-04-24 | test suites exist but no coverage reporting | Add Istanbul/nyc for coverage reporting; set minimum coverage thresholds (e.g., 80%); integrate into CI. |
-| PROD-023 | SBOM generation for application images and packaged external binaries | active | p1 | production readiness assessment 2026-04-24; priority raised 2026-08-03 (required before customer delivery) | `backend/Containerfile`, `frontend/Containerfile` (UBI 9 base images; no SBOM) | Required: (1) Generate SPDX or CycloneDX SBOM for backend and frontend container images, (2) Include SBOM/component inventory for packaged external binaries (oc, oc-mirror — see PROD-030), (3) Integrate SBOM generation into container build pipeline, (4) Include SBOMs in release bundle (PROD-042), (5) Document SBOM location and format. **Relationship:** Complements PROD-020 (scanning operates on SBOM inventory), PROD-031 (signing attests SBOM provenance), PROD-030 (external binary versions included in SBOM). **Priority rationale (2026-08-03):** Raised from p3 to p1 — SBOM is a baseline supply-chain requirement for customer-delivered container images. |
+| PROD-023 | SBOM generation for application images and packaged external binaries | active | p1 | production readiness assessment 2026-04-24; priority raised 2026-08-03 (required before customer delivery) | `backend/Containerfile`, `frontend/Containerfile` (UBI 9 base images). **Evidence updated 2026-10-16:** the "no SBOM" note is no longer accurate — `scripts/release/axes/sbom.mjs` and `scripts/release/provenance/sbomGenerate.mjs` are tracked, running code that emit per-image CycloneDX 1.7 SBOMs, a deterministic CycloneDX 1.5 offline inventory and an `external-binaries.json` companion into `release-certification/runs/<run-id>/`. Nothing is committed or published. See `docs/security/SBOM_AND_PROVENANCE.md`. | Required: (1) Generate SPDX or CycloneDX SBOM for backend and frontend container images — **CycloneDX done; SPDX still not produced**, (2) Include SBOM/component inventory for packaged external binaries (oc, oc-mirror — see PROD-030) — **done via `external-binaries.json`, but it records a `verificationGaps` entry: `openshift-install` and `mirror-registry` were checked only for non-zero size. Closed 2026-10-16 by `backend/src/verifiedDownload.js`; the generated document still needs to be re-emitted against a candidate that includes that change**, (3) Integrate SBOM generation into container build pipeline — **done, as a certification axis**, (4) Include SBOMs in release bundle (PROD-042) — **open**, (5) Document SBOM location and format — **done, `docs/security/SBOM_AND_PROVENANCE.md`**. **Residual scope is therefore narrower than this row originally described:** publish, bind to a final candidate, and triage findings — not "generate at all". **Relationship:** Complements PROD-020 (scanning operates on SBOM inventory), PROD-031 (signing attests SBOM provenance), PROD-030 (external binary versions included in SBOM). **Priority rationale (2026-08-03):** Raised from p3 to p1 — SBOM is a baseline supply-chain requirement for customer-delivered container images. |
 | PROD-024 | Authentication and authorization middleware | active | p1 | 2026-08-03 enterprise productization and security-ready distribution intake | `backend/src/index.js` — no authentication middleware, no session management, no RBAC. All API endpoints are unauthenticated. No integration with OpenShift OAuth proxy or cluster identity. CORS: `app.use(cors())` at line 102 with no origin, method, or credential restrictions. No session lifetime management. No audit event emission. No authorization failure logging. | **Required before any security-conscious hosted deployment.** Scope depends on PROD-038 (trust-model decision). The trust-model decision determines which authentication posture applies to each supported deployment model. Do not prescribe auth requirements before this decision. Required before implementation: (1) PROD-038 trust-model decision, (2) endpoint sensitivity classification based on `docs/API.md` and `docs/API_SCHEMA.md` (not all endpoints have equal sensitivity — state-mutation and credential-bearing endpoints differ from health probes and static content), (3) pull-secret-content endpoint disposition. **Session and audit scope (architectural implementation depends on PROD-038):** (1) Session lifetime management — creation, expiry, renewal, concurrent-session limits per deployment model, (2) Audit event emission — authentication success/failure, session creation/destruction, state-mutating operations (POST endpoints), (3) Authorization failure events — denied access attempts logged with identity, endpoint, timestamp, (4) Sensitive-operation auditability — pull-secret access, Start Over / clear state, export/download, credential-bearing endpoint calls must produce audit records suitable for customer security review. **Relationship:** Complements DOC-119 (multi-user session isolation) — auth identifies users, DOC-119 isolates state. Neither is sufficient alone for hosted deployment. **Dependencies:** PROD-038. |
 | PROD-025 | CORS and CSRF policy | active | p1 | 2026-08-03 enterprise productization and security-ready distribution intake | `backend/src/index.js` line 102 — `app.use(cors())` with no origin restriction, no credential policy, no method restriction. Permits any origin to make any request. No CSRF protection. | **Required before any network-exposed deployment.** Scope depends on PROD-038 (trust-model decision). Permissive CORS is not accepted by default for any deployment model. The trust-model decision determines whether any relaxation is justified and under what constraints. Required: (1) Restrict allowed origins to known frontend URL(s), (2) Configure allowed methods (GET, POST, DELETE only), (3) Set credentials policy, (4) Evaluate CSRF token requirement for state-mutating POST endpoints, (5) Document CORS configuration per deployment model. **Dependencies:** PROD-038. |
 | PROD-026 | Frontend production build and static serving | done_pending_verification | p1 | 2026-08-03 enterprise productization and security-ready distribution intake | `frontend/Containerfile` line 12: `CMD ["node", "node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--port", "5173"]` — runs Vite development server as production runtime. Vite dev server is not designed for production: no minification, no tree-shaking, hot module replacement overhead, development-only error overlays, unbundled ES modules. | **Critical.** Required: (1) Add `npm run build` (Vite production build) to Containerfile, (2) Serve built static assets via nginx, httpd, or node-based static file server, (3) Remove Vite dev server from production image, (4) Configure proper caching headers for static assets, (5) Add security headers (X-Content-Type-Options, X-Frame-Options) in static server config. **Impact:** Performance, security, and resource efficiency. Dev server in production wastes memory/CPU and exposes development tooling. **IMPLEMENTED IN TRANCHE 7C.1 (promoted to a v2.1.0 release blocker and closed).** `frontend/Containerfile` is now two stages: a `ubi9/nodejs-22` builder that runs `npm ci` and `vite build`, and a `ubi9/nginx-124` runtime that receives only `dist/`. **Proven by direct inspection of the built image:** size 860 MB -> 347 MB; zero matches anywhere on the filesystem for vite, vitest, tinypool, jsdom, esbuild, rollup or postcss; no `node` binary, no `npm`, no `node_modules`, and zero `package.json` files; the running process is `nginx: master process` as uid 1001 (also verified under a non-default uid with gid 0). **Contracts preserved and verified through `podman compose`:** port 5173 (Service, Deployment containerPort, both probes, Route `http`); `GET /` 200 text/html; reload 200; SPA fallback 200; a missing asset still 404s rather than falling back; main bundle and the lazy per-minor 4.22 chunk both 200; backend `/api/build-info`, `/api/state` and `/api/feedback/config` all 200. **The one contract that needed new machinery:** `vite build` inlines `import.meta.env`, so a plain static build would have silently broken `VITE_API_BASE` as a deployment-time setting (compose `environment:`, and the Deployment's ConfigMap). The container now writes `/runtime-config.js` from the environment on every start and `src/api.js` prefers it; verified live, including fail-closed exit 1 on a malformed URL. HMR and `VITE_ALLOWED_HOSTS` are deliberately gone — dev-server concepts with no meaning for a static server. Permanent guard: `scripts/validate-frontend-runtime.js` (+ 17 tests), reached by `npm run validate-authority` and `npm run check:frontend-runtime`; proven to catch all 11 regressions when run against the pre-fix Containerfile. **Residual:** the builder stage still reports 15 vulnerabilities (1 low, 4 moderate, 8 high, 2 critical) — builder-only, discarded, and now reported as such by the security gate (DOC-201). No npm CVE scanner is available in this environment and none was installed; OS-level image scanning of the nginx base remains Tranche 8 scope. |
@@ -353,7 +497,7 @@ Production readiness assessment completed 2026-04-24. These items are sequenced 
 | PROD-041 | Security-Ready Distribution and Enterprise Productization — umbrella | active | p1 | 2026-08-03 enterprise productization and security-ready distribution intake | This is the umbrella program item. No compliance, certification, production readiness, or ATO readiness is established by the existence of this program. Planning and backlog capture do not establish production readiness. | **Option A distinction (settled 2026-08-18):** v2.0.0 GA means application-code GA only. PROD-041 and its children gate enterprise/customer distribution, not application-code GA. The `VERSION` file is the canonical application-code version authority; the identity progression it records (`2.0.0-dev` → `2.0.0-rc.N` → `2.0.0`) proceeds independently of PROD-041. Deliberate RC and GA tags are separate milestones. PROD-041 items are prerequisites for representing or distributing a release as enterprise/customer-ready. **Customer-delivery outcome:** A release bundle and deployment posture that can survive a customer security review, deploy into a security-conscious OpenShift environment, and be maintained through a supported lifecycle. **Children (new intake):** PROD-024 through PROD-040, PROD-042 through PROD-046. **Reused existing items:** PROD-014 (versioning), PROD-018 (security headers), PROD-020 (dependency scanning), PROD-023 (SBOM), DOC-037/038 (high-side modes — deferred), DOC-119 (multi-user isolation). **Foundational sequencing prerequisites (must be decided or implemented first):** PROD-038 (trust model — dependency root), PROD-014 (versioning), PROD-018 (security headers), PROD-023 (SBOM), PROD-026 (frontend production build), PROD-030 (digest pinning), PROD-032 (npm ci). **Customer-delivery blockers (every p1 item required by the selected supported deployment profiles):** All p1 children are customer-delivery blockers, including but not limited to: PROD-024 (auth), PROD-025 (CORS), PROD-026, PROD-027 (NetworkPolicy), PROD-028 (ServiceAccount), PROD-029 (readOnlyRootFilesystem), PROD-030, PROD-031 (signing), PROD-033 (egress), PROD-035 (Secrets), PROD-037 (assurance), PROD-038, PROD-039 (SCC), PROD-040 (release process), PROD-042 (release bundle), PROD-043 (connectivity profiles), PROD-044 (release gate), PROD-045 (vulnerability disclosure). **Parallel to version-awareness:** Productization work can proceed in parallel with DOC-059 (v2.0.0) except where cross-program dependencies exist (PROD-026 after DOC-103 UI stabilization, PROD-037 after DOC-105 release). **Program completion evidence:** (1) Trust model documented and accepted, (2) All p0/p1 children resolved or explicitly deferred with rationale, (3) Release bundle defined and validated, (4) Security assurance package assembled, (5) Lifecycle operations documented. |
 | PROD-042 | Immutable customer release bundle | active | p1 | 2026-08-03 enterprise productization and security-ready distribution intake | No defined release bundle format. docker-compose.yml uses mutable :latest tags. No OCI archive generation for disconnected use. No release manifest or checksums. DOC-083 (high-side runtime package) is deferred. | **Outcome:** A customer-consumable release unit containing: versioned container images with digests, OCI archives for disconnected transfer, Kustomize resources (no Helm or Operator required — architecture decision whether hardened Kustomize remains sufficient), configuration examples without embedded secrets, release manifest with checksums, SBOMs (PROD-023), signatures (PROD-031), release notes, compatibility matrix, install/upgrade/rollback/uninstall/backup/restore guides (partial: docs/BACKUP_RESTORE.md exists), known limitations, offline verification material. **Architecture decision required:** Whether hardened Kustomize-only distribution is sufficient or whether an Operator, Helm chart, or OLM integration is needed. **Dependencies:** PROD-014 (versioning), PROD-023 (SBOM), PROD-030 (digest pinning), PROD-031 (signing), PROD-040 (release process). |
 | PROD-043 | Runtime connectivity profiles | active | p1 | 2026-08-03 enterprise productization and security-ready distribution intake | Backend supports MOCK_MODE (disables some external calls) and FEEDBACK_MODE=disabled. DOC-037/038 (high-side operating modes) are deferred. No documented profile matrix for connected/disconnected/proxy-restricted/high-side behavior. | **Outcome:** One item owns the runtime connectivity profile matrix. For each profile (connected, customer-proxy-restricted, fully disconnected, high-side): (1) Startup behavior, (2) DNS and proxy requirements, (3) External destinations contacted (Cincinnati, GitHub, mirror.openshift.com, docs.redhat.com, registries), (4) Fail-open vs fail-closed decisions, (5) UI messaging for degraded connectivity, (6) NetworkPolicy or egress controls (PROD-033), (7) Release-package contents for offline use, (8) Tests proving no unexpected outbound access in disconnected mode. **Reconciles with:** DOC-037 (high-side modes — deferred), DOC-038 (high-side hardening — deferred), PROD-033 (egress enforcement). Does not duplicate DOC-037/038 — those items own the implementation; this item owns the profile definition and testing contract. |
-| PROD-044 | Release security validation and retained evidence gate | active | p1 | 2026-08-03 enterprise productization and security-ready distribution intake | No release evidence gate exists. No checklist or automation for pre-release security validation. No evidence retention policy. | **Option A scope (settled 2026-08-18):** This gate applies before representing or distributing a release as enterprise/customer-ready — not before every application-code tag. The application-code identity progression (`2.0.0-dev` → `2.0.0-rc.N` → `2.0.0`) proceeds without passing PROD-044; deliberate RC and GA tags are separate from this identity progression. The gate activates when the release is packaged for customer delivery (PROD-042). **Outcome:** A defined gate that must pass before any release is distributed as enterprise/customer-ready. **Build provenance verification:** (1) Clean-build provenance — verify build from clean git state at known commit (PROD-040), (2) Source-revision verification — confirm image labels match release commit SHA and build metadata, (3) Signature verification — verify container image signatures and release-file signatures are valid and chain to trusted key (PROD-031), (4) Multi-arch verification — confirm manifest list contains expected architectures and each architecture image is independently signed. **Supply chain verification:** dependency scan (PROD-020), container image scan, secret scan (gitleaks — exists in CI), SBOM present and matches image contents (PROD-023), manifest validation. **Runtime verification:** SCC admission test (PROD-039), arbitrary UID test, readOnlyRootFilesystem test (PROD-029), NetworkPolicy test (PROD-027), authentication test (PROD-024), CORS validation (PROD-025), secret mounting and redaction verification. **Deployment verification:** connected/disconnected validation (PROD-043), offline installation test with offline signature and provenance verification, upgrade/rollback test, backup/restore test (docs/BACKUP_RESTORE.md), OpenShift version matrix, CPU architecture matrix. **Process verification:** (1) Promotion approval — release passed staged promotion gates (PROD-040) with documented approval, (2) Manual security checklist signed off, (3) Retained evidence — all gate artifacts (scan reports, test results, signatures, SBOMs, build logs, approval records) archived with the release and retrievable for customer security review. **Non-goal:** Formal compliance mapping or penetration test are not required by this gate unless justified by an explicit customer-assurance decision.  **Not closed by the Tranche Security Gate (DOC-171).** The tranche gate is a pre-commit developer checkpoint; this item is release-level validation with retained evidence, and still requires scanning all shipping images regardless of any tranche-level `N/A`. Unchanged and open. **TRANCHE 8 SECURITY OWNERSHIP, carried forward from v2.1 Tranche 7C.2.** Three items are explicitly deferred here and must all be closed before release certification, not merely before the human blocker retest: **(1) CONTAINER IMAGE SCANNER** — `scripts/security/tranche-security-gate.sh` reports `Container scan INCOMPLETE` because no trivy/grype/syft is available and 7C.2 was forbidden from installing host tooling. Every other security axis PASSES, so the gate's OVERALL RED/INCOMPLETE is attributable to this single check. **(2) BUILDER-ONLY DEPENDENCY ADVISORIES** — 2 critical and 8 high, enumerated in DOC-207. Proven absent from the shipped runtime (no Node.js, npm or node_modules in the frontend image) but still present for the build host. **(3) FULL IMAGE / SBOM / CVE CERTIFICATION** — including OS-level advisories in the `ubi9/nginx-124` and `ubi9/nodejs-22` base layers, which nothing in this repository currently scans. Until all three are closed the product is READY FOR HUMAN BLOCKER RETEST but NOT ready for release. |
+| PROD-044 | Release security validation and retained evidence gate | active | p1 | 2026-08-03 enterprise productization and security-ready distribution intake | No release evidence gate exists. No checklist or automation for pre-release security validation. No evidence retention policy. | **Option A scope (settled 2026-08-18):** This gate applies before representing or distributing a release as enterprise/customer-ready — not before every application-code tag. The application-code identity progression (`2.0.0-dev` → `2.0.0-rc.N` → `2.0.0`) proceeds without passing PROD-044; deliberate RC and GA tags are separate from this identity progression. The gate activates when the release is packaged for customer delivery (PROD-042). **Outcome:** A defined gate that must pass before any release is distributed as enterprise/customer-ready. **Build provenance verification:** (1) Clean-build provenance — verify build from clean git state at known commit (PROD-040), (2) Source-revision verification — confirm image labels match release commit SHA and build metadata, (3) Signature verification — verify container image signatures and release-file signatures are valid and chain to trusted key (PROD-031), (4) Multi-arch verification — confirm manifest list contains expected architectures and each architecture image is independently signed. **Supply chain verification:** dependency scan (PROD-020), container image scan, secret scan (gitleaks — exists in CI), SBOM present and matches image contents (PROD-023), manifest validation. **Runtime verification:** SCC admission test (PROD-039), arbitrary UID test, readOnlyRootFilesystem test (PROD-029), NetworkPolicy test (PROD-027), authentication test (PROD-024), CORS validation (PROD-025), secret mounting and redaction verification. **Deployment verification:** connected/disconnected validation (PROD-043), offline installation test with offline signature and provenance verification, upgrade/rollback test, backup/restore test (docs/BACKUP_RESTORE.md), OpenShift version matrix, CPU architecture matrix. **Process verification:** (1) Promotion approval — release passed staged promotion gates (PROD-040) with documented approval, (2) Manual security checklist signed off, (3) Retained evidence — all gate artifacts (scan reports, test results, signatures, SBOMs, build logs, approval records) archived with the release and retrievable for customer security review. **Non-goal:** Formal compliance mapping or penetration test are not required by this gate unless justified by an explicit customer-assurance decision.  **Not closed by the Tranche Security Gate (DOC-171).** The tranche gate is a pre-commit developer checkpoint; this item is release-level validation with retained evidence, and still requires scanning all shipping images regardless of any tranche-level `N/A`. Unchanged and open. **TRANCHE 8 SECURITY OWNERSHIP, carried forward from v2.1 Tranche 7C.2.** Three items are explicitly deferred here and must all be closed before release certification, not merely before the human blocker retest: **(1) CONTAINER IMAGE SCANNER** — `scripts/security/tranche-security-gate.sh` reports `Container scan INCOMPLETE` because no trivy/grype/syft is available and 7C.2 was forbidden from installing host tooling. Every other security axis PASSES, so the gate's OVERALL RED/INCOMPLETE is attributable to this single check. **(2) BUILDER-ONLY DEPENDENCY ADVISORIES** — 2 critical and 8 high, enumerated in DOC-207. Proven absent from the shipped runtime (no Node.js, npm or node_modules in the frontend image) but still present for the build host. **(3) FULL IMAGE / SBOM / CVE CERTIFICATION** — including OS-level advisories in the `ubi9/nginx-124` and `ubi9/nodejs-22` base layers. **Corrected 2026-10-16:** the clause "which nothing in this repository currently scans" is out of date — the `image-vulnerabilities` axis runs a digest-pinned containerised Trivy over the shipped images, OS layers included, and the `component-inventory` axis walks them for SBOMs. The real residual gap is different and still blocking: the most recent full run is bound to a **stale and dirty** candidate (`f860d7db4457+dirty`), its verdict is FAIL, and **no finding has been triaged into a disposition**. Scanning exists; candidate-bound, dispositioned evidence does not. Until all three are closed the product is READY FOR HUMAN BLOCKER RETEST but NOT ready for release. |
 | PROD-046 | Deployment lifecycle coordination | active | p1 | 2026-08-03 enterprise productization and security-ready distribution intake | Existing items cover individual lifecycle aspects: PROD-005 (backup/restore/DR), PROD-009 (database migration), PROD-012 (job cleanup/retention), PROD-013 (capacity planning), PROD-036 (graceful shutdown), PROD-040 (release process/image tagging). Missing: install prerequisites/preflight, deterministic installation procedure, upgrade procedure with backup-before-upgrade, post-migration rollback limitations, uninstall procedure, data retention policy on uninstall, release compatibility matrix (which app versions work with which OpenShift versions), state import/export compatibility across app versions, single-instance SQLite limitations documentation, large workspace sizing, operational runbooks. | **Lifecycle coordination item.** Does not duplicate existing items — coordinates them and fills gaps. Required: (1) Install prerequisites and preflight checklist, (2) Deterministic installation procedure (kustomize apply with documented order), (3) Upgrade procedure with mandatory backup-before-upgrade step, (4) Document post-migration rollback limitations (SQLite schema changes may not be reversible), (5) Uninstall procedure with data retention/deletion options, (6) Release compatibility matrix (app version × OpenShift version × CPU architecture), (7) State import/export compatibility across app versions, (8) Document single-instance SQLite limitations (DB-CONCURRENCY-001), (9) Large workspace sizing guidance (operator catalog scan data, archive storage), (10) Operational runbooks (common troubleshooting, log collection, health check). **Linked items:** PROD-005, PROD-009, PROD-012, PROD-013, PROD-036, PROD-040. |
 | PROD-045 | Vulnerability disclosure, CVE triage, and patching process | active | p1 | 2026-08-03 enterprise productization and security-ready distribution intake | No SECURITY.md vulnerability disclosure policy. No CVE intake process. No documented patching cadence. `docs/SECURITY_NOTES.md` covers secret handling but not vulnerability response. | **Outcome:** (1) Security contact and vulnerability reporting channel (SECURITY.md), (2) CVE intake and severity classification policy, (3) Exception and risk-acceptance policy, (4) Triage SLA (time to acknowledge, time to patch), (5) Patch cadence for supported versions, (6) Customer notification process for security-relevant releases, (7) Supported-version remediation scope (which versions receive security patches). |
 

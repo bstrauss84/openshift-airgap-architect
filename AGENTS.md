@@ -19,7 +19,7 @@ This file is a quick "README for AI" to keep work consistent.
 
 ## Project Constraints
 
-- Align to official OpenShift docs for selected version (4.20–4.21) and encode version differences explicitly.
+- Align to official OpenShift docs for selected version (4.20–4.22) and encode version differences explicitly.
 - **Parameter authority:** `data/params/<version>/*.json` is canonical; `frontend/src/data/catalogs/<version>/` must match. Before changing YAML field names or validation for a cataloged path, confirm against the params file.
 - No credentials stored or exported by default. Helpers are user-initiated; do not persist secrets.
 - Long-running operations must be observable (logs/progress/history) and safe (path validation, disk checks).

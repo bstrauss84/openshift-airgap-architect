@@ -192,9 +192,18 @@ Operator scan and bundle generation (including oc/oc-mirror binaries) require th
 
 The stack is two services (frontend, backend). Ports in `docker-compose.yml` are bound to **127.0.0.1** by default so the app is not exposed on the LAN. To allow access from other machines, change the left side of the port mapping to `0.0.0.0` (e.g. `"0.0.0.0:5173:5173"`).
 
-- **Frontend:** 5173 (Vite dev server in container; binds to `0.0.0.0` inside the container via `--host 0.0.0.0`)
-- **Backend:** 4000 (Express API)
+- **Frontend:** 5173 (nginx serving the built static assets; binds `0.0.0.0` **inside the container**, which is what makes the published port work)
+- **Backend:** 4000 (Express API; binds `0.0.0.0` inside the container because `docker-compose.yml` sets `BIND_ADDRESS=0.0.0.0` with `OAA_CONTAINER_NETWORK=isolated` — outside a container it binds `127.0.0.1` and refuses anything else while unauthenticated)
 - **State:** Backend uses a named volume for SQLite; run bundles and temp files are under that data path.
+
+> **Publishing on `0.0.0.0` publishes an UNAUTHENTICATED API.** The Compose stack runs
+> with authentication off — that is the supported local single-user mode — so the
+> `127.0.0.1:` prefixes in `docker-compose.yml` are the only thing keeping it off your
+> network. The backend cannot detect this for you: a process inside a container cannot
+> see how its ports were published. If you need network access, use the authenticated
+> OpenShift overlay (`manifests/openshift/`), or put your own authenticating proxy in
+> front and set `OAA_AUTH_MODE=proxy` with `OAA_PROXY_SHARED_SECRET` and
+> `OAA_ALLOWED_ORIGINS`. See [docs/API.md](docs/API.md) → Authentication.
 
 ### Container images and security (UBI, non-root)
 

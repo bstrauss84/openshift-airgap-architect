@@ -4,7 +4,9 @@ This document provides comprehensive documentation for all backend API endpoints
 
 **Base URL:** `http://localhost:4000/api` (configurable via `VITE_API_BASE`)
 
-**Authentication:** None (context-dependent deployment - see [Security Model](#security-model))
+**Authentication:** Mode-dependent — **required** in the OpenShift deployment,
+**absent** in local Compose. See [Security Model](#security-model). Set by
+`OAA_AUTH_MODE`; the backend refuses to start in an unsafe combination.
 
 **Content-Type:** All requests and responses use `application/json` unless otherwise specified
 
@@ -1342,20 +1344,73 @@ credential. Operator catalog scans authenticate via `REGISTRY_AUTH_FILE`.
 
 ### Authentication
 
-The backend **does not implement authentication** by default. The security model is **context-dependent**:
+The security model is **mode-dependent**, selected by `OAA_AUTH_MODE`. The
+backend validates the combination at startup and **refuses to start** rather
+than serving in an unsafe one.
 
-**Trusted Network Deployment (Default):**
-- Application runs on `127.0.0.1` (localhost only)
-- Access requires local system access or SSH tunnel
-- No authentication needed - physical/network security is the boundary
+**`OAA_AUTH_MODE=proxy` — the OpenShift deployment. Authentication required.**
 
-**Untrusted Network Deployment:**
-- If exposing to LAN/WAN, implement authentication layer:
-  - Reverse proxy with authentication (nginx + basic auth, OAuth2 proxy)
-  - VPN/bastion host requirement
-  - Network ACLs
-- Document security model in deployment guide
-- Consider disabling sensitive endpoints (`/api/fs/ls`, `/api/secrets/*`)
+Every `/api` route requires a proven identity except `/api/health`,
+`/api/ready` and `/api/metrics` (kubelet and Prometheus carry no identity, and
+those three disclose liveness only). The chain:
+
+1. One Route, `reencrypt` TLS, terminating at `oauth-proxy` on :8443.
+2. `oauth-proxy` authenticates against the cluster's **built-in OpenShift
+   OAuth** server, using the application ServiceAccount as the OAuth client,
+   and authorizes with a SubjectAccessReview — so merely being able to log in
+   to the cluster is not sufficient.
+3. nginx proxies `/api` **same-origin** to the backend Service and attaches a
+   shared secret from a Kubernetes Secret.
+4. The backend accepts forwarded identity **only** when that shared secret is
+   present, so a pod that reaches the backend Service directly and invents
+   `X-Forwarded-User` is rejected with `PROXY_AUTH_REQUIRED`.
+5. A NetworkPolicy restricts the backend to the frontend pod, because a
+   sidecar that can be skipped is not a boundary.
+
+Also enforced: an origin allowlist (`OAA_ALLOWED_ORIGINS`) in place of
+wildcard CORS, and CSRF defence requiring both an accepted `Origin`/`Referer`
+and the `X-OAA-Request` header on state-changing methods.
+
+**Clusters using direct external OIDC are NOT supported** by this mode. OCP
+4.22 with external OIDC removes the built-in OAuth server, so `oauth-proxy`
+has nothing to authenticate against. Setting `OAA_OIDC_ISSUER` makes the
+backend exit at startup with that explanation rather than failing at login.
+
+**`OAA_AUTH_MODE=disabled` — local Compose. No authentication.**
+
+The historical behaviour, for one developer on one machine. It is accepted
+**only** on a loopback bind, and the server now **binds the address that was
+checked**: `BIND_ADDRESS` (default `127.0.0.1` in this mode, `0.0.0.0` in
+`proxy` mode) is resolved once and passed to `listen`. Until the AUTH-01
+correction the server called `app.listen(port)` with no host, which binds the
+unspecified address `::` — so the loopback guard validated a variable nothing
+consumed, and unauthenticated mode served every interface while passing its
+own check. Cross-site browser POSTs are still rejected by the `Origin` check,
+which matters because a page on the internet can otherwise POST to a
+developer's `localhost:4000`.
+
+A non-loopback bind in `disabled` mode requires BOTH
+`OAA_CONTAINER_NETWORK=isolated` **and** evidence that the process really is
+in a container (`/run/.containerenv`, `/.dockerenv`, or a container cgroup).
+That combination exists because a published port forwards to the container's
+address, never to the container's loopback, so Compose needs a wildcard bind
+*inside* the container. The declaration alone, on a host, is refused. What it
+cannot see is how the ports were published: `--network=host`, or publishing
+on `0.0.0.0`, exposes an unauthenticated API and no in-process check can
+detect it — the shipped `docker-compose.yml` pins `127.0.0.1:4000:4000` for
+exactly that reason.
+
+**Identity fields.** `X-Forwarded-User` and `X-Forwarded-Email` are trusted
+when the proxy shared secret is present, because `openshift/oauth-proxy`
+strips and replaces both on an authenticated request. `X-Forwarded-Groups` is
+**ignored**: oauth-proxy neither sets nor strips it, so any value is the
+caller's own. `identity.groups` is therefore always empty, and the nginx hop
+clears the header too.
+
+**Status:** implemented, and **not yet verified on a cluster**. OAuth login,
+`restricted-v2` admission and NetworkPolicy enforcement have not been
+exercised against a live OpenShift cluster. See `manifests/README.md` for the
+exact smoke commands.
 
 ### Rate Limiting
 
@@ -1369,22 +1424,34 @@ The backend **does not implement authentication** by default. The security model
 
 ### Sensitive Endpoints
 
-**There is no authentication on any endpoint.** Every route below is reachable
-by anyone who can reach the API, and `app.use(cors())` is unrestricted, so any
-web page the operator visits can read them cross-origin. Compose binds
-`127.0.0.1:4000`; the OpenShift overlay publishes the backend on a Route with
-no authentication, which is a materially different exposure.
+**Exposure now depends on the mode**, and the two are materially different:
+
+- **`OAA_AUTH_MODE=proxy` (OpenShift).** Every endpoint below requires a
+  proven identity. The wildcard CORS that made these responses readable
+  cross-origin is gone, replaced by an origin allowlist. The backend is no
+  longer published on a Route at all, and a NetworkPolicy refuses every pod
+  but the frontend. The cross-origin *read* risk called out below for
+  `/api/generate` and `/api/ssh/keypair` is closed in this mode.
+- **`OAA_AUTH_MODE=disabled` (local Compose).** Unchanged and unauthenticated
+  by design, which is why the backend refuses to start in this mode unless
+  bound to loopback. Everything below is reachable by anything with local
+  access; cross-site *writes* are blocked by the `Origin` check, but a local
+  process has unrestricted access.
+
+The per-endpoint notes below describe the data each route exposes, which is
+what determines the blast radius if the boundary is misconfigured.
 
 Endpoints that expose sensitive data or operations:
 - `GET /api/secrets/rh-pull-secret/content` - **WITHDRAWN in v2.1** (410); used to return the pull secret
-- `POST`/`GET /api/bundle.zip` - archives a caller-supplied `mirrorWorkflow.archivePath`; **restricted in v2.1** to subdirectories of the data dir and `/tmp`, excluding credential files
+- `POST`/`GET /api/bundle.zip` - archives a caller-supplied `mirrorWorkflow.archivePath`; **restricted in v2.1** to subdirectories of the data dir, excluding credential files and rejecting symlinks. `/tmp` is **not** an allowed export root — it remains browsable via `GET /api/fs/ls` but was deliberately excluded here (`assertExportableMirrorOutput(..., [dataDir])`). An earlier revision of this line said "the data dir and `/tmp`", describing a weaker policy than the code implements.
 - `GET /api/jobs`, `GET /api/jobs/:id`, `GET /api/jobs/:id/stream` - return whole job rows; request bodies are **credential-stripped before storage as of v2.1**
-- `GET /api/state`, `GET /api/run/export` - sanitized, but `POST /api/run/import` persists through the weaker export sanitizer (**open issue**)
+- `GET /api/state`, `GET /api/run/export` - sanitized. `POST /api/run/import` previously persisted through the weaker *export* sanitizer, laundering SSH private keys, platform and BMC passwords and proxy userinfo into stored state; it now persists through `sanitizeStateForPersistence`, the same path `POST /api/state` uses. Closed in v2.1; covered by `backend/test/run-import-sanitizer-boundary.test.js`.
 - `POST /api/ocmirror/run`, `POST /api/ocmirror/preflight` - execute oc-mirror, optionally using the mounted pull secret, for an unauthenticated caller
 - `POST /api/operators/scan`, `POST /api/operators/prefetch` - use the mounted `REGISTRY_AUTH_FILE`
 - `GET /api/fs/ls` - directory listing (allowlisted to the data dir and `/tmp`)
 - `POST /api/system/path-check` - spawns `df` on a caller-supplied path, no allowlist
-- `POST /api/ssh/keypair` - returns a generated private key
+- `GET`/`POST /api/generate` - renders install-config, agent-config and imageset-config from server state with `includeCredentials` **forced on** for preview, so the response body carries the pull secret and any other configured credential. Combined with unrestricted CORS this is readable cross-origin.
+- `POST /api/ssh/keypair` - returns a generated private key in the response body (also readable cross-origin)
 - `POST /api/start-over`, `POST /api/jobs/:id/stop`, `DELETE /api/jobs` - destructive, unauthenticated
 
 **Recommendations:**

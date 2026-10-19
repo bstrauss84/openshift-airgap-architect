@@ -40,11 +40,11 @@ export function getNewestChannel(channelList) {
  * @returns {{supported: string[], newerUnsupported: string[], olderOutOfScope: string[], invalid: string[]}}
  *
  * Example:
- *   upstream: ["4.17", "4.18", "4.19", "4.20", "4.21", "4.22"]
- *   SUPPORTED_MINORS: ["4.20", "4.21"]
+ *   upstream: ["4.17", "4.18", "4.19", "4.20", "4.21", "4.22", "4.23"]
+ *   SUPPORTED_MINORS: ["4.20", "4.21", "4.22"]
  *   result: {
- *     supported: ["4.20", "4.21"],
- *     newerUnsupported: ["4.22"],
+ *     supported: ["4.20", "4.21", "4.22"],
+ *     newerUnsupported: ["4.23"],
  *     olderOutOfScope: ["4.17", "4.18", "4.19"],
  *     invalid: []
  *   }

@@ -1,0 +1,20 @@
+# Make the FRONTEND Deployment admissible under the restricted-v2 SCC.
+#
+# Separate from the backend patch because the two Deployments have different
+# shapes: the backend sets a pod-level securityContext (fsGroup) and the
+# frontend sets none, so a single shared patch would fail on a path that does
+# not exist.
+#
+# Container index 0 is `frontend`. patch-frontend-oauth.yaml adds the
+# oauth-proxy sidecar by strategic merge, which matches containers on their
+# `name` and APPENDS new entries rather than reordering existing ones, so
+# `frontend` keeps index 0. The rendered output is asserted by
+# backend/test/../manifests tests and by `oc kustomize manifests/openshift`,
+# which is the check that would catch it if that ever stopped being true.
+#
+# See patch-restricted-v2.yaml for why the pins stay in the base and are
+# removed only here.
+#
+# STATUS: corrected but NOT verified on a cluster.
+- op: remove
+  path: /spec/template/spec/containers/0/securityContext/runAsUser

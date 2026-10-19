@@ -30,7 +30,10 @@ import ciIntegrity from "./ci-integrity.mjs";
 import containers from "./containers.mjs";
 import imageVulnerabilities from "./image-vulnerabilities.mjs";
 import componentInventory from "./sbom.mjs";
-import planned from "./planned.mjs";
+import lifecycle from "./lifecycle.mjs";
+import compatibility from "./compatibility.mjs";
+import connectivity from "./connectivity.mjs";
+import artifacts from "./artifacts.mjs";
 
 export const AXES = Object.freeze([
   identity,
@@ -43,7 +46,17 @@ export const AXES = Object.freeze([
   containers,
   imageVulnerabilities,
   componentInventory,
-  ...planned,
+  // Formerly the four `planned.mjs` placeholders. Each is now a real axis
+  // with the same id, which is exactly the substitution planned.mjs
+  // described: "the placeholder is replaced by a real axis module with the
+  // same id, and nothing else in the harness changes."
+  //
+  // They execute after the container axes because lifecycle and connectivity
+  // spawn backend suites and are among the slowest in the run.
+  lifecycle,
+  compatibility,
+  connectivity,
+  artifacts,
 ]);
 
 export const AXIS_IDS = Object.freeze(AXES.map((a) => a.id));
