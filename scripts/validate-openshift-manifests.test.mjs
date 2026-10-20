@@ -284,6 +284,28 @@ describe("AUTH-03 — the unauthenticated nginx port is not reachable past the p
     }
   });
 
+  test("the rendered pod spec does not advertise the loopback-bound port", (t) => {
+    if (!requireRender(t)) return;
+    const fe = containersOf(named("Deployment", "airgap-architect-frontend")).find((c) => c.name === "frontend");
+    const declared = (fe?.ports ?? []).map((p) => p.containerPort);
+
+    // containerPort is informational — it neither opens nor closes anything,
+    // so this is not a live hole. It is a correctness-of-evidence guard: the
+    // base declares `5173/http`, the patch keys `ports` on `containerPort`,
+    // and a plain merge therefore KEEPS 5173 in a pod where nginx binds
+    // 127.0.0.1. The named `http` port left behind is what a future
+    // `targetPort: http` would silently resolve to.
+    assert.ok(
+      !declared.includes(5173),
+      `the overlay must not declare 5173, which nginx binds on loopback here; declared: ${declared.join(", ")}`
+    );
+    assert.deepEqual(declared, [8081], "only the probe listener is reachable on this pod's IP");
+    assert.ok(
+      !(fe?.ports ?? []).some((p) => p.name === "http"),
+      "a named `http` port is what `targetPort: http` resolves to; it must not name a loopback-only port"
+    );
+  });
+
   test("NetworkPolicy admits the proxy port only — and is no longer the sole defence", (t) => {
     if (!requireRender(t)) return;
     const fe = byKind("NetworkPolicy").find((p) => p.spec?.podSelector?.matchLabels?.component === "frontend");
@@ -384,5 +406,43 @@ describe("base manifests stay deployable on plain Kubernetes", () => {
     // while runAsNonRoot stays true would make the kubelet refuse the pod.
     const text = fs.readFileSync(path.join(REPO_ROOT, "manifests", "base", "backend-deployment.yaml"), "utf8");
     assert.match(text, /runAsUser:\s*1001/, "the base targets plain Kubernetes and must keep its UID pin");
+  });
+});
+
+/**
+ * The base, which is plain Kubernetes and has no oauth-proxy.
+ *
+ * `VITE_API_BASE` is the one value in these manifests that is resolved by
+ * the USER'S BROWSER rather than by a pod, and that is what made the original
+ * value wrong in a way review kept missing: an in-cluster Service DNS name is
+ * perfectly valid YAML, resolves fine from inside the cluster, and cannot be
+ * resolved by the browser that actually has to use it. The documented
+ * workaround was to publish the backend on its own Route, which is precisely
+ * the API exposure the authenticated overlay exists to remove — so the defect
+ * did not merely break the base, it steered operators toward the hole.
+ */
+describe("base manifests — VITE_API_BASE is resolvable by the browser that uses it", () => {
+  const baseConfig = () =>
+    YAML.load(fs.readFileSync(path.join(REPO_ROOT, "manifests", "base", "configmap.yaml"), "utf8"));
+
+  test("the base sends the browser to a same-origin path, not a Service DNS name", () => {
+    const value = baseConfig().data.VITE_API_BASE;
+    assert.equal(value, "/api", "the browser must call the frontend's own origin, which nginx proxies in-pod");
+  });
+
+  test("it is not an absolute URL, and names no in-cluster Service", () => {
+    const value = String(baseConfig().data.VITE_API_BASE);
+    assert.ok(!/^https?:\/\//i.test(value), `an absolute URL here points the browser off-origin: ${value}`);
+    assert.ok(
+      !/airgap-architect-backend/.test(value),
+      "a cluster-internal Service name cannot be resolved by a browser outside the cluster"
+    );
+  });
+
+  test("the overlay and the base agree, so the authenticated path is not a special case", (t) => {
+    if (!requireRender(t)) return;
+    const fe = containersOf(named("Deployment", "airgap-architect-frontend")).find((c) => c.name === "frontend");
+    const overlayValue = (fe?.env ?? []).find((e) => e.name === "VITE_API_BASE")?.value;
+    assert.equal(overlayValue, baseConfig().data.VITE_API_BASE, "one origin shape in both deployments");
   });
 });

@@ -74,17 +74,15 @@ and `docker-compose.yml` defaults it to `${APP_GIT_SHA:-unknown}`.
    branch, Tools → About reports "Up to date" and the development-build note
    disappears.
 
-**If you rely on pre-built images instead of building from source:**
-
-```bash
-podman compose pull
-podman compose up --build -d
-```
+**There are no pre-built images to pull.** This release is distributed as source;
+`docker-compose.yml` names `localhost/openshift-airgap-architect-{backend,frontend}`,
+which are the images your own `--build` produces. `compose pull` has nothing to
+fetch and will fail. Building from source is the supported path.
 
 To fully restart the stack:
 
 ```bash
-podman compose down
+podman compose down      # keeps the backend-data volume
 podman compose up -d
 ```
 
@@ -93,8 +91,8 @@ podman compose up -d
 Same steps as Podman Compose, using `docker compose`:
 
 ```bash
-docker compose pull
-docker compose up --build -d
+git pull
+APP_GIT_SHA=$(git rev-parse HEAD) docker compose up --build -d
 ```
 
 ## OpenShift / Kubernetes

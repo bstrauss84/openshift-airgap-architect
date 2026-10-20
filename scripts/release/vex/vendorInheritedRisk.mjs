@@ -403,3 +403,176 @@ export function assertNoProjectFindingAccepted(attribution) {
   }
   return true;
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * THE PRODUCTION PATH
+ *
+ * Everything above this line was, until now, reachable only from its own test
+ * file. `scripts/release/axes/image-vulnerabilities.mjs` imported
+ * `attributeFindings` and `assertNoProjectFindingAccepted` and never the
+ * disposition, so the owner's per-artifact acceptance — the record that says
+ * WHICH binary, at WHICH version and digest, the inherited risk was accepted
+ * for — was never emitted into release evidence at all. A correct function
+ * nobody calls certifies nothing; this is the same class of defect as the
+ * previously-fixed orphaned release gate, and it is closed the same way: by
+ * giving it a caller on the real path and a test that proves the caller runs.
+ *
+ * The two functions below are that bridge. They are here rather than in the
+ * axis because the mapping from an inventory record to an acceptance identity
+ * is part of this module's vocabulary, and because keeping it here lets it be
+ * tested without a container engine.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Map an external-binary inventory (`provenance/toolProvenance.mjs`
+ * `externalBinaryInventory()`) onto the per-artifact identities
+ * `vendorRiskDisposition` requires.
+ *
+ * Only `baked` records are eligible, and the exclusion is substantive rather
+ * than convenient: a `runtimeAcquired` entry carries a `urlTemplate` with
+ * `<arch>`/`<version>` still in it and no resolved digest, because the
+ * artifact is fetched per request and no single one of them exists at
+ * certification time. Feeding those in would be feeding the disposition the
+ * placeholders it exists to reject.
+ *
+ * Returns `{ identities, excluded }`. `excluded` is always populated and
+ * always carries a reason, so a reader of the evidence sees which binaries
+ * were considered and set aside, instead of inferring it from a short list.
+ */
+export function identitiesFromInventory(inventory) {
+  const identities = [];
+  const excluded = [];
+
+  for (const rec of inventory?.baked ?? []) {
+    const identity = {
+      tool: rec.tool,
+      version: rec.version,
+      architecture: rec.arch,
+      sha256: rec.sha256,
+      sourceUrl: rec.url,
+      // Carried through because the digest's SUBJECT is the thing most easily
+      // misread downstream: this is the checksum of Red Hat's distribution
+      // tarball, not of the extracted binary in the image.
+      checksumSubject: rec.checksumSubject ?? null,
+      checksumCovers: rec.checksumCovers ?? null,
+      checksumAuthority: rec.checksumAuthority ?? null,
+      inImagePath: rec.path ?? null,
+    };
+    const missing = ["version", "architecture", "sha256", "sourceUrl"].filter((k) => !identity[k]);
+    if (missing.length) {
+      excluded.push({ tool: rec.tool, reason: `inventory record is missing ${missing.join(", ")}` });
+      continue;
+    }
+    identities.push(identity);
+  }
+
+  for (const rec of inventory?.runtimeAcquired ?? []) {
+    excluded.push({
+      tool: rec.tool,
+      reason:
+        "acquired at request time, not installed into a shipped image — no single artifact exists to name at " +
+        "certification time, and it can never match an image-scan finding",
+    });
+  }
+
+  return { identities, excluded };
+}
+
+/**
+ * Produce the vendor inherited-risk record for a certification run, or an
+ * explicit statement of why there is none.
+ *
+ * FAIL-CLOSED DIRECTION. The absence of an acceptance is the safe state, so
+ * every failure path here returns `accepted: false` with a reason rather than
+ * throwing. Nothing downstream may read a missing or rejected record as an
+ * acceptance, and no field is ever filled in optimistically: an inventory the
+ * run could not read produces `NOT VERIFIED`, never a plausible-looking
+ * record. This is deliberate — unexecuted checks in machine-readable evidence
+ * must say NOT VERIFIED, and a fabricated PASS here would be the single most
+ * misleading thing this file could emit.
+ *
+ * A REJECTION IS NOT AN ERROR TO BE SWALLOWED. If `vendorRiskDisposition`
+ * refuses the inputs — an uncovered binary, a malformed digest, a duplicate —
+ * that refusal is recorded verbatim in `reason` and surfaced in the evidence,
+ * because it means the "N of M findings are not ours to fix" split currently
+ * has no per-artifact backing.
+ *
+ * @param {object}   args
+ * @param {object}   args.inventory    externalBinaryInventory() result, or null
+ * @param {Array}    args.attributions `[{ role, attribution }]`, one per scanned image
+ * @param {string?}  args.decidedOn    ISO date of the owner's decision
+ */
+export function vendorRiskRecord({ inventory = null, attributions = [], decidedOn = null } = {}) {
+  const base = {
+    schemaVersion: 1,
+    purpose:
+      "Per-artifact record of the owner's accepted inherited risk in unmodified official Red Hat binaries. " +
+      "Attribution and a recorded decision only: it suppresses no finding, reduces no count and changes no " +
+      "axis verdict.",
+    decidedOn,
+  };
+
+  // Annotate each finding with the image it came from. The disposition passes
+  // extra fields through untouched, and without this the record cannot say
+  // which image a vendor finding was observed in.
+  const vendorFindings = [];
+  for (const { role = null, attribution = null } of attributions) {
+    for (const f of attribution?.findings ?? []) {
+      if (f.owner !== RISK_OWNER.VENDOR_REDHAT) continue;
+      vendorFindings.push({ ...f, imageRole: role });
+    }
+  }
+
+  if (vendorFindings.length === 0) {
+    return {
+      ...base,
+      accepted: false,
+      state: "not-applicable",
+      reason:
+        "no finding in this run was attributed to a vendored Red Hat binary, so there is no inherited risk to " +
+        "accept. This is not an acceptance and must not be read as one.",
+      findingCount: 0,
+      coversBinaries: [],
+    };
+  }
+
+  if (!inventory || inventory.complete !== true) {
+    return {
+      ...base,
+      accepted: false,
+      state: "NOT VERIFIED",
+      reason:
+        `${vendorFindings.length} finding(s) were attributed to vendored Red Hat binaries, but the external-binary ` +
+        `inventory needed to name those artifacts is unavailable: ${inventory?.reason ?? "no inventory was produced"}. ` +
+        "Per-artifact acceptance requires the exact version, architecture, digest and source URL of every binary " +
+        "whose findings are accepted, so no acceptance is recorded.",
+      findingCount: vendorFindings.length,
+      coversBinaries: [...new Set(vendorFindings.map((f) => f.vendorBinary))].sort(),
+    };
+  }
+
+  const { identities, excluded } = identitiesFromInventory(inventory);
+
+  try {
+    const disposition = vendorRiskDisposition({ toolIdentity: identities, findings: vendorFindings, decidedOn });
+    return {
+      ...base,
+      accepted: true,
+      state: "accepted",
+      identitySource: "external-binary inventory measured from the shipping backend image at certification time",
+      identitiesExcluded: excluded,
+      disposition,
+    };
+  } catch (err) {
+    return {
+      ...base,
+      accepted: false,
+      state: "rejected",
+      reason: `the per-artifact acceptance was refused: ${err.message}`,
+      identitiesOffered: identities.map((i) => i.tool),
+      identitiesExcluded: excluded,
+      findingCount: vendorFindings.length,
+      coversBinaries: [...new Set(vendorFindings.map((f) => f.vendorBinary))].sort(),
+    };
+  }
+}

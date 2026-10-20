@@ -43,7 +43,21 @@ spec:
       serviceAccountName: airgap-architect
       containers:
         - name: frontend
+          # `$patch: replace` REPLACES this list rather than merging into it,
+          # and that is the whole point.
+          #
+          # The base declares `5173/http`. A strategic-merge patch keys
+          # `ports` on `containerPort`, so simply adding 8081 KEEPS 5173 — the
+          # rendered pod then advertises a named `http` port that nginx binds
+          # on the pod's loopback only. Not a live hole (containerPort is
+          # informational; it neither opens nor closes anything), but an
+          # attractive nuisance: `targetPort: http` on any future Service
+          # resolves to it and would silently point at an address no other pod
+          # can reach. Replacing the list makes the rendered spec describe what
+          # is actually reachable on the pod IP, which here is the probe port
+          # and nothing else.
           ports:
+            - $patch: replace
             - containerPort: 8081
               name: probe
               protocol: TCP

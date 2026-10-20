@@ -31,10 +31,24 @@ data:
   # Git branch to check for updates
   APP_BRANCH: "main"
 
-  # URL the frontend uses to reach the backend API.
-  # In-cluster: use the backend Service name.
-  # If using an Ingress/Route, update this to the external backend URL.
-  VITE_API_BASE: "http://airgap-architect-backend:4000"
+  # Where the BROWSER sends API calls. This value is written into
+  # /runtime-config.js at container start and read by the page, so it is
+  # resolved by the user's browser — not by the frontend pod.
+  #
+  # It used to be "http://airgap-architect-backend:4000". That is an in-cluster
+  # Service DNS name, and a browser outside the cluster cannot resolve it, so
+  # every API call failed with a name-resolution error and the only documented
+  # way out was to publish the backend on its own Ingress/Route — exposing the
+  # API directly, which is the exposure the authenticated overlay exists to
+  # close.
+  #
+  # "/api" is same-origin: the page calls its own host, and the nginx block in
+  # the frontend image proxies /api/ to the backend Service in-cluster. The
+  # upstream defaults to http://airgap-architect-backend:4000 and is
+  # overridable with OAA_BACKEND_ORIGIN. This is the same value the OpenShift
+  # overlay uses, so one origin is the shape in both, and no backend Route is
+  # needed to make the UI work.
+  VITE_API_BASE: "/api"
 
   # Comma-separated hostnames allowed by the Vite dev server.
   # Set to the external hostname(s) used to reach the frontend (Route, Ingress, etc.).

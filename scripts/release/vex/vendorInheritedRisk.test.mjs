@@ -26,6 +26,8 @@ import {
   attributeFindings,
   vendorRiskDisposition,
   assertNoProjectFindingAccepted,
+  identitiesFromInventory,
+  vendorRiskRecord,
 } from "./vendorInheritedRisk.mjs";
 
 const vuln = (id, severity, pkgName, fixedVersion = null) => ({
@@ -392,5 +394,170 @@ describe("EVIDENCE-01 — the acceptance must COVER the findings it accepts", ()
     assert.equal(d.effect.suppressesFindings, false);
     assert.equal(d.decision, "inherited-risk-accepted");
     assert.match(d.effect.note, /non-waivable/);
+  });
+});
+
+/**
+ * The production path.
+ *
+ * `vendorRiskDisposition` was correct and unreachable: nothing outside this
+ * file imported it, so the owner's per-artifact acceptance never reached
+ * release evidence. These tests cover the bridge that gives it a caller, and
+ * they lean on the failure directions, because the dangerous outcome is not a
+ * missing record — it is a record that LOOKS like an acceptance when the run
+ * could not actually name the artifacts it accepted.
+ */
+describe("vendorRiskRecord — the production caller", () => {
+  const bakedRecord = (tool, over = {}) => ({
+    tool,
+    version: "4.22.18",
+    sha256: "a".repeat(64),
+    url: `https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest/${tool}.tar.gz`,
+    arch: "x86_64",
+    path: `/usr/local/bin/${tool}`,
+    checksumSubject: "distribution-tarball",
+    checksumCovers: `${tool}.tar.gz`,
+    checksumAuthority: "https://mirror.openshift.com/.../sha256sum.txt",
+    ...over,
+  });
+
+  const inventory = (over = {}) => ({
+    complete: true,
+    reason: null,
+    baked: [bakedRecord("oc"), bakedRecord("oc-mirror")],
+    runtimeAcquired: [{ tool: "openshift-install" }, { tool: "mirror-registry" }],
+    ...over,
+  });
+
+  const vendorAttribution = () =>
+    attributeFindings({
+      Results: [{ Target: "usr/local/bin/oc-mirror", Class: "lang-pkgs", Vulnerabilities: [vuln("CVE-V", "HIGH", "grpc")] }],
+    });
+
+  const mixedAttribution = () =>
+    attributeFindings({
+      Results: [
+        { Target: "usr/local/bin/oc-mirror", Class: "lang-pkgs", Vulnerabilities: [vuln("CVE-V", "HIGH", "grpc")] },
+        { Target: "registry.access.redhat.com/ubi9/nodejs-22-minimal (redhat 9.8)", Class: "os-pkgs", Vulnerabilities: [vuln("CVE-P", "CRITICAL", "expat")] },
+      ],
+    });
+
+  test("produces an accepted per-artifact record naming every covered binary", () => {
+    const rec = vendorRiskRecord({
+      inventory: inventory(),
+      attributions: [{ role: "backend", attribution: vendorAttribution() }],
+      decidedOn: "2026-10-16",
+    });
+
+    assert.equal(rec.accepted, true);
+    assert.equal(rec.state, "accepted");
+    assert.equal(rec.disposition.decision, "inherited-risk-accepted");
+    assert.deepEqual(rec.disposition.coversBinaries, ["oc-mirror"]);
+    // The point of the whole record: the artifact is NAMED, exactly.
+    const ocMirror = rec.disposition.appliesTo.find((t) => t.tool === "oc-mirror");
+    assert.equal(ocMirror.version, "4.22.18");
+    assert.equal(ocMirror.architecture, "x86_64");
+    assert.match(ocMirror.sha256, /^[0-9a-f]{64}$/);
+    assert.match(ocMirror.sourceUrl, /^https:\/\//);
+    // And it still suppresses nothing.
+    assert.equal(rec.disposition.effect.suppressesFindings, false);
+    assert.equal(rec.disposition.effect.changesAxisVerdict, false);
+  });
+
+  test("records which image each accepted finding came from", () => {
+    const rec = vendorRiskRecord({ inventory: inventory(), attributions: [{ role: "backend", attribution: vendorAttribution() }] });
+    assert.equal(rec.disposition.findings[0].imageRole, "backend");
+  });
+
+  test("an unreadable inventory is NOT VERIFIED, never a fabricated acceptance", () => {
+    const rec = vendorRiskRecord({
+      inventory: { complete: false, reason: "tools-provenance.env unreadable in image" },
+      attributions: [{ role: "backend", attribution: vendorAttribution() }],
+    });
+
+    assert.equal(rec.accepted, false);
+    assert.equal(rec.state, "NOT VERIFIED");
+    assert.match(rec.reason, /tools-provenance\.env unreadable/);
+    assert.equal(rec.findingCount, 1, "the findings are still counted and reported");
+    assert.equal(rec.disposition, undefined, "no disposition object exists to be mistaken for one");
+  });
+
+  test("a missing inventory is NOT VERIFIED too", () => {
+    const rec = vendorRiskRecord({ inventory: null, attributions: [{ role: "backend", attribution: vendorAttribution() }] });
+    assert.equal(rec.state, "NOT VERIFIED");
+    assert.equal(rec.accepted, false);
+  });
+
+  test("no vendor findings is not-applicable, and says it is not an acceptance", () => {
+    const projectOnly = attributeFindings({
+      Results: [{ Target: "registry.access.redhat.com/ubi9/nodejs-22-minimal (redhat 9.8)", Class: "os-pkgs", Vulnerabilities: [vuln("CVE-P", "HIGH", "expat")] }],
+    });
+    const rec = vendorRiskRecord({ inventory: inventory(), attributions: [{ role: "backend", attribution: projectOnly }] });
+
+    assert.equal(rec.accepted, false);
+    assert.equal(rec.state, "not-applicable");
+    assert.match(rec.reason, /must not be read as one/);
+  });
+
+  test("an uncovered binary is REJECTED with the reason, not quietly accepted", () => {
+    // Inventory knows about `oc` only; the findings are in `oc-mirror`.
+    const rec = vendorRiskRecord({
+      inventory: inventory({ baked: [bakedRecord("oc")] }),
+      attributions: [{ role: "backend", attribution: vendorAttribution() }],
+    });
+
+    assert.equal(rec.accepted, false);
+    assert.equal(rec.state, "rejected");
+    assert.match(rec.reason, /oc-mirror/);
+    assert.deepEqual(rec.identitiesOffered, ["oc"]);
+  });
+
+  test("a malformed inventory digest is REJECTED rather than recorded", () => {
+    const rec = vendorRiskRecord({
+      inventory: inventory({ baked: [bakedRecord("oc-mirror", { sha256: "TBD" })] }),
+      attributions: [{ role: "backend", attribution: vendorAttribution() }],
+    });
+    assert.equal(rec.accepted, false);
+    assert.equal(rec.state, "rejected");
+    // `sha256: "TBD"` is falsy-free but meaningless, so it is dropped as an
+    // incomplete identity before the digest rule even sees it; either refusal
+    // is correct, and neither may produce an acceptance.
+    assert.match(rec.reason, /oc-mirror/);
+  });
+
+  test("never throws — a refusal is evidence, not a crashed certification run", () => {
+    assert.doesNotThrow(() => vendorRiskRecord());
+    assert.doesNotThrow(() => vendorRiskRecord({ inventory: inventory(), attributions: [{ role: "backend", attribution: mixedAttribution() }] }));
+  });
+
+  test("a project-owned finding never reaches the acceptance", () => {
+    const rec = vendorRiskRecord({ inventory: inventory(), attributions: [{ role: "backend", attribution: mixedAttribution() }] });
+    assert.equal(rec.accepted, true);
+    assert.equal(rec.disposition.findingCount, 1);
+    assert.equal(rec.disposition.findings[0].id, "CVE-V");
+    assert.ok(!rec.disposition.findings.some((f) => f.id === "CVE-P"), "the UBI finding is not in the accepted set");
+  });
+});
+
+describe("identitiesFromInventory", () => {
+  test("excludes runtime-acquired tools with a stated reason", () => {
+    const { identities, excluded } = identitiesFromInventory({
+      baked: [{ tool: "oc", version: "1", arch: "x86_64", sha256: "a".repeat(64), url: "https://x/y" }],
+      runtimeAcquired: [{ tool: "mirror-registry" }],
+    });
+    assert.deepEqual(identities.map((i) => i.tool), ["oc"]);
+    const mr = excluded.find((e) => e.tool === "mirror-registry");
+    assert.match(mr.reason, /never match an image-scan finding/);
+  });
+
+  test("an incomplete baked record is excluded, not emitted half-filled", () => {
+    const { identities, excluded } = identitiesFromInventory({ baked: [{ tool: "oc", version: "1", arch: "x86_64" }] });
+    assert.deepEqual(identities, []);
+    assert.match(excluded.find((e) => e.tool === "oc").reason, /missing sha256, sourceUrl/);
+  });
+
+  test("tolerates an empty or absent inventory", () => {
+    assert.deepEqual(identitiesFromInventory(null), { identities: [], excluded: [] });
+    assert.deepEqual(identitiesFromInventory({}), { identities: [], excluded: [] });
   });
 });

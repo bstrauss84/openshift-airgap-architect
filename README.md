@@ -117,6 +117,26 @@ The app uses official OpenShift 4.20–4.22 parameter catalogs and aligns genera
 <a id="quick-start-container"></a>
 ## Quick start (container)
 
+**Prerequisites:** a container engine **and a Compose provider**. Installing Podman or
+Docker alone is not enough — `podman compose` delegates to a separate provider, and
+without one it fails with `looking up compose provider failed` and a list of paths it
+searched.
+
+| Host | Install |
+|---|---|
+| Fedora | `sudo dnf install podman podman-compose` |
+| RHEL / CentOS Stream 9+ | `sudo dnf install podman podman-compose` |
+| Ubuntu / Debian | `sudo apt install podman podman-compose` (or Docker Engine with the `docker-compose-plugin` package) |
+| Docker, any distro | Docker Engine with the Compose plugin — `docker compose version` must work |
+
+Check before you start:
+
+```bash
+podman compose version   # or: docker compose version
+```
+
+Roughly 20 GB of free disk is needed for the images plus mirrored content.
+
 **Docker:**
 
 ```bash
@@ -356,8 +376,8 @@ The `manifests/` directory contains:
 - Resource requests and limits defined (backend: 500m-2000m CPU / 1-4Gi RAM, frontend: 100m-500m CPU / 256-512Mi RAM)
 - Request correlation with X-Request-ID propagation
 - Backend schema validation for all API endpoints (Zod)
-- Non-root execution (UID 1001). **`restricted-v2` SCC admission is unverified** — see
-  the note under [Security](#security) before deploying to OpenShift.
+- Non-root execution. Compose and the base manifests pin UID 1001; the OpenShift
+  overlay leaves the UID to the cluster — see [Security](#security)
 
 ### Resource Requirements
 
@@ -454,25 +474,26 @@ See `manifests/README.md` for complete configuration reference.
 - Non-root execution (UID 1001, fsGroup 1001)
 - No privileged escalation required
 
-> **`restricted-v2` SCC admission has never been tested, and the manifests as shipped
-> are unlikely to be admitted as-is.** Earlier revisions of this README and the
-> changelog stated "Restricted-v2 SCC compatible". That was never verified against a
-> live OpenShift admission controller, and two things argue against it:
+> **The UID differs between the two deployment models, on purpose.**
 >
-> - `manifests/base/` hardcodes `runAsUser: 1001` and `fsGroup: 1001`. Under
->   `restricted-v2` OpenShift **assigns** a UID and fsGroup from the namespace's own
+> - **Compose and `manifests/base/`** pin `runAsUser: 1001` and `fsGroup: 1001`.
+>   There is no SCC to assign anything, so the identity has to be stated.
+> - **The OpenShift overlay removes both pins.** Under `restricted-v2` OpenShift
+>   *assigns* a UID and fsGroup from the namespace's own
 >   `openshift.io/sa.scc.uid-range`, and an explicitly requested value outside that
->   range is rejected at admission. 1001 is not in a default namespace range.
-> - The backend image's default entrypoint expects to start as root so it can chown the
->   data directory.
+>   range is rejected at admission — 1001 is not in a default namespace range. So
+>   `oc kustomize manifests/openshift` renders `runAsNonRoot: true`,
+>   `allowPrivilegeEscalation: false`, `seccompProfile: RuntimeDefault`, all
+>   capabilities dropped, and **no** `runAsUser` or `fsGroup`. An earlier revision
+>   of this README said the manifests were "unlikely to be admitted as-is"; that
+>   described the base, and it is no longer true of the overlay.
 >
-> What *has* been verified is narrower: the backend image's files and Node runtime are
-> usable by an arbitrary UID with GID 0, checked locally under Podman with the real
-> entrypoint bypassed. That is a useful signal, not an admission test.
->
-> Tracked as **PROD-039** (SCC admission and arbitrary-UID validation, `active`) and
-> **PROD-003** (`done_pending_verification`). If you deploy to OpenShift, expect to
-> adjust the securityContext or grant an SCC, and please report what you find.
+> The images support this: the backend's files and Node runtime are usable by an
+> arbitrary UID with GID 0, checked locally under Podman. Applying the overlay to a
+> cluster is outside this release's delivery scope — the procedure and post-deploy
+> checks live in [`manifests/README.md`](manifests/README.md). Tracked as
+> **PROD-039** and **PROD-003**; if you deploy to OpenShift, please report what you
+> find.
 
 **Network security:**
 - TLS edge termination on Routes (OpenShift)

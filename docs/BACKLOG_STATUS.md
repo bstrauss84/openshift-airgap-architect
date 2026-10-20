@@ -199,6 +199,79 @@ lost in the meantime, and so no status claim elsewhere implies they are closed.
    one of the two is wrong. Advisory, non-blocking, left alone: untracking files
    is destructive and is a human decision. Needs an ID.
 
+16. **Validate the OpenShift deployment of OAA on a real cluster — OWNER-DEFERRED,
+   open, NOT a v2.1 blocker. Needs an ID (next free is `PROD-047`; `PROD-046` is
+   the current maximum — a human allocates it).**
+
+   **Why this entry exists and why it is only here.** v2.1 ships as a **source +
+   Docker/Podman Compose** release, a scope the owner approved on 2026-10-19.
+   Everything under `manifests/openshift/` — the oauth-proxy sidecar, the
+   same-origin `/api` proxy, the NetworkPolicy, `restricted-v2` admission — is
+   present, rendered, and guarded by `scripts/validate-openshift-manifests.test.mjs`,
+   but it **has never been applied to a running OpenShift cluster**. Rendering is
+   not admission. That gap is deliberately recorded *here, in the canonical
+   backlog, and in the raw certification evidence as NOT VERIFIED* — and
+   deliberately **not** repeated as a caveat in `README.md`, `CHANGELOG.md`, the
+   versioned release notes or any user-facing update text, because those pages
+   describe the release that is actually being shipped, and this is not part of
+   it. Nothing on those pages claims cluster certification either.
+
+   **Status:** `deferred` (owner decision, 2026-10-19). **Priority:** p1 for the
+   first release that declares OpenShift deployment of OAA supported.
+   **Future owner:** project owner, or whoever first has a cluster with
+   `cluster-admin` and a working `oc login`.
+
+   **Concrete checks. Each is pass/fail from a terminal; none is a judgement call.**
+
+   *Admission and identity*
+   1. `oc apply -k manifests/openshift/` into a fresh namespace returns no error,
+      and both Deployments reach `Available`. A pod stuck `Pending` with a
+      `FailedCreate` naming the SCC is the `restricted-v2` failure this repository
+      previously got wrong.
+   2. `oc get pod -o jsonpath='{.spec.securityContext}'` shows a UID from the
+      namespace's `openshift.io/sa.scc.uid-range`, **not** 1001 — proving the
+      overlay's UID/fsGroup removal took effect.
+   3. Browsing the frontend Route unauthenticated redirects to the cluster login
+      and returns to the app after login; `oc whoami` identity appears in the
+      backend's request log.
+   4. A user **without** the SubjectAccessReview verb is refused after a
+      successful cluster login. Authentication without that check is not
+      authorization.
+
+   *The boundary that is most likely to be silently absent*
+   5. **NetworkPolicy enforcement — do not skip this one.** An unenforcing network
+      plugin accepts the object and restricts nothing, so a green `oc get
+      networkpolicy` proves only that the YAML parsed. From a scratch pod in the
+      same namespace:
+      `oc run probe --rm -it --image=registry.access.redhat.com/ubi9/ubi-minimal -- curl -sS --max-time 5 http://airgap-architect-backend:4000/api/health`
+      **must time out or be refused.** If it answers, the backend is reachable
+      from any pod in the namespace and the sidecar is decoration.
+   6. The same probe against the frontend pod IP on `5173` must be refused — and
+      must *also* be refused with the NetworkPolicy deleted, because nginx binds
+      loopback (AUTH-03). That second run is what distinguishes the intrinsic
+      property from the policy.
+   7. No `Route` exists for the backend: `oc get route` lists the frontend only.
+
+   *Plumbing that only a cluster exercises*
+   8. The reencrypt Route completes a TLS handshake using the router's
+      service-CA default, with no `destinationCACertificate` on the Route (AUTH-04).
+   9. The frontend pod logs one `OAA nginx config rendered:` line showing a
+      resolver derived from the pod's `/etc/resolv.conf` and
+      `listen=127.0.0.1:5173` (AUTH-05, AUTH-03).
+   10. Rotating `airgap-architect-proxy` and restarting both Deployments restores
+      service, and a **second** `oc apply -k` does not blank it (AUTH-02).
+
+   **Out of scope for this entry** (tracked separately, not folded in): direct
+   external OIDC, which the built-in-OAuth overlay does not support; GHCR or
+   prebuilt OCI image publication; and the unexercised OS/architecture matrix
+   cells (DOC-080) and connectivity profiles (PROD-043).
+
+   **Related existing entries, whose "current state" text predates the 2026-10-16
+   implementation and should be re-read before use:** PROD-024 (authentication),
+   PROD-025 (CORS/CSRF), PROD-027 (NetworkPolicy), PROD-028 (ServiceAccount),
+   PROD-039 (SCC admission). The code those rows describe as absent now exists;
+   what remains unverified is its behaviour on a cluster, which is this entry.
+
 ## Canonical status vocabulary
 
 - `active`: planned and in-scope

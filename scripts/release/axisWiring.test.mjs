@@ -364,7 +364,13 @@ describe("image-vulnerabilities: fail-closed end to end", () => {
         archives: okArchives(archiveDir),
         scanInputs: layouts ?? okLayouts(tmp("oaa-layouts-")),
         now: new Date("2026-10-14T00:00:00Z"),
-        inject: { runner, strategy: { kind: "native-trivy", tool: "trivy" }, database, env: {} },
+          // Hermetic by default. Without this the axis reads the external-binary
+        // inventory out of the image, which means `podman run` through the fake
+        // runner above — and that runner writes to `argv[indexOf("--output")+1]`,
+        // which for an argv with no `--output` is `argv[0]`, i.e. a file called
+        // `run` in the repository root. Tests do not write into the tree.
+        // Individual tests override this with a real fixture.
+      inject: { runner, strategy: { kind: "native-trivy", tool: "trivy" }, database, env: {}, externalBinaries: null },
       },
     };
   }
@@ -467,6 +473,113 @@ describe("image-vulnerabilities: fail-closed end to end", () => {
     assert.equal(res.status, "INCOMPLETE");
     assert.match(res.detail, /scan provenance insufficient/);
     assert.match(res.detail, /cannot be identified by image digest/);
+  });
+
+  // -------------------------------------------------------------------------
+  // The owner's inherited-risk acceptance must REACH the evidence.
+  //
+  // `vendorRiskDisposition` was correct and had no production caller: the axis
+  // imported the attribution helpers and never the disposition, so the record
+  // naming which binary the risk was accepted for was never written anywhere.
+  // These assert the caller exists on the real path — remove the wiring and
+  // every one of them fails.
+  // -------------------------------------------------------------------------
+
+  /** A report whose findings sit in the vendored oc-mirror binary. */
+  const vendorReport = (id) => ({
+    ArtifactName: "/scan",
+    Metadata: { ImageID: `sha256:${id}` },
+    Results: [{ Target: "usr/local/bin/oc-mirror", Class: "lang-pkgs", Vulnerabilities: [{ Severity: "HIGH", VulnerabilityID: "CVE-V", PkgName: "grpc", InstalledVersion: "1.0.0" }] }],
+  });
+
+  const bakedInventory = () => ({
+    complete: true,
+    reason: null,
+    baked: ["oc", "oc-mirror"].map((tool) => ({
+      tool,
+      version: "4.22.18",
+      arch: "x86_64",
+      sha256: "a".repeat(64),
+      url: `https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest/${tool}.tar.gz`,
+      path: `/usr/local/bin/${tool}`,
+    })),
+    runtimeAcquired: [{ tool: "mirror-registry" }],
+  });
+
+  function vendorHarness(inventory) {
+    const { ctx } = harness({});
+    ctx.inject.runner = (cmd, argv) => {
+      if (cmd === "sh") return { status: 0, stdout: "/bin/true\n", stderr: "", spawnError: null, timedOut: false };
+      const out = argv[argv.indexOf("--output") + 1];
+      const id = path.basename(out).startsWith("backend") ? ID_BACKEND : ID_FRONTEND;
+      fs.writeFileSync(out, JSON.stringify(vendorReport(id)));
+      return { status: 0, stdout: "", stderr: "", spawnError: null, timedOut: false };
+    };
+    if (inventory !== undefined) ctx.inject.externalBinaries = inventory;
+    return ctx;
+  }
+
+  test("the vendor acceptance is produced on the production path and written as its own artifact", async () => {
+    const ctx = vendorHarness(bakedInventory());
+    const res = await vulnAxis.run(ctx);
+
+    // Still a FAIL. The acceptance changes nothing about the verdict.
+    assert.equal(res.status, "FAIL", res.detail);
+    assert.match(res.detail, /1 high/);
+
+    const vr = res.evidence.vendorRisk;
+    assert.ok(vr, "the axis emitted a vendor-risk record");
+    assert.equal(vr.accepted, true);
+    assert.deepEqual(vr.disposition.coversBinaries, ["oc-mirror"]);
+    assert.equal(vr.disposition.decidedOn, "2026-10-16");
+    assert.equal(vr.disposition.effect.changesAxisVerdict, false);
+
+    // Portable: on disk, on its own, readable without the scan summary.
+    const rel = res.artifacts.find((a) => a.endsWith("vendor-risk-disposition.json"));
+    assert.ok(rel, `vendor-risk-disposition.json is among ${JSON.stringify(res.artifacts)}`);
+    const onDisk = JSON.parse(fs.readFileSync(path.join(ctx.store.root, rel), "utf8"));
+    assert.equal(onDisk.disposition.appliesTo.find((t) => t.tool === "oc-mirror").sha256, "a".repeat(64));
+  });
+
+  test("an unreadable tool inventory records NOT VERIFIED and still FAILS on the findings", async () => {
+    const ctx = vendorHarness({ complete: false, reason: "tools-provenance.env unreadable" });
+    const res = await vulnAxis.run(ctx);
+
+    assert.equal(res.status, "FAIL", res.detail);
+    assert.equal(res.evidence.vendorRisk.state, "NOT VERIFIED");
+    assert.equal(res.evidence.vendorRisk.accepted, false);
+    assert.equal(res.evidence.vendorRisk.findingCount, 2, "both images' vendor findings are still counted");
+  });
+
+  test("injecting a null inventory means 'none', and does not fall through to reading the image", async () => {
+    // Regression guard. This was `inject.externalBinaries ?? <read the image>`,
+    // so injecting `null` silently reached the real reader and shelled out
+    // through the fake runner, which wrote a file named `run` into the repo
+    // root. The sentinel is `in`, not `??`.
+    const ctx = vendorHarness(null);
+    const before = fs.readdirSync(REPO_ROOT).length;
+    const res = await vulnAxis.run(ctx);
+
+    assert.equal(res.evidence.vendorRisk.state, "NOT VERIFIED", "a null inventory is an absent one");
+    assert.match(res.evidence.vendorRisk.reason, /no inventory was produced/);
+    assert.equal(fs.readdirSync(REPO_ROOT).length, before, "the axis must not create files in the repository root");
+  });
+
+  test("a run with no vendor findings records not-applicable, not an acceptance", async () => {
+    const { ctx } = harness({ report: cleanReport(ID_BACKEND) });
+    ctx.inject.runner = (cmd, argv) => {
+      if (cmd === "sh") return { status: 0, stdout: "/bin/true\n", stderr: "", spawnError: null, timedOut: false };
+      const out = argv[argv.indexOf("--output") + 1];
+      const id = path.basename(out).startsWith("backend") ? ID_BACKEND : ID_FRONTEND;
+      fs.writeFileSync(out, JSON.stringify(cleanReport(id)));
+      return { status: 0, stdout: "", stderr: "", spawnError: null, timedOut: false };
+    };
+    ctx.inject.externalBinaries = bakedInventory();
+    const res = await vulnAxis.run(ctx);
+
+    assert.equal(res.status, "PASS", res.detail);
+    assert.equal(res.evidence.vendorRisk.state, "not-applicable");
+    assert.equal(res.evidence.vendorRisk.accepted, false);
   });
 });
 

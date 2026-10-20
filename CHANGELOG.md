@@ -9,16 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Detailed notes: [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md)
 >
-> **Not released, and not certified.** The automated test suites pass and release
-> certification is **RED/INCOMPLETE**.
+> **Not released.** The automated test suites pass; the release has not been cut.
 >
-> API authentication is now **implemented** — built-in OpenShift OAuth in front of a
-> single Route, a same-origin `/api` proxy, no public backend Route, identity and CSRF
-> enforcement in the backend, and a NetworkPolicy so the proxy cannot be skipped — but
-> **none of it has been exercised on a cluster**. OAuth login, `restricted-v2`
-> admission and NetworkPolicy enforcement are unverified; rendering a manifest is not
-> admission. Clusters configured for direct external OIDC are not supported by this
-> mode and the backend refuses to start rather than failing at login.
+> Delivered as **source plus a Docker/Podman Compose deployment** — build the two
+> images locally and run `docker compose up --build`. No prebuilt images are
+> published.
+>
+> API authentication is now **implemented**: the backend enforces identity, an origin
+> allowlist and CSRF defence, and refuses to start in an unsafe configuration. Local
+> Compose runs unauthenticated and bound to loopback by design — a single-user
+> developer configuration, not something to publish on a network.
+>
+> The Kubernetes and OpenShift manifests under `manifests/` carry a full authenticated
+> topology (built-in OpenShift OAuth in front of a single Route, a same-origin `/api`
+> proxy, no backend Route, a NetworkPolicy and a shared secret so the proxy cannot be
+> skipped). Applying them is **outside this release's delivery scope**; the procedure
+> and the post-deploy checks are in `manifests/README.md`. Clusters configured for
+> direct external OIDC are not supported by that mode and the backend refuses to start
+> rather than failing at login.
 >
 > A review on **2026-10-19** found and closed five defects in that implementation
 > before any of it shipped: the server bound every interface while the guard checked

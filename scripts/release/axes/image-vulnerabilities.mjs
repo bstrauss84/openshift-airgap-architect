@@ -87,7 +87,8 @@ import { verifyShippingSet } from "../lib/provenance.mjs";
 import { parseTrivyDb, parseGrypeDb, evaluateDb, ageDays } from "../lib/scannerdb.mjs";
 import { classifyDigests } from "../provenance/candidateBinding.mjs";
 import { reportSubjectConsistency, summarizeFindings, topFindings } from "../provenance/releaseEvidence.mjs";
-import { attributeFindings, assertNoProjectFindingAccepted } from "../vex/vendorInheritedRisk.mjs";
+import { attributeFindings, assertNoProjectFindingAccepted, vendorRiskRecord } from "../vex/vendorInheritedRisk.mjs";
+import { externalBinaryInventory } from "../provenance/toolProvenance.mjs";
 import {
   TRIVY_CONTAINER_CACHE,
   cacheMountArgs,
@@ -149,6 +150,17 @@ export const CONTAINERIZED_SCANNER = Object.freeze({
 
 /** Release policy: these severities block. */
 const BLOCKING = ["CRITICAL", "HIGH"];
+
+/**
+ * The date the owner recorded the inherited-risk scope decision: this project
+ * does not patch or fork Red Hat's `oc` / `oc-mirror` / `mirror-registry` to
+ * remediate their own dependency CVEs, and ships them verbatim instead.
+ *
+ * A literal, not `new Date()`. The record describes when a human decided, and
+ * stamping it with the time the harness happened to run would make every
+ * rerun claim a fresh decision nobody made.
+ */
+const VENDOR_RISK_DECIDED_ON = "2026-10-16";
 const EMPTY = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, UNKNOWN: 0 };
 
 export function normaliseTrivy(json) {
@@ -627,7 +639,54 @@ export default {
       },
     );
 
-    const artifacts = [store.writeArtifact(ID, "scan-summary.json", summary)];
+    // THE OWNER'S ACCEPTANCE, AS A PORTABLE PER-BINARY RECORD.
+    //
+    // `summary.ownership` above splits the counts; on its own that split is an
+    // assertion that some findings "are not ours to fix" with nothing naming
+    // the artifacts it is talking about. This emits the per-artifact record
+    // that backs it: for every vendored binary whose findings are accepted,
+    // the exact version, architecture, SHA256 and source URL the acceptance is
+    // scoped to, so it expires the moment the artifact changes.
+    //
+    // Fail-closed: `vendorRiskRecord` returns `accepted: false` with a reason
+    // when the inventory cannot be read or the disposition refuses the inputs.
+    // It never throws and never invents an identity, so a run on a host that
+    // cannot read the image records NOT VERIFIED instead of a plausible lie.
+    // It also cannot change the verdict below — image-vulnerabilities stays
+    // non-waivable and still reports every finding.
+    //
+    // `in` rather than `??`: a test must be able to inject `null` to mean "this
+    // run has no inventory" and get the NOT VERIFIED branch. With `??` that
+    // injection would fall through to the real reader, which shells into the
+    // image — and a fake runner handed an unexpected argv writes files where it
+    // is standing. That is how this axis briefly dropped a stray `run` file in
+    // the repository root, which is the tree-dirtying failure that invalidated
+    // an earlier certification run.
+    const toolInventory =
+      "externalBinaries" in inject
+        ? inject.externalBinaries
+        : (() => {
+            const backend = images.find((i) => i.role === "backend");
+            if (!backend?.id) return null;
+            try {
+              return externalBinaryInventory(engine, backend.id, { runner });
+            } catch (err) {
+              return { complete: false, reason: `external-binary inventory failed: ${err.message}` };
+            }
+          })();
+
+    summary.vendorRisk = vendorRiskRecord({
+      inventory: toolInventory,
+      attributions: perImage.map((img) => ({ role: img.role, attribution: img.attribution })),
+      decidedOn: VENDOR_RISK_DECIDED_ON,
+    });
+
+    const artifacts = [
+      store.writeArtifact(ID, "scan-summary.json", summary),
+      // A standalone file as well as a field, because this is the record a
+      // consumer of the release evidence needs to read on its own.
+      store.writeArtifact(ID, "vendor-risk-disposition.json", summary.vendorRisk),
+    ];
 
     // Belt and braces against a false PASS: an empty result set has proven
     // nothing, and `[].every()` is true.

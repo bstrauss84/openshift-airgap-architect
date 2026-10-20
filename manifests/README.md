@@ -173,18 +173,25 @@ Edit the `resources:` section in the Deployment files. The defaults are:
 The backend may need higher limits when running `oc-mirror` operations that process
 large image sets.
 
-### Configure the backend API URL for external access
+### The backend API URL when the frontend is exposed
 
-When exposing the frontend through an Ingress or Route, update `VITE_API_BASE` in the
-ConfigMap so the browser can reach the backend:
+**Nothing to change.** `VITE_API_BASE` is `/api`, and that stays correct however the
+frontend is exposed, because it is same-origin: the browser calls the host it already
+loaded the page from, and nginx inside the frontend pod proxies `/api/` to the backend
+Service.
 
-```yaml
-# manifests/base/configmap.yaml
-data:
-  VITE_API_BASE: "https://airgap-architect-backend.apps.mycluster.example.com"
-```
+A previous revision of this guide told you to set `VITE_API_BASE` to an external
+backend URL here. Do not. That value is read by the **browser**, so pointing it at an
+in-cluster Service name cannot work from outside the cluster, and the "fix" of
+publishing the backend on its own Route exposes the API — including the endpoints that
+start mirror runs with the mounted pull secret — to anyone who can reach the router.
+The authenticated overlay removes that Route for exactly this reason.
 
-Also set `VITE_ALLOWED_HOSTS` to the frontend's external hostname:
+If the backend Service is renamed or moved, set `OAA_BACKEND_ORIGIN` on the frontend
+container instead. That is the in-cluster upstream nginx dials, resolved in the pod,
+and it never reaches the browser.
+
+Set `VITE_ALLOWED_HOSTS` to the frontend's external hostname:
 
 ```yaml
   VITE_ALLOWED_HOSTS: "airgap-architect-frontend.apps.mycluster.example.com"
@@ -514,13 +521,31 @@ Common causes:
 
 ### Frontend cannot reach backend
 
-Check the `VITE_API_BASE` value in the ConfigMap:
+The browser calls `/api` on the frontend's own origin, and nginx in the frontend pod
+proxies it to the backend Service. So check the proxy hop, not the browser one:
 
-- **In-cluster** (default): `http://airgap-architect-backend:4000` -- uses the K8s
-  Service DNS name. This works when the frontend Vite dev server proxies API requests
-  server-side.
-- **External access** (browser hits backend directly): Set `VITE_API_BASE` to the
-  external Route/Ingress URL of the backend.
+```bash
+# What the browser was told to call. Expect "/api".
+oc get configmap airgap-architect-config -o jsonpath='{.data.VITE_API_BASE}'
+
+# What nginx decided at container start: listen address, resolver, upstream.
+oc logs deploy/airgap-architect-frontend -c frontend | grep 'nginx config rendered'
+
+# Whether the upstream has anything behind it.
+oc get endpoints airgap-architect-backend
+```
+
+- **An absolute URL in `VITE_API_BASE`** sends the browser straight at the backend,
+  which needs the backend published and is the exposure the authenticated overlay
+  removes. Set it back to `/api`.
+- **`502` from `/api`** means nginx reached no backend: check the endpoints above, and
+  `OAA_BACKEND_ORIGIN` if it was overridden.
+- **The frontend pod `CrashLoopBackOff`s** before serving anything if it could not
+  derive a DNS resolver from `/etc/resolv.conf`, or if `OAA_REQUIRE_PROXY_SECRET` is
+  set without `OAA_PROXY_SHARED_SECRET`. Both print a `FATAL:` line saying which.
+- **`401` on every `/api` call** in the authenticated overlay means the shared secret
+  the backend expects and the one nginx attaches do not match. Rotate per the
+  procedure above and restart both Deployments.
 
 ### Route returns 503 (OpenShift)
 
