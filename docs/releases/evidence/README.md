@@ -35,15 +35,23 @@ disposition by explicit rule.
 The boundary commits and counts are stated explicitly because "how many commits"
 has no single answer without them.
 
-| range | count |
+> **These are PINNED HISTORICAL CALCULATIONS, not live branch status.** Every figure
+> below was computed with `main` at `ffed74d…`, `develop` at `21529ae…` and the
+> hardening branch at `0f4bfd8…`. Once `develop` is fast-forwarded or `main` is
+> promoted, the ranges stop describing the branches and start describing a moment:
+> `main..develop` becomes 0 the instant `main` catches up. Recompute against the
+> stated SHAs, never against the branch names, or the numbers will appear to have
+> collapsed when nothing was lost.
+
+| range (at the pinned SHAs above) | count |
 |---|---|
 | `main..develop` | 188 |
-| `develop..work/v2.1-release-hardening` | 23 |
-| `main..work/v2.1-release-hardening` | **211** |
+| `develop..work/v2.1-release-hardening` | 24 |
+| `main..work/v2.1-release-hardening` | **212** |
 
 `main` is `ffed74d0807d7a3bfcd321b660d7145b6d43b44d`, which is exactly the `v1.7.1`
-tag — the production anchor. The ledger now covers through
-`bb9ace887169f7ee380a9858a2a65a44e788a260`.
+tag — the production anchor at the time of this calculation. The ledger covers
+through `0f4bfd8607e17ce7d4abd007124c3e1bd16aff62`.
 
 **All counting modes agree**: `--all` (reachable), `--no-merges`, and
 `--first-parent` return the same number, because the range contains **zero merge
@@ -68,12 +76,13 @@ first-parent-versus-reachable ambiguity to resolve, and no merge to explain.
 > was two revisions behind the branch. Row 210 (`8b5b949`) is now appended and the
 > counts above are recomputed at that head. The rule predicts its own next
 > application, and the prediction held: `8b5b949` was appended as row 210, the
-> commit that did so became `bb9ace8`, and `bb9ace8` is now row 211. **The commit
-> that accepts THIS revision will be row 212 and is not in the ledger it
-> contains.** Append it next; the one-commit gap is structural, not a defect.
+> commit that did so became `bb9ace8`, row 211; that commit's own update became
+> `0f4bfd8`, row 212. The prediction has now held three times in a row. **The commit
+> that accepts THIS revision will be row 213 and is not in the ledger it contains.**
+> Append it next; the one-commit gap is structural, not a defect.
 
 No commit in the range is a cherry-pick duplicate of another: comparing
-`git patch-id --stable` across all 211 commits yields no duplicate patch ids. Two
+`git patch-id --stable` across all 212 commits yields no duplicate patch ids. Two
 *subjects* repeat (`DOC-102: Complete version-aware UI standards` and
 `DOCS: Move platform audit docs to local archive`), but they are distinct patches.
 
@@ -84,8 +93,8 @@ The `v2.0.0` tag is an annotated tag (`a9063d4`) pointing at
 `develop` and the hardening head, which makes the boundary unambiguous:
 
 - `main..09703fa` = **176** commits → classified `v2.0`
-- `09703fa..bb9ace8` = **35** commits → classified `v2.1`
-- 176 + 35 = 211 ✓
+- `09703fa..0f4bfd8` = **36** commits → classified `v2.1`
+- 176 + 36 = 212 ✓
 
 ### Branches that are *not* counted separately
 
@@ -104,11 +113,11 @@ already an ancestor of the hardening head. They are not double counted:
 
 ```
 represented                          139
-not applicable (infrastructure-only)  64
+not applicable (infrastructure-only)  65
 missing                                7
 needs verification                     1
                                      ---
-total unique commits                 211
+total unique commits                 212
 ```
 
 The identity `represented + excluded-with-reason + pending = total` holds exactly.
@@ -118,6 +127,14 @@ The seven `missing` rows are genuine omissions this audit found in the published
 notes; each row's `coverage_anchor` names what is missing and from which document.
 The single `needs verification` row (`9ab7dbe`) is an aggregate WIP checkpoint that
 carries no single release-note theme.
+
+**Their disposition for v2.1.0: carried forward, open, and deliberately not closed.**
+They are recorded omissions in the *narrative* of the v2.0/v2.1 notes, not gaps in the
+shipped code, and they do not block the release. Marking them `represented` without
+writing the missing prose would be erasure, and writing that prose is an editorial
+task with no deadline attached to this tag. They stay `missing` and
+`needs verification` until someone does the writing; the identity above continues to
+account for every commit either way.
 
 ### What this ledger does *not* do
 

@@ -25,9 +25,9 @@ rather than assuming a single release. The parameter catalogs, validation,
 documentation links and Field Guide all follow your chosen version. I appreciate
 everyone who has continued following and using the project.
 
-**v2.0 is released and supports OpenShift 4.20 and 4.21.** Support for **OpenShift
-4.22** arrives in v2.1, which is still in progress and **not yet released** — see
-[Release history](#release-history) for current status.
+**v2.0 supports OpenShift 4.20 and 4.21; v2.1 adds 4.22.** The supported set is
+4.20, 4.21 and 4.22, and later releases are rejected rather than approximated. See
+[Release history](#release-history) for what is published and where to download it.
 
 **If you are upgrading, please read the release notes and the migration guide before
 you start.** There are changes to how saved configurations work and a required
@@ -1211,7 +1211,7 @@ The wizard walks through Blueprint → Methodology → scenario-specific steps �
 ## Architecture
 
 - **Frontend:** React, Vite, PatternFly-derived styling. Container image: Red Hat UBI 9 Node.js 22.
-- **Backend:** Node.js, Express, SQLite (state and job history). Container image: Red Hat UBI 9 Node.js 22; runs as non-root (UID 1001) via entrypoint that chowns the data volume then drops to `appuser`; build-info stage uses UBI 9 minimal. oc/oc-mirror pinned to OCP 4.21.36 with per-architecture SHA256 verification.
+- **Backend:** Node.js, Express, SQLite (state and job history). Container image: Red Hat UBI 9 Node.js 22; runs as non-root (UID 1001) via entrypoint that chowns the data volume then drops to `appuser`; build-info stage uses UBI 9 minimal. `oc` and `oc-mirror` are resolved at build time from their respective Red Hat channels — no z-stream is hardcoded — and each is verified against that channel's own `sha256sum.txt` for the build architecture. See [Tool version policy](#platform-and-architecture-multi-arch--apple-silicon).
 - **Data:** Parameter catalogs and doc index under `data/params` and `data/docs-index`; frontend copies under `frontend/src/data` for the build. See `docs/DATA_AND_FRONTEND_COPIES.md`.
 
 <a id="install-config-references-420421"></a>
@@ -1266,9 +1266,10 @@ There is no registry to pull from.
 
 ### At a glance
 
-- **v2.1.0** *(in progress, not released)* — OpenShift 4.22 support, with per-version parameter catalogs, Field Guide and documentation. Adds the bare-metal provisioning network gateway setting, enforces supported CPU architectures at generation, and makes operator presets version-aware.
+- **v2.1.0** — OpenShift 4.22 support, with per-version parameter catalogs, Field Guide and documentation. Adds the bare-metal provisioning network gateway setting, enforces supported CPU architectures at generation, and makes operator presets version-aware.
 - **v2.0.0** — Version-awareness architecture complete. Supports OpenShift 4.20 (baseline) and 4.21, with version-specific parameter catalogs, Field Guide content and metadata-driven annotations. Tagged 2026-10-06.
-- **v1.7.1** — Latest stable v1.x release (2026-05-29), and the current head of `main`.
+- **v1.7.1** — Last v1.x release (2026-05-29). It is preserved as the legacy v1.x
+  line; see the Releases page for which version `main` currently carries.
 
 **Version identity:** the application-code version does not by itself imply
 enterprise/customer-distribution readiness, security certification, signed/SBOM/provenance

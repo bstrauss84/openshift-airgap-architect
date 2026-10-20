@@ -296,15 +296,26 @@ describe("README temporary v2.x release notice", () => {
     }
   });
 
-  test("does not claim the unreleased v2.1 or its 4.22 support has shipped", () => {
+  // This previously required the notice to say v2.1 was "not yet released".
+  //
+  // That is a point-in-time status, not an invariant, and pinning it in a test
+  // is the mechanism by which a false statement gets frozen into a tag: the
+  // README is tagged with the commit, so the moment v2.1.0 is published the
+  // tagged README would have insisted it was not — and this test would have
+  // held it there. The same defect was found and removed from the SBOM page's
+  // guard; it is the same mistake in a second place.
+  //
+  // What IS invariant: the notice must not overclaim, and it must send readers
+  // to the authoritative place rather than asserting a status inline.
+  test("does not overclaim certification or GA", () => {
     const body = notice();
-    assert.match(
-      body,
-      /v2\.1[\s\S]{0,120}?\bnot yet released\b/i,
-      "the notice must state that v2.1 is not yet released"
-    );
     assert.doesNotMatch(body, /\bcertified\b/i, "the notice must not claim certification");
     assert.doesNotMatch(body, /\bgenerally available\b|\bnow GA\b/i);
+    assert.doesNotMatch(body, /\bproduction[- ]ready\b/i, "the notice must not claim production readiness");
+    assert.ok(
+      body.includes("#release-history"),
+      "the notice must point at Release history rather than asserting a release status inline"
+    );
   });
 
   test("records that the block is temporary while release history is permanent", () => {
@@ -316,5 +327,142 @@ describe("README temporary v2.x release notice", () => {
       README.includes('<a id="release-history"></a>'),
       "the permanent release-history section must remain"
     );
+  });
+});
+
+/**
+ * Narrow regressions for specific false facts that were found in the release
+ * documentation and corrected.
+ *
+ * Each one is a sentence that was WRONG, not a status that happened to be true
+ * on the day. That distinction is the whole point of this block: two earlier
+ * guards in this file pinned point-in-time statuses ("not published yet", "not
+ * yet released") and would therefore have held a false sentence in place from
+ * the moment the tag was cut. Nothing here asserts a release state; every
+ * assertion stays true before and after publication.
+ */
+describe("release docs — corrected false facts stay corrected", () => {
+  const CHANGELOG_BODY = () => read("CHANGELOG.md");
+  const V21 = () => read("docs", "releases", "v2.1.0.md");
+  const EVIDENCE = () => read("docs", "releases", "evidence", "README.md");
+
+  test("v1.7.1 is not described as the current head of main", () => {
+    // main is promoted separately and may already have moved; v1.7.1 is the
+    // preserved legacy line either way.
+    assert.doesNotMatch(
+      README,
+      /v1\.7\.1[\s\S]{0,160}?current head of `?main`?/i,
+      "v1.7.1 is the preserved legacy v1.x head, not necessarily what main points at"
+    );
+  });
+
+  test("no document hardcodes an oc / oc-mirror z-stream as the shipped pin", () => {
+    // CLAUDE.md: both tools are resolved from their channel and verified against
+    // that channel's own sha256sum.txt. A fixed z-stream in prose goes stale and
+    // contradicts the documented policy.
+    for (const [label, body] of [["README.md", README], ["docs/releases/v2.1.0.md", V21()]]) {
+      assert.doesNotMatch(
+        body,
+        /oc[\/ -]?(?:mirror)?[^.\n]{0,40}pinned to (?:OCP )?\d+\.\d+\.\d+/i,
+        `${label} must not claim a hardcoded oc/oc-mirror z-stream pin`
+      );
+    }
+  });
+
+  test("the release notes do not assert a tag that may not exist yet", () => {
+    // "Version: 2.1.0" is a fact about the tree. "Tag: v2.1.0" is a claim about
+    // the repository that is false until the tag is pushed.
+    assert.doesNotMatch(
+      V21(),
+      /^\*\*Tag:\*\*/m,
+      "state the version, and point at the Releases page for what is tagged"
+    );
+  });
+
+  test("the release notes do not call the version identity a development one", () => {
+    // VERSION is 2.1.0; prose saying otherwise contradicts the tree it ships with.
+    assert.doesNotMatch(V21(), /version identity in this branch is a development one/i);
+    assert.doesNotMatch(V21(), /2\.1\.0-dev/);
+  });
+
+  test("no document asserts that release assets ARE attached", () => {
+    // Attachment is verifiable on the Releases page; asserting it in a frozen
+    // document is a claim the document cannot keep.
+    for (const [label, body] of [
+      ["CHANGELOG.md", CHANGELOG_BODY()],
+      ["docs/releases/v2.1.0.md", V21()],
+    ]) {
+      assert.doesNotMatch(
+        body,
+        /\b(?:are|is) attached to the (?:release|GitHub Release)\b/i,
+        `${label} must direct readers to verify publication, not assert it`
+      );
+    }
+  });
+
+  test("vulnerability counts are labelled as a dated measurement, not a final result", () => {
+    // Counts move with the scanner database AND with the commit scanned, so any
+    // number quoted in a frozen document must say which candidate it came from.
+    for (const [label, body] of [
+      ["CHANGELOG.md", CHANGELOG_BODY()],
+      ["docs/releases/v2.1.0.md", V21()],
+    ]) {
+      const quotesCounts = /\d+\s+critical\s*\/\s*\d+\s+high/i.test(body);
+      if (!quotesCounts) continue;
+      assert.match(
+        body,
+        /earlier candidate|historical evidence|not certified counts/i,
+        `${label} quotes scan counts, so it must say they are a dated measurement of a named candidate`
+      );
+    }
+  });
+
+  test("the vendor share is never described as untriaged", () => {
+    // vendorRiskDisposition emits a per-artifact acceptance; saying nothing has
+    // been triaged contradicts the evidence the release ships.
+    assert.doesNotMatch(
+      V21(),
+      /no finding has been triaged/i,
+      "the vendor share carries a per-artifact inherited-risk disposition"
+    );
+  });
+
+  test("the raw scanner FAIL and the inherited-risk framing both survive", () => {
+    // The corrections above must not have softened the result into a pass.
+    const v = V21();
+    assert.match(v, /\bFAIL/, "the failing vulnerability axis must still be stated");
+    assert.match(v, /inherited risk/i, "the vendor attribution must still be stated");
+    assert.match(v, /no-fix/i, "the UBI no-fix classification must still be stated");
+    assert.match(v, /source|Compose/i, "the source + Compose delivery scope must still be stated");
+  });
+
+  test("human QA is not described as entirely outstanding", () => {
+    // A browser-level smoke pass was performed; claiming none was is as
+    // inaccurate as claiming full platform coverage.
+    assert.doesNotMatch(
+      V21(),
+      /Human QA is not complete/i,
+      "a local Compose smoke pass was performed; scope it rather than denying it"
+    );
+  });
+
+  test("the live-cluster obligation is not recast as a release blocker in public notes", () => {
+    // It belongs in docs/BACKLOG_STATUS.md. The notes may say cluster deployment
+    // is outside the source/Compose scope; they may not relitigate it here.
+    assert.doesNotMatch(
+      V21(),
+      /unexercised on a cluster|live[- ]verification status|not been (?:tested|exercised) on a cluster/i,
+      "the live-cluster acceptance obligation is tracked in docs/BACKLOG_STATUS.md"
+    );
+  });
+
+  test("the commit-coverage counts are marked as pinned, not live branch status", () => {
+    const e = EVIDENCE();
+    assert.match(e, /PINNED HISTORICAL CALCULATIONS|pinned SHAs/i,
+      "the ranges stop describing the branches once develop or main moves");
+    assert.match(e, /missing/, "the open coverage rows must stay visible");
+    assert.match(e, /needs verification/, "the needs-verification row must stay visible");
+    assert.doesNotMatch(e, /all (?:coverage )?rows (?:are )?(?:now )?(?:closed|represented)/i,
+      "the 7 missing and 1 needs-verification rows must not be described as closed");
   });
 });

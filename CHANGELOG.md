@@ -5,11 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.0] - Unreleased
+## [2.1.0] - 2026-10-20 *(provisional date — set at freeze; confirm it matches the tag)*
 
 > Detailed notes: [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md)
->
-> **Not released.** The automated test suites pass; the release has not been cut.
 >
 > Delivered as **source plus a Docker/Podman Compose deployment** — build the two
 > images locally and run `docker compose up --build`. No prebuilt images are
@@ -38,13 +36,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > [docs/BACKLOG_STATUS.md](docs/BACKLOG_STATUS.md) and the ledger at
 > `docs/releases/evidence/REQUIREMENT_LEDGER_AUTH_CORRECTIONS_20261019.md`.
 >
-> **The shipped images carry unresolved vulnerabilities and the scan reports it.** A
-> candidate-bound scan records backend 1 critical / 110 high and frontend 0 critical /
-> 48 high; the `image-vulnerabilities` axis FAILs and is not waived. 56 of those are
-> inside Red Hat's `oc` and `oc-mirror`, shipped verbatim and already at the newest
-> published version; the other 103 are UBI base packages with no fixed package
-> available. The raw scanner output, the SBOMs and a `SHA256SUMS` are attached to the
-> GitHub Release for the tag. See
+> **The shipped images carry unresolved vulnerabilities and the scan reports it.**
+> The `image-vulnerabilities` axis **FAILs**, and that failure is reported rather than
+> waived. The findings split two ways: some are inside Red Hat's `oc` and `oc-mirror`,
+> which this project ships verbatim and cannot patch — owner-accepted inherited risk,
+> recorded per artifact — and the rest are UBI base-image packages, accepted only on a
+> dated no-fix classification. Neither is a clean scan.
+>
+> **The numbers move with the vulnerability database and with the commit being
+> scanned.** The most recent measurement before this freeze, on the earlier candidate
+> `bb9ace88` on 2026-10-20, was backend 1 critical / 110 high and frontend 0 critical /
+> 48 high, of which 56 were vendor-owned. Those are **historical evidence from an
+> earlier candidate, not certified counts for the released image** — the final figures
+> come from the scan bound to the released commit.
+>
+> The raw scanner output, the SBOMs, the vendor risk disposition and a `SHA256SUMS`
+> are the release evidence set. Check the GitHub Releases page for the tag to see
+> whether they have been published and to verify them; see
 > [SBOM and provenance](docs/security/SBOM_AND_PROVENANCE.md).
 >
 > No container images are published — build them locally. No signing exists.
