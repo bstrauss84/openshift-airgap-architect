@@ -38,12 +38,12 @@ has no single answer without them.
 | range | count |
 |---|---|
 | `main..develop` | 188 |
-| `develop..work/v2.1-release-hardening` | 22 |
-| `main..work/v2.1-release-hardening` | **210** |
+| `develop..work/v2.1-release-hardening` | 23 |
+| `main..work/v2.1-release-hardening` | **211** |
 
 `main` is `ffed74d0807d7a3bfcd321b660d7145b6d43b44d`, which is exactly the `v1.7.1`
 tag — the production anchor. The ledger now covers through
-`8b5b94953bf9a96f3e92ae1180101ee8ab5565c1`.
+`bb9ace887169f7ee380a9858a2a65a44e788a260`.
 
 **All counting modes agree**: `--all` (reachable), `--no-merges`, and
 `--first-parent` return the same number, because the range contains **zero merge
@@ -63,16 +63,17 @@ first-parent-versus-reachable ambiguity to resolve, and no merge to explain.
 > working head is ahead of the stated head, the difference should be exactly the
 > commits added since, and they belong in the next revision.
 >
-> **The rule was applied on 2026-10-19.** `f9d59e3` had been accepted and then
+> **The rule was applied twice, on 2026-10-19 and again at this revision.** `f9d59e3` had been accepted and then
 > `8b5b949` — the hardening wave — was accepted on top of it, so the stated head
 > was two revisions behind the branch. Row 210 (`8b5b949`) is now appended and the
 > counts above are recomputed at that head. The rule predicts its own next
-> application: **the commit that accepts this revision will be commit 211 and is
-> not in the ledger it contains.** Append it next; do not treat the resulting
-> one-commit gap as a defect.
+> application, and the prediction held: `8b5b949` was appended as row 210, the
+> commit that did so became `bb9ace8`, and `bb9ace8` is now row 211. **The commit
+> that accepts THIS revision will be row 212 and is not in the ledger it
+> contains.** Append it next; the one-commit gap is structural, not a defect.
 
 No commit in the range is a cherry-pick duplicate of another: comparing
-`git patch-id --stable` across all 210 commits yields no duplicate patch ids. Two
+`git patch-id --stable` across all 211 commits yields no duplicate patch ids. Two
 *subjects* repeat (`DOC-102: Complete version-aware UI standards` and
 `DOCS: Move platform audit docs to local archive`), but they are distinct patches.
 
@@ -83,8 +84,8 @@ The `v2.0.0` tag is an annotated tag (`a9063d4`) pointing at
 `develop` and the hardening head, which makes the boundary unambiguous:
 
 - `main..09703fa` = **176** commits → classified `v2.0`
-- `09703fa..8b5b949` = **34** commits → classified `v2.1`
-- 176 + 34 = 210 ✓
+- `09703fa..bb9ace8` = **35** commits → classified `v2.1`
+- 176 + 35 = 211 ✓
 
 ### Branches that are *not* counted separately
 
@@ -102,12 +103,12 @@ already an ancestor of the hardening head. They are not double counted:
 ### Completeness
 
 ```
-represented                          138
+represented                          139
 not applicable (infrastructure-only)  64
 missing                                7
 needs verification                     1
                                      ---
-total unique commits                 210
+total unique commits                 211
 ```
 
 The identity `represented + excluded-with-reason + pending = total` holds exactly.

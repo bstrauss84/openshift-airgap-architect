@@ -38,11 +38,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > [docs/BACKLOG_STATUS.md](docs/BACKLOG_STATUS.md) and the ledger at
 > `docs/releases/evidence/REQUIREMENT_LEDGER_AUTH_CORRECTIONS_20261019.md`.
 >
-> Still outstanding: human QA, live cluster verification, and a candidate-bound image
-> scan with a real vulnerability disposition. Release tagging has not happened.
+> **The shipped images carry unresolved vulnerabilities and the scan reports it.** A
+> candidate-bound scan records backend 1 critical / 110 high and frontend 0 critical /
+> 48 high; the `image-vulnerabilities` axis FAILs and is not waived. 56 of those are
+> inside Red Hat's `oc` and `oc-mirror`, shipped verbatim and already at the newest
+> published version; the other 103 are UBI base packages with no fixed package
+> available. The raw scanner output, the SBOMs and a `SHA256SUMS` are attached to the
+> GitHub Release for the tag. See
+> [SBOM and provenance](docs/security/SBOM_AND_PROVENANCE.md).
 >
-> No release artifacts exist: no GitHub Release, no published SBOM, no checksum file,
-> no signature. See [SBOM and provenance](docs/security/SBOM_AND_PROVENANCE.md).
+> No container images are published — build them locally. No signing exists.
 
 ### Added
 
@@ -77,10 +82,9 @@ not support, such as vSphere on arm64.
 
 - **The update banner no longer reports an update that does not exist.** It fired on
   `isOutdated`, which only means "the configured branch head differs from this
-  build". There are no published GitHub Releases for this repository, and
-  `APP_BRANCH` defaults to `main`, which still points at the v1.7.1 commit — so a
-  running v2.1 build was told to update to something five months *older* than
-  itself. The check now reports a distinct state (`up-to-date`,
+  build". At the time no GitHub Release had been published and `APP_BRANCH` defaulted
+  to `main`, which still pointed at the v1.7.1 commit — so a running v2.1 build was
+  told to update to something five months *older* than itself. The check now reports a distinct state (`up-to-date`,
   `development-branch-ahead`, `offline`, `unknown`, `disabled`, or
   `published-supported-update`), and only a **verified published release** raises
   the urgent banner. No trusted release-identity source exists yet, so that state

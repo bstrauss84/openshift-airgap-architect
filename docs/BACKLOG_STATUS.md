@@ -272,6 +272,39 @@ lost in the meantime, and so no status claim elsewhere implies they are closed.
    PROD-039 (SCC admission). The code those rows describe as absent now exists;
    what remains unverified is its behaviour on a cluster, which is this entry.
 
+## v2.1 status reconciliation (2026-10-20) — grounded, with evidence
+
+The `current state` column of the PROD rows below is a **dated snapshot taken on
+2026-10-03**, and several of those snapshots now understate the code: they describe
+things as absent that were implemented in the 2026-10-16 and 2026-10-19 waves. The
+rows are **not rewritten** — the original requirement text is the record of what was
+asked for — so this table is the grounded status on top of them. No row is closed
+here; closing one is a human decision.
+
+Evidence references: certification run `20261020T030440Z-ae296a649369`, bound to clean
+candidate `bb9ace887169f7ee380a9858a2a65a44e788a260`.
+
+| ID | Row says | Actually now | Remaining |
+|---|---|---|---|
+| PROD-024 | "no authentication middleware, no session management… `app.use(cors())` with no origin" | `backend/src/accessControl.js` enforces identity, an origin allowlist and CSRF defence, and refuses to start unsafely. OpenShift overlay runs `oauth-proxy` with a SubjectAccessReview. 35 mostly-negative tests. | Live-cluster proof — see item 16 |
+| PROD-025 | "no CSRF protection" | Origin allowlist + CSRF defence implemented and tested (cross-site form POST, cross-origin read, preflight refusal). | Live-cluster proof — item 16 |
+| PROD-027 | "no NetworkPolicy resources" | `manifests/openshift/networkpolicy.yaml` exists; the rendered overlay admits only the oauth-proxy port. | **Enforcement** is plugin-dependent and unproven — item 16, check 5 |
+| PROD-028 | "no `serviceAccountName` specified" | Rendered overlay sets `serviceAccountName` on both Deployments (`airgap-architect-backend`, `airgap-architect`). | Live-cluster proof — item 16 |
+| PROD-039 | "Current securityContext: runAsUser: 1001, fsGroup: 1001" | True of the base; the **overlay removes both pins** so `restricted-v2` assigns them. Confirmed by `oc kustomize`. | Admission itself — item 16, checks 1-2 |
+| PROD-023 | "SBOM generation … `active`" | Produced and verified per run: two image-walked CycloneDX 1.7 SBOMs (711 / 296 components), a reproducible 915-component offline inventory, and an external-binaries document. `component-inventory` axis **PASS**. | Publication as release assets; SPDX; signing |
+| PROD-030 | digest pinning | External binaries verified against each channel's own `sha256sum.txt`; extracted binaries re-hashed on reuse (`binaryProvenance.js`). | Base images still floating tags; no published image digests |
+| PROD-040 / PROD-042 | release process, immutable bundle | `artifacts` axis defines the release unit and emits a verifiable `SHA256SUMS`. | **`artifacts` axis FAILs** on `localhost/…:latest` refs. Not closable without publishing images — out of v2.1 scope |
+| DOC-080 | cross-platform matrix | `compatibility` axis **INCOMPLETE**: 1/6 cells exercised (Fedora/x86_64). | RHEL and Debian/Ubuntu x86_64 never run |
+| PROD-043 | connectivity profiles | `connectivity` axis **INCOMPLETE**: connected and fully-offline verified, zero undeclared egress. | 5 profiles need infrastructure: http-proxy, https-proxy, no-proxy-cidr, custom-CA TLS interception, restricted-DNS |
+| DOC-188 | advanced bond options | Unchanged — deliberately deferred. | `xmit_hash_policy`, `miimon`, `lacp_rate`, `min_links`, `primary`, `updelay`/`downdelay`, `balance-xor`, and the sanitised bond+VLAN+IPv6 fixture |
+| DOC-191 | version-aware NMState authority | Unchanged — deliberately deferred. | Canonical per-minor NMState data, projection, validator, future-minor delta automation |
+| Service Mesh tracing Quick Pick | future product decision | Unchanged. Base Quick Pick remains `servicemeshoperator` + `kiali-ossm`; `jaeger-product` is **not** restored. | Tempo/OpenTelemetry research before any implementation |
+
+**Unchanged and still in force:** original scope clauses §3.1–3.25, Tranche 8
+workstreams A–R and sublegs 8A–8G, release gates §14.1–14.13, and the post-v2.1.0
+backlog §6.1–6.7. Nothing in this reconciliation retires any of them; the v2.1
+source/Compose release closes a subset, and the remainder keeps its owner and target.
+
 ## Canonical status vocabulary
 
 - `active`: planned and in-scope

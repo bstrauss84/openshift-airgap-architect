@@ -146,22 +146,56 @@ describe("SBOM and provenance page", () => {
     );
   });
 
-  test("it states plainly that nothing is published yet", () => {
+  // This replaced a guard that REQUIRED the page to say "not published yet".
+  //
+  // That guard enforced a point-in-time status as though it were an invariant,
+  // and it was the mechanism by which a false statement would have been frozen
+  // into the release: the docs are tagged with the commit, so the moment the
+  // GitHub Release went live the tagged page would have insisted no release
+  // existed — and the test would have held it there.
+  //
+  // The durable property is not "unpublished". It is: the page tells you WHERE
+  // the evidence is and HOW to verify it, and it never overclaims. Those are
+  // true before and after publication, so they are what is pinned.
+  test("it points at the evidence and says how to verify it", () => {
     const body = fs.readFileSync(SBOM_PATH, "utf8");
-    assert.match(body, /not published yet/i, "the page must carry its not-published-yet status");
+    assert.match(body, /\/releases\b/, "the page must point at the Releases page");
+    assert.match(body, /sha256sum -c SHA256SUMS/, "the page must give the verification command");
+    assert.match(body, /SHA256SUMS/, "the page must name the checksum asset");
   });
 
-  test("it does not claim a published SBOM, signature or clean scan", () => {
+  test("it names each asset the release is expected to carry", () => {
     const body = fs.readFileSync(SBOM_PATH, "utf8");
-    // Each pattern is a claim that would be false today. Absence is the assertion.
+    // Exactly the allowlist the publishing script uploads. If one is renamed in
+    // the script and not here, the page sends people looking for a file that
+    // does not exist.
+    for (const asset of [
+      "sbom-backend.cyclonedx.json",
+      "sbom-frontend.cyclonedx.json",
+      "offline-inventory.cdx.json",
+      "external-binaries.json",
+      "vulnerabilities-backend.json",
+      "vulnerabilities-frontend.json",
+      "vendor-risk-disposition.json",
+      "certification-summary.json",
+    ]) {
+      assert.ok(body.includes(asset), `the SBOM page must name the asset ${asset}`);
+    }
+  });
+
+  test("it does not claim signing, a clean scan, or that findings are absent", () => {
+    const body = fs.readFileSync(SBOM_PATH, "utf8");
+    // These remain false regardless of publication state, so unlike the status
+    // line they ARE invariants worth pinning.
     for (const [label, re] of [
-      ["a downloadable SBOM", /\bdownload (the|our) sbom\b/i],
       ["signed images", /\bimages are signed\b/i],
       ["a clean scan", /\bno known vulnerabilities\b|\bscan(s|ned)? clean\b/i],
-      ["a published release", /\bavailable on the releases page\b/i],
+      ["that signing exists", /\bsignatures? (are|is) (available|published|provided)\b/i],
     ]) {
       assert.doesNotMatch(body, re, `the SBOM page must not claim ${label}`);
     }
+    // And it must keep saying the scan fails, because it does.
+    assert.match(body, /\bFAIL/, "the page must keep reporting the failing vulnerability axis");
   });
 });
 

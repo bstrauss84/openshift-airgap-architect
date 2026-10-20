@@ -1,37 +1,67 @@
 # SBOM, vulnerability evidence and provenance
 
-**Status: nothing is published yet.**
+## Where the published evidence is
 
-No software bill of materials, vulnerability report, checksum file or signature for
-OpenShift Airgap Architect is currently available to download. There are no published
-GitHub Releases for this repository at all, so there is nowhere for such an asset to
-have been attached.
+Release evidence is attached to the **GitHub Release for the matching tag**:
 
-This page exists so that the question "where is the SBOM?" has an honest answer today,
-and a stable place to look once there is one. It describes what the project generates
-internally, what it does **not** generate, and what has to be true before anything here
-becomes a link you can click.
+> **https://github.com/bstrauss84/openshift-airgap-architect/releases**
+
+If a release for your version is listed there, it carries the files below. If it is not
+listed, that evidence has not been published for that version — this page describes
+what is generated and how it is verified either way, rather than asserting a
+publication state that changes the moment a release is cut.
+
+| asset | what it is |
+|---|---|
+| `oaa-<version>-sbom-backend.cyclonedx.json` | CycloneDX SBOM walked from the shipped backend image |
+| `oaa-<version>-sbom-frontend.cyclonedx.json` | CycloneDX SBOM walked from the shipped frontend image |
+| `oaa-<version>-offline-inventory.cdx.json` | Deterministic CycloneDX inventory from lockfiles + rpmdb |
+| `oaa-<version>-external-binaries.json` | `oc`, `oc-mirror`, `openshift-install`, `mirror-registry` — version, digest, source URL, verification posture |
+| `oaa-<version>-vulnerabilities-backend.json` | Complete raw scanner output, nothing filtered |
+| `oaa-<version>-vulnerabilities-frontend.json` | Complete raw scanner output, nothing filtered |
+| `oaa-<version>-vendor-risk-disposition.json` | Per-artifact record of accepted inherited vendor risk |
+| `oaa-<version>-certification-summary.json` | All fifteen axis verdicts, including the failing ones |
+| `openshift-airgap-architect-<version>-source.tar.gz` | Source snapshot taken from the tag |
+| `SHA256SUMS` | Covers every asset above |
+
+**Verify before trusting:**
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
+**Read the raw findings, not just this page.** The vulnerability assets are the
+complete scanner output. A count on this page is a dated snapshot of an image *and* a
+database; the asset is the evidence.
+
+This page describes what the project generates, what it deliberately does **not**
+generate, and how each claim here can be checked against those files.
 
 Tracked under **PROD-023** (SBOM generation for application images and packaged
 external binaries, status `active`) and the **PROD-041** productization umbrella.
 
 ---
 
-## What exists today
-
-The generators are real, committed code, and they run. Their **output is not committed
-and not published**.
+## How the evidence is produced
 
 | | |
 |---|---|
 | Generator code | `scripts/release/axes/sbom.mjs`, `scripts/release/provenance/sbomGenerate.mjs` — tracked in git |
 | Generated output | written under `release-certification/runs/<run-id>/` |
-| Is the output in git? | **No.** `.gitignore` excludes `release-certification/` in its entirety — `git ls-files release-certification/` returns nothing |
-| Is the output published? | **No.** No GitHub Release exists |
+| Is the output in git? | **No.** `.gitignore` excludes `release-certification/` entirely — `git ls-files release-certification/` returns nothing |
+| How it reaches you | copied verbatim onto the GitHub Release for the tag, under the names in the table above |
 
-The evidence is regenerable per run by design. Committing it would also dirty the
-working tree on every run, which changes the candidate id and invalidates the evidence
-just produced.
+The evidence is regenerated per run by design, and is **bound to a candidate id** that
+covers HEAD plus any uncommitted delta. Committing the output would dirty the working
+tree on every run, changing that candidate id and invalidating the evidence just
+produced — so a run against a dirty tree is marked dirty and is not release evidence.
+
+Reproduce any of it locally:
+
+```bash
+node scripts/release/buildImages.mjs --no-cache   # build, emit the binding manifest
+npm run release:certify                           # all fifteen axes
+```
 
 ### The three documents a run produces
 
@@ -118,52 +148,62 @@ default suite.
 Image scanning runs and produces real findings — this is not scaffolding. It is also
 **not a clean result, and not a completed risk disposition.**
 
-A full run on **2026-10-16** against candidate `f9d59e3+dirty:7a7dd8e2215b`, with a
-digest-pinned Trivy (`docker.io/aquasec/trivy@sha256:af6acf9a…`) and a vulnerability
-database built `2026-10-16T01:13:54Z`, records:
+A full run on **2026-10-20** against the clean candidate
+`bb9ace887169f7ee380a9858a2a65a44e788a260`, with a digest-pinned Trivy
+(`docker.io/aquasec/trivy@sha256:af6acf9a…`, 0.75.0) and a vulnerability database
+built `2026-10-20T01:16:59Z`, records:
 
 | image | critical | high | medium | low | unknown |
 |---|---|---|---|---|---|
-| backend | 1 | 96 | 361 | 155 | 6 |
-| frontend | 0 | 30 | 494 | 402 | 0 |
+| backend | 1 | 110 | 357 | 156 | 2 |
+| frontend | 0 | 48 | 499 | 416 | 0 |
 
 The `image-vulnerabilities` axis verdict is **FAIL** and the overall release verdict
-is **RED**.
+is **RED**. Both are reported as they stand; neither is waived.
 
-**These counts are higher than the previous published figures** (backend 1/86,
-frontend 0/22, from a scan bound to the stale, dirty candidate `f860d7db4457+dirty`).
-Nothing regressed in this project's own code; the database moved. Treat any scan
-figure as perishable — it describes an image *and* a database on a date.
+**A scan figure is perishable.** It describes an image *and* a database on a date, and
+these counts are higher than earlier published figures (backend 1/96, frontend 0/30 on
+2026-10-16) purely because the database moved. Nothing regressed in this project's own
+code. The attached raw scanner assets, not this table, are the evidence.
 
-### Where the findings actually live
+### Who can fix each finding
 
 This is the part that determines what can be done about them.
 
-| source | backend | of which critical |
-|---|---|---|
-| UBI 9.8 base-image RPMs | 43 | 0 |
-| `usr/local/bin/oc-mirror` (Red Hat binary, shipped verbatim) | 34 | 1 |
-| `usr/local/bin/oc` (Red Hat binary, shipped verbatim) | 20 | 0 |
+| source | backend C+H | frontend C+H | fix published? |
+|---|---:|---:|---|
+| UBI base-image RPMs — **this project's obligation** | 55 | 48 | **none of the 103** |
+| `usr/local/bin/oc-mirror` (Red Hat binary, shipped verbatim) | 35 (incl. the 1 CRITICAL) | 0 | 33 of 35 upstream |
+| `usr/local/bin/oc` (Red Hat binary, shipped verbatim) | 21 | 0 | 19 of 21 upstream |
 
-**54 of the backend's 97 critical/high findings are inside Red Hat's own `oc` and
-`oc-mirror` binaries**, which this project does not build and cannot patch. The single
-CRITICAL — **CVE-2026-33186**, `google.golang.org/grpc` v1.73.0, fixed upstream in
-1.79.3 — is one of them, embedded in `oc-mirror`. Both tools are already at the newest
-release the Red Hat channels offer (4.22.18), so there is no newer artifact to adopt.
+**All 103 project-owned critical/high findings have no fixed package available.**
+Trivy reports no `FixedVersion` for any of them, so Red Hat has published no fixed
+RPM and rebuilding on a newer base would not clear them. Both images are built from
+the floating `ubi9/nodejs-22-minimal` and `ubi9/nginx-124:latest` tags, so they
+already carry the newest base Red Hat publishes. The clusters are the `nodejs`/`npm`
+family (10 each) on the backend and the `python3` and util-linux families on the
+frontend; **none implicates nginx or Node's own runtime behaviour.**
 
-The frontend's 30 are **entirely base-image RPMs with no fix available** — util-linux
-family 14, python3 family 9, vim 2, libX11 2, expat 2, gnutls 1. **None implicates
-nginx itself.**
+**"Fix published upstream" is not "fix available to this project."** Those 52 vendor
+entries mean a patched *Go module* exists, not that Red Hat has shipped a rebuilt
+binary containing it. Verified against the live mirror on 2026-10-20: `oc` and
+`oc-mirror` in the shipping image are both **4.22.18**, and 4.22.18 is the newest
+version the `clients/ocp/latest-4.22` and `clients/ocp/latest` channels publish.
+There is no newer artifact to adopt. The single CRITICAL — **CVE-2026-33186**,
+`google.golang.org/grpc`, fixed upstream in 1.79.3 — is inside `oc-mirror`.
 
 Two consequences follow, and they should not be softened:
 
 - **This axis cannot be driven green by engineering work in this repository.** The
-  remaining routes are a newer UBI base, newer Red Hat client binaries, removing
-  base packages that are not needed at runtime (the backend already does this for
-  `nodejs-nodemon`), or an explicit, human-authored risk disposition.
-- **A partial disposition now exists**, covering the vendor share only. See below.
-  The UBI and application shares remain untriaged, and a findings count is still not
-  a risk assessment.
+  remaining routes are a newer UBI base (which today contains no fixes for these),
+  newer Red Hat client binaries (none exist), removing base packages not needed at
+  runtime (the backend already does this for `nodejs-nodemon`), or an explicit,
+  human-authored risk disposition.
+- **A disposition exists for the vendor share only**, and it is emitted into the
+  evidence as `vendor-risk-disposition.json`. The project-owned share is covered by
+  the no-fix classification above, which is a statement about remediability, not an
+  assertion that the findings are harmless. A findings count is not a risk
+  assessment.
 
 ### Vendor inherited risk — scope, and what it does not do
 
@@ -246,13 +286,20 @@ Builder-host advisories are tracked separately from shipped ones, under **DOC-20
 Stated plainly, because absence is the part most easily misread:
 
 - **No image signatures.** Cosign is checked for by the harness and recorded as absent.
-  There are no signatures, no attestations and no signing workflow.
-- **No `SHA256SUMS` file** for this project's own images or release artifacts.
-- **No published SBOM** in any format, at any URL.
+  There are no signatures, no attestations and no signing workflow. The `SHA256SUMS`
+  attached to a release proves integrity, not authorship.
 - **No SPDX output.** The generated documents are CycloneDX; SPDX is listed as the
   intended primary format in the axis contract but is not produced today.
-- **No release bundle.** The `artifacts` axis is `INCOMPLETE` because no release bundle
-  format is defined yet, so there is no artifact whose lifecycle could be certified.
+- **No published container images.** This is a source and Compose release: you build
+  the images locally. Nothing is pushed to a registry, so there is no remote image
+  digest to pin or verify, and the `localhost/…` references in `docker-compose.yml`
+  and `manifests/base/` name the images your own build produces. The `artifacts` axis
+  **FAILs** on those mutable references for exactly that reason, and the failure is
+  reported rather than waived away — closing it means publishing images, which is
+  tracked under PROD-040/PROD-030/PROD-042 and is deliberately outside this release.
+- **No attestation that a published asset came from a particular build host.** The
+  evidence binds to a *source commit* and an *image config digest*, not to a builder
+  identity.
 
 ### GitHub's dependency graph is not this
 
@@ -263,46 +310,34 @@ UBI base-image RPMs, and they do not see `oc`, `oc-mirror`, `openshift-install` 
 `mirror-registry` at all.
 
 Treating that graph as an SBOM for the shipped product would understate the component
-set by the large majority of it — the backend image alone resolves to roughly 641
-components against 196 backend npm entries. Do not substitute one for the other.
+set by the large majority of it — the backend image alone resolves to 711
+components, against a couple of hundred backend npm entries. Do not substitute one for the other.
 
 ---
 
-## Where to look once something is published
+## Release gate — what must be true for a version's evidence to be published
 
-When a GA release exists, this section becomes links. Until then it is a checklist of
-what will be attached and where, so the location is predictable:
+These are checked by the publication tooling, not asserted here:
 
-- **GitHub Release assets** for the tagged release, under
-  `https://github.com/bstrauss84/openshift-airgap-architect/releases`
-- Per-image CycloneDX SBOMs, one per shipped image
-- The external-binaries companion document
-- The offline component inventory
-- A `SHA256SUMS` file covering every attached asset
-- A vulnerability summary **with dispositions**, not a raw findings dump
-- Signed provenance — **only** where signing has actually been performed and verified
+1. A candidate-bound scan against the **exact released commit**, from a clean tree —
+   not a predecessor, and not a dirty candidate.
+2. SBOMs that pass subject binding against the images actually built from that commit.
+3. A recorded disposition for the vendor share, naming each artifact by version,
+   architecture, SHA256 and source URL.
+4. A fix-availability classification for the project-owned share, dated.
+5. Checksum verification closed for every externally fetched binary.
+6. Every asset present, non-empty, well-formed, and covered by `SHA256SUMS`.
+7. The release's own raw verdict carried in the evidence, failing axes included.
 
-Nothing in that list may be linked from here speculatively. A link appears when the
-asset exists and has been verified, not when it is planned.
+**What is deliberately NOT on that list:** a green certification verdict. The
+`image-vulnerabilities` axis is non-waivable and fails while unfixable base-image
+findings exist, so a release can ship with a RED verdict **only** as a recorded owner
+decision, published alongside the evidence that says so. A GREEN verdict is never
+manufactured by editing this page, the scanner inputs, or the gate.
 
----
+### What is still not done
 
-## Release gate
-
-The following must all be true before this page can claim anything is available:
-
-1. A candidate-bound scan against the **final accepted commit**, not a predecessor.
-2. A triaged vulnerability disposition for every critical and high finding.
-3. An SBOM axis that passes against the final candidate, with subject binding verified.
-4. Checksum verification closed for `openshift-install` and `mirror-registry`.
-5. A defined release bundle format (`artifacts` axis no longer `INCOMPLETE`).
-6. A decision, and then an implementation, for artifact signing.
-7. An actual GitHub Release to attach the assets to.
-
-Until then the honest status is the one at the top of this page: **not published yet.**
-
----
-
-**See also:** [v2.1.0 release notes](../releases/v2.1.0.md) ·
-[Backlog and status registry](../BACKLOG_STATUS.md) ·
-[Release-history evidence](../releases/evidence/README.md)
+- **Signing.** No cosign signature, attestation or signing workflow exists. Tracked
+  under the PROD-041 productization umbrella.
+- **SPDX.** CycloneDX only.
+- **Published images.** Source and Compose only; see "What does not exist".
