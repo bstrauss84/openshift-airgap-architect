@@ -17,9 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > check was incomplete and could not raise the update banner. Update manually using
 > [docs/UPDATING.md](docs/UPDATING.md).
 >
-> This patch was **not** put through a new release-certification run. The v2.1.0
-> certification evidence and verdict do not carry over to it, and the v2.1.0 findings
-> (including the failing `image-vulnerabilities` axis) are **not** resolved by it.
+> **Certification.** This file does not state a certification result for 2.1.1. Any
+> verdict for 2.1.1 belongs to a run bound to the exact released commit, and it is
+> published with that release's evidence on the Releases page. The v2.1.0 certification
+> evidence, verdict and owner risk acceptance do **not** carry over to 2.1.1. The patch
+> changes no base images or dependencies, so the v2.1.0 findings (including the failing
+> `image-vulnerabilities` axis) are **not** resolved by it.
 
 ### Fixed
 
