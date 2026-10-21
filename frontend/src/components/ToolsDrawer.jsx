@@ -15,7 +15,7 @@ import Switch from "./Switch.jsx";
 import OptionRow from "./OptionRow.jsx";
 import Button from "./Button.jsx";
 import AboutModal from "./AboutModal.jsx";
-import { UPDATE_STATUS, updateStatusOf } from "../../../shared/updateStatus.js";
+import { UPDATE_STATUS, updateStatusOf, verifiedLatestRelease } from "../../../shared/updateStatus.js";
 
 const DRAWER_Z = 10060;
 
@@ -25,14 +25,17 @@ const checkedSuffix = (updateInfo) =>
 /**
  * About-card update line.
  *
- * Driven by the shared update status rather than the legacy `isOutdated` boolean,
- * which only ever meant "the configured branch head differs from this build" and
- * so cannot tell a published release from an ordinary development commit — or
- * from a branch that is OLDER than what is running. Only a verified published
- * release offers an update link; everything else states plainly what is known.
+ * Driven by the shared update status: a published, stable GitHub Release newer
+ * than the installed version is the only thing that offers an update. The Git
+ * SHA is not involved, so an unknown revision does not disable this. Any status
+ * this build does not recognise (for example from a newer or older backend)
+ * reads as unavailable — never as "Up to date".
  */
 function renderUpdateLine(updateInfo) {
   const guideHref = `https://github.com/${updateInfo.repo || "bstrauss84/openshift-airgap-architect"}/blob/main/docs/UPDATING.md`;
+  const installed = updateInfo.installedVersion && updateInfo.installedVersion !== "unknown"
+    ? updateInfo.installedVersion
+    : null;
 
   switch (updateStatusOf(updateInfo)) {
     case UPDATE_STATUS.DISABLED:
@@ -40,17 +43,21 @@ function renderUpdateLine(updateInfo) {
     case UPDATE_STATUS.OFFLINE:
       return `Update check unavailable${updateInfo.checkedAt ? ` (last checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`;
     case UPDATE_STATUS.UNKNOWN:
-      return "This build cannot be identified, so update checks are unavailable.";
-    case UPDATE_STATUS.DEVELOPMENT_BRANCH_AHEAD:
-      return `Development build; ${updateInfo.branch || "main"} is at a different commit. No published release detected${checkedSuffix(updateInfo)}.`;
-    case UPDATE_STATUS.PUBLISHED_SUPPORTED_UPDATE:
+      return "The installed version cannot be identified, so update checks are unavailable.";
+    case UPDATE_STATUS.UP_TO_DATE:
+      return `Up to date${installed ? `: no published release is newer than ${installed}` : ""}${checkedSuffix(updateInfo)}.`;
+    case UPDATE_STATUS.PUBLISHED_SUPPORTED_UPDATE: {
+      const latest = verifiedLatestRelease(updateInfo.releaseIdentity);
       return (
         <a href={guideHref} target="_blank" rel="noopener noreferrer">
-          Update available — export your run before updating
+          {latest ? `Update available: version ${latest.version}` : "Update available"}
+          {latest && installed ? ` (installed ${installed})` : ""}
+          {" — export your run before updating"}
         </a>
       );
+    }
     default:
-      return `Up to date${checkedSuffix(updateInfo)}.`;
+      return "Update status unavailable.";
   }
 }
 
@@ -225,32 +232,25 @@ export default function ToolsDrawer({
               {buildInfo && (
                 <div className="about-build-info">
                   {/* The version is always known (package.json). The revision is
-                      known only when APP_GIT_SHA was supplied at build time, and
-                      the branch only when APP_BRANCH was. A missing value is
-                      reported as unavailable — it is never guessed, and the
-                      branch in particular must NOT fall back to "main", which
-                      previously asserted a branch nobody had supplied. */}
+                      shown only when APP_GIT_SHA was genuinely supplied, and is
+                      otherwise omitted rather than guessed. APP_BRANCH is NOT
+                      shown: it is configuration (Compose sets it to "main"), not
+                      the branch this build came from. */}
                   <span className="about-version">
                     {buildInfo.version && buildInfo.version !== "unknown"
                       ? `Version ${buildInfo.version}`
                       : "Version unavailable"}
                   </span>
-                  <span className="about-separator">•</span>
-                  <span className="about-revision">
-                    {buildInfo.gitSha && buildInfo.gitSha !== "unknown"
-                      ? `Revision ${buildInfo.gitSha.slice(0, 7)}`
-                      : "Revision unavailable"}
-                  </span>
+                  {buildInfo.gitSha && buildInfo.gitSha.trim() && buildInfo.gitSha !== "unknown" && (
+                    <>
+                      <span className="about-separator">•</span>
+                      <span className="about-revision">{`Revision ${buildInfo.gitSha.trim().slice(0, 7)}`}</span>
+                    </>
+                  )}
                   {buildInfo.buildTime && buildInfo.buildTime !== "unknown" && (
                     <>
                       <span className="about-separator">•</span>
                       <span className="about-time">{buildInfo.buildTime}</span>
-                    </>
-                  )}
-                  {buildInfo.branch && buildInfo.branch !== "unknown" && (
-                    <>
-                      <span className="about-separator">•</span>
-                      <span className="about-branch">{buildInfo.branch}</span>
                     </>
                   )}
                 </div>

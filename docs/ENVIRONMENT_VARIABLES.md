@@ -50,7 +50,8 @@ These variables are typically set during CI/CD builds and displayed in the UI (T
 - **Required:** No
 - **Description:** Git commit SHA of the build
 - **Example:** `APP_GIT_SHA=a1b2c3d4e5f6`
-- **Notes:** Displayed in About page and used for update checks
+- **Notes:** Optional provenance shown in Tools → About when supplied, and omitted
+  when not. It is **not** used for update checks.
 
 ### `APP_BUILD_TIME`
 - **Type:** ISO 8601 timestamp
@@ -63,35 +64,33 @@ These variables are typically set during CI/CD builds and displayed in the UI (T
 - **Type:** String (GitHub repository)
 - **Default:** `"bstrauss84/openshift-airgap-architect"`
 - **Required:** No
-- **Description:** GitHub repository for update checks and documentation links
+- **Description:** GitHub repository whose published Releases are checked for updates, and used for documentation links
 - **Example:** `APP_REPO=myorg/my-fork`
 
 ### `APP_BRANCH`
 - **Type:** String
 - **Default:** `"main"`
 - **Required:** No
-- **Description:** Git branch for documentation links
+- **Description:** Git branch for documentation links. This is configuration, not
+  build provenance (Compose sets it to `main`), so the UI does not present it as the
+  build's source branch. It is not used for update checks.
 - **Example:** `APP_BRANCH=develop`
 
 ### `CHECK_UPDATES`
 - **Type:** String (`"true"` | `"false"`)
-- **Default:** `"true"` (enabled when `APP_GIT_SHA` is set)
+- **Default:** `"true"`
 - **Required:** No
 - **Description:** Enable/disable the automatic update check
 - **Example:** `CHECK_UPDATES=false`
 - **Notes:**
-  - When enabled, the backend asks the GitHub **commits** API for the newest
-    commit on the configured branch (`APP_BRANCH`, default `main`) and compares
-    it to `APP_GIT_SHA`. It does **not** consult GitHub Releases and does not
-    read a release tag — this page previously said it fetched "the latest
-    release tag from GitHub API", which was never what the code did.
-  - A differing commit is reported as `development-branch-ahead`, which is not
-    an available release. The only state that raises an urgent upgrade banner is
-    `published-supported-update`, and that state is currently **unreachable**:
-    there is no trusted release-identity source, so the backend always reports
-    `releaseIdentity: null`. See [docs/UPDATING.md](UPDATING.md#what-the-update-states-mean).
-  - Set to `false` in fully disconnected environments
-  - Failure to check is non-blocking (warning only) and reports `offline`
+  - When enabled, the backend asks the GitHub **Releases** API for `APP_REPO` and
+    compares the newest published, stable release with the installed application
+    version from `package.json`. `APP_GIT_SHA` is not needed. Drafts and
+    prereleases are never offered, and an older release never produces a downgrade
+    prompt. See [docs/UPDATING.md](UPDATING.md#what-the-update-states-mean).
+  - `false` or `0` disables the check without any network request. Set it in fully
+    disconnected environments.
+  - Failure to check is non-blocking and reports `offline`, never "up to date".
 
 ---
 
@@ -559,11 +558,11 @@ These are set on the **frontend** container/service, not the backend.
 | `OAA_NGINX_LISTEN_ADDRESS` | 0.0.0.0 | No | Frontend | `127.0.0.1` in the authenticated overlay |
 | `OAA_NGINX_RESOLVER` | (from resolv.conf) | No | Frontend | Override for the /api proxy's DNS resolver |
 | `DATA_DIR` | /data | No | Backend | SQLite + job outputs |
-| `APP_GIT_SHA` | "unknown" | No | Backend | Build version (About page) |
+| `APP_GIT_SHA` | "unknown" | No | Backend | Optional revision provenance (About page) |
 | `APP_BUILD_TIME` | "unknown" | No | Backend | Build timestamp |
-| `APP_REPO` | bstrauss84/… | No | Backend | GitHub repo for updates |
+| `APP_REPO` | bstrauss84/… | No | Backend | GitHub repo whose Releases are checked |
 | `APP_BRANCH` | main | No | Backend | Git branch for docs |
-| `CHECK_UPDATES` | true | No | Backend | Enable update checks |
+| `CHECK_UPDATES` | true | No | Backend | Enable published-release update checks |
 | `HTTP_PROXY` | None | No | Backend | HTTP proxy URL |
 | `HTTPS_PROXY` | None | No | Backend | HTTPS proxy URL |
 | `NO_PROXY` | None | No | Backend | Proxy bypass list |

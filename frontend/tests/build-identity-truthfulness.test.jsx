@@ -77,7 +77,8 @@ describe("AboutModal — revision genuinely unavailable", () => {
     const text = aboutText();
     // The release version is known even when the commit is not.
     expect(text).toContain("Version 2.1.0");
-    expect(text).toContain("Revision unavailable");
+    // The revision is optional provenance: omitted when unknown, not guessed.
+    expect(text).not.toContain("Revision");
     // The regression: a missing SHA must not be reported as a dev build.
     expect(text).not.toMatch(/\(dev\)|dev build|development build/);
     // The build timestamp is always stamped by the build-info stage, so a
@@ -87,7 +88,7 @@ describe("AboutModal — revision genuinely unavailable", () => {
 
   it("treats an empty-string SHA the same as unknown", () => {
     render(<AboutModal isOpen onClose={() => {}} appVersion="2.1.0" gitSha="" buildTime="2026-10-20T19:59:41Z" />);
-    expect(aboutText()).toContain("Revision unavailable");
+    expect(aboutText()).not.toContain("Revision");
   });
 
   it("reports an unparseable build time as unavailable, never 'Invalid Date'", () => {
@@ -111,16 +112,25 @@ describe("ToolsDrawer — build identity line", () => {
     const text = drawerBuildText();
     expect(text).toContain("Version 2.1.0");
     expect(text).toContain("Revision 5e0adb1");
-    expect(text).toContain("main");
   });
 
-  it("says the revision is unavailable rather than 'Build unknown'", () => {
+  it("omits an unknown revision rather than showing 'Build unknown' or 'dev'", () => {
     render(<ToolsDrawer {...drawerProps} buildInfo={{ version: "2.1.0", gitSha: "unknown", buildTime: "2026-10-20T19:59:41Z", branch: "main" }} />);
     const text = drawerBuildText();
-    expect(text).toContain("Revision unavailable");
-    expect(text).not.toContain("Build unknown");
+    expect(text).not.toContain("Revision");
+    expect(text).not.toContain("unknown");
+    expect(text).not.toMatch(/\bdev\b/);
     // The version must still be visible; it previously was not shown at all.
     expect(text).toContain("Version 2.1.0");
+  });
+
+  it("never presents the configured APP_BRANCH as the build's source branch", () => {
+    // /api/build-info reports branch "main" because Compose sets APP_BRANCH=main
+    // unconditionally. That is configuration, not provenance, so it is not shown.
+    render(<ToolsDrawer {...drawerProps} buildInfo={{ version: "2.1.0", gitSha: "unknown", buildTime: "2026-10-20T19:59:41Z", branch: "main" }} />);
+    const text = drawerBuildText();
+    expect(text).not.toContain("main");
+    expect(document.querySelector(".about-branch")).toBeNull();
   });
 
   it("OMITS the branch entirely when none was supplied, rather than asserting 'main'", () => {
@@ -134,6 +144,6 @@ describe("ToolsDrawer — build identity line", () => {
     render(<ToolsDrawer {...drawerProps} buildInfo={{ version: "2.1.0", gitSha: "abc1234", buildTime: "unknown", branch: "develop" }} />);
     const text = drawerBuildText();
     expect(text).not.toContain("unknown");
-    expect(text).toContain("develop");
+    expect(text).not.toContain("develop");
   });
 });

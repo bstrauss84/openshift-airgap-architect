@@ -45,7 +45,8 @@ describe("ToolsDrawer About section", () => {
     expect(buildInfo.textContent).toContain('Version 2.1.0');
     expect(buildInfo.textContent).toContain('Revision abc1234');
     expect(buildInfo.textContent).toContain('2025-03-03T12:00:00Z');
-    expect(buildInfo.textContent).toContain('main');
+    // APP_BRANCH is configuration, not build provenance: not displayed.
+    expect(buildInfo.textContent).not.toContain('main');
   });
 
   it("shows Update checks disabled when updateInfo.enabled is false", () => {
@@ -58,10 +59,9 @@ describe("ToolsDrawer About section", () => {
     expect(screen.getByText(/Update checks disabled/)).toBeInTheDocument();
   });
 
-  // These fixtures carry currentSha because every real /api/update-info response
-  // does. Without it the payload resolves to `unknown` — the app cannot identify
-  // the running build — which is a different (and also correct) outcome.
-  it("shows Update available and link for a verified published release", () => {
+  // v2.1.1 contract: installed package version vs newest published GitHub
+  // Release. The Git SHA is provenance only and deliberately "unknown" here.
+  it("shows Update available with both versions for a newer published release", () => {
     render(
       <ToolsDrawer
         {...defaultProps}
@@ -69,10 +69,16 @@ describe("ToolsDrawer About section", () => {
           enabled: true,
           isOutdated: true,
           error: null,
-          currentSha: "abc1234",
-          latestSha: "def5678",
+          installedVersion: "2.1.0",
+          currentSha: "unknown",
+          latestSha: null,
           updateStatus: "published-supported-update",
-          releaseIdentity: { verified: true, isNewer: true, version: "2.2.0", tag: "v2.2.0" },
+          releaseIdentity: {
+            verified: true,
+            source: "github-releases-api",
+            repo: "bstrauss84/openshift-airgap-architect",
+            latest: { version: "2.2.0", tag: "v2.2.0", url: "https://github.com/bstrauss84/openshift-airgap-architect/releases/tag/v2.2.0", publishedAt: "2026-11-01T00:00:00Z" }
+          },
           checkedAt: "2025-03-03T12:00:00Z",
           repo: "bstrauss84/openshift-airgap-architect"
         }}
@@ -80,11 +86,13 @@ describe("ToolsDrawer About section", () => {
     );
     const link = screen.getByRole("link", { name: /Update available/i });
     expect(link).toBeInTheDocument();
+    expect(link.textContent).toContain("2.2.0");
+    expect(link.textContent).toContain("installed 2.1.0");
     expect(link.href).toContain("github.com");
     expect(link.href).toContain("UPDATING.md");
   });
 
-  it("shows a development-build note, not an update link, when only the branch differs", () => {
+  it("shows no update link when only a legacy branch-commit difference is reported", () => {
     render(
       <ToolsDrawer
         {...defaultProps}
@@ -99,8 +107,14 @@ describe("ToolsDrawer About section", () => {
         }}
       />
     );
-    expect(screen.getByText(/Development build/i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Update available/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Up to date/)).not.toBeInTheDocument();
+  });
+
+  it("reads an unrecognised status as unavailable, never as up to date", () => {
+    render(<ToolsDrawer {...defaultProps} updateInfo={{ enabled: true, updateStatus: "development-branch-ahead" }} />);
+    expect(screen.getByText(/Update status unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText(/Up to date/)).not.toBeInTheDocument();
   });
 
   it("shows Update check unavailable when updateInfo has error", () => {
@@ -111,6 +125,7 @@ describe("ToolsDrawer About section", () => {
           enabled: true,
           isOutdated: false,
           error: "network error",
+          installedVersion: "2.1.0",
           currentSha: "abc1234",
           checkedAt: "2025-03-03T12:00:00Z"
         }}
@@ -119,7 +134,7 @@ describe("ToolsDrawer About section", () => {
     expect(screen.getByText(/Update check unavailable/)).toBeInTheDocument();
   });
 
-  it("shows Up to date when updateInfo is enabled and not outdated", () => {
+  it("shows Up to date when the newest published release is the installed one", () => {
     render(
       <ToolsDrawer
         {...defaultProps}
@@ -127,13 +142,15 @@ describe("ToolsDrawer About section", () => {
           enabled: true,
           isOutdated: false,
           error: null,
-          currentSha: "abc1234",
-          latestSha: "abc1234",
+          installedVersion: "2.1.0",
+          currentSha: "unknown",
+          updateStatus: "up-to-date",
+          releaseIdentity: { verified: true, latest: { version: "2.1.0", tag: "v2.1.0" } },
           checkedAt: "2025-03-03T12:00:00Z"
         }}
       />
     );
-    expect(screen.getByText(/Up to date/)).toBeInTheDocument();
+    expect(screen.getByText(/Up to date: no published release is newer than 2\.1\.0/)).toBeInTheDocument();
   });
 
   it("passes 2.0.0-dev through View Details to About modal", async () => {
@@ -186,17 +203,17 @@ describe("Landing update banner", () => {
         });
       }
       if (path === "/api/update-info") {
-        // A verified published release is now the only thing that raises the
-        // urgent banner. A bare SHA difference is development-branch-ahead and is
-        // covered in tests/update-banner-truthful-states.test.jsx.
+        // A newer published release is the only thing that raises the urgent
+        // banner. See tests/update-banner-truthful-states.test.jsx.
         return Promise.resolve({
           enabled: true,
           isOutdated: true,
           error: null,
-          currentSha: "abc1234",
-          latestSha: "def5678",
+          installedVersion: "2.1.0",
+          currentSha: "unknown",
+          latestSha: null,
           updateStatus: "published-supported-update",
-          releaseIdentity: { verified: true, isNewer: true, version: "2.2.0", tag: "v2.2.0" },
+          releaseIdentity: { verified: true, latest: { version: "2.2.0", tag: "v2.2.0", url: "https://github.com/owner/repo/releases/tag/v2.2.0" } },
           branch: "main",
           repo: "owner/repo",
           checkedAt: "2025-03-03T12:00:00Z"
@@ -303,10 +320,9 @@ describe("Landing update banner visibility (shouldShowUpdateBanner)", () => {
 
   it("returns FALSE for a bare SHA difference, which is not a published release", () => {
     // This assertion is inverted on purpose. It previously expected `true`,
-    // encoding the defect: `isOutdated` only means the branch head differs, and
-    // with APP_BRANCH defaulting to `main` (still the v1.7.1 commit) that fired
-    // on every v2.1 build and pointed users backwards. Urgency now requires a
-    // verified release identity — see tests/update-banner-truthful-states.test.jsx.
+    // encoding the v1.7.1 defect: `isOutdated` only meant the branch head
+    // differed, which can point users backwards. Urgency now requires a newer
+    // published release — see tests/update-banner-truthful-states.test.jsx.
     expect(
       shouldShowUpdateBanner({
         enabled: true,

@@ -55,173 +55,96 @@ test("GET /api/update-info when CHECK_UPDATES=false returns enabled:false", asyn
   }
 });
 
-test("GET /api/update-info when APP_GIT_SHA is unknown returns isOutdated:false and does not treat as update available", async () => {
-  const prevSha = process.env.APP_GIT_SHA;
-  process.env.APP_GIT_SHA = "unknown";
+// v2.1.1: the update check compares the installed package.json version with the
+// newest published GitHub Release. The Git SHA is provenance only. Exhaustive
+// coverage lives in update-release-identity.test.js; these keep the original
+// endpoint contracts (no fetch when impossible, outdated, same, caching).
+
+const RELEASES_REPO = "bstrauss84/openshift-airgap-architect";
+const releaseEntry = (tag) => ({
+  url: `https://api.github.com/repos/${RELEASES_REPO}/releases/1`,
+  html_url: `https://github.com/${RELEASES_REPO}/releases/tag/${tag}`,
+  tag_name: tag,
+  draft: false,
+  prerelease: false,
+  published_at: "2026-10-21T16:30:53Z"
+});
+const okJson = (body) => Promise.resolve({ ok: true, status: 200, headers: new Headers(), json: () => Promise.resolve(body) });
+
+async function withUpdateEnv(env, githubImpl, fn) {
+  const keys = ["CHECK_UPDATES", "APP_GIT_SHA", "APP_REPO"];
+  const prev = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  for (const k of keys) delete process.env[k];
+  Object.assign(process.env, env);
   clearUpdateInfoCache();
-  let fetchCount = 0;
+  const counter = { count: 0 };
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (url, opts) => {
     if (String(url).includes("api.github.com")) {
-      fetchCount++;
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve([{ sha: "6fc1c94abc123456789012345678901234567890" }])
-      });
+      counter.count++;
+      return githubImpl(String(url));
     }
     return originalFetch(url, opts);
   };
   const { server, baseUrl } = await createTestServer(app);
   try {
-    const res = await fetch(`${baseUrl}/api/update-info`);
-    assert.strictEqual(res.status, 200);
-    const data = await res.json();
-    assert.strictEqual(data.enabled, true);
-    assert.strictEqual(data.isOutdated, false);
-    assert.strictEqual(data.currentSha, "unknown");
-    assert.ok(data.error);
-    assert.strictEqual(fetchCount, 0);
+    await fn({ baseUrl, counter, get: async () => (await originalFetch(`${baseUrl}/api/update-info`)).json() });
   } finally {
     globalThis.fetch = originalFetch;
-    if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
-    else delete process.env.APP_GIT_SHA;
+    for (const k of keys) {
+      if (prev[k] !== undefined) process.env[k] = prev[k];
+      else delete process.env[k];
+    }
+    clearUpdateInfoCache();
     await closeTestServer(server);
   }
+}
+
+test("GET /api/update-info when APP_GIT_SHA is unknown still checks published releases", async () => {
+  await withUpdateEnv({ APP_GIT_SHA: "unknown" }, () => okJson([releaseEntry("v99.0.0")]), async ({ get, counter }) => {
+    const data = await get();
+    assert.strictEqual(data.enabled, true);
+    assert.strictEqual(data.currentSha, "unknown");
+    assert.strictEqual(data.isOutdated, true);
+    assert.strictEqual(data.error, null);
+    assert.strictEqual(counter.count, 1);
+  });
 });
 
-test("GET /api/update-info when enabled and latest differs returns isOutdated:true", async () => {
-  const prevCheck = process.env.CHECK_UPDATES;
-  const prevSha = process.env.APP_GIT_SHA;
-  process.env.CHECK_UPDATES = "1";
-  process.env.APP_GIT_SHA = "oldsha12345678901234567890123456789012";
-  clearUpdateInfoCache();
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (url, opts) => {
-    if (String(url).includes("api.github.com")) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve([{ sha: "newsha4567890123456789012345678901234" }])
-      });
-    }
-    return originalFetch(url, opts);
-  };
-  const { server, baseUrl } = await createTestServer(app);
-  try {
-    const res = await fetch(`${baseUrl}/api/update-info`);
-    assert.strictEqual(res.status, 200);
-    const data = await res.json();
+test("GET /api/update-info when a newer release is published returns isOutdated:true", async () => {
+  await withUpdateEnv({ CHECK_UPDATES: "1" }, () => okJson([releaseEntry("v99.0.0")]), async ({ get }) => {
+    const data = await get();
     assert.strictEqual(data.enabled, true);
     assert.strictEqual(data.isOutdated, true);
-    assert.ok(data.latestSha);
-  } finally {
-    globalThis.fetch = originalFetch;
-    if (prevCheck !== undefined) process.env.CHECK_UPDATES = prevCheck;
-    else delete process.env.CHECK_UPDATES;
-    if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
-    else delete process.env.APP_GIT_SHA;
-    await closeTestServer(server);
-  }
+    assert.strictEqual(data.releaseIdentity.latest.tag, "v99.0.0");
+  });
 });
 
-test("GET /api/update-info when enabled and latest same returns isOutdated:false", async () => {
-  const prevCheck = process.env.CHECK_UPDATES;
-  const prevSha = process.env.APP_GIT_SHA;
-  process.env.CHECK_UPDATES = "1";
-  process.env.APP_GIT_SHA = "samesha123456789012345678901234567890";
-  clearUpdateInfoCache();
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (url, opts) => {
-    if (String(url).includes("api.github.com")) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve([{ sha: "samesha123456789012345678901234567890" }])
-      });
-    }
-    return originalFetch(url, opts);
-  };
-  const { server, baseUrl } = await createTestServer(app);
-  try {
-    const res = await fetch(`${baseUrl}/api/update-info`);
-    assert.strictEqual(res.status, 200);
-    const data = await res.json();
+test("GET /api/update-info when only an older release is published returns isOutdated:false", async () => {
+  await withUpdateEnv({ CHECK_UPDATES: "1" }, () => okJson([releaseEntry("v0.0.1")]), async ({ get }) => {
+    const data = await get();
     assert.strictEqual(data.enabled, true);
     assert.strictEqual(data.isOutdated, false);
-  } finally {
-    globalThis.fetch = originalFetch;
-    if (prevCheck !== undefined) process.env.CHECK_UPDATES = prevCheck;
-    else delete process.env.CHECK_UPDATES;
-    if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
-    else delete process.env.APP_GIT_SHA;
-    await closeTestServer(server);
-  }
+    assert.strictEqual(data.error, null);
+  });
 });
 
 test("update-info cache prevents repeated GitHub fetches", async () => {
-  const prevCheck = process.env.CHECK_UPDATES;
-  const prevSha = process.env.APP_GIT_SHA;
-  process.env.CHECK_UPDATES = "1";
-  process.env.APP_GIT_SHA = "cachesha123456789012345678901234567890";
-  clearUpdateInfoCache();
-  let fetchCount = 0;
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (url, opts) => {
-    if (String(url).includes("api.github.com")) {
-      fetchCount++;
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve([{ sha: "cachesha123456789012345678901234567890" }])
-      });
-    }
-    return originalFetch(url, opts);
-  };
-  const { server, baseUrl } = await createTestServer(app);
-  try {
-    const res1 = await fetch(`${baseUrl}/api/update-info`);
-    assert.strictEqual(res1.status, 200);
-    const res2 = await fetch(`${baseUrl}/api/update-info`);
-    assert.strictEqual(res2.status, 200);
-    assert.strictEqual(fetchCount, 1);
-  } finally {
-    globalThis.fetch = originalFetch;
-    if (prevCheck !== undefined) process.env.CHECK_UPDATES = prevCheck;
-    else delete process.env.CHECK_UPDATES;
-    if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
-    else delete process.env.APP_GIT_SHA;
-    await closeTestServer(server);
-  }
+  await withUpdateEnv({ CHECK_UPDATES: "1" }, () => okJson([releaseEntry("v0.0.1")]), async ({ get, counter }) => {
+    await get();
+    await get();
+    assert.strictEqual(counter.count, 1);
+  });
 });
 
 test("update-info caches failure and returns error", async () => {
-  const prevCheck = process.env.CHECK_UPDATES;
-  const prevSha = process.env.APP_GIT_SHA;
-  process.env.CHECK_UPDATES = "1";
-  process.env.APP_GIT_SHA = "failsha123456789012345678901234567890";
-  clearUpdateInfoCache();
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (url, opts) => {
-    if (String(url).includes("api.github.com")) {
-      return Promise.reject(new Error("network error"));
-    }
-    return originalFetch(url, opts);
-  };
-  const { server, baseUrl } = await createTestServer(app);
-  try {
-    const res = await fetch(`${baseUrl}/api/update-info`);
-    assert.strictEqual(res.status, 200);
-    const data = await res.json();
+  await withUpdateEnv({ CHECK_UPDATES: "1" }, () => Promise.reject(new Error("network error")), async ({ get, counter }) => {
+    const data = await get();
     assert.strictEqual(data.enabled, true);
     assert.ok(data.error);
     assert.strictEqual(data.isOutdated, false);
-    const res2 = await fetch(`${baseUrl}/api/update-info`);
-    assert.strictEqual(res2.status, 200);
-    const data2 = await res2.json();
+    const data2 = await get();
     assert.ok(data2.error);
-  } finally {
-    globalThis.fetch = originalFetch;
-    if (prevCheck !== undefined) process.env.CHECK_UPDATES = prevCheck;
-    else delete process.env.CHECK_UPDATES;
-    if (prevSha !== undefined) process.env.APP_GIT_SHA = prevSha;
-    else delete process.env.APP_GIT_SHA;
-    await closeTestServer(server);
-  }
+    assert.strictEqual(counter.count, 1);
+  });
 });

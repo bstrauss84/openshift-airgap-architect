@@ -120,8 +120,8 @@ describe("Regression Tests - v1.7.0", () => {
       );
 
       const text = document.querySelector(".about-modal").textContent;
-      // v2.1.1: an unknown SHA reads as "Revision unavailable", never "dev".
-      expect(text).toContain("Revision unavailable");
+      // v2.1.1: an unknown SHA is omitted (optional provenance), never "dev".
+      expect(text).not.toContain("Revision");
       expect(text).not.toContain("unknown");
       expect(text).not.toMatch(/\(dev\)|dev build/);
       // The version is a separate fact and must survive a missing revision.

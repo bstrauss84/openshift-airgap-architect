@@ -112,8 +112,10 @@ export function buildFeedbackIssueDraft({ submission, config }) {
     `- Contact handle: ${payload.contactHandle || "n/a"}`,
     `- Submission ID: ${submission?.submissionId || "n/a"}`,
     `- Report mode: ${config.mode}`,
+    `- App version: ${build.version || "unknown"}`,
     `- Build SHA: ${build.gitSha || "unknown"}`,
-    `- Build branch: ${build.branch || "unknown"}`,
+    // APP_BRANCH is configuration (Compose sets it to "main"), not build provenance.
+    `- Configured APP_BRANCH: ${build.branch || "unknown"}`,
     `- Build time: ${build.buildTime || "unknown"}`,
     `- Submitted at: ${submission?.receivedAt || "n/a"}`
   ].join("\n");

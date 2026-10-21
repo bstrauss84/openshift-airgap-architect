@@ -41,7 +41,9 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
   const trimmed = typeof appVersion === "string" ? appVersion.trim() : "";
   const version = (trimmed && trimmed !== "unknown") ? trimmed : "unavailable";
   const shaTrimmed = typeof gitSha === "string" ? gitSha.trim() : "";
-  const revision = (shaTrimmed && shaTrimmed !== "unknown") ? shaTrimmed.slice(0, 7) : "unavailable";
+  // An unknown revision is omitted, not shown as a placeholder: it is optional
+  // provenance and its absence says nothing about the release.
+  const revision = (shaTrimmed && shaTrimmed !== "unknown") ? shaTrimmed.slice(0, 7) : null;
   const buildTimeTrimmed = typeof buildTime === "string" ? buildTime.trim() : "";
   const parsedBuildTime = (buildTimeTrimmed && buildTimeTrimmed !== "unknown")
     ? new Date(buildTimeTrimmed)
@@ -93,7 +95,11 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
               OpenShift Airgap Architect
             </h2>
             <p style={{ margin: "8px 0 0", color: "var(--text-secondary)", fontSize: "14px" }}>
-              Version {version} • Revision {revision} • Built {buildDate}
+              {[
+                `Version ${version}`,
+                revision ? `Revision ${revision}` : null,
+                `Built ${buildDate}`
+              ].filter(Boolean).join(" • ")}
             </p>
           </div>
 

@@ -41,22 +41,19 @@ update — follow [docs/BACKUP_RESTORE.md](BACKUP_RESTORE.md).
 
 ## Where the build SHA comes from
 
-The build SHA is passed **in from the host at build time**. It is not read from
-`.git`, because `.dockerignore` excludes `.git/` from the build context, so the
-image never sees it. `backend/Containerfile` declares `ARG APP_GIT_SHA=unknown`
-and `docker-compose.yml` defaults it to `${APP_GIT_SHA:-unknown}`.
+The build SHA is optional provenance. It is passed **in from the host at build
+time** and is not read from `.git`, because `.dockerignore` excludes `.git/` from
+the build context. `backend/Containerfile` declares `ARG APP_GIT_SHA=unknown` and
+`docker-compose.yml` defaults it to `${APP_GIT_SHA:-unknown}`.
 
-- **With the build-arg or environment variable set:** Tools → About shows the real
-  SHA and build time, and update checks can run.
+- **With it:** Tools → About also shows the revision.
   ```bash
   APP_GIT_SHA=$(git rev-parse HEAD) podman compose up --build -d
-  # or: podman compose build --build-arg APP_GIT_SHA=$(git rev-parse HEAD)
   ```
-  `scripts/set-build-env.sh` sets this for you.
-- **Without it:** the SHA is `unknown`, Tools → About shows “Build unknown”, and
-  update checks cannot run at all. This is expected behaviour, not a bug —
-  **and it applies even when you built from a git clone.** Having a `.git`
-  directory is not sufficient; the value must be passed explicitly.
+- **Without it** (plain `podman compose up --build -d` / `docker compose up --build -d`):
+  the revision is simply omitted from Tools → About. The version and build time
+  are still shown, and **update checks work normally** — they compare the
+  installed version with published GitHub Releases and never use the SHA.
 
 ## Podman Compose (recommended)
 
@@ -65,13 +62,13 @@ and `docker-compose.yml` defaults it to `${APP_GIT_SHA:-unknown}`.
 1. From the repo root:
    ```bash
    git pull
-   APP_GIT_SHA=$(git rev-parse HEAD) podman compose up --build -d
+   podman compose up --build -d
    ```
-   Without `APP_GIT_SHA`, the rebuilt image reports its SHA as `unknown` and
-   update checks stop working — see "Where the build SHA comes from" above.
+   Optionally prefix `APP_GIT_SHA=$(git rev-parse HEAD)` to also record the
+   revision; update checks do not need it.
 
-2. Refresh the app in your browser. Once the running build matches the configured
-   branch, Tools → About reports "Up to date" and the development-build note
+2. Refresh the app in your browser. Once the installed version matches the newest
+   published release, Tools → About reports "Up to date" and the update banner
    disappears.
 
 **There are no pre-built images to pull.** This release is distributed as source;
@@ -111,24 +108,38 @@ cd frontend && npm install && npm run dev
 
 ## Build info and update checks
 
-- **Build info** (Tools → About) shows the Git SHA, build time, repo, and branch the running instance was built from. The build time is computed in-image; the **SHA must be passed in** (see "Where the build SHA comes from"). Without it both update checks and the SHA display fall back to `unknown`. See the main README for env wiring for `docker run` or OpenShift.
-- **Update checks** ask GitHub for the newest commit on the configured branch (default: `main`) and compare it to the running build's SHA. To disable, set `CHECK_UPDATES=false` (or `0`) in the backend environment.
+- **Build info** (Tools → About) shows the application version (always, from
+  `package.json`), the revision (only when `APP_GIT_SHA` was supplied) and the
+  build time. `APP_BRANCH` is configuration, not build provenance, and is not
+  shown.
+- **Update checks** ask the GitHub Releases API for `APP_REPO` and compare the
+  newest published, stable release with the installed version. No Git SHA is
+  required. To disable, set `CHECK_UPDATES=false` (or `0`) in the backend
+  environment; no request is then made.
+
+### What counts as an available update
+
+A release is offered only when **all** of these hold:
+
+- it is listed by `GET https://api.github.com/repos/<APP_REPO>/releases`, and its
+  API and HTML URLs name that same repository (a response naming any other
+  repository fails the whole check closed);
+- it is published (not a draft) and not a prerelease;
+- its tag is a stable `MAJOR.MINOR.PATCH` (optional leading `v`) with a valid
+  publication date;
+- its version is **strictly newer** than the installed version. A different
+  commit, a bare tag, the same version or an older release is never an update.
+
+**Trust boundary.** This verifies GitHub's published-release API state for the
+configured repository over HTTPS. It does **not** verify any signature or
+checksum of release artifacts.
 
 ### What the update states mean
 
-A differing commit on a branch is **not** evidence that a newer supported release
-was published, so the app reports what it actually knows:
-
 | State | Meaning |
 |---|---|
-| `up-to-date` | The running build matches the configured branch head. |
-| `development-branch-ahead` | The branch carries a different commit. Normal for a development build. It does **not** mean a release is available, and depending on which branch is configured the branch may even be **older** than what you are running. |
-| `offline` | The lookup failed (timeout, network error, GitHub error). No update is implied. |
-| `unknown` | The running build has no identifiable SHA, so no comparison is possible. |
+| `up-to-date` | No eligible published release is newer than the installed version. |
+| `published-supported-update` | A newer eligible published release exists. **The only state that raises the update banner.** |
+| `offline` | The lookup gave no trustworthy answer (timeout, network error, GitHub error, rate limit, malformed or foreign-repository metadata). No update is implied either way. |
+| `unknown` | The installed version is missing or not a stable `X.Y.Z`, so no comparison is possible. |
 | `disabled` | `CHECK_UPDATES` is off. |
-| `published-supported-update` | A newer published, supported release was confirmed by a trusted release-identity source. **This is the only state that raises the urgent upgrade banner.** |
-
-> `published-supported-update` is currently **unreachable**. The app has no trusted
-> release-identity source yet, so the backend always reports
-> `releaseIdentity: null`. The urgent banner is therefore fail-closed by design
-> and will not appear until that contract is implemented and reviewed.

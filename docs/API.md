@@ -84,12 +84,18 @@ Returns build metadata for UI display (Tools → About).
 **Response:**
 ```json
 {
+  "version": "2.1.0",
   "gitSha": "a1b2c3d4e5f6",
   "buildTime": "2026-05-01T12:00:00Z",
   "repo": "bstrauss84/openshift-airgap-architect",
   "branch": "main"
 }
 ```
+
+`version` comes from `package.json` and is always present. `gitSha` and
+`buildTime` are `"unknown"` when not supplied. `branch` is the configured
+`APP_BRANCH` (documentation links), **not** the branch the build came from; the UI
+does not display it as build provenance.
 
 **Environment Variables:**
 - `APP_GIT_SHA`
@@ -101,8 +107,11 @@ Returns build metadata for UI display (Tools → About).
 
 ### `GET /api/update-info`
 
-Compares the running build's commit against the newest commit on a configured
-**branch**. It does **not** consult GitHub Releases.
+Compares the **installed application version** (`backend/package.json`) with the
+newest **published, stable GitHub Release** of `APP_REPO`
+(`GET https://api.github.com/repos/:repo/releases`). The Git SHA and the branch are
+**not** consulted, so an unknown `APP_GIT_SHA` (the Compose default) does not
+disable update detection.
 
 **Query Parameters:** none.
 
@@ -110,42 +119,63 @@ Compares the running build's commit against the newest commit on a configured
 ```json
 {
   "enabled": true,
-  "currentSha": "e0944b5904c4824e22ac188b2069b498781bab99",
-  "latestSha": "ffed74d0807d7a3bfcd321b660d7145b6d43b44d",
+  "installedVersion": "2.1.0",
+  "currentSha": "unknown",
+  "latestSha": null,
   "isOutdated": true,
-  "updateStatus": "development-branch-ahead",
-  "urgent": false,
-  "releaseIdentity": null,
-  "checkedAt": "2026-10-16T12:00:00.000Z",
+  "updateStatus": "published-supported-update",
+  "urgent": true,
+  "releaseIdentity": {
+    "verified": true,
+    "source": "github-releases-api",
+    "repo": "bstrauss84/openshift-airgap-architect",
+    "latest": {
+      "version": "2.2.0",
+      "tag": "v2.2.0",
+      "name": "OpenShift Airgap Architect 2.2.0",
+      "url": "https://github.com/bstrauss84/openshift-airgap-architect/releases/tag/v2.2.0",
+      "publishedAt": "2026-11-01T00:00:00Z"
+    }
+  },
+  "checkedAt": "2026-10-21T12:00:00.000Z",
   "error": null,
-  "branch": "main",
   "repo": "bstrauss84/openshift-airgap-architect"
 }
 ```
 
 **Fields:**
-- `updateStatus` — the authoritative state. One of `disabled`, `unknown`,
-  `offline`, `up-to-date`, `development-branch-ahead`,
-  `published-supported-update`. Defined in `shared/updateStatus.js`.
-- `urgent` — true only for `published-supported-update`. Clients must use this,
-  not `isOutdated`, to decide whether to prompt the operator.
-- `releaseIdentity` — verified published-release facts, or `null` when no trusted
-  release-identity source was consulted. **Always `null` today.**
-- `isOutdated` — **legacy, not authoritative.** It only ever meant
-  `latestSha !== currentSha`, i.e. "the branch head differs". Retained for
-  backward compatibility.
+- `updateStatus` — the authoritative state, defined in `shared/updateStatus.js`:
+  - `disabled` — `CHECK_UPDATES=false|0`; no request is made.
+  - `unknown` — the installed version is missing or not a stable `X.Y.Z`; no request is made.
+  - `offline` — the lookup produced no trustworthy answer: timeout, network error,
+    non-OK response, rate limit, malformed payload, or release metadata naming a
+    repository other than `APP_REPO`. No conclusion is drawn either way.
+  - `up-to-date` — no eligible published release is newer than the installed version
+    (including when the installed version is newer than every release: no downgrade prompt).
+  - `published-supported-update` — an eligible release is semantically newer.
+- `urgent` — true only for `published-supported-update`. Clients must use this or
+  `updateStatus` to decide whether to prompt the operator.
+- `releaseIdentity` — present when the lookup completed. `latest` is the
+  highest-versioned eligible release, or `null` when none exists. A release is
+  eligible only if it is not a draft, not a prerelease, has a stable
+  `MAJOR.MINOR.PATCH` tag (optional `v`), a valid `published_at`, and API/HTML URLs
+  under `APP_REPO`.
+- `installedVersion` — the version being compared.
+- `currentSha` — optional provenance only; plays no part in the decision.
+- `isOutdated` — legacy; now equal to `urgent`. `latestSha` — legacy; always `null`.
+
+**Trust boundary:** "verified" means the metadata came from the GitHub REST API
+over HTTPS for the configured repository and passed the eligibility checks above.
+No release signature or artifact checksum is verified.
 
 **Status Codes:**
 - `200 OK` — check completed, including when it failed (see `error` / `updateStatus: "offline"`)
 
 **Notes:**
-- Requires `CHECK_UPDATES` enabled (default on; `false`/`0` disables) and `APP_GIT_SHA` set
-- Caches success for 6 hours, failure for 15 minutes
-- Safe to call repeatedly (rate limited by cache)
-- A differing branch commit is **not** evidence of a newer published release. With
-  `APP_BRANCH` defaulting to `main`, the branch head may even be **older** than the
-  running build, which is why `urgent` is gated on a verified release identity and
-  is currently unreachable. See [UPDATING.md](UPDATING.md).
+- `CHECK_UPDATES` is enabled by default; `false`/`0` disables it.
+- Caches success for 6 hours, failure for 15 minutes. Uses the backend's
+  `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` handling and a 2 second timeout.
+- Prereleases are never offered. See [UPDATING.md](UPDATING.md).
 
 ---
 

@@ -54,7 +54,7 @@ import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallCo
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
 import { migrateStateToV3, isStateV3 } from "../../shared/stateMigration.js";
 import { validateBmcVerifyCA } from "../../shared/bmcVerifyCA.js";
-import { resolveUpdateStatus, isUrgentUpdateStatus } from "../../shared/updateStatus.js";
+import { buildUpdateInfo } from "./releaseUpdateCheck.js";
 import { createRuntimePackageArtifacts } from "./runtimePackage.js";
 import { getOpenShiftMinorFromState, getOpenShiftMinorFromSources } from "./openShiftMinor.js";
 import { assertSupportedOpenShiftMinorForGeneration, isSupportedMinor, buildUnsupportedVersionError } from "./versionPolicy.js";
@@ -1013,22 +1013,29 @@ app.get("/api/metrics", async (_req, res) => {
   }
 });
 
+/** The installed application version from backend/package.json, or "unknown". */
+function readAppVersion() {
+  try {
+    const packagePath = path.join(path.dirname(new URL(import.meta.url).pathname), "../package.json");
+    const packageData = JSON.parse(fs.readFileSync(packagePath, "utf-8"));
+    return packageData.version || "unknown";
+  } catch (err) {
+    logger.warn({ err }, "Failed to read backend package.json version");
+    return "unknown";
+  }
+}
+
 // Build info: env-driven; no git at runtime. For APP_GIT_SHA/APP_BUILD_TIME see README and scripts.
+//
+// `branch` is the configured APP_BRANCH (used for documentation links), NOT the
+// branch this build came from — Compose sets it to `main` unconditionally. It is
+// kept for API compatibility and must not be presented as build provenance.
 app.get("/api/build-info", (_req, res) => {
   const gitSha = (process.env.APP_GIT_SHA || "unknown").trim();
   const buildTime = (process.env.APP_BUILD_TIME || "unknown").trim();
   const repo = (process.env.APP_REPO || "bstrauss84/openshift-airgap-architect").trim();
   const branch = (process.env.APP_BRANCH || "main").trim();
-
-  // Read version from package.json
-  let version = "unknown";
-  try {
-    const packagePath = path.join(path.dirname(new URL(import.meta.url).pathname), "../package.json");
-    const packageData = JSON.parse(fs.readFileSync(packagePath, "utf-8"));
-    version = packageData.version || "unknown";
-  } catch (err) {
-    logger.warn({ err }, "Failed to read backend package.json version");
-  }
+  const version = readAppVersion();
 
   res.json({ version, gitSha, buildTime, repo, branch });
 });
@@ -1077,6 +1084,7 @@ app.post("/api/feedback/submit", (req, res, next) => currentSubmitLimiter()(req,
   }
 
   const build = {
+    version: readAppVersion(),
     gitSha: (process.env.APP_GIT_SHA || "unknown").trim(),
     buildTime: (process.env.APP_BUILD_TIME || "unknown").trim(),
     branch: (process.env.APP_BRANCH || "main").trim()
@@ -1112,133 +1120,14 @@ app.post("/api/feedback/submit", (req, res, next) => currentSubmitLimiter()(req,
   });
 });
 
-// Update check: GitHub latest commit vs APP_GIT_SHA. CHECK_UPDATES=false|0 disables. Cache: success 6h, failure 15min.
-const CHECK_UPDATES_DEFAULT = true;
+// Update check: newest published, stable GitHub Release of APP_REPO vs the installed
+// package.json version. The Git SHA is NOT consulted (see shared/updateStatus.js and
+// backend/src/releaseUpdateCheck.js). CHECK_UPDATES=false|0 disables it without any
+// request. Cache: success 6h, failure 15min.
 const UPDATE_CACHE_SUCCESS_MS = 6 * 60 * 60 * 1000;
 const UPDATE_CACHE_FAILURE_MS = 15 * 60 * 1000;
-const GITHUB_TIMEOUT_MS = 2000;
 
 let updateInfoCache = null;
-
-/**
- * No trusted release-identity source is implemented.
- *
- * Establishing "a newer PUBLISHED, SUPPORTED release exists" needs a source whose
- * trust properties have been reviewed — the branch-commit lookup below is not one,
- * and neither is a bare tag. Until that contract exists this stays null, which
- * makes UPDATE_STATUS.PUBLISHED_SUPPORTED_UPDATE unreachable and therefore keeps
- * the urgent upgrade prompt fail-closed. Tests supply a synthetic verified
- * identity directly to resolveUpdateStatus() to exercise the urgent UI.
- */
-const RELEASE_IDENTITY_UNAVAILABLE = null;
-
-/**
- * Attach the truthful status to a raw update-info payload.
- *
- * `isOutdated` is retained for backward compatibility with existing clients, but
- * it is NOT authoritative: it only ever meant "the branch commit differs". Callers
- * deciding whether to prompt the operator must use `updateStatus` / `urgent`.
- */
-function withUpdateStatus(info) {
-  const updateStatus = resolveUpdateStatus({
-    disabled: info.enabled === false,
-    currentSha: info.currentSha,
-    latestSha: info.latestSha,
-    fetchError: info.error,
-    releaseIdentity: RELEASE_IDENTITY_UNAVAILABLE
-  });
-  return {
-    ...info,
-    updateStatus,
-    urgent: isUrgentUpdateStatus(updateStatus),
-    releaseIdentity: RELEASE_IDENTITY_UNAVAILABLE
-  };
-}
-
-async function fetchUpdateInfo() {
-  const repo = (process.env.APP_REPO || "bstrauss84/openshift-airgap-architect").trim();
-  const branch = (process.env.APP_BRANCH || "main").trim();
-  const currentSha = (process.env.APP_GIT_SHA || "").trim();
-  const enabled = process.env.CHECK_UPDATES;
-  const disabled = enabled === "false" || enabled === "0";
-  if (disabled) {
-    return {
-      enabled: false,
-      currentSha: currentSha || "unknown",
-      latestSha: null,
-      isOutdated: false,
-      checkedAt: new Date().toISOString(),
-      error: null,
-      branch,
-      repo
-    };
-  }
-  const checkedAt = new Date().toISOString();
-  const currentUnknown = !currentSha || String(currentSha).toLowerCase() === "unknown";
-  if (currentUnknown) {
-    return {
-      enabled: true,
-      currentSha: currentSha || "unknown",
-      latestSha: null,
-      isOutdated: false,
-      checkedAt,
-      error: !currentSha ? "APP_GIT_SHA not set" : "Build SHA unknown; cannot determine if update available",
-      branch,
-      repo
-    };
-  }
-  const url = `https://api.github.com/repos/${repo}/commits?sha=${encodeURIComponent(branch)}&per_page=1`;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), GITHUB_TIMEOUT_MS);
-  try {
-    const resp = await fetch(url, {
-      signal: controller.signal,
-      headers: { Accept: "application/vnd.github.v3+json" }
-    });
-    clearTimeout(timeoutId);
-    if (!resp.ok) {
-      const body = await resp.text();
-      return {
-        enabled: true,
-        currentSha,
-        latestSha: null,
-        isOutdated: false,
-        checkedAt,
-        error: `GitHub API ${resp.status}: ${body.slice(0, 80)}`,
-        branch,
-        repo
-      };
-    }
-    const data = await resp.json();
-    const latestSha = Array.isArray(data) && data[0]?.sha ? String(data[0].sha) : null;
-    const short = (s) => (s && s.length >= 7 ? s.slice(0, 7) : (s || ""));
-    const latestUnknown = !latestSha || String(latestSha).toLowerCase() === "unknown";
-    const isOutdated = !latestUnknown && latestSha && short(latestSha) !== short(currentSha);
-    return {
-      enabled: true,
-      currentSha,
-      latestSha,
-      isOutdated: Boolean(isOutdated),
-      checkedAt,
-      error: null,
-      branch,
-      repo
-    };
-  } catch (e) {
-    clearTimeout(timeoutId);
-    const message = e.name === "AbortError" ? "Request timed out" : (e.message || "Request failed");
-    return {
-      enabled: true,
-      currentSha,
-      latestSha: null,
-      isOutdated: false,
-      checkedAt,
-      error: message,
-      branch,
-      repo
-    };
-  }
-}
 
 app.get("/api/update-info", async (_req, res) => {
   const now = Date.now();
@@ -1249,9 +1138,8 @@ app.get("/api/update-info", async (_req, res) => {
       return res.json(result);
     }
   }
-  const raw = await fetchUpdateInfo();
-  const result = withUpdateStatus(raw);
-  const isSuccess = result.enabled && !result.error && result.latestSha != null;
+  const result = await buildUpdateInfo({ installedVersion: readAppVersion() });
+  const isSuccess = result.enabled && !result.error && result.releaseIdentity != null;
   updateInfoCache = { result, cachedAt: now, isSuccess };
   res.json(result);
 });
@@ -4543,8 +4431,14 @@ if (process.env.NODE_ENV !== "test") {
       `  Mode:          ${process.env.MOCK_MODE === "true" ? "MOCK" : "Production"}`,
       `  Data Dir:      ${process.env.DATA_DIR || "/data"}`,
     ];
-    if (bannerSha || bannerTime) {
-      bannerLines.push(`  Build:         ${bannerSha ? String(bannerSha).slice(0, 7) : "dev"} • ${bannerTime || "unknown"}`);
+    // Version, revision and build time are independent facts. An absent or
+    // "unknown" revision is omitted — it does not make this a "dev" build.
+    bannerLines.push(`  Version:       ${readAppVersion()}`);
+    if (bannerSha && bannerSha.toLowerCase() !== "unknown") {
+      bannerLines.push(`  Revision:      ${bannerSha.slice(0, 7)}`);
+    }
+    if (bannerTime && bannerTime.toLowerCase() !== "unknown") {
+      bannerLines.push(`  Built:         ${bannerTime}`);
     }
     bannerLines.push(
       "",

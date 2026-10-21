@@ -66,7 +66,7 @@ export const isVersionedDataReady = (minor) =>
   Boolean(minor) && areCatalogsLoadedForMinor(minor) && isDocsIndexResolvedForMinor(minor);
 import { SUPPORTED_MINORS } from "./shared/versionPolicy.js";
 import { compareVersions } from "../../shared/versionUtils.js";
-import { UPDATE_STATUS, isUrgentUpdateStatus, updateStatusOf } from "../../shared/updateStatus.js";
+import { UPDATE_STATUS, isUrgentUpdateStatus, updateStatusOf, verifiedLatestRelease } from "../../shared/updateStatus.js";
 import { apiFetch } from "./api.js";
 import { getFeedbackConfig } from "./feedbackApi.js";
 import { getVersionDependentStepIdSet } from "./wizardVersionGate.js";
@@ -76,29 +76,13 @@ import { computeOperatorMinorInvalidation } from "./shared/operatorMinorReconcil
 /**
  * Whether to raise the URGENT "update recommended" banner.
  *
- * This used to be `enabled && isOutdated && !error`, where `isOutdated` is just
- * `branchHeadSha !== runningSha`. That cannot distinguish "the source branch
- * moved" from "a newer supported release was published", and in this repository
- * it gets the answer backwards: there are no published GitHub Releases, and
- * APP_BRANCH defaults to `main`, which still points at the v1.7.1 commit — so a
- * running v2.1 build was told to update to something five months older.
- *
- * Urgency now requires a VERIFIED published release. No trusted release-identity
- * source is implemented, so the backend always reports `releaseIdentity: null`
- * and this is unreachable in production by construction. See
- * shared/updateStatus.js.
+ * True only when the backend found a PUBLISHED, stable GitHub Release that is
+ * semantically newer than the installed version (shared/updateStatus.js). A
+ * differing branch commit, an unknown Git SHA, an offline lookup or an older
+ * release never raise it.
  */
 export function shouldShowUpdateBanner(updateInfo) {
   return isUrgentUpdateStatus(updateStatusOf(updateInfo));
-}
-
-/**
- * Whether to show the calm, non-urgent note that the configured branch carries a
- * different commit. This is a development-build observation, not a release claim,
- * so it is deliberately separate from the banner above.
- */
-export function shouldShowDevelopmentUpdateNote(updateInfo) {
-  return updateStatusOf(updateInfo) === UPDATE_STATUS.DEVELOPMENT_BRANCH_AHEAD;
 }
 import { logAction } from "./logger.js";
 import { getExportRunFilename } from "./exportRunFilename.js";
@@ -600,10 +584,16 @@ const AppShell = () => {
     }
   }, [loading, state?.ui?.showLanding]);
 
+  // Fetched on every mount, not only on the landing page. VersionSupportGate
+  // unmounts and remounts AppShell while the selected minor's catalogs load, and
+  // a reload can resume straight into the wizard; gating this on `showLanding`
+  // left Tools → About with no update status at all in both cases. The backend
+  // caches the result, so a remount costs no extra GitHub request.
   useEffect(() => {
-    if (!showLanding) return;
-    apiFetch("/api/update-info").then(setUpdateInfo).catch(() => setUpdateInfo({ enabled: false, error: "Unavailable" }));
-  }, [showLanding]);
+    // A failed request is "unavailable", not "disabled": the operator did not
+    // turn checks off, and nothing is known either way.
+    apiFetch("/api/update-info").then(setUpdateInfo).catch(() => setUpdateInfo({ enabled: true, error: "Unavailable", updateStatus: UPDATE_STATUS.OFFLINE }));
+  }, []);
 
   // Operations (N) badge: poll job count when in wizard so header and sidebar can show count (§9.3 placement)
   useEffect(() => {
@@ -1493,6 +1483,22 @@ metadata:
           <div className="update-available-banner" role="alert">
             <strong>Update available — update recommended as soon as practical.</strong>
             {" "}
+            {(() => {
+              const latest = verifiedLatestRelease(updateInfo.releaseIdentity);
+              return latest ? (
+                <>
+                  Version <strong>{latest.version}</strong> has been published
+                  {updateInfo.installedVersion ? <> (installed: {updateInfo.installedVersion})</> : null}
+                  {typeof latest.url === "string" && latest.url.startsWith("https://github.com/") ? (
+                    <>
+                      {" — "}
+                      <a href={latest.url} target="_blank" rel="noopener noreferrer">release notes</a>
+                    </>
+                  ) : null}
+                  .{" "}
+                </>
+              ) : null;
+            })()}
             Before updating, open <strong>Tools → Export Run</strong> and save a copy of your
             current configuration. After updating, use <strong>Tools → Import Run</strong> to
             restore a compatible saved configuration. Saved runs exclude credentials, so
@@ -1506,22 +1512,6 @@ metadata:
             >
               Read the update guide
             </a>
-            {" "}
-            (current build: {(updateInfo.currentSha || "").slice(0, 7)}).
-          </div>
-        ) : shouldShowDevelopmentUpdateNote(updateInfo) ? (
-          /*
-           * Deliberately NOT an update prompt. All this establishes is that the
-           * configured branch points at a different commit than the running build —
-           * which, with APP_BRANCH defaulting to `main`, can mean the branch is
-           * OLDER. Saying "update available" here would be untrue.
-           */
-          <div className="update-development-note" role="status">
-            This build is from a different commit than <strong>{updateInfo.branch || "main"}</strong>
-            {" "}
-            (build {(updateInfo.currentSha || "").slice(0, 7)}, branch {(updateInfo.latestSha || "").slice(0, 7)}).
-            {" "}
-            That is expected for a development build and does not indicate a published release.
           </div>
         ) : null}
         <div className="app landing-view">

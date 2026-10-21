@@ -140,20 +140,20 @@ Roughly 20 GB of free disk is needed for the images plus mirrored content.
 **Docker:**
 
 ```bash
-APP_GIT_SHA="$(git rev-parse HEAD)" docker compose up --build
+docker compose up --build -d
 ```
 
 **Podman:** Use **`podman compose`** (Compose V2), the same `docker-compose.yml` (one file for both Docker and Podman); so build and run use the same daemon and you avoid "image not known" after build:
 
 ```bash
-APP_GIT_SHA="$(git rev-parse HEAD)" podman compose up --build
+podman compose up --build -d
 ```
 
-> **Why the `APP_GIT_SHA` prefix?** `.git` is excluded from the build context, so the image
-> cannot discover its own commit. Passing it here is what lets **Tools → About** show the
-> exact revision and lets the update check run. Building **without** it still works — the
-> app then reports `Revision unavailable`, which is accurate, not a defect. When building
-> from a tarball that has no `.git`, omit the prefix.
+> **Optional revision provenance.** `.git` is excluded from the build context, so the image
+> cannot discover its own commit. Prefixing `APP_GIT_SHA="$(git rev-parse HEAD)"` adds the
+> exact revision to **Tools → About**; without it the revision is simply omitted. Update
+> checks do **not** need it — they compare the installed version with published GitHub
+> Releases.
 
 If your system only has `podman-compose` (Python), use that; the project does not ship a separate `podman-compose.yml`.
 
@@ -555,7 +555,7 @@ For comprehensive deployment guidance, see:
 
 Before updating, open **Tools → Export Run** and save your configuration JSON; after updating, restore it with **Tools → Import Run** and re-enter your credentials, which are deliberately excluded. A Run JSON is not a full backup — see **[docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)** for the data volume. Follow **[docs/UPDATING.md](docs/UPDATING.md)** for your deployment.
 
-Build info and update checks depend on the **`APP_GIT_SHA` build-arg being passed from the host** (see [Build info and update checks](#build-info-and-update-checks)); `.git` is excluded from the build context, so building from a git clone is *not* on its own enough — without the build-arg the SHA shows "unknown" and update checks cannot run.
+Update checks compare the installed application version with the newest published GitHub Release and do **not** require `APP_GIT_SHA` (see [Build info and update checks](#build-info-and-update-checks)).
 
 <a id="generating-assets"></a>
 ## Generating assets
@@ -1069,19 +1069,19 @@ secrets:
 <a id="build-info-and-update-checks"></a>
 ## Build info and update checks
 
-The **Tools → About** panel shows build info (Git SHA, build time, repo, branch) and update status. The backend exposes:
+The **Tools → About** panel shows build info (version, revision when supplied, build time) and update status. The backend exposes:
 
 - **`GET /api/build-info`** — Returns the synchronized application `version` (from `backend/package.json`), `gitSha`, `buildTime`, `repo`, `branch`. The `version` field reflects the deterministic package-derived application version (e.g. `2.0.0-dev`), kept in sync across all manifests by `npm run check:app-version`. No git commands run at runtime.
-- **`GET /api/update-info`** — When update checks are enabled, compares `APP_GIT_SHA` to the latest commit on the configured branch and returns `enabled`, `isOutdated`, `currentSha`, `latestSha`, `checkedAt`, `error`, etc. Cached (success ~6h, failure ~15min). Set **`CHECK_UPDATES=false`** (or `0`) to disable.
+- **`GET /api/update-info`** — When update checks are enabled, compares the installed `version` with the newest **published, stable GitHub Release** of `APP_REPO` (drafts and prereleases excluded; release metadata must name that repository; an older release never prompts a downgrade) and returns `updateStatus`, `urgent`, `installedVersion`, `releaseIdentity`, `checkedAt`, `error`, etc. The Git SHA is not used. This trusts GitHub's published-release API state; it does not verify release signatures or checksums. Cached (success ~6h, failure ~15min). Set **`CHECK_UPDATES=false`** (or `0`) to disable with no request. See [docs/UPDATING.md](docs/UPDATING.md#what-counts-as-an-available-update).
 
 **Env vars (backend):**
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `APP_GIT_SHA` | Git commit SHA of the running build (short or full). | `unknown` |
+| `APP_GIT_SHA` | Optional revision provenance shown in Tools → About (short or full SHA). Not used for update checks. | `unknown` |
 | `APP_BUILD_TIME` | Build timestamp (e.g. ISO or human-readable). | `unknown` |
-| `APP_REPO` | GitHub repo for update check (e.g. `owner/repo`). | `bstrauss84/openshift-airgap-architect` |
-| `APP_BRANCH` | Branch to compare against (e.g. `main`). | `main` |
+| `APP_REPO` | GitHub repo whose published Releases are checked (e.g. `owner/repo`). | `bstrauss84/openshift-airgap-architect` |
+| `APP_BRANCH` | Branch for documentation links. Configuration only — not shown as build provenance, not used for update checks. | `main` |
 | `CHECK_UPDATES` | Set to `false` or `0` to disable update checks. | enabled |
 | `AIRGAP_FETCH_USE_ENV_PROXY` | Set to `false` or `0` to disable undici `EnvHttpProxyAgent` for Node `fetch` (not usually needed). | enabled (proxy agent on) |
 | `FEEDBACK_MODE` | Feedback mode: `disabled`, `github`, or `offline`. | `github` |
@@ -1089,7 +1089,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
 
 **Wiring examples:**
 
-- **Podman Compose / Docker Compose:** The backend image accepts **APP_GIT_SHA** as a **build-arg** (see `backend/Containerfile`). Pass it at build time from the host: **`podman compose build --build-arg APP_GIT_SHA=$(git rev-parse HEAD)`** (or `docker compose build --build-arg ...`). **APP_BUILD_TIME** is computed automatically during the build. If you omit the build-arg (or build from a tarball without `.git`), the REVISION is unknown: Tools → About shows `Revision unavailable` and the update check reports that it cannot determine whether an update exists. That is accurate reporting of a genuinely unavailable fact, not a bug — and it is scoped to the revision only. The application **version** and the **build timestamp** are still shown, and a missing revision does not mean the build is a development build. For `docker run` / OpenShift without building from a clone, see **`scripts/set-build-env.sh`** to pass build args.
+- **Podman Compose / Docker Compose:** The backend image accepts **APP_GIT_SHA** as a **build-arg** (see `backend/Containerfile`). Pass it at build time from the host: **`podman compose build --build-arg APP_GIT_SHA=$(git rev-parse HEAD)`** (or `docker compose build --build-arg ...`). **APP_BUILD_TIME** is computed automatically during the build. If you omit the build-arg (or build from a tarball without `.git`), the revision is unknown and Tools → About simply omits it. The application **version** and **build timestamp** are still shown, update checks still run, and a missing revision does not mean the build is a development build. For `docker run` / OpenShift without building from a clone, see **`scripts/set-build-env.sh`** to pass build args.
 
 - **Docker / Podman run:** Pass at start:
   ```bash
@@ -1112,7 +1112,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
       value: "2025-03-03"
   ```
 
-**Git clone vs tarball:** When building from a **git clone**, pass `--build-arg APP_GIT_SHA=$(git rev-parse HEAD)` so Tools → About and update checks show the correct commit. Builds from a **tarball or archive without `.git`** can pass the SHA manually or omit it (defaults to "unknown"). No git commands are run by the backend at runtime. For **docker run** or **OpenShift**, set **APP_GIT_SHA** and **APP_BUILD_TIME** at container start; optional helper **`scripts/set-build-env.sh`** prints `export` lines you can source or put in a `.env` file.
+**Git clone vs tarball:** When building from a **git clone**, you may pass `--build-arg APP_GIT_SHA=$(git rev-parse HEAD)` so Tools → About shows the commit. Builds from a **tarball or archive without `.git`** can pass the SHA manually or omit it (defaults to "unknown"). No git commands are run by the backend at runtime. For **docker run** or **OpenShift**, set **APP_GIT_SHA** and **APP_BUILD_TIME** at container start; optional helper **`scripts/set-build-env.sh`** prints `export` lines you can source or put in a `.env` file.
 
 <a id="troubleshooting"></a>
 ## Troubleshooting
