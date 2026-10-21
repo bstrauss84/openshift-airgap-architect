@@ -577,7 +577,7 @@ const AppShell = () => {
     console.log("%c🚀 OpenShift Airgap Architect", styles.title);
     console.log("%cDeveloped by Bill Strauss", styles.subtitle);
     console.log("%cWith AI assistance from Claude (Anthropic) and Cursor AI", styles.info);
-    console.log("%cMIT License • https://github.com/billstrauss/openshift-airgap-architect", styles.link);
+    console.log("%cMIT License • https://github.com/bstrauss84/openshift-airgap-architect", styles.link);
   }, []);
 
   useEffect(() => {

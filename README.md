@@ -140,14 +140,20 @@ Roughly 20 GB of free disk is needed for the images plus mirrored content.
 **Docker:**
 
 ```bash
-docker compose up --build
+APP_GIT_SHA="$(git rev-parse HEAD)" docker compose up --build
 ```
 
 **Podman:** Use **`podman compose`** (Compose V2), the same `docker-compose.yml` (one file for both Docker and Podman); so build and run use the same daemon and you avoid "image not known" after build:
 
 ```bash
-podman compose up --build
+APP_GIT_SHA="$(git rev-parse HEAD)" podman compose up --build
 ```
+
+> **Why the `APP_GIT_SHA` prefix?** `.git` is excluded from the build context, so the image
+> cannot discover its own commit. Passing it here is what lets **Tools → About** show the
+> exact revision and lets the update check run. Building **without** it still works — the
+> app then reports `Revision unavailable`, which is accurate, not a defect. When building
+> from a tarball that has no `.git`, omit the prefix.
 
 If your system only has `podman-compose` (Python), use that; the project does not ship a separate `podman-compose.yml`.
 
@@ -1083,7 +1089,7 @@ The **Tools → About** panel shows build info (Git SHA, build time, repo, branc
 
 **Wiring examples:**
 
-- **Podman Compose / Docker Compose:** The backend image accepts **APP_GIT_SHA** as a **build-arg** (see `backend/Containerfile`). Pass it at build time from the host: **`podman compose build --build-arg APP_GIT_SHA=$(git rev-parse HEAD)`** (or `docker compose build --build-arg ...`). **APP_BUILD_TIME** is computed automatically during the build. If you omit the build-arg (or build from a tarball without `.git`), Tools → About will show "Build unknown" and update availability cannot be determined — that is expected behavior, not a bug. For `docker run` / OpenShift without building from a clone, see **`scripts/set-build-env.sh`** to pass build args.
+- **Podman Compose / Docker Compose:** The backend image accepts **APP_GIT_SHA** as a **build-arg** (see `backend/Containerfile`). Pass it at build time from the host: **`podman compose build --build-arg APP_GIT_SHA=$(git rev-parse HEAD)`** (or `docker compose build --build-arg ...`). **APP_BUILD_TIME** is computed automatically during the build. If you omit the build-arg (or build from a tarball without `.git`), the REVISION is unknown: Tools → About shows `Revision unavailable` and the update check reports that it cannot determine whether an update exists. That is accurate reporting of a genuinely unavailable fact, not a bug — and it is scoped to the revision only. The application **version** and the **build timestamp** are still shown, and a missing revision does not mean the build is a development build. For `docker run` / OpenShift without building from a clone, see **`scripts/set-build-env.sh`** to pass build args.
 
 - **Docker / Podman run:** Pass at start:
   ```bash

@@ -50,7 +50,7 @@ describe("Regression Tests - v1.7.0", () => {
       );
 
       const modal = document.querySelector(".about-modal");
-      expect(modal.textContent).toContain("unavailable (development build)");
+      expect(modal.textContent).toContain("Version unavailable");
       expect(modal.textContent).not.toContain("1.1.0");
       expect(modal.textContent).not.toContain("1.7.0");
     });
@@ -59,21 +59,21 @@ describe("Regression Tests - v1.7.0", () => {
       render(
         <AboutModal isOpen={true} onClose={() => {}} appVersion="" gitSha="abc1234" buildTime="unknown" />
       );
-      expect(document.querySelector(".about-modal").textContent).toContain("unavailable (development build)");
+      expect(document.querySelector(".about-modal").textContent).toContain("Version unavailable");
     });
 
     it("should show explicit fallback for whitespace-only appVersion", () => {
       render(
         <AboutModal isOpen={true} onClose={() => {}} appVersion="   " gitSha="abc1234" buildTime="unknown" />
       );
-      expect(document.querySelector(".about-modal").textContent).toContain("unavailable (development build)");
+      expect(document.querySelector(".about-modal").textContent).toContain("Version unavailable");
     });
 
     it("should show explicit fallback when appVersion is 'unknown'", () => {
       render(
         <AboutModal isOpen={true} onClose={() => {}} appVersion="unknown" gitSha="abc1234" buildTime="unknown" />
       );
-      expect(document.querySelector(".about-modal").textContent).toContain("unavailable (development build)");
+      expect(document.querySelector(".about-modal").textContent).toContain("Version unavailable");
     });
 
     it("should display 2.0.0-dev when provided as appVersion", () => {
@@ -102,7 +102,10 @@ describe("Regression Tests - v1.7.0", () => {
 
       const text = document.querySelector(".about-modal").textContent;
       expect(text).not.toContain("Invalid Date");
-      expect(text).toContain("dev build");
+      // v2.1.1: an unknown build time reads as "unavailable". It previously read
+      // "dev build", which asserted a development build from a missing timestamp.
+      expect(text).toContain("Built unavailable");
+      expect(text).not.toContain("dev build");
     });
 
     it("should handle 'unknown' gitSha gracefully", () => {
@@ -117,8 +120,12 @@ describe("Regression Tests - v1.7.0", () => {
       );
 
       const text = document.querySelector(".about-modal").textContent;
-      expect(text).toContain("dev");
+      // v2.1.1: an unknown SHA reads as "Revision unavailable", never "dev".
+      expect(text).toContain("Revision unavailable");
       expect(text).not.toContain("unknown");
+      expect(text).not.toMatch(/\(dev\)|dev build/);
+      // The version is a separate fact and must survive a missing revision.
+      expect(text).toContain("Version 1.7.0");
     });
 
     it("should format valid buildTime as localized date", () => {

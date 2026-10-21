@@ -33,14 +33,17 @@ describe("ToolsDrawer About section", () => {
     render(
       <ToolsDrawer
         {...defaultProps}
-        buildInfo={{ gitSha: "abc1234", buildTime: "2025-03-03T12:00:00Z", branch: "main", repo: "owner/repo" }}
+        buildInfo={{ version: "2.1.0", gitSha: "abc1234", buildTime: "2025-03-03T12:00:00Z", branch: "main", repo: "owner/repo" }}
       />
     );
     // Build info is split across multiple <span> elements
     // ToolsDrawer is portaled to document.body, so use screen instead of container
     const buildInfo = document.querySelector('.about-build-info');
     expect(buildInfo).toBeTruthy();
-    expect(buildInfo.textContent).toContain('Build abc1234');
+    // v2.1.1: the drawer now names the version explicitly, and labels the commit
+    // "Revision" rather than "Build" — the latter read as a build number.
+    expect(buildInfo.textContent).toContain('Version 2.1.0');
+    expect(buildInfo.textContent).toContain('Revision abc1234');
     expect(buildInfo.textContent).toContain('2025-03-03T12:00:00Z');
     expect(buildInfo.textContent).toContain('main');
   });
@@ -158,7 +161,7 @@ describe("ToolsDrawer About section", () => {
     );
     await user.click(screen.getByRole("button", { name: /View Details/i }));
     const modal = document.querySelector(".about-modal");
-    expect(modal.textContent).toContain("unavailable (development build)");
+    expect(modal.textContent).toContain("Version unavailable");
   });
 });
 

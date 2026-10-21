@@ -11,10 +11,14 @@
  *                                           NMState guards
  *
  * This axis adds one thing neither covers: repository-metadata truthfulness.
- * `package.json#repository.url` points at `billstrauss/openshift-airgap-architect`
- * while every git remote points at `bstrauss84/...`. That is a one-line defect
- * with real consequences — it is what tooling and published package metadata
- * resolve for issue links and provenance.
+ * It exists because `package.json#repository.url` once pointed at
+ * `billstrauss/openshift-airgap-architect` while every git remote pointed at
+ * `bstrauss84/...` — a one-line defect with real consequences, since that URL
+ * is what tooling and published package metadata resolve for issue links and
+ * provenance. `package.json` was corrected before v2.1.0; v2.1.1 corrected the
+ * same stale URL in the remaining production code paths (About modal, console
+ * banner, backend startup banner, generated artifact headers and the exported
+ * Field Guide footer). The axis stays to keep it from regressing.
  */
 
 import fs from "node:fs";

@@ -4551,7 +4551,7 @@ if (process.env.NODE_ENV !== "test") {
       "  Developed by:  Bill Strauss",
       "  AI Assistance: Claude (Anthropic) • Cursor AI",
       "  License:       MIT",
-      "  Repository:    https://github.com/billstrauss/openshift-airgap-architect",
+      "  Repository:    https://github.com/bstrauss84/openshift-airgap-architect",
       "",
       "───────────────────────────────────────────────────────────────────",
       "",

@@ -191,7 +191,7 @@ describe("preview redaction — no credential may render while sensitive values 
         expect(hiddenLines, `${filename} lost most of the document`).toBeGreaterThan(rawLines * 0.7);
 
         // The attribution header is ordinary content and must be untouched.
-        expect(hidden).toContain("# https://github.com/billstrauss/openshift-airgap-architect");
+        expect(hidden).toContain("# https://github.com/bstrauss84/openshift-airgap-architect");
       }
     });
   }
@@ -222,8 +222,8 @@ describe("preview redaction — the exact shapes that defeated the previous impl
     // The header line must survive intact rather than absorbing the body.
     const headerLine = hidden
       .split("\n")
-      .find((line) => line.includes("github.com/billstrauss"));
-    expect(headerLine).toBe("# https://github.com/billstrauss/openshift-airgap-architect");
+      .find((line) => line.includes("github.com/bstrauss84"));
+    expect(headerLine).toBe("# https://github.com/bstrauss84/openshift-airgap-architect");
 
     // Body keys that used to be consumed.
     expect(hidden).toContain("baseDomain:");

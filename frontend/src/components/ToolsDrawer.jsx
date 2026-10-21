@@ -224,11 +224,35 @@ export default function ToolsDrawer({
               </div>
               {buildInfo && (
                 <div className="about-build-info">
-                  <span className="about-version">Build {(buildInfo.gitSha || "unknown").slice(0, 7)}</span>
+                  {/* The version is always known (package.json). The revision is
+                      known only when APP_GIT_SHA was supplied at build time, and
+                      the branch only when APP_BRANCH was. A missing value is
+                      reported as unavailable — it is never guessed, and the
+                      branch in particular must NOT fall back to "main", which
+                      previously asserted a branch nobody had supplied. */}
+                  <span className="about-version">
+                    {buildInfo.version && buildInfo.version !== "unknown"
+                      ? `Version ${buildInfo.version}`
+                      : "Version unavailable"}
+                  </span>
                   <span className="about-separator">•</span>
-                  <span className="about-time">{buildInfo.buildTime || "unknown"}</span>
-                  <span className="about-separator">•</span>
-                  <span className="about-branch">{buildInfo.branch || "main"}</span>
+                  <span className="about-revision">
+                    {buildInfo.gitSha && buildInfo.gitSha !== "unknown"
+                      ? `Revision ${buildInfo.gitSha.slice(0, 7)}`
+                      : "Revision unavailable"}
+                  </span>
+                  {buildInfo.buildTime && buildInfo.buildTime !== "unknown" && (
+                    <>
+                      <span className="about-separator">•</span>
+                      <span className="about-time">{buildInfo.buildTime}</span>
+                    </>
+                  )}
+                  {buildInfo.branch && buildInfo.branch !== "unknown" && (
+                    <>
+                      <span className="about-separator">•</span>
+                      <span className="about-branch">{buildInfo.branch}</span>
+                    </>
+                  )}
                 </div>
               )}
               {updateInfo && (

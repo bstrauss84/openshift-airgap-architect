@@ -33,10 +33,24 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
 
   if (!isOpen) return null;
 
+  // Version, revision and build time are THREE INDEPENDENT FACTS and none may
+  // be inferred from another. A missing APP_GIT_SHA (the Compose default — see
+  // docker-compose.yml) means only that the REVISION is unknown. It does not
+  // make this a development build, and it says nothing about the version,
+  // which is read from package.json and is present in every build.
   const trimmed = typeof appVersion === "string" ? appVersion.trim() : "";
-  const version = (trimmed && trimmed !== "unknown") ? trimmed : "unavailable (development build)";
-  const sha = gitSha && gitSha !== "unknown" ? gitSha.slice(0, 7) : "dev";
-  const buildDate = buildTime && buildTime !== "unknown" ? new Date(buildTime).toLocaleDateString() : "dev build";
+  const version = (trimmed && trimmed !== "unknown") ? trimmed : "unavailable";
+  const shaTrimmed = typeof gitSha === "string" ? gitSha.trim() : "";
+  const revision = (shaTrimmed && shaTrimmed !== "unknown") ? shaTrimmed.slice(0, 7) : "unavailable";
+  const buildTimeTrimmed = typeof buildTime === "string" ? buildTime.trim() : "";
+  const parsedBuildTime = (buildTimeTrimmed && buildTimeTrimmed !== "unknown")
+    ? new Date(buildTimeTrimmed)
+    : null;
+  // An unparseable timestamp reads as unavailable rather than the literal
+  // string "Invalid Date".
+  const buildDate = (parsedBuildTime && !Number.isNaN(parsedBuildTime.getTime()))
+    ? parsedBuildTime.toLocaleDateString()
+    : "unavailable";
 
   return createPortal(
     <>
@@ -79,7 +93,7 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
               OpenShift Airgap Architect
             </h2>
             <p style={{ margin: "8px 0 0", color: "var(--text-secondary)", fontSize: "14px" }}>
-              Version {version} ({sha}) • Built {buildDate}
+              Version {version} • Revision {revision} • Built {buildDate}
             </p>
           </div>
 
@@ -114,7 +128,7 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
               <ul style={{ margin: 0, paddingLeft: "20px", lineHeight: 1.8 }}>
                 <li>
                   <a
-                    href="https://github.com/billstrauss/openshift-airgap-architect"
+                    href="https://github.com/bstrauss84/openshift-airgap-architect"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
