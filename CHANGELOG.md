@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-10-21 *(provisional date — set at release preparation; confirm it matches the tag)*
+
+> Detailed notes: [docs/releases/v2.1.1.md](docs/releases/v2.1.1.md)
+>
+> A PATCH release on top of 2.1.0. OpenShift support is unchanged (4.20, 4.21, 4.22).
+> Plain `podman compose up --build -d` / `docker compose up --build -d` remains the
+> supported way to build and run it, with no Git revision required for any feature.
+>
+> **Existing v2.1.0 installations may not automatically detect v2.1.1.** Their update
+> check was incomplete and could not raise the update banner. Update manually using
+> [docs/UPDATING.md](docs/UPDATING.md).
+>
+> This patch was **not** put through a new release-certification run. The v2.1.0
+> certification evidence and verdict do not carry over to it, and the v2.1.0 findings
+> (including the failing `image-vulnerabilities` axis) are **not** resolved by it.
+
+### Fixed
+
+- **Update notifications restored.** The installed version is compared with the newest
+  published, stable GitHub Release of `APP_REPO`.
+  - Drafts, prereleases, older or equal releases, and data naming another repository are
+    never offered.
+  - The Git revision and branch heads are not consulted.
+  - Offline, timeout, rate-limit and malformed responses report "unavailable", never
+    "up to date".
+  - `CHECK_UPDATES=false` makes no request.
+  - This trusts GitHub's published-release API state; no signature or checksum
+    verification is performed.
+- **Update banner and Tools → About** name the published and installed versions. The
+  About status no longer disappears inside the wizard. A failed status request reads
+  "unavailable" rather than "disabled".
+- **Truthful build identity.** About and Tools show the application version and build
+  date. The revision appears only when it is known. A missing revision no longer produces
+  "(dev)", "dev build" or "Build unknown". The configured `APP_BRANCH` is no longer shown
+  as the build's branch. The startup banner and feedback issue drafts were corrected to
+  match.
+- **Repository address corrected.** The stale `billstrauss/` URL (a 404) is replaced by
+  `bstrauss84/` in generated `install-config.yaml` / `agent-config.yaml` headers, the
+  Field Guide footer, the banners and the About dialog.
+- **Documentation.** README and `docs/UPDATING.md` no longer present `APP_GIT_SHA` as
+  needed for update checks.
+
+### Changed
+
+- **`GET /api/update-info`:**
+  - New field: `installedVersion`.
+  - `releaseIdentity` now carries the newest eligible release.
+  - The `development-branch-ahead` status is retired.
+  - `latestSha` is always `null`, and `isOutdated` equals `urgent`.
+
+### Known issues
+
+- **AWS GovCloud region dropdown can render too tall** at some widths after a region is
+  selected (DOC-228; also present in 2.1.0). It is cosmetic only.
+
 ## [2.1.0] - 2026-10-20 *(provisional date — set at freeze; confirm it matches the tag)*
 
 > Detailed notes: [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md)

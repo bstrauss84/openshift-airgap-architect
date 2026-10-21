@@ -38,6 +38,7 @@ afterwards with Tools → Import Run. Credentials are deliberately excluded and 
 re-entered.
 
 - [Changelog](CHANGELOG.md) — everything, newest first
+- [v2.1.1 release notes](docs/releases/v2.1.1.md) — patch: update notifications and build identity
 - [v2.1 release notes](docs/releases/v2.1.0.md) — OpenShift 4.22 support
 - [v2.0 release notes](docs/releases/v2.0.0.md) — the version-awareness rebuild
 - [Migration guide: v1.x → v2.0](docs/MIGRATION_GUIDE_v1_to_v2.md) — **read this if you are coming from v1.x**
@@ -1089,7 +1090,7 @@ The **Tools → About** panel shows build info (version, revision when supplied,
 
 **Wiring examples:**
 
-- **Podman Compose / Docker Compose:** The backend image accepts **APP_GIT_SHA** as a **build-arg** (see `backend/Containerfile`). Pass it at build time from the host: **`podman compose build --build-arg APP_GIT_SHA=$(git rev-parse HEAD)`** (or `docker compose build --build-arg ...`). **APP_BUILD_TIME** is computed automatically during the build. If you omit the build-arg (or build from a tarball without `.git`), the revision is unknown and Tools → About simply omits it. The application **version** and **build timestamp** are still shown, update checks still run, and a missing revision does not mean the build is a development build. For `docker run` / OpenShift without building from a clone, see **`scripts/set-build-env.sh`** to pass build args.
+- **Podman Compose / Docker Compose:** The plain **`podman compose up --build -d`** / **`docker compose up --build -d`** is all that is required, including for update checks. Optionally, the backend image accepts **APP_GIT_SHA** as a **build-arg** (see `backend/Containerfile`) to record the revision: **`podman compose build --build-arg APP_GIT_SHA=$(git rev-parse HEAD)`** (or `docker compose build --build-arg ...`). **APP_BUILD_TIME** is computed automatically during the build. If you omit the build-arg (or build from a tarball without `.git`), the revision is unknown and Tools → About simply omits it. The application **version** and **build timestamp** are still shown, update checks still run, and a missing revision does not mean the build is a development build. For `docker run` / OpenShift without building from a clone, see **`scripts/set-build-env.sh`** to pass build args.
 
 - **Docker / Podman run:** Pass at start:
   ```bash
@@ -1250,6 +1251,7 @@ Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, 
 | Where to look | What it covers |
 |---|---|
 | [CHANGELOG.md](CHANGELOG.md) | Every release, newest first — features, fixes and breaking changes |
+| [v2.1.1 release notes](docs/releases/v2.1.1.md) | Patch: restored update notifications, truthful build identity, corrected repository URL |
 | [v2.1 release notes](docs/releases/v2.1.0.md) | OpenShift 4.22 support, operator preset corrections, version-transition safety |
 | [v2.0 release notes](docs/releases/v2.0.0.md) | The version-awareness rebuild; OpenShift 4.20 and 4.21 support |
 | [Migration guide: v1.x → v2.0](docs/MIGRATION_GUIDE_v1_to_v2.md) | What changes when upgrading from v1.x |
@@ -1272,6 +1274,7 @@ There is no registry to pull from.
 
 ### At a glance
 
+- **v2.1.1** — Patch release: restores update notifications (based on published releases, no Git revision required), reports build identity truthfully, and corrects the repository URL in generated files. Existing v2.1.0 installations may not detect it automatically.
 - **v2.1.0** — OpenShift 4.22 support, with per-version parameter catalogs, Field Guide and documentation. Adds the bare-metal provisioning network gateway setting, enforces supported CPU architectures at generation, and makes operator presets version-aware.
 - **v2.0.0** — Version-awareness architecture complete. Supports OpenShift 4.20 (baseline) and 4.21, with version-specific parameter catalogs, Field Guide content and metadata-driven annotations. Tagged 2026-10-06.
 - **v1.7.1** — Last v1.x release (2026-05-29). It is preserved as the legacy v1.x

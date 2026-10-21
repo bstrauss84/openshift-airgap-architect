@@ -89,8 +89,11 @@ Same steps as Podman Compose, using `docker compose`:
 
 ```bash
 git pull
-APP_GIT_SHA=$(git rev-parse HEAD) docker compose up --build -d
+docker compose up --build -d
 ```
+
+As with Podman, prefixing `APP_GIT_SHA=$(git rev-parse HEAD)` is optional and only
+records the revision in Tools → About; update checks do not need it.
 
 ## OpenShift / Kubernetes
 
