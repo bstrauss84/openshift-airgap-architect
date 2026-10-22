@@ -52,6 +52,7 @@ import {
 } from "./utils.js";
 import { buildAgentConfig, buildFieldManual, buildImageSetConfig, buildInstallConfig, buildNtpMachineConfigs } from "./generate.js";
 import { docsKey, getDocsFromCache, storeDocs, updateDocsLinks } from "./docs.js";
+import { applyProxyValueInclusion } from "./exportInclusion.js";
 import { migrateStateToV3, isStateV3 } from "../../shared/stateMigration.js";
 import { validateBmcVerifyCA } from "../../shared/bmcVerifyCA.js";
 import { buildUpdateInfo } from "./releaseUpdateCheck.js";
@@ -3640,14 +3641,17 @@ const buildBundleZip = async (state, res) => {
   const key = docsKey(version, v3State.blueprint?.platform, v3State.methodology?.method, v3State.docs?.connectivity);
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
-  const installConfig = buildInstallConfig(v3State);
+  // DOC-177: the "Proxy values" export switch governs the two generated files that
+  // carry proxy endpoints. Everything else is built from the unmodified state.
+  const proxyGovernedState = applyProxyValueInclusion(v3State);
+  const installConfig = buildInstallConfig(proxyGovernedState);
   const wantsAgentConfig =
     v3State.methodology?.method === "Agent-Based Installer" &&
     (v3State.blueprint?.platform === "Bare Metal" || v3State.blueprint?.platform === "VMware vSphere");
   const agentConfig = wantsAgentConfig ? buildAgentConfig(v3State) : null;
   const imageSetConfig = buildImageSetConfig(v3State);
   const ntpMachineConfigs = buildNtpMachineConfigs(v3State);
-  const fieldManual = buildFieldManual(v3State, links);
+  const fieldManual = buildFieldManual(proxyGovernedState, links);
 
   // Validate the caller-supplied mirror-output directory HERE, while a clean
   // JSON error is still possible. Everything below this point runs after the

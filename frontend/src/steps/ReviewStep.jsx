@@ -521,7 +521,10 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 aria-label="Include SSH public key"
               />
             </OptionRow>
-            <OptionRow title="Proxy values" description="Include proxy endpoints in generated files/guides.">
+            <OptionRow
+              title="Proxy values"
+              description="Include proxy endpoints in the bundle's install-config.yaml and Field Manual. When off, each configured value is replaced with a REPLACE_WITH_… marker to fill in before installing."
+            >
               <Switch
                 checked={inclusion.proxyValues}
                 onChange={(checked) =>
