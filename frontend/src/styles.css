@@ -366,6 +366,12 @@ body[data-theme="dark"] .tools-drawer-panel .card {
   margin-bottom: 12px;
 }
 
+/* PHX-033/035: post-import follow-up notice (a .note.warning; colours come
+   from the note theme tokens, so light and dark are handled there). */
+.import-follow-up-notice {
+  margin-bottom: 12px;
+}
+
 .blocked-banner button {
   flex-shrink: 0;
 }

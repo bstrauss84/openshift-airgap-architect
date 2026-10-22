@@ -86,6 +86,7 @@ export function shouldShowUpdateBanner(updateInfo) {
 }
 import { logAction } from "./logger.js";
 import { getExportRunFilename } from "./exportRunFilename.js";
+import ImportFollowUpNotice from "./components/ImportFollowUpNotice.jsx";
 
 const COMPONENT_MAP = {
   "blueprint": BlueprintStep,
@@ -487,6 +488,9 @@ const AppShell = () => {
   const [startOverCheckError, setStartOverCheckError] = useState("");
   const [stepMap, setStepMap] = useState(null);
   const [blockedMessage, setBlockedMessage] = useState("");
+  // PHX-033/035: dismissal of the post-import follow-up notice. Session-only by
+  // design; every new import shows it again.
+  const [importNoticeDismissed, setImportNoticeDismissed] = useState(false);
   const [runActionsOpen, setRunActionsOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [jobsCount, setJobsCount] = useState(0);
@@ -1449,6 +1453,7 @@ metadata:
 
     setState({ ...merged, ui: nextUi });
     setActive(targetIdx);
+    setImportNoticeDismissed(false);
 
     // Clear import flag after state settles (200ms is longer than 150ms delay)
     setTimeout(() => {
@@ -1690,6 +1695,9 @@ metadata:
               <span>{blockedMessage}</span>
               <button type="button" className="ghost" onClick={() => setBlockedMessage("")}>Dismiss</button>
             </div>
+          ) : null}
+          {!importNoticeDismissed ? (
+            <ImportFollowUpNotice state={state} onDismiss={() => setImportNoticeDismissed(true)} />
           ) : null}
           <input
             ref={importRef}

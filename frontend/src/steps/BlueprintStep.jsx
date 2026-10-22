@@ -112,7 +112,6 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
   const [manualMinor, setManualMinor] = useState("");
   const [manualPatch, setManualPatch] = useState("");
   const [manualApplyError, setManualApplyError] = useState("");
-  const [showImportWarning, setShowImportWarning] = useState(true);
   /** Suppress automatic patch fetch for N `release.channel` effect runs (forced refresh + StrictMode). */
   const channelPatchAutoFetchSuppressRef = useRef(0);
   const prevAdvancedOpenRef = useRef(false);
@@ -526,43 +525,9 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
               : "Platform and architecture are locked. Edit the release below and confirm to proceed."}
           </div>
         ) : null}
-        {state.ui?.isImported && showImportWarning ? (
-          <div className="note warning" style={{ marginBottom: 16, position: "relative" }}>
-            <button
-              type="button"
-              onClick={() => setShowImportWarning(false)}
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "1.2rem",
-                lineHeight: 1,
-                padding: "4px 8px",
-                color: "inherit",
-                opacity: 0.7
-              }}
-              aria-label="Dismiss warning"
-              title="Dismiss this warning"
-            >
-              ×
-            </button>
-            <strong>Import complete – Credentials excluded for security</strong>
-            <p style={{ marginTop: 8, marginBottom: 0 }}>
-              For security, credentials were <strong>not included</strong> in the exported state.
-              You will need to re-enter:
-            </p>
-            <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 24 }}>
-              <li><strong>Pull secrets</strong> (Red Hat, mirror registry, operators) – below and in Platform Specifics</li>
-              <li><strong>SSH keys</strong> – Identity & Access step</li>
-              <li><strong>Certificates</strong> (mirror registry CA, proxy CA) – Trust & Proxy step</li>
-              <li><strong>Platform credentials</strong> (vCenter, BMC, etc.) – Platform Specifics step</li>
-              <li><strong>Proxy credentials</strong> – Trust & Proxy step</li>
-            </ul>
-          </div>
-        ) : null}
+        {/* PHX-033/035: the post-import follow-up notice now lives in App.jsx
+            (ImportFollowUpNotice), above every step, and lists only what the
+            imported run actually needs. */}
         <section className="card">
           <h3>Target Platform</h3>
           <div className="grid">
