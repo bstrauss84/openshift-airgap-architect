@@ -386,10 +386,10 @@ test.describe('Multi-Value Fields — comma-delimited inputs', () => {
     }
   });
 
-  // Regression test for GitHub issue #18: "Default Availability Zones (multiple not available in UI)"
-  // The input blocks comma keystrokes — typed value loses commas entirely.
-  // KNOWN BUG: input onChange strips commas, so "a,b" becomes "ab".
-  test.fail('AWS availability zones: commas accepted via keyboard entry (issue #18)', async ({ page, request }) => {
+  // Regression test for GitHub issue #18: "Default Availability Zones (multiple not available in UI)".
+  // FIXED by CommaListInput (6e54610); was `test.fail` while the bug was open. The strict,
+  // unconditional DOC-115 coverage lives in doc-115-zone-fields.spec.js.
+  test('AWS availability zones: commas accepted via keyboard entry (issue #18)', async ({ page, request }) => {
     await seedAndNav(page, request, scenarios.awsGovcloudIpi, 'Platform');
 
     const azInput = page.locator('input[placeholder*="us-gov-west-1a"]').first();
@@ -436,9 +436,9 @@ test.describe('Multi-Value Fields — comma-delimited inputs', () => {
     }
   });
 
-  // Keyboard-entry test for IBM Cloud AZ — same comma-blocking bug as AWS (issue #18)
-  // KNOWN BUG: input onChange strips commas, same root cause as AWS AZ input.
-  test.fail('IBM Cloud availability zones: commas accepted via keyboard entry', async ({ page, request }) => {
+  // Keyboard-entry test for IBM Cloud AZ (issue #18). FIXED by CommaListInput (6e54610);
+  // was `test.fail` while the bug was open. See doc-115-zone-fields.spec.js.
+  test('IBM Cloud availability zones: commas accepted via keyboard entry', async ({ page, request }) => {
     await seedAndNav(page, request, scenarios.ibmCloudIpi, 'Platform');
 
     const azInput = page.locator('input[placeholder*="us-east-1"]').first();
