@@ -252,6 +252,28 @@ describe("no implicit supported-minor default in production source", () => {
     assert.strictEqual(check.ok, false, 'a `|| "4.20"` fallback was not detected');
   });
 
+  test("a fallback AFTER a URL on the same line fails the guard (DOC-203)", async () => {
+    // The comment stripper used to cut at the `//` of `https://`, so a fallback
+    // later on that line was never seen. DOC-203's fifth site hid exactly so.
+    const root = fixture({ backend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21", "4.22"] });
+    const target = path.join(root, "frontend", "src", "regression-probe.js");
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, 'export const href = `https://docs.example/${(v || "4.0").slice(0, 3)}/x`;\n');
+    const r = await validateSupportedMinors(root);
+    const check = r.checks.find((c) => c.id === "no-implicit-minor-default");
+    assert.strictEqual(check.ok, false, "a fallback following a URL scheme was not detected");
+  });
+
+  test("a trailing comment after code still does not trip the guard", async () => {
+    const root = fixture({ backend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21", "4.22"] });
+    const target = path.join(root, "frontend", "src", "regression-probe.js");
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, "export const x = 1; // formerly `|| '4.20'`\n");
+    const r = await validateSupportedMinors(root);
+    const check = r.checks.find((c) => c.id === "no-implicit-minor-default");
+    assert.strictEqual(check.ok, true, "a trailing comment was treated as a defect");
+  });
+
   test("a comment mentioning the old default does not trip the guard", async () => {
     // The production files explain the defect by name; explanation is not a defect.
     const root = fixture({ backend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21", "4.22"] });

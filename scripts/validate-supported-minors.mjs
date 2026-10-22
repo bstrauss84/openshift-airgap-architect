@@ -184,44 +184,19 @@ export async function validateSupportedMinors(root) {
   ];
   // KNOWN, TRACKED EXCEPTIONS — each must name an owning backlog item.
   //
-  // These are a different and lower-severity family than the catalog defaults
-  // this check was created for: they fabricate a DOCUMENTATION version for a
-  // docs.redhat.com URL and a docs cache key, not a parameter catalog to read.
-  // "4.0" is not a supported minor and never was, so it cannot be mistaken for
-  // real support — but it does produce a documentation link for a release that
-  // does not exist. Tracked as DOC-203 rather than fixed inside a blocker
-  // recovery tranche, because correcting it changes docs-link behaviour across
-  // four backend endpoints.
+  // Keyed by FILE + EXACT SOURCE TEXT, not by line number: a line number is not
+  // a stable identity (ordinary edits shift it and the guard then cries wolf),
+  // while the exact trimmed text is STRICTER — a genuinely new fallback, even on
+  // a tracked line, is not silently absorbed. The per-file budget makes an
+  // ADDITIONAL occurrence fail, which a text-keyed set alone would not.
   //
-  // Keyed by FILE + EXACT SOURCE TEXT, not by line number.
-  //
-  // These were pinned as `file:line` until v2.1 Tranche 7C.4, when ordinary
-  // edits elsewhere in `backend/src/index.js` shifted all four sites and the
-  // guard failed on its own known exceptions. A line number is not a stable
-  // identity for a tracked exception, and a guard that cries wolf on every
-  // unrelated edit is one that gets "fixed" by widening it.
-  //
-  // Matching on the exact trimmed source line is STRICTER than matching on
-  // position: the text must be byte-identical, so a genuinely new fallback —
-  // even on one of these very lines — is not silently absorbed. The per-file
-  // budget below keeps the original property that an ADDITIONAL occurrence
-  // fails, which a text-keyed set alone would not.
-  const TRACKED_EXCEPTIONS = new Map([
-    ["frontend/src/steps/GlobalStrategyStep.jsx", new Set([
-      'const docsVersion = (selectedVersion || "4.0").split(".").slice(0, 2).join(".");', // DOC-203
-    ])],
-    ["backend/src/index.js", new Set([
-      'const version = getOpenShiftMinorFromState(state) || "4.0";',   // DOC-203
-      'const version = getOpenShiftMinorFromState(v3State) || "4.0";', // DOC-203
-    ])],
-  ]);
-  // How many exempt occurrences each file is allowed. Exceeding the budget
-  // fails even when every line matches a tracked text, so a sixth DOC-203
-  // fallback cannot be added for free.
-  const TRACKED_EXCEPTION_BUDGET = new Map([
-    ["frontend/src/steps/GlobalStrategyStep.jsx", 1],
-    ["backend/src/index.js", 4],
-  ]);
+  // Currently EMPTY. The last tracked family, DOC-203's five `|| "4.0"`
+  // documentation-version fallbacks, was removed in v2.1.2: those sites now
+  // answer "select a version" (or 422 for an unsupported minor) instead of
+  // fabricating a release. Add an entry here only with an owning backlog ID.
+  const TRACKED_EXCEPTIONS = new Map();
+  // How many exempt occurrences each file is allowed.
+  const TRACKED_EXCEPTION_BUDGET = new Map();
   const SOURCE_ROOTS = ["frontend/src", "backend/src", "shared"];
   const offenders = [];
   const exemptCounts = new Map();
@@ -241,7 +216,10 @@ export async function validateSupportedMinors(root) {
         const text = readFileSync(full, "utf8");
         scannedFiles.add(full.replace(root + "/", ""));
         text.split("\n").forEach((line, i) => {
-          const code = line.replace(/\/\/.*$/, "");
+          // Strip a trailing `//` comment, but not the `//` of a URL scheme
+          // (`https://…`): cutting there hid DOC-203's fifth fallback, which sat
+          // after a docs URL on the same line.
+          const code = line.replace(/(^|[^:])\/\/.*$/, "$1");
           if (/^\s*\*/.test(line) || /^\s*\/\//.test(line)) return; // comment lines
           for (const { re, what } of IMPLICIT_DEFAULT_PATTERNS) {
             if (re.test(code)) {

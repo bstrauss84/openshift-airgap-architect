@@ -13,7 +13,8 @@ import React from "react";
 import { useApp } from "../store.jsx";
 import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy, hasEffectiveTrustBundle } from "../shared/trustBundlePolicy.js";
-import { getForwardOpenShiftMinorDocNotice } from "../shared/versionPolicy.js";
+import { getForwardOpenShiftMinorDocNotice, isSupportedMinor } from "../shared/versionPolicy.js";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { getScenarioId } from "../catalogResolver.js";
 import { apiFetch } from "../api.js";
 import { isValidPullSecret, isValidSshPublicKey, ipv6CidrOverlaps } from "../validation.js";
@@ -149,8 +150,22 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
   const updateAzure = (patch) => updatePlatformConfig({ azure: { ...platformConfig.azure, ...patch } });
 
   const selectedVersion = state.version?.selectedVersion || state.release?.patchVersion || "";
-  const docsVersion = (selectedVersion || "4.0").split(".").slice(0, 2).join(".");
-  const docsBase = `https://docs.redhat.com/en/documentation/openshift_container_platform/${docsVersion}`;
+  // DOC-203. Documentation is per minor, so a link exists only for a selected,
+  // supported minor. Without one, say so — never link a substituted release
+  // (this used to fabricate ".../openshift_container_platform/4.0/...").
+  const docsMinor = getOpenShiftMinorFromState(state);
+  const docsBase = docsMinor && isSupportedMinor(docsMinor)
+    ? `https://docs.redhat.com/en/documentation/openshift_container_platform/${docsMinor}`
+    : null;
+  const versionDocsLink = (docsPath, label, linkProps = {}) => (docsBase ? (
+    <a href={`${docsBase}${docsPath}`} target="_blank" rel="noreferrer" {...linkProps}>
+      {label}
+    </a>
+  ) : (
+    <span className="subtle" data-docs-link-unavailable="true">
+      {label}: select an OpenShift version to link the matching documentation
+    </span>
+  ));
   const shouldLookupAmi =
     platform === "AWS GovCloud" &&
     method === "IPI" &&
@@ -500,14 +515,11 @@ const GlobalStrategyStep = ({ previewControls, previewEnabled, highlightErrors, 
                 aria-hidden={strategy.fips ? undefined : "true"}
               >
                 The installer host must run RHEL 9 with FIPS enabled.{" "}
-                <a
-                  href={`https://docs.redhat.com/en/documentation/openshift_container_platform/${(selectedVersion || "4.0").split(".").slice(0, 2).join(".")}/html/installing/installation-configuration#installation-special-config-fips_installing-customizations`}
-                  target="_blank"
-                  rel="noreferrer"
-                  tabIndex={strategy.fips ? 0 : -1}
-                >
-                  Official FIPS guidance (version-specific)
-                </a>
+                {versionDocsLink(
+                  "/html/installing/installation-configuration#installation-special-config-fips_installing-customizations",
+                  "Official FIPS guidance (version-specific)",
+                  { tabIndex: strategy.fips ? 0 : -1 }
+                )}
               </div>
             </div>
           </div>
@@ -1046,14 +1058,10 @@ registry.corp.local:5000`}
                   Help me decide
                 </button>
                 {platform === "AWS GovCloud" ? (
-                  <a href={`${docsBase}/html/installing_on_aws`} target="_blank" rel="noreferrer">
-                    AWS install docs
-                  </a>
+                  versionDocsLink("/html/installing_on_aws", "AWS install docs")
                 ) : null}
                 {platform === "Azure Government" ? (
-                  <a href={`${docsBase}/html/installing_on_azure`} target="_blank" rel="noreferrer">
-                    Azure install docs
-                  </a>
+                  versionDocsLink("/html/installing_on_azure", "Azure install docs")
                 ) : null}
               </div>
             </div>
@@ -1087,9 +1095,7 @@ Cluster API and ingress endpoints are accessible from outside the vCenter networ
                   UPI in GovCloud requires pre-provisioned infrastructure. GovCloud-specific guidance can vary by version.
                   Review the AWS install docs for your selected version before proceeding.
                   {" "}
-                  <a href={`${docsBase}/html/installing_on_aws`} target="_blank" rel="noreferrer">
-                    AWS install docs
-                  </a>
+                  {versionDocsLink("/html/installing_on_aws", "AWS install docs")}
                 </div>
               ) : null}
               <label>
@@ -1196,9 +1202,7 @@ Cluster API and ingress endpoints are accessible from outside the vCenter networ
                 <div className="note">
                   For AWS IPI, these settings map directly into install-config. Review the official AWS install docs for your version.
                   {" "}
-                  <a href={`${docsBase}/html/installing_on_aws`} target="_blank" rel="noreferrer">
-                    AWS IPI docs
-                  </a>
+                  {versionDocsLink("/html/installing_on_aws", "AWS IPI docs")}
                 </div>
               ) : null}
             </div>

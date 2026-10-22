@@ -3168,9 +3168,31 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
   res.json({ jobId });
 });
 
+/* DOC-203. Documentation links are per OpenShift minor, so they exist only once
+   a SUPPORTED minor is selected. These two endpoints used to fall back to "4.0",
+   a release that never existed, which built docs.redhat.com URLs for it and
+   cached them under their own key. Now: no minor -> an explicit
+   "selection required" answer; an unsupported minor -> 422 UNSUPPORTED_VERSION,
+   exactly like every other version boundary. Never a substituted version. */
+const DOCS_VERSION_REQUIRED_MESSAGE =
+  "Select an OpenShift version before updating documentation links.";
+
+const resolveDocsMinor = (state, res) => {
+  const minor = getOpenShiftMinorFromState(state);
+  if (minor && !isSupportedMinor(minor)) {
+    const vErr = buildUnsupportedVersionError(minor);
+    res.status(422).json({ error: vErr.message, code: vErr.code, requestedVersion: vErr.requestedVersion, supportedVersions: vErr.supportedVersions });
+    return null;
+  }
+  return minor;
+};
+
 app.get("/api/docs", (req, res) => {
   const state = ensureState();
-  const version = getOpenShiftMinorFromState(state) || "4.0";
+  const minor = getOpenShiftMinorFromState(state);
+  if (!minor) return res.json({ cached: null, versionRequired: true });
+  const version = resolveDocsMinor(state, res);
+  if (!version) return;
   const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
   const cached = getDocsFromCache(key);
   res.json({ cached });
@@ -3178,7 +3200,11 @@ app.get("/api/docs", (req, res) => {
 
 app.post("/api/docs/update", validateBody(docsUpdateSchema), async (req, res) => {
   const state = ensureState();
-  const version = getOpenShiftMinorFromState(state) || "4.0";
+  if (!getOpenShiftMinorFromState(state)) {
+    return res.status(400).json({ error: DOCS_VERSION_REQUIRED_MESSAGE, code: "VERSION_NOT_SELECTED" });
+  }
+  const version = resolveDocsMinor(state, res);
+  if (!version) return;
   const key = docsKey(version, state.blueprint?.platform, state.methodology?.method, state.docs?.connectivity);
   const cached = getDocsFromCache(key);
   if (cached && Date.now() - cached.updatedAt < 5 * 60 * 1000) {
@@ -3293,7 +3319,7 @@ app.get("/api/aws/ami", async (req, res) => {
 });
 
 function assertSupportedOpenShiftVersion(v3State) {
-  assertSupportedOpenShiftMinorForGeneration(v3State);
+  return assertSupportedOpenShiftMinorForGeneration(v3State);
 }
 
 /* ---------------------------------------------------------------------------
@@ -3411,12 +3437,13 @@ const buildPreviewArtifacts = (state, { isolate = false } = {}) => {
 
   // DOC-102 Slice 5F.13: Unsupported version boundary - check support BEFORE confirmation
   // An unconfirmed 4.23 state must throw UNSUPPORTED_VERSION, not return null
-  assertSupportedOpenShiftVersion(v3State);
+  // Returns the supported minor (it throws otherwise), so `version` below can
+  // never be a substitute (DOC-203).
+  const version = assertSupportedOpenShiftVersion(v3State);
 
   const confirmed = v3State.version?.locked ?? v3State.release?.confirmed;
   if (!confirmed) return null;
 
-  const version = getOpenShiftMinorFromState(v3State) || "4.0";
   const key = docsKey(version, v3State.blueprint?.platform, v3State.methodology?.method, v3State.docs?.connectivity);
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
@@ -3624,15 +3651,15 @@ const buildBundleZip = async (state, res) => {
 
   // DOC-102 Slice 5F.13: Unsupported version boundary - check support BEFORE confirmation
   // An unconfirmed 4.23 state must return 422 UNSUPPORTED_VERSION, not "version not confirmed"
-  assertSupportedOpenShiftVersion(v3State);
+  // Returns the supported minor (it throws otherwise), so `version` below can
+  // never be a substitute (DOC-203).
+  const version = assertSupportedOpenShiftVersion(v3State);
 
   const confirmed = v3State.version?.locked ?? v3State.release?.confirmed;
   if (!confirmed) {
     res.status(400).json({ error: "Version not confirmed." });
     return;
   }
-
-  const version = getOpenShiftMinorFromState(v3State) || "4.0";
 
   if (process.env.NODE_ENV !== "test") {
     logger.info({ tag: "bundle:start", version, platform: v3State.blueprint?.platform, method: v3State.methodology?.method, includeClientTools: Boolean(v3State.exportOptions?.includeClientTools), draftMode: Boolean(v3State.exportOptions?.draftMode) }, "Bundle build started");

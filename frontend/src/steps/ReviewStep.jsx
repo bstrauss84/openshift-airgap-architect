@@ -344,9 +344,17 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
 
   const updateDocs = async () => {
     setDocsUpdating(true);
-    await apiFetch("/api/docs/update", { method: "POST" });
-    await refresh();
-    setDocsUpdating(false);
+    try {
+      await apiFetch("/api/docs/update", { method: "POST" });
+      await refresh();
+    } catch (error) {
+      // DOC-203: the backend refuses rather than inventing a version, so its
+      // reason (e.g. no version selected) must reach the user, and a failure
+      // must not leave the menu stuck on "Updating Docs…".
+      setGenerateError(`Documentation links were not updated: ${String(error?.message || error)}`);
+    } finally {
+      setDocsUpdating(false);
+    }
   };
 
   const importRun = async (file) => {
