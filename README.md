@@ -38,6 +38,7 @@ afterwards with Tools → Import Run. Credentials are deliberately excluded and 
 re-entered.
 
 - [Changelog](CHANGELOG.md) — everything, newest first
+- [v2.1.2 release notes](docs/releases/v2.1.2.md) — patch: export credential fixes and maintenance
 - [v2.1.1 release notes](docs/releases/v2.1.1.md) — patch: update notifications and build identity
 - [v2.1 release notes](docs/releases/v2.1.0.md) — OpenShift 4.22 support
 - [v2.0 release notes](docs/releases/v2.0.0.md) — the version-awareness rebuild
@@ -1251,6 +1252,7 @@ Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, 
 | Where to look | What it covers |
 |---|---|
 | [CHANGELOG.md](CHANGELOG.md) | Every release, newest first — features, fixes and breaking changes |
+| [v2.1.2 release notes](docs/releases/v2.1.2.md) | Patch: per-file Download and runtime-package credential-exposure fixes, export switches that work, IPv6 rendezvousIP, Field Guide VIP guidance |
 | [v2.1.1 release notes](docs/releases/v2.1.1.md) | Patch: restored update notifications, truthful build identity, corrected repository URL |
 | [v2.1 release notes](docs/releases/v2.1.0.md) | OpenShift 4.22 support, operator preset corrections, version-transition safety |
 | [v2.0 release notes](docs/releases/v2.0.0.md) | The version-awareness rebuild; OpenShift 4.20 and 4.21 support |
@@ -1274,6 +1276,7 @@ There is no registry to pull from.
 
 ### At a glance
 
+- **v2.1.2** — Patch release: fixes two export paths that could include excluded credentials (per-file YAML Download; the hidden runtime package), makes the Proxy values and SSH public key switches work, and corrects IPv6-only rendezvousIP, Field Guide VIP checks, documentation links and the post-import notice. Securely delete and rotate credentials in affected files from earlier versions.
 - **v2.1.1** — Patch release: restores update notifications (based on published releases, no Git revision required), reports build identity truthfully, and corrects the repository URL in generated files. Existing v2.1.0 installations may not detect it automatically.
 - **v2.1.0** — OpenShift 4.22 support, with per-version parameter catalogs, Field Guide and documentation. Adds the bare-metal provisioning network gateway setting, enforces supported CPU architectures at generation, and makes operator presets version-aware.
 - **v2.0.0** — Version-awareness architecture complete. Supports OpenShift 4.20 (baseline) and 4.21, with version-specific parameter catalogs, Field Guide content and metadata-driven annotations. Tagged 2026-10-06.

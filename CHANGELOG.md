@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026-10-22 *(provisional date — set at release preparation; confirm it matches the tag)*
+
+> Detailed notes: [docs/releases/v2.1.2.md](docs/releases/v2.1.2.md)
+>
+> A PATCH release on top of 2.1.1: two credential-exposure fixes and seven maintenance
+> fixes. OpenShift support is unchanged (4.20, 4.21, 4.22). Plain
+> `podman compose up --build -d` / `docker compose up --build -d` is still the supported
+> way to build and run it.
+>
+> **Credential exposure in exported files.** Bundles or files exported with 2.1.0 or
+> 2.1.1 in the situations described under *Security* may contain real credentials.
+> Securely delete those copies, including any that were already distributed, and rotate
+> the credentials they contained.
+>
+> **Certification.** This file does not state a certification result for 2.1.2. Any
+> verdict belongs to a run bound to the exact released commit and is published with that
+> release's evidence on the Releases page. The 2.1.1 certification verdict and the owner
+> risk acceptance do **not** carry over to 2.1.2. This patch changes no base images or
+> dependencies, so the earlier image findings are **not** resolved by it.
+
+### Security
+
+- **Per-file Download in the YAML preview ignored Export Options (DOC-230, Medium).**
+  This is reachable in the normal UI. The **Download** button on a single file in the
+  preview drawer saved the file with the pull secret, BMC/vCenter/Nutanix passwords,
+  proxy `user:password` and SSH key included. This happened even with every credential
+  switch off and the values masked on screen. Downloads now follow the same Export Options
+  as the bundle, produce the same bytes as the bundle copy, and fail closed. Affects 2.1.0
+  and 2.1.1.
+- **Proxy credentials in the high-side runtime package (DOC-229, Low).** The runtime
+  package switch is **hidden** in 2.1.x, so this was reachable only through imported or
+  API-supplied state that already had the package enabled. In that case, a
+  `user:password` embedded in a proxy URL was written in plaintext to
+  `runtime-package/payloads/imported-run.bundle.json` in the bundle. It is now removed
+  unless credentials are explicitly included. Affects 2.1.0 and 2.1.1.
+
+### Fixed
+
+- **Export Options "Proxy values" and "SSH public key" switches now take effect**
+  (DOC-177). Turning off Proxy values replaces the configured proxy values in the bundle
+  with `REPLACE_WITH_…` markers. Turning off SSH public key omits the optional `sshKey`.
+  Both switches still default to on.
+- **Imported host addresses in a disabled IP family are reported, not silently
+  dropped** (DOC-219). A warning offers "Remove unused IPv4/IPv6 values". An IPv6-only
+  cluster's `rendezvousIP` now comes from the IPv6 address. Previously it used a
+  leftover IPv4 address or a generic fallback.
+- **No fabricated OpenShift "4.0" documentation links** (DOC-203). Documentation links
+  appear only for a selected, supported version.
+- **The Field Guide no longer treats an unanswered ping as proof that a VIP is free**
+  (DOC-148). It now asks you to confirm the address reservation in your IP address
+  management records, citing Red Hat's guidance.
+- **AWS GovCloud region dropdown stays single-line** after a region is selected
+  (DOC-228).
+- **The post-import notice lists exactly what an imported run must re-enter**, above
+  every step (PHX-033, PHX-035). It replaces a Blueprint-only note that falsely claimed
+  the SSH key and certificates were dropped. Every configured vCenter must now have
+  credentials.
+- **Installer extraction that runs out of disk space now says so.** The message names
+  the directory, instead of showing raw `tar` output such as "Wrote only 2048 of 10240
+  bytes". This affects the AWS AMI lookup, for example.
+
+### Developer
+
+- End-to-end tests refuse to run unless an isolated environment is explicitly
+  selected, so a plain `npm run test:e2e` can no longer reset a running instance on
+  ports 4000/5173.
+- Regression tests for cloud availability-zone entry (DOC-115). No production change.
+
 ## [2.1.1] - 2026-10-21 *(provisional date — set at release preparation; confirm it matches the tag)*
 
 > Detailed notes: [docs/releases/v2.1.1.md](docs/releases/v2.1.1.md)

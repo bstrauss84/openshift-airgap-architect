@@ -1,6 +1,6 @@
 {
   "name": "@openshift-airgap-architect/shared",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Shared utilities for OpenShift Airgap Architect (backend + frontend)",
   "type": "module",
   "private": true,
