@@ -113,6 +113,31 @@ Follow this for any non-trivial implementation tranche.
 
 If a requirement conflicts with another requirement or with proven upstream behavior, **stop and report the conflict before editing**.
 
+### Backlog-item relevance review (before implementing ANY canonical item)
+
+1. Read the item's original requirement, history, evidence and existing tests.
+2. Inspect current code, UI, generated outputs and the supported OCP minors.
+3. Search for existing, newer or equivalent implementation.
+4. Decide whether the original problem is still relevant and actually persists.
+5. Reproduce what remains, or give concrete behavioral/code evidence — an untested hypothesis is not established.
+6. Classify it explicitly: **still needed** · **partially implemented; narrow remaining gap** · **already implemented; verification only** · **obsolete/superseded** · **needs further evidence or owner decision**.
+7. Implement only confirmed remaining work; prefer zero product-code changes when the existing implementation is already correct.
+8. Preserve stronger existing architecture, security, version gates, accessibility and UX.
+9. Provide regression evidence that fails on the relevant defective baseline.
+10. Never change canonical statuses or create duplicate IDs merely to show progress.
+
+### Owner UX acceptance walkthrough (every user-visible tranche)
+
+Any tranche that changes visible UI, navigation, validation, imported/exported content, workflows or
+user-facing generated documentation ships ONE brief, consolidated walkthrough for the whole tranche:
+
+`Where to go | What to do | Previous behavior | Expected new behavior | PASS/CHANGE NEEDED`
+
+- Group related changes; prefer representative checks over exhaustive matrices.
+- Give exact steps and safe synthetic example data; cover light/dark and responsive appearance where material.
+- Separate automated verification from owner approval, and name every untested scenario.
+- Owner QA is complete only on the owner's actual feedback — never mark it complete otherwise.
+
 ---
 
 ## Evidence and Testing Discipline
