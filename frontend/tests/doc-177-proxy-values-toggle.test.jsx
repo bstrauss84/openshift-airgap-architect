@@ -94,7 +94,7 @@ describe("DOC-177 Proxy values switch", () => {
 
   it("describes exactly what it governs", () => {
     renderReview(baseState({ includeCredentials: false }));
-    expect(screen.getByText(/install-config\.yaml and Field Manual/)).toBeInTheDocument();
+    expect(screen.getByText(/install-config\.yaml, Field Manual and any high-side runtime package/)).toBeInTheDocument();
     expect(screen.getByText(/REPLACE_WITH_… marker/)).toBeInTheDocument();
   });
 });

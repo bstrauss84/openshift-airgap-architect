@@ -101,7 +101,11 @@ function parseZipEntries(buffer) {
 
 let server, baseUrl;
 before(async () => { ({ server, baseUrl } = await createTestServer(app)); });
-after(async () => { await closeTestServer(server); });
+after(async () => {
+  // Leave a neutral state for later suites sharing this DATA_DIR.
+  await postJson("/api/state", proxyState("4.22", { proxyValues: true }));
+  await closeTestServer(server);
+});
 
 const postJson = (path, body) =>
   fetch(`${baseUrl}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -201,6 +205,29 @@ describe("DOC-177 downloaded bundle honours the Proxy values switch", () => {
     delete icOn.proxy;
     delete icOff.proxy;
     assert.deepEqual(icOff, icOn, "install-config changed outside the proxy block");
+  });
+
+  it("OFF also governs the high-side runtime package's run payload inside the bundle", async () => {
+    // Review finding: runtime-package/payload/imported-run.bundle.json is a member
+    // of the same bundle.zip, so it must not carry the endpoints either.
+    process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE = "fixture";
+    try {
+      for (const proxyValues of [false, true]) {
+        const st = proxyState("4.22", { proxyValues });
+        st.exportOptions.includeHighSideRuntimePackage = true;
+        const files = await downloadBundle(st);
+        const payloadName = [...files.keys()].find((n) => n.endsWith("imported-run.bundle.json"));
+        assert.ok(payloadName, `runtime package payload missing; members: ${[...files.keys()].join(", ")}`);
+        const payload = files.get(payloadName);
+        assert.equal(payload.includes(HTTPS_HOST), proxyValues, `payload endpoint presence wrong for proxyValues=${proxyValues}`);
+        assert.ok(!payload.includes(PROXY_PASS), "proxy password leaked into the runtime package payload");
+        if (!proxyValues) {
+          for (const [name, body] of files) assert.ok(!body.includes(HTTPS_HOST), `${HTTPS_HOST} leaked into ${name}`);
+        }
+      }
+    } finally {
+      delete process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE;
+    }
   });
 
   it("the run backup still carries the user's proxy settings (re-import is lossless)", async () => {

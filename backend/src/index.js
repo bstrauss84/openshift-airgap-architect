@@ -67,7 +67,7 @@ import { createIntegrityTracker, MANIFEST_FILENAME } from "./exportIntegrity.js"
 import { trackTempArtifact, untrackTempArtifact, releaseAllTempArtifacts } from "./tempArtifacts.js";
 import { createShutdownHandler } from "./shutdown.js";
 import { activeProcesses } from "./processRegistry.js";
-import { sanitizeStateForPersistence, sanitizeCredentialFields } from "./stateSanitizer.js";
+import { sanitizeStateForPersistence, sanitizeCredentialFields, stripProxyCredentials } from "./stateSanitizer.js";
 import { assertExportableMirrorOutput, MirrorOutputPolicyError } from "./mirrorOutputPolicy.js";
 import {
   validateBody,
@@ -745,6 +745,17 @@ const sanitizeStateForExport = (state, options = {}) => {
   const next = JSON.parse(JSON.stringify(state));
   if (next?.blueprint && "blueprintPullSecretEphemeral" in next.blueprint) {
     delete next.blueprint.blueprintPullSecretEphemeral;
+  }
+  // Proxy URL userinfo is a credential (DOC-176). This sanitizer feeds the run
+  // export and the high-side runtime package's run payload inside bundle.zip;
+  // the latter carried a client-supplied `user:password` verbatim. The proxy
+  // endpoint itself is kept.
+  if (!includeCredentials && next.globalStrategy?.proxies) {
+    for (const key of ["httpProxy", "httpsProxy"]) {
+      if (next.globalStrategy.proxies[key]) {
+        next.globalStrategy.proxies[key] = stripProxyCredentials(next.globalStrategy.proxies[key]);
+      }
+    }
   }
   if (!includeCredentials && next.credentials) {
     next.credentials.pullSecretPlaceholder = "{\"auths\":{}}";
@@ -3668,8 +3679,9 @@ const buildBundleZip = async (state, res) => {
   const key = docsKey(version, v3State.blueprint?.platform, v3State.methodology?.method, v3State.docs?.connectivity);
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
-  // DOC-177: the "Proxy values" export switch governs the two generated files that
-  // carry proxy endpoints. Everything else is built from the unmodified state.
+  // DOC-177: the "Proxy values" export switch governs every bundle member that
+  // carries proxy endpoints: install-config.yaml, the Field Manual and the
+  // high-side runtime package's run payload (below).
   const proxyGovernedState = applyProxyValueInclusion(v3State);
   const installConfig = buildInstallConfig(proxyGovernedState);
   const wantsAgentConfig =
@@ -4052,7 +4064,9 @@ const buildBundleZip = async (state, res) => {
     try {
       // SECURITY: Sanitize state in runPayload to prevent credential leakage
       // High-side runtime package is written to bundle.zip which may be transferred/stored
-      const sanitizedState = sanitizeStateForExport(v3State, {
+      // DOC-177: the run payload ships inside this same bundle, so the
+      // "Proxy values" switch governs it as well.
+      const sanitizedState = sanitizeStateForExport(proxyGovernedState, {
         ...(v3State.exportOptions || {}),
         includeCredentials: false // Never include credentials in runtime package
       });

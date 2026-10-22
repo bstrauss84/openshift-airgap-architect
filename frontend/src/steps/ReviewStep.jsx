@@ -205,6 +205,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   const [docsUpdating, setDocsUpdating] = useState(false);
   const [blockReason, setBlockReason] = useState("");
   const [generateError, setGenerateError] = useState("");
+  const [docsError, setDocsError] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [showCredentialsConfirm, setShowCredentialsConfirm] = useState(false);
   const [credentialsConfirmedThisSession, setCredentialsConfirmedThisSession] = useState(false);
@@ -344,6 +345,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
 
   const updateDocs = async () => {
     setDocsUpdating(true);
+    setDocsError("");
     try {
       await apiFetch("/api/docs/update", { method: "POST" });
       await refresh();
@@ -351,7 +353,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
       // DOC-203: the backend refuses rather than inventing a version, so its
       // reason (e.g. no version selected) must reach the user, and a failure
       // must not leave the menu stuck on "Updating Docs…".
-      setGenerateError(`Documentation links were not updated: ${String(error?.message || error)}`);
+      setDocsError(`Documentation links were not updated: ${String(error?.message || error)}`);
     } finally {
       setDocsUpdating(false);
     }
@@ -531,7 +533,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
             </OptionRow>
             <OptionRow
               title="Proxy values"
-              description="Include proxy endpoints in the bundle's install-config.yaml and Field Manual. When off, each configured value is replaced with a REPLACE_WITH_… marker to fill in before installing."
+              description="Include proxy endpoints in the exported bundle (install-config.yaml, Field Manual and any high-side runtime package). When off, each configured value is replaced with a REPLACE_WITH_… marker to fill in before installing."
             >
               <Switch
                 checked={inclusion.proxyValues}
@@ -724,6 +726,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
             Failed to generate assets. {generateError}
           </Banner>
         ) : null}
+        {docsError ? <Banner variant="warning">{docsError}</Banner> : null}
         {!blocked && hasWarnings ? (
           <Banner variant="warning">
             <strong>Draft / not fully validated.</strong>
