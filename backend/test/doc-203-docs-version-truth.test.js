@@ -28,7 +28,10 @@ import { SUPPORTED_MINORS } from "../src/versionPolicy.js";
 const PATCH = { "4.20": "4.20.40", "4.21": "4.21.35", "4.22": "4.22.16" };
 const PLATFORM = "Bare Metal";
 const METHOD = "Agent-Based Installer";
-const CONNECTIVITY = "fully-disconnected";
+// A connectivity value no other suite uses: the backend suites share one
+// DATA_DIR (and so one docs cache) across files, and seeding the real
+// "fully-disconnected" key would leak these links into later generation tests.
+const CONNECTIVITY = "doc203-isolated-cache-key";
 
 function stateFor(minor) {
   const base = {
@@ -50,7 +53,11 @@ const fabricatedKey = () => docsKey("4.0", PLATFORM, METHOD, CONNECTIVITY);
 
 let server, baseUrl;
 before(async () => { ({ server, baseUrl } = await createTestServer(app)); });
-after(async () => { await closeTestServer(server); });
+after(async () => {
+  // Leave a neutral, supported state behind for whichever suite runs next.
+  setState(stateFor("4.22"));
+  await closeTestServer(server);
+});
 
 const getDocs = () => fetch(`${baseUrl}/api/docs`);
 const postUpdate = () =>
@@ -59,7 +66,7 @@ const postUpdate = () =>
 describe("DOC-203 documentation endpoints use the selected supported minor", () => {
   for (const minor of SUPPORTED_MINORS) {
     it(`${minor}: GET and POST resolve the ${minor} cache entry`, async () => {
-      const links = [{ title: `doc203 ${minor}`, url: `https://docs.redhat.com/en/documentation/openshift_container_platform/${minor}/` }];
+      const links = [{ label: `doc203 ${minor}`, url: `https://docs.redhat.com/en/documentation/openshift_container_platform/${minor}/` }];
       storeDocs(docsKey(minor, PLATFORM, METHOD, CONNECTIVITY), links);
       setState(stateFor(minor));
 
