@@ -264,6 +264,20 @@ describe("no implicit supported-minor default in production source", () => {
     assert.strictEqual(check.ok, false, "a fallback following a URL scheme was not detected");
   });
 
+  for (const [label, src] of [
+    ["a file:/// URL", 'export const a = ("file:///etc/x" || v) && (m || "4.0");\n'],
+    ["a // inside a URL path", 'export const u = ("https://x.example/a//b" || v) && (m || "4.0");\n'],
+  ]) {
+    test(`a fallback after ${label} fails the guard`, async () => {
+      const root = fixture({ backend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21", "4.22"] });
+      const target = path.join(root, "frontend", "src", "regression-probe.js");
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, src);
+      const r = await validateSupportedMinors(root);
+      assert.strictEqual(r.checks.find((c) => c.id === "no-implicit-minor-default").ok, false);
+    });
+  }
+
   test("a trailing comment after code still does not trip the guard", async () => {
     const root = fixture({ backend: ["4.20", "4.21", "4.22"], previouslyReleased: ["4.20", "4.21", "4.22"] });
     const target = path.join(root, "frontend", "src", "regression-probe.js");

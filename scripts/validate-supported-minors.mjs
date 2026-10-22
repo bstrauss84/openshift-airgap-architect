@@ -216,10 +216,11 @@ export async function validateSupportedMinors(root) {
         const text = readFileSync(full, "utf8");
         scannedFiles.add(full.replace(root + "/", ""));
         text.split("\n").forEach((line, i) => {
-          // Strip a trailing `//` comment, but not the `//` of a URL scheme
-          // (`https://…`): cutting there hid DOC-203's fifth fallback, which sat
-          // after a docs URL on the same line.
-          const code = line.replace(/(^|[^:])\/\/.*$/, "$1");
+          // Strip a trailing `//` comment only where one can start: at line
+          // start or after whitespace. A `//` inside a string — `https://`,
+          // `file:///`, or a URL path — is not a comment; cutting there hid
+          // DOC-203's fifth fallback, which sat after a docs URL.
+          const code = line.replace(/(^|\s)\/\/.*$/, "$1");
           if (/^\s*\*/.test(line) || /^\s*\/\//.test(line)) return; // comment lines
           for (const { re, what } of IMPLICIT_DEFAULT_PATTERNS) {
             if (re.test(code)) {
