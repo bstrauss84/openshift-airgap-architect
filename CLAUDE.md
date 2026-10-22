@@ -202,6 +202,24 @@ If the user asks for a new task and the working tree is dirty, stop and report s
 - UI changes: manual verification required
 - API changes: integration tests required
 
+### QA Environment Lifecycle
+
+The owner's normal Compose app (project `openshift-airgap-architect-v211`, ports 4000/5173,
+volume `openshift-airgap-architect-v211_backend-data`) is **protected**: never test against,
+reset, rebuild, restart, stop or reuse it, its volumes or its project name.
+
+Every QA run that creates containers, images, networks, volumes or temporary servers must:
+
+1. Use a unique, clearly labelled QA identity (e.g. `oaa-qa-<version>-<sha7>-*`) and ports distinct from 4000/5173.
+2. Use synthetic, isolated state and storage — never the owner's project or persistent volumes.
+3. Record what was created (names, image IDs, ports, data paths, PIDs) and the exact cleanup command.
+4. Clean up automatically when testing finishes, unless deliberately retained for owner manual QA.
+5. When retained, say so prominently in the report, with the URL, tested commit SHA and a specific cleanup command.
+6. Keep at most one current owner-QA environment unless more are genuinely required; never leave historical QA environments running.
+7. Run E2E tests only against an explicitly selected isolated environment; fail closed rather than default to the owner's app.
+
+Cleanup removes only the recorded QA resources; images, volumes and anything unlisted need separate owner approval.
+
 ---
 
 **Last Updated:** 2026-10-08
