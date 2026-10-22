@@ -183,7 +183,11 @@ const ensureInstaller = async (version, { fetchImpl, nodeArch = process.arch, to
   // and the old code extracted straight into toolsDir alongside the cache.
   const extractDir = await fs.promises.mkdtemp(path.join(effectiveToolsDir, `install-${version}-`));
   try {
-    await runCmd("tar", ["-xzf", tarPath, "-C", extractDir, "openshift-install"]);
+    try {
+      await runCmd("tar", ["-xzf", tarPath, "-C", extractDir, "openshift-install"]);
+    } catch (err) {
+      throw describeExtractionFailure(err, version, effectiveToolsDir);
+    }
     const extracted = path.join(extractDir, "openshift-install");
     if (!fs.existsSync(extracted)) {
       throw new Error("openshift-install binary not found after extraction.");
@@ -204,6 +208,24 @@ const ensureInstaller = async (version, { fetchImpl, nodeArch = process.arch, to
     await fs.promises.rm(extractDir, { recursive: true, force: true }).catch(() => {});
   }
   return target;
+};
+
+/* A failed extraction used to surface tar's raw stderr in the UI ("tar:
+   openshift-install: Wrote only 2048 of 10240 bytes"). That short write is
+   what running out of space (or a disk quota) looks like. Say so, name the
+   directory, and keep the original text for diagnosis. The verified tarball
+   is kept, so a retry after freeing space does not re-download it. */
+const OUT_OF_SPACE = /Wrote only \d+ of \d+ bytes|No space left on device|Disk quota exceeded/i;
+const describeExtractionFailure = (err, version, dir) => {
+  const detail = String(err?.message || err).trim();
+  if (OUT_OF_SPACE.test(detail)) {
+    return new Error(
+      `Not enough free space to extract openshift-install ${version} into ${dir} ` +
+      `(about 0.8 GB is needed). Free space or a disk quota on that volume, or use a larger ` +
+      `data volume, then retry; the verified download is kept. (tar: ${detail})`
+    );
+  }
+  return new Error(`Extracting openshift-install ${version} failed: ${detail}`);
 };
 
 /** In-flight promise per version so warm and regions/AMI requests share one download. */
@@ -258,6 +280,7 @@ const getAwsAmi = async (version, arch, region, force = false) => {
 };
 
 export {
+  describeExtractionFailure,
   ensureInstaller,
   getStreamMetadata,
   getAwsRegions,
