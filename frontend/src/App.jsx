@@ -1761,6 +1761,17 @@ metadata:
                 fileErrors={previewFileErrors}
                 stale={previewStale}
                 resetSizing={false}
+                fetchExportFile={async (filename) => {
+                  // Same inclusion rules as the bundle (exportPolicy), never the
+                  // credential-forced preview bytes.
+                  const data = await apiFetch("/api/generate", {
+                    method: "POST",
+                    body: JSON.stringify({ state, isolateArtifacts: true, exportPolicy: true })
+                  });
+                  const own = data?.fileErrors?.[filename];
+                  if (own) throw new Error(String(own?.message || own));
+                  return data?.files?.[filename];
+                }}
               />
             )}
           </div>

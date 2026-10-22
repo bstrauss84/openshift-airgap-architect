@@ -3435,7 +3435,7 @@ const PREVIEW_ARTIFACTS = [
  * @returns {null|{files: object, fileErrors: object}} null when the version is
  *   not yet confirmed (unchanged signal).
  */
-const buildPreviewArtifacts = (state, { isolate = false } = {}) => {
+const buildPreviewArtifacts = (state, { isolate = false, exportPolicy = false } = {}) => {
   // DOC-101 Phase 1 Slice 5: State schema migration at generation boundary
   // Migrate v1/v2 state to v3 before generation
   const stateMigrationResult = migrateStateToV3(state);
@@ -3459,16 +3459,27 @@ const buildPreviewArtifacts = (state, { isolate = false } = {}) => {
   const cached = getDocsFromCache(key);
   const links = cached?.links || [];
 
-  // CRITICAL: Force includeCredentials=true for preview so "Show sensitive values" toggle works
-  // Without this, pullSecret and other credentials are replaced with "{\"auths\":{}}" placeholders
-  // even before reaching the YamlDrawer obfuscation layer
-  const previewState = {
-    ...v3State,
-    exportOptions: {
-      ...(v3State.exportOptions || {}),
-      includeCredentials: true
-    }
-  };
+  // Two policies, chosen explicitly by the caller:
+  //
+  // - PREVIEW (default): credentials and the SSH key are forced IN, so the
+  //   drawer's "Show sensitive values" toggle has something to reveal. The
+  //   drawer redacts them for display. These bytes must never be offered as a
+  //   download.
+  // - EXPORT (`exportPolicy: true`): exactly the rules the bundle applies — the
+  //   user's credential-inclusion choices, the SSH key switch and the "Proxy
+  //   values" switch. The drawer's per-file Download uses this, so a single
+  //   downloaded file can never carry what the bundle would have excluded.
+  const baseExportOptions = v3State.exportOptions || {};
+  const previewState = exportPolicy
+    ? applyProxyValueInclusion(v3State)
+    : {
+        ...v3State,
+        exportOptions: {
+          ...baseExportOptions,
+          includeCredentials: true,
+          inclusion: { ...(baseExportOptions.inclusion || {}), sshPublicKey: true }
+        }
+      };
 
   const ctx = { links, version };
   const files = {};
@@ -3565,8 +3576,10 @@ app.post("/api/generate", validateBody(generateSchema), (req, res) => {
      — unsupported target version, schema migration, trust guards — fail the
      whole response in BOTH modes. */
   const isolateArtifacts = req.body?.isolateArtifacts === true;
+  // Per-file downloads ask for the export policy; see buildPreviewArtifacts.
+  const exportPolicy = req.body?.exportPolicy === true;
   try {
-    const result = buildPreviewArtifacts(parsed.state, { isolate: isolateArtifacts });
+    const result = buildPreviewArtifacts(parsed.state, { isolate: isolateArtifacts, exportPolicy });
     if (!result) return res.status(400).json({ error: "Version not confirmed." });
     const { files, fileErrors } = result;
 

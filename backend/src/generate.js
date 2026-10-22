@@ -30,6 +30,7 @@ import {
   resolveEffectiveInterfaceName
 } from "../../shared/interfaceNaming.js";
 import { stripProxyCredentials } from "../../shared/stateSanitizer.js";
+import { resolveSecretInclusion } from "./exportInclusion.js";
 
 function validateAwsRootVolumeThroughput(value, volumeType) {
   if (value == null || value === "") return { valid: true, blank: true };
@@ -504,6 +505,13 @@ const buildInstallConfig = (state) => {
     pullSecret,
     sshKey: state.credentials?.sshPublicKey || ""
   };
+  // The "SSH public key" export switch ("Include install-config sshKey") had no
+  // consumer. sshKey is an OPTIONAL install-config parameter (Red Hat lists it
+  // under optional configuration parameters), so omitting it when the user
+  // switched it off leaves a valid configuration.
+  if (resolveSecretInclusion(state.exportOptions || {}).sshPublicKey === false) {
+    delete installConfig.sshKey;
+  }
 
   if (state.blueprint?.platform === "Bare Metal") {
     const isUPI = state.methodology?.method === "UPI";

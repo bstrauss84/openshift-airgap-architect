@@ -35,7 +35,12 @@ export default function YamlDrawer({
      the only thing that may affect every pane. */
   fileErrors = {},
   stale = false,
-  resetSizing = false
+  resetSizing = false,
+  /* Returns the EXPORT-policy bytes for one file (same inclusion rules as the
+     bundle). The preview content above is generated with credentials forced
+     in so "Show sensitive values" can reveal them, and must never be what a
+     Download writes. Without this callback, Download fails closed. */
+  fetchExportFile = null
 }) {
   // State for drawer width (persisted to localStorage, reset on close)
   const [drawerWidth, setDrawerWidth] = useState(() => {
@@ -46,6 +51,7 @@ export default function YamlDrawer({
 
   // State for showing sensitive values toggle
   const [showSensitive, setShowSensitive] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
 
   // State for agent-based split view ratio (persisted to localStorage, reset on close)
   const [splitRatio, setSplitRatio] = useState(() => {
@@ -176,8 +182,27 @@ export default function YamlDrawer({
 
   if (!isOpen) return null;
 
-  // Download file helper
-  const downloadFile = (content, filename) => {
+  /* Per-file Download. Writes the export-policy version of the file, never the
+     preview bytes: those carry credentials, the SSH key and proxy userinfo
+     regardless of the Export Options, because the reveal toggle needs them.
+     Any failure downloads nothing and says so. */
+  const downloadFile = async (filename) => {
+    setDownloadError("");
+    try {
+      if (typeof fetchExportFile !== "function") {
+        throw new Error("export-policy download is unavailable");
+      }
+      const exported = await fetchExportFile(filename);
+      if (typeof exported !== "string" || !exported) {
+        throw new Error(`${filename} could not be generated for download`);
+      }
+      saveFile(exported, filename);
+    } catch (e) {
+      setDownloadError(`${filename} was not downloaded: ${String(e?.message || e)}`);
+    }
+  };
+
+  const saveFile = (content, filename) => {
     const blob = new Blob([content], { type: 'text/yaml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -256,7 +281,7 @@ export default function YamlDrawer({
           <button
             type="button"
             className="ghost small"
-            onClick={() => downloadFile(content, filename)}
+            onClick={() => downloadFile(filename)}
             /* Fail closed, per document: while THIS artifact failed to
                generate, its content describes a state the user has moved away
                from and must not be handed over as current output. A sibling
@@ -341,7 +366,7 @@ metadata:
               <button
                 type="button"
                 className="ghost small"
-                onClick={() => downloadFile(installContent, 'install-config.yaml')}
+                onClick={() => downloadFile('install-config.yaml')}
                 disabled={!installContent || !!installError || loading}
               >
                 Download
@@ -398,7 +423,7 @@ metadata:
               <button
                 type="button"
                 className="ghost small"
-                onClick={() => downloadFile(agentContent, 'agent-config.yaml')}
+                onClick={() => downloadFile('agent-config.yaml')}
                 disabled={!agentContent || !!agentError || loading}
               >
                 Download
@@ -462,7 +487,7 @@ metadata:
           <button
             type="button"
             className="ghost small"
-            onClick={() => downloadFile(content, 'imageset-config.yaml')}
+            onClick={() => downloadFile('imageset-config.yaml')}
             disabled={!content || !!paneError || loading}
           >
             Download
@@ -597,6 +622,15 @@ metadata:
           ✕
         </button>
       </div>
+      <p className="note subtle" style={{ margin: '8px 20px 0' }} data-download-policy-note="true">
+        Revealing values only changes what is shown here. Download saves each file using your
+        Export Options on Assets &amp; Guide — the same rules as the bundle.
+      </p>
+      {downloadError ? (
+        <div className="note warning" role="alert" style={{ margin: '8px 20px 0' }} data-download-error="true">
+          {downloadError}
+        </div>
+      ) : null}
 
       {/* Incomplete warning */}
       {showIncompleteWarning && (
