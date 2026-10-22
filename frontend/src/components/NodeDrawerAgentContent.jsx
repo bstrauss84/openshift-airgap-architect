@@ -1029,6 +1029,38 @@ VLAN 100 on bond0 → bond0.100`}
                   discards an address in any other family.
                 </div>
               </div>
+              {/* DOC-219: a hidden out-of-family value (typically from an imported
+                  run) is shown and removable here instead of vanishing silently. */}
+              {!enableIpv4 && (selectedNode.primary?.ipv4Cidr || selectedNode.primary?.ipv4Gateway) ? (
+                <div className="note warning" data-unused-family="ipv4">
+                  This node still has IPv4 values{" "}
+                  <code>{[selectedNode.primary?.ipv4Cidr, selectedNode.primary?.ipv4Gateway].filter(Boolean).join(" / ")}</code>{" "}
+                  (for example from an imported run). The cluster is IPv6-only, so they are not written to the
+                  generated configuration.{" "}
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => updatePrimary(selectedIndex, { ipv4Cidr: "", ipv4Gateway: "" })}
+                  >
+                    Remove unused IPv4 values
+                  </button>
+                </div>
+              ) : null}
+              {!enableIpv6 && (selectedNode.primary?.ipv6Cidr || selectedNode.primary?.ipv6Gateway) ? (
+                <div className="note warning" data-unused-family="ipv6">
+                  This node still has IPv6 values{" "}
+                  <code>{[selectedNode.primary?.ipv6Cidr, selectedNode.primary?.ipv6Gateway].filter(Boolean).join(" / ")}</code>{" "}
+                  (for example from an imported run). The cluster is IPv4-only, so they are not written to the
+                  generated configuration.{" "}
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => updatePrimary(selectedIndex, { ipv6Cidr: "", ipv6Gateway: "" })}
+                  >
+                    Remove unused IPv6 values
+                  </button>
+                </div>
+              ) : null}
               <div className="workflow-group-modes">
                 <div className="field-grid">
                   {enableIpv4 && (

@@ -414,8 +414,6 @@ const buildInstallConfig = (state) => {
     // General controlPlaneReplicas override for platforms with host inventory (v1.7.0)
     masters = cpReplicasOverride;
   }
-  const rendezvousIP = sortedNodes.find((node) => node.role === "master")?.primary?.ipv4Cidr?.split("/")?.[0] || "192.168.1.10";
-
   const networkingState = state.globalStrategy?.networking || {};
   const isAwsGovCloud = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
 
@@ -1365,10 +1363,22 @@ const normalizePlatformKey = (platform) => {
   }
 };
 
+/* DOC-219. rendezvousIP must be an address the rendezvous host will actually
+   have. It was always read from the IPv4 field, so in an IPv6-only cluster it
+   was either an imported leftover IPv4 address that buildNmState discards (the
+   ISO then points at an address no host holds) or the generic fallback. The
+   field is now chosen from the family the cluster enables; dual-stack keeps the
+   IPv4 address, exactly as before. The generic fallback itself is unchanged. */
+const pickRendezvousIp = (sortedNodes, ipStackMode) => {
+  const primary = sortedNodes.find((node) => node.role === "master")?.primary || {};
+  const cidr = (ipStackMode || "ipv4") === "ipv6" ? primary.ipv6Cidr : primary.ipv4Cidr;
+  return (typeof cidr === "string" ? cidr.split("/")[0].trim() : "") || "192.168.1.10";
+};
+
 const buildAgentConfig = (state) => {
   const baseDomain = state.blueprint?.baseDomain;
   const sortedNodes = sortNodes(state.hostInventory?.nodes || []);
-  const rendezvousIP = sortedNodes.find((node) => node.role === "master")?.primary?.ipv4Cidr?.split("/")?.[0] || "192.168.1.10";
+  const rendezvousIP = pickRendezvousIp(sortedNodes, state.hostInventory?.ipStackMode);
   const hosts = sortedNodes.map((node) => {
     const nmState = buildNmState({ ...node, inventoryIpStackMode: state.hostInventory?.ipStackMode });
     const interfaces = collectPhysicalInterfaces(node);

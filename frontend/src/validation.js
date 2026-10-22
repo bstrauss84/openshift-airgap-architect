@@ -658,6 +658,26 @@ const validateNode = ({ node, enableIpv4, enableIpv6, machineCidr, platform, met
       if (!ipv4Enabled && enableIpv6 && !primary.ipv6Cidr) {
         addError("primary.ipv6Cidr", "IPv6 address/CIDR is required for static mode in an IPv6-only cluster.");
       }
+      /* DOC-219. An address in a family the cluster does not enable can still
+         arrive in IMPORTED state (an older run, or a stack changed afterwards).
+         The drawer hides those inputs and buildNmState writes the family as
+         disabled, so the value vanished from the generated configuration with no
+         message. Reported here as a non-blocking warning — the configuration is
+         valid without it — and never removed automatically: the user decides. */
+      const unusedV4 = ipv4Enabled ? [] : [primary.ipv4Cidr, primary.ipv4Gateway].filter(Boolean);
+      if (unusedV4.length) {
+        addWarning(
+          "primary.ipv4Cidr",
+          `IPv4 value ${unusedV4.join(" / ")} is set but the cluster is IPv6-only, so it is not written to the generated host network configuration. Remove it in the node's Static IP Configuration, or set the cluster IP stack to dual-stack to use it.`
+        );
+      }
+      const unusedV6 = enableIpv6 ? [] : [primary.ipv6Cidr, primary.ipv6Gateway].filter(Boolean);
+      if (unusedV6.length) {
+        addWarning(
+          "primary.ipv6Cidr",
+          `IPv6 value ${unusedV6.join(" / ")} is set but the cluster is IPv4-only, so it is not written to the generated host network configuration. Remove it in the node's Static IP Configuration, or set the cluster IP stack to dual-stack to use it.`
+        );
+      }
     }
 
     // Arbiter hosts use a reduced inventory surface in the UI; do not validate additional interfaces for arbiter.

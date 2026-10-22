@@ -260,7 +260,10 @@ describe("INDEPENDENT: fields the generator does not family-gate stay visible in
 describe("the UI tells the user which stack mode is in force", () => {
   it("names IPv6-only in the Static IP Configuration description", () => {
     openEditor("ethernet", "ipv6");
-    expect(screen.getByText(/IPv6-only/)).toBeTruthy();
+    // Scoped to the description: this fixture also carries IPv4 values, so the
+    // DOC-219 unused-family notice legitimately says "IPv6-only" as well.
+    const description = screen.getByText("Static IP Configuration").closest(".workflow-group-header");
+    expect(within(description).getByText(/IPv6-only/)).toBeTruthy();
   });
   it("names dual-stack in the Static IP Configuration description", () => {
     openEditor("ethernet", "dual-stack");
