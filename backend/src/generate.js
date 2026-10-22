@@ -2284,9 +2284,8 @@ const _buildFieldManualLegacy = (state, docsLinks) => {
   lines.push(`   - dig +short api.${clusterName}.${baseDomain}  # expect ${apiVip}`);
   lines.push(`   - dig +short api-int.${clusterName}.${baseDomain}  # expect ${apiVip}`);
   lines.push(`   - dig +short test.apps.${clusterName}.${baseDomain}  # expect ${ingressVip} (wildcard *.apps)`);
-  lines.push(`2. VIP reachability (bare metal; ensure load balancer or DNS points here):`);
-  lines.push(`   - ping -c3 ${apiVip}`);
-  lines.push(`   - ping -c3 ${ingressVip}`);
+  lines.push(`2. VIP reservation (DOC-148; an unanswered ping does not prove an address is free):`);
+  lines.push(`   - confirm ${apiVip} and ${ingressVip} are reserved in your IP address management records, outside every DHCP pool`);
   lines.push(`3. Time sync (all nodes and installer host must be in sync):`);
   lines.push(`   - timedatectl status`);
   lines.push(`   - chronyc sources -v`);
