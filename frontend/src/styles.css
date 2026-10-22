@@ -369,7 +369,8 @@ body[data-theme="dark"] .tools-drawer-panel .card {
 /* PHX-033/035: post-import follow-up notice (a .note.warning; colours come
    from the note theme tokens, so light and dark are handled there). */
 .import-follow-up-notice {
-  margin-bottom: 12px;
+  /* Same 24px inset as .scenario-header-wrap and .main, so it aligns with the step content. */
+  margin: 12px 24px;
 }
 
 .blocked-banner button {
