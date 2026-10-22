@@ -50,16 +50,18 @@ const getImportFollowUps = (state) => {
 
   if (platform === "VMware vSphere" && (method === "IPI" || method === "UPI")) {
     const vs = platformConfig.vsphere || {};
-    const configured = Boolean(vs.vcenter || (vs.vcenters || []).some((vc) => vc?.server));
-    const hasPassword = Boolean(vs.password || (vs.vcenters || []).some((vc) => vc?.password));
-    if (configured && !hasPassword) {
+    const servers = (vs.vcenters || []).filter((vc) => vc?.server);
+    // Every configured vCenter needs its own credentials; the legacy flat
+    // fields cover the single-vCenter shape.
+    const missing = servers.length > 0 ? servers.some((vc) => !vc.password) : Boolean(vs.vcenter) && !vs.password;
+    if (missing) {
       credentials.push({ id: "vsphere", label: "vCenter username and password", where: "Platform Specifics" });
     }
   }
 
   if (platform === "Nutanix") {
     const nx = platformConfig.nutanix || {};
-    if ((nx.endpoint || nx.prismCentral) && !nx.password) {
+    if (nx.endpoint && !nx.password) {
       credentials.push({ id: "nutanix", label: "Prism Central username and password", where: "Platform Specifics" });
     }
   }

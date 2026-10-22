@@ -89,6 +89,14 @@ describe("getImportFollowUps — derived from the imported state", () => {
     expect(ids(getImportFollowUps(st))).toEqual([]);
   });
 
+  it("multi-vCenter: every configured vCenter needs its password", () => {
+    const st = busy();
+    st.platformConfig.vsphere = { vcenters: [{ server: "vc1.example", password: SECRET }, { server: "vc2.example", password: "" }] };
+    expect(ids(getImportFollowUps(st))).toContain("vsphere");
+    st.platformConfig.vsphere.vcenters[1].password = SECRET;
+    expect(ids(getImportFollowUps(st))).not.toContain("vsphere");
+  });
+
   it("does not repeat the old false claims: SSH public key and kept certificates", () => {
     const st = { ...busy(), exportOptions: { includeCertificates: true } };
     const all = ids(getImportFollowUps(st));
