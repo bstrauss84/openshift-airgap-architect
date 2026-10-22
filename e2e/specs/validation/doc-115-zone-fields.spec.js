@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test';
 import * as yaml from 'js-yaml';
 import { resetState, getState, generateAssets } from '../../helpers/api.js';
 
-const BACKEND = process.env.OAA_BROWSER_BACKEND_URL || process.env.E2E_BACKEND_URL || 'http://localhost:4000';
+const BACKEND = process.env.OAA_BROWSER_BACKEND_URL || process.env.E2E_BACKEND_URL;
 
 const PROVIDERS = [
   { platform: 'AWS GovCloud', key: 'aws', base: { region: 'us-gov-west-1' }, placeholder: 'e.g. us-gov-west-1a,us-gov-west-1b,us-gov-west-1c', a: 'us-gov-west-1a', b: 'us-gov-west-1b', c: 'us-gov-west-1c', at: (ic) => ic.platform.aws.defaultMachinePlatform?.zones },

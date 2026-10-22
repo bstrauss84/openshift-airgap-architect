@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
 import { resetState, importState } from '../../helpers/api.js';
 import * as scenarios from '../../fixtures/scenarios.js';
 
-const BACKEND = 'http://localhost:4000';
+const BACKEND = process.env.OAA_BROWSER_BACKEND_URL || process.env.E2E_BACKEND_URL;
 
 async function generate(request) {
   const resp = await request.post(`${BACKEND}/api/generate`);

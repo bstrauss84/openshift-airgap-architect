@@ -6,22 +6,21 @@ Playwright-based E2E tests for critical user workflows in OpenShift Airgap Archi
 
 ## Prerequisites
 
+**Every spec resets application state.** E2E therefore refuses to run unless you
+explicitly select an ISOLATED backend and frontend — never your normal app.
+
 **Required:**
-1. **Application running** - Frontend at `:5173` and backend at `:4000`
-2. **Playwright installed** - `npm install` (already in `package.json`)
+1. **An isolated, disposable app instance** on ports other than 4000/5173, with its own data directory, e.g.:
+   ```bash
+   (cd backend && PORT=4300 DATA_DIR=$(mktemp -d) OAA_ALLOWED_ORIGINS=http://127.0.0.1:5373 node src/index.js) &
+   (cd frontend && VITE_API_BASE=http://127.0.0.1:4300 npx vite --port 5373 --strictPort --host 127.0.0.1) &
+   ```
+2. **Select it explicitly:** `E2E_FRONTEND_URL=http://127.0.0.1:5373 E2E_BACKEND_URL=http://127.0.0.1:4300`
+3. **Playwright installed** - `npm install` (already in `package.json`)
 
-**Start the application:**
-```bash
-# From project root
-docker compose up --build
-
-# OR with Podman
-podman compose up --build
-```
-
-Wait for both services to be ready:
-- Frontend: http://localhost:5173
-- Backend: http://localhost:4000
+`playwright.config.js` fails closed when either URL is missing, and refuses ports 4000/5173
+unless `OAA_E2E_ALLOW_PROTECTED_PORTS=1` declares them a disposable instance (e.g. an
+ephemeral CI container). Guarded by `scripts/e2e-isolation-guard.test.mjs`.
 
 ---
 
@@ -29,7 +28,7 @@ Wait for both services to be ready:
 
 ### Run all tests (headless)
 ```bash
-npm run test:e2e
+E2E_FRONTEND_URL=http://127.0.0.1:5373 E2E_BACKEND_URL=http://127.0.0.1:4300 npm run test:e2e
 ```
 
 ### Run with browser visible (headed mode)

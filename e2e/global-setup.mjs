@@ -29,8 +29,12 @@ function checkUrl(url, retries = 15, delay = 2000) {
 }
 
 export default async function globalSetup() {
-  const backend = process.env.E2E_BACKEND_URL || 'http://localhost:4000';
-  const frontend = process.env.E2E_FRONTEND_URL || 'http://localhost:5173';
+  // Set and validated by playwright.config.js; no fallback to the owner's ports.
+  const backend = process.env.E2E_BACKEND_URL;
+  const frontend = process.env.E2E_FRONTEND_URL;
+  if (!backend || !frontend) {
+    throw new Error('E2E refused: E2E_BACKEND_URL and E2E_FRONTEND_URL must select an isolated environment.');
+  }
 
   console.log(`Checking frontend at ${frontend}...`);
   await checkUrl(frontend);

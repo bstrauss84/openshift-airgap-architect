@@ -3,7 +3,7 @@ import { resetState, importState, getState } from '../../helpers/api.js';
 import { navigateToStep } from '../../helpers/navigation.js';
 import * as scenarios from '../../fixtures/scenarios.js';
 
-const BACKEND = 'http://localhost:4000';
+const BACKEND = process.env.OAA_BROWSER_BACKEND_URL || process.env.E2E_BACKEND_URL;
 
 test.describe('Multi-Value Fields — comma-delimited inputs', () => {
   test.beforeEach(async ({ request }) => {

@@ -11,7 +11,7 @@
 import { test, expect } from '@playwright/test';
 import { resetState } from '../../helpers/api.js';
 
-const BACKEND = process.env.OAA_BROWSER_BACKEND_URL || process.env.E2E_BACKEND_URL || 'http://localhost:4000';
+const BACKEND = process.env.OAA_BROWSER_BACKEND_URL || process.env.E2E_BACKEND_URL;
 const WIDTHS = [1920, 1440, 1366, 1024, 768, 375];
 
 const state = {

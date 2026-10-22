@@ -1,12 +1,17 @@
 /**
  * API interaction helpers for E2E tests.
- * Uses Playwright's APIRequestContext to communicate with the backend at localhost:4000.
+ * Uses Playwright's APIRequestContext to communicate with the explicitly selected isolated backend.
  */
 
 // Overridable for the same reason global-setup verifies backend identity
 // (finding F4): a hardcoded URL silently pins the suite to whatever happens to
 // be listening on 4000, which during Tranche 6 was a stale v2.0.0 container.
-const BASE_URL = process.env.OAA_BROWSER_BACKEND_URL || process.env.E2E_BACKEND_URL || 'http://localhost:4000';
+// No default: playwright.config.js refuses to run without an explicit isolated
+// backend, so a missing value here is a configuration error, not "use :4000".
+const BASE_URL = process.env.OAA_BROWSER_BACKEND_URL || process.env.E2E_BACKEND_URL;
+if (!BASE_URL) {
+  throw new Error('E2E backend not selected: set E2E_BACKEND_URL to an isolated test backend.');
+}
 
 /**
  * POST /api/start-over — reset all wizard state to defaults.

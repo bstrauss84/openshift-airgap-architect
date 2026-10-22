@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test';
 import { resetState, importState, getState } from '../../helpers/api.js';
 import * as scenarios from '../../fixtures/scenarios.js';
 
-const BACKEND = process.env.OAA_BROWSER_BACKEND_URL || 'http://localhost:4000';
+const BACKEND = process.env.OAA_BROWSER_BACKEND_URL || process.env.E2E_BACKEND_URL;
 
 function makeVersionFixture(minor, patch) {
   const fixture = scenarios.bareMetalAgent();
