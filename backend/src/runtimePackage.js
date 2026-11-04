@@ -264,11 +264,17 @@ const stageRuntimePackage = ({
   const notes = [];
   let included = true;
 
+  // auto (default): use podman or docker if present. fixture: write placeholder
+  // archives, no engine call. none: never call an engine (the documented
+  // no-engine path, independent of the host) — what the test runner uses so a
+  // suite run can never read or export the operator's own images.
   const exportMode = String(process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE || "auto").trim().toLowerCase();
-  const engine = exportMode === "fixture" ? "fixture" : detectContainerEngine();
+  const engine = exportMode === "fixture" ? "fixture" : exportMode === "none" ? null : detectContainerEngine();
   if (!engine) {
     included = false;
-    notes.push("No container engine detected (podman/docker). Runtime image archives could not be generated.");
+    notes.push(exportMode === "none"
+      ? "Runtime image archives are not exported (AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE=none)."
+      : "No container engine detected (podman/docker). Runtime image archives could not be generated.");
   } else {
     const images = [
       { role: "backend", image: backendImage },

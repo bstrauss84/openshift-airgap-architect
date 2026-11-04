@@ -12,10 +12,11 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import { db } from "./db.js";
-import { appendJobOutput, createJob, getJob, updateJob, safeUnlink } from "./utils.js";
+import { appendJobOutput, createJob, getJob, updateJob, updateJobMetadata, safeUnlink } from "./utils.js";
 import { activeProcesses } from "./processRegistry.js";
 import { isTerminalJobStatus } from "./jobStatus.js";
 import logger from "./logger.js";
+import { openVerifiedCatalog, loopbackCatalogArgs, loopbackListEnv } from "./verifiedCatalog.js";
 
 /** Ceiling for one catalog scan. Overridable because a cold index pull on a
  *  slow link is legitimately long; the default only has to beat "forever". */
@@ -91,16 +92,31 @@ const parseOperatorTable = (text, catalogId) => {
   return results;
 };
 
-const storeResults = (version, catalogId, results) => {
+const storeResults = (version, catalogId, results, identity = null) => {
   db.prepare(
     "INSERT INTO operator_results (version, catalog, results_json, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(version, catalog) DO UPDATE SET results_json = excluded.results_json, updated_at = excluded.updated_at"
   ).run(version, catalogId, JSON.stringify(results), Date.now());
+  if (identity) {
+    db.prepare(
+      "INSERT INTO operator_catalog_identity (version, catalog, source_reference, resolved_digest, manifest_digest, verified_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(version, catalog) DO UPDATE SET source_reference = excluded.source_reference, resolved_digest = excluded.resolved_digest, manifest_digest = excluded.manifest_digest, verified_at = excluded.verified_at"
+    ).run(version, catalogId, identity.sourceReference, identity.resolvedDigest, identity.manifestDigest, identity.verifiedAt);
+  } else {
+    // Results without a verified identity (none are produced by the product
+    // path) must not keep a stale identity from an earlier scan.
+    db.prepare("DELETE FROM operator_catalog_identity WHERE version = ? AND catalog = ?").run(version, catalogId);
+  }
+};
+
+/** The verified identity of the catalog content a stored scan describes, or null. */
+const getCatalogIdentity = (version, catalogId) => {
+  const row = db.prepare("SELECT source_reference, resolved_digest, manifest_digest, verified_at FROM operator_catalog_identity WHERE version = ? AND catalog = ?").get(version, catalogId);
+  return row ? { sourceReference: row.source_reference, resolvedDigest: row.resolved_digest, manifestDigest: row.manifest_digest, verifiedAt: row.verified_at } : null;
 };
 
 const getResults = (version, catalogId) => {
   const row = db.prepare("SELECT results_json, updated_at FROM operator_results WHERE version = ? AND catalog = ?").get(version, catalogId);
   if (!row) return null;
-  return { results: JSON.parse(row.results_json), updatedAt: row.updated_at };
+  return { results: JSON.parse(row.results_json), updatedAt: row.updated_at, catalogIdentity: getCatalogIdentity(version, catalogId) };
 };
 
 const authAvailable = () => {
@@ -123,39 +139,94 @@ const runScanJob = ({
   ocMirrorPath,
   onSettled,
   timeoutMs,
-  sigkillAfterMs
+  sigkillAfterMs,
+  // Recorded on the job (never credentials): which workflow and profile asked for
+  // this scan, so the Mirroring Operations view can list it.
+  metadata = null,
+  // Internal seam (tests only pass a stand-in): how the catalog reaches
+  // oc-mirror. The default fetches it over verified TLS and serves it on
+  // loopback; there is no environment or API switch around it.
+  catalogResolver = openVerifiedCatalog
 }) => {
   const jobId = createJob(jobType, message || `Scanning ${catalogId} operators...`);
+  if (metadata) updateJobMetadata(jobId, { ...metadata, catalogId, catalogImage, catalogMinor: version });
 
   if (process.env.NODE_ENV !== "test") {
     logger.info({ tag: "operator-scan:start", jobId, catalogId, catalogImage, version, authProvided: !!authFile }, "Operator scan started");
   }
 
+  // The pull secret is used by OAA's own TLS-verified fetch only; the oc-mirror
+  // listing runs offline against the loopback copy and never receives it.
   const resolvedAuthFile = authFile || process.env.REGISTRY_AUTH_FILE;
-  const args = ["--v2", "list", "operators", `--catalog=${catalogImage}`];
-  if (resolvedAuthFile) {
-    args.push(`--authfile=${resolvedAuthFile}`);
-  }
-  const { REGISTRY_AUTH_FILE: _drop, ...envWithoutRegistryAuthFile } = process.env;
-  const env = { ...envWithoutRegistryAuthFile };
   const bin = ocMirrorPath || "oc-mirror";
+  // `authFile` only. `resolvedAuthFile` may be a mounted REGISTRY_AUTH_FILE
+  // that belongs to the operator and must survive every scan.
+  const releaseCredentials = onSettled || (() => { if (authFile) safeUnlink(authFile); });
+  let credentialsReleased = false;
+  const releaseOnce = () => { if (!credentialsReleased) { credentialsReleased = true; releaseCredentials(); } };
+
+  // Phase 1: the verified fetch, stoppable like a child process.
+  const controller = new AbortController();
+  const fetchHandle = { kill: () => controller.abort() };
+  activeProcesses.set(jobId, fetchHandle);
+  updateJob(jobId, { status: "running", progress: 5, message: `Fetching the ${catalogId} catalog over verified TLS...` });
+
+  catalogResolver(catalogImage, {
+    authFile: resolvedAuthFile,
+    signal: controller.signal,
+    onProgress: ({ done, total }) => {
+      if (total > 0) updateJob(jobId, { progress: 5 + Math.round((done / total) * 50), message: `Fetching the ${catalogId} catalog over verified TLS (${Math.round((done / total) * 100)}%)...` });
+    }
+  }).then((catalog) => {
+    releaseOnce();
+    const current = getJob(jobId);
+    if (activeProcesses.get(jobId) !== fetchHandle || (current && isTerminalJobStatus(current.status))) {
+      // Stopped or shut down while fetching: nothing to spawn, nothing left registered.
+      if (activeProcesses.get(jobId) === fetchHandle) activeProcesses.delete(jobId);
+      catalog.close?.();
+      return;
+    }
+    const identity = { sourceReference: catalogImage, resolvedDigest: catalog.resolvedDigest, manifestDigest: catalog.manifestDigest, verifiedAt: catalog.fetchedAt };
+    appendJobOutput(jobId, `Catalog ${catalogImage} verified over TLS: resolves to ${catalog.resolvedDigest}${catalog.manifestDigest !== catalog.resolvedDigest ? ` (platform manifest ${catalog.manifestDigest})` : ""}.\n`);
+    listCatalog(catalog, identity);
+  }, (err) => {
+    releaseOnce();
+    if (activeProcesses.get(jobId) === fetchHandle) activeProcesses.delete(jobId);
+    const current = getJob(jobId);
+    if (current && isTerminalJobStatus(current.status)) return;
+    if (err?.code === "ABORTED") return;
+    appendJobOutput(jobId, `\n${err?.message || err}\n`);
+    // The reason on its own (the message adds the catalog), for the UI to show once.
+    updateJobMetadata(jobId, { failure: { code: err?.code || null, reason: String(err?.message || err) } });
+    updateJob(jobId, {
+      status: "failed",
+      progress: 100,
+      message: `The ${catalogId} catalog could not be fetched and verified: ${err?.message || err}`
+    });
+    if (process.env.NODE_ENV !== "test") {
+      logger.warn({ tag: "operator-scan:fetch-failed", jobId, catalogId, code: err?.code }, "Verified catalog fetch failed");
+    }
+  });
+
+  return jobId;
+
+  // Phase 2: oc-mirror lists the verified, digest-pinned loopback copy.
+  function listCatalog(catalog, identity) {
+  const args = ["--v2", "list", "operators", ...loopbackCatalogArgs(catalog.localReference, catalog.emptyAuthFile)];
+  const env = loopbackListEnv(process.env);
 
   const child = spawn(bin, args, { env });
   // Registered before the job is advertised as running: a job that reports
   // `running` while /api/jobs/:id/stop answers 404 is exactly the state L3
   // exists to remove.
   activeProcesses.set(jobId, child);
-  updateJob(jobId, { status: "running", progress: 5 });
+  updateJob(jobId, { status: "running", progress: 60, message: `Listing the ${catalogId} catalog...` });
 
   let output = "";
   let error = "";
   let downloadStarted = false;
   let settled = false;
   let timer = null;
-
-  // `authFile` only. `resolvedAuthFile` may be a mounted REGISTRY_AUTH_FILE
-  // that belongs to the operator and must survive every scan.
-  const releaseCredentials = onSettled || (() => { if (authFile) safeUnlink(authFile); });
 
   /**
    * Exactly one outcome per child.
@@ -171,7 +242,7 @@ const runScanJob = ({
     if (settled) return;
     settled = true;
     if (timer) clearTimeout(timer);
-    releaseCredentials();
+    catalog.close?.();
     const current = getJob(jobId);
     if (current && isTerminalJobStatus(current.status)) return;
     finalize();
@@ -258,11 +329,15 @@ const runScanJob = ({
         logger.warn({ tag: "operator-scan:failed", jobId, catalogId, exitCode: code, archMismatch: isArchMismatch(error) }, "Operator scan failed");
       }
 
+      // oc-mirror's own last error line is the reason; the full output is kept.
+      // eslint-disable-next-line no-control-regex
+      const lastError = (`${error}`.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").match(/\[ERROR\][^\n]*/g) || []).pop()?.replace(/^\[ERROR\]\s*:?\s*/, "").trim() || "";
+      const reason = isArchMismatch(error) ? ARCH_GUIDANCE : `oc-mirror could not list the catalog (exit code ${code})${lastError ? `: ${lastError}` : "; see the output"}.`;
+      updateJobMetadata(jobId, { failure: { code: "LIST_FAILED", reason } });
       updateJob(jobId, {
         status: "failed",
         progress: 100,
-        message: userMessage,
-        output: error || output
+        message: isArchMismatch(error) ? userMessage : `${userMessage.replace(/\.$/, "")}: ${reason}`
       });
       return;
     }
@@ -279,7 +354,8 @@ const runScanJob = ({
     }
     updateJob(jobId, { progress: 95, message: `Caching ${parsed.length} ${catalogId} operators...` });
 
-    storeResults(version, catalogId, parsed);
+    storeResults(version, catalogId, parsed, identity);
+    updateJobMetadata(jobId, { packages: parsed.length, catalogDigest: identity.resolvedDigest });
 
     if (process.env.NODE_ENV !== "test") {
       logger.info({ tag: "operator-scan:complete", jobId, catalogId, version, operatorCount: parsed.length }, "Operator scan completed");
@@ -288,13 +364,12 @@ const runScanJob = ({
     updateJob(jobId, {
       status: "completed",
       progress: 100,
-      message: `Completed ${catalogId} scan.`,
+      message: `Completed ${catalogId} scan (catalog ${identity.resolvedDigest.slice(0, 19)}…, verified over TLS).`,
       output
     });
     });
   });
-
-  return jobId;
+  }
 };
 
-export { getCatalogs, getResults, runScanJob, authAvailable, createSharedAuthRelease };
+export { getCatalogs, getResults, getCatalogIdentity, runScanJob, authAvailable, createSharedAuthRelease };

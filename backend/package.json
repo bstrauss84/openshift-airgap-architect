@@ -1,6 +1,6 @@
 {
   "name": "airgap-architect-backend",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "main": "src/index.js",
@@ -13,7 +13,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node src/index.js",
-    "test": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test} node --test --test-concurrency=1 test/",
+    "test:exact-binary": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test-exact} AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE=none node --test --test-concurrency=1 test-integration/",
+    "test": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test} AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE=${AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE:-none} RUNTIME_PACKAGE_BACKEND_IMAGE=${RUNTIME_PACKAGE_BACKEND_IMAGE:-localhost/oaa-test-owned-backend:never-built} RUNTIME_PACKAGE_FRONTEND_IMAGE=${RUNTIME_PACKAGE_FRONTEND_IMAGE:-localhost/oaa-test-owned-frontend:never-built} node --test --test-concurrency=1 test/",
     "test:parallel-diagnostic": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test} node --test test/"
   },
   "dependencies": {
@@ -25,15 +26,15 @@
     "nanoid": "^5.1.16",
     "pino": "^10.3.1",
     "prom-client": "^15.1.3",
-    "undici": "^7.30.0",
-    "zod": "^3.24.1"
+    "undici": "^7.30.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "pino-pretty": "^13.1.3",
     "supertest": "^7.2.2"
   },
   "overrides": {
-    "body-parser": "^1.20.8",
+    "body-parser": "^1.20.9",
     "qs": "^6.16.0",
     "brace-expansion": "^5.0.12",
     "form-data": "^4.0.6"

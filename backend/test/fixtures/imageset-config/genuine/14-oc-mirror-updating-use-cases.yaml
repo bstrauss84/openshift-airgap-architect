@@ -1,0 +1,17 @@
+apiVersion: mirror.openshift.io/v1alpha2
+kind: ImageSetConfiguration
+storageConfig:
+  local:
+    path: /home/user/metadata
+mirror:
+  platform:
+    channels:
+      - name: stable-4.12
+        minVersion: 4.12.1
+        maxVersion: 4.12.1
+  operators:
+    - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.14
+      packages:
+        - name: <new_operator_name>
+          channels:
+          - name: stable

@@ -1,0 +1,147 @@
+{
+ "_about": "Genuine ImageSetConfigurations, unmodified apart from AsciiDoc callout markers (<1>) stripped from documentation listings. Binary verdicts as in binary-probes.json. The 4.22 documentation still carries oc-mirror v1 (v1alpha2, storageConfig) examples; the binary rejects them and so must Architect.",
+ "files": [
+  {
+   "file": "genuine/01-oc-mirror-image-set-config-examples.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-image-set-config-examples.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/02-oc-mirror-image-set-config-examples.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-image-set-config-examples.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/03-oc-mirror-image-set-config-examples.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-image-set-config-examples.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/04-oc-mirror-image-set-config-examples.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-image-set-config-examples.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/05-oc-mirror-image-set-config-examples.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-image-set-config-examples.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/06-oc-mirror-image-set-config-examples.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-image-set-config-examples.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/07-oc-mirror-image-set-config-examples.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-image-set-config-examples.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/08-oc-mirror-image-set-config-examples.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-image-set-config-examples.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/09-oc-mirror-image-set-config-examples.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-image-set-config-examples.adoc",
+   "binary": {
+    "verdict": "accepted"
+   }
+  },
+  {
+   "file": "genuine/10-oc-mirror-image-set-config-examples.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-image-set-config-examples.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/11-oc-mirror-building-image-set-config-v2.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-building-image-set-config-v2.adoc",
+   "binary": {
+    "verdict": "decoded-then-failed-at-run",
+    "error": "[Executor] collection error: collect catalog \"registry.redhat.io/redhat/redhat-operator-index:v4.22\": get manifest: error when creating a new image source: unable to retrieve auth token: invalid username/password: unauthorized: Please login to the Red Hat Registry using your Customer Portal credenti"
+   }
+  },
+  {
+   "file": "genuine/12-oc-mirror-updating-use-cases.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-updating-use-cases.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/13-oc-mirror-updating-use-cases.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-updating-use-cases.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/14-oc-mirror-updating-use-cases.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-updating-use-cases.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/15-oc-mirror-updating-use-cases.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-updating-use-cases.adoc",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: unknown field \"storageConfig\""
+   }
+  },
+  {
+   "file": "genuine/16-oc-mirror-imageset-config-parameters-v2.yaml",
+   "source": "Red Hat OpenShift 4.22 documentation (openshift-docs, enterprise-4.22): oc-mirror-imageset-config-parameters-v2.adoc",
+   "binary": {
+    "verdict": "accepted"
+   }
+  },
+  {
+   "file": "genuine/u1-upstream-testdata-valid.yaml",
+   "source": "github.com/openshift/oc-mirror@5b31abd internal/pkg/config/testdata/config/valid.yaml (Apache-2.0)",
+   "binary": {
+    "verdict": "decoded-then-failed-at-run",
+    "error": "[Executor] collection error: [GetReleaseReferenceImages] error list [APIRequestError: channel \"okd\": GetGraphDataFailed: unexpected HTTP status 400 Bad Request [GetReleaseReferenceImages] error calculating cross channel upgrades: failed to get upgrade graph: channel \"stable-4.6\": VersionNotFound: cu"
+   }
+  },
+  {
+   "file": "genuine/u2-upstream-docs-image-set-config.yaml",
+   "source": "github.com/openshift/oc-mirror@5b31abd docs/image-set-examples/image-set-config.yaml (Apache-2.0)",
+   "binary": {
+    "verdict": "decoded-then-failed-at-run",
+    "error": "[Executor] collection error: collect catalog \"registry.redhat.io/redhat/redhat-operator-index:v4.18\": get manifest: error when creating a new image source: unable to retrieve auth token: invalid username/password: unauthorized: Please login to the Red Hat Registry using your Customer Portal credenti"
+   }
+  }
+ ]
+}

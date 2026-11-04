@@ -19,6 +19,7 @@ import { apiFetch } from "../api.js";
 import SecretInput from "../components/SecretInput.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 import Switch from "../components/Switch.jsx";
+import { encodeBasicAuth, anonymousRegistryAuthJson } from "../shared/registryAuth.js";
 
 /**
  * Identity & Access replacement tab (Phase 5 segmented flow, Prompt E).
@@ -149,13 +150,14 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
   /** OKD/installer dummy auth for unauthenticated registry: per https://github.com/orgs/okd-project/discussions/1930 */
   const buildUnauthMirrorSecret = () => {
     const registry = mirrorHelper.registry || mirroring.registryFqdn || "registry.local:5000";
-    return JSON.stringify({ auths: { [registry]: { auth: "aWQ6cGFzcwo=", email: "" } } });
+    return anonymousRegistryAuthJson(registry);
   };
 
   const generateMirrorPullSecret = () => {
     const registry = mirrorHelper.registry || mirroring.registryFqdn || "";
     if (!registry) return "";
-    const auth = window.btoa(`${mirrorHelper.username}:${mirrorHelper.password}`);
+    // UTF-8 safe: window.btoa alone throws on characters outside Latin-1.
+    const auth = encodeBasicAuth(mirrorHelper.username, mirrorHelper.password);
     return JSON.stringify({
       auths: {
         [registry]: {

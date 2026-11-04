@@ -107,7 +107,13 @@ const apiFetch = async (path, options = {}) => {
       try {
         parsed = JSON.parse(text);
       } catch {}
-      const errorMsg = parsed?.error || parsed?.message || text || res.statusText;
+      // A proxy or an older server can answer with an HTML page: never show its markup.
+      const htmlPage = !parsed && /^\s*</.test(text || "");
+      const errorMsg = parsed?.error || parsed?.message || (htmlPage
+        ? (res.status === 404
+          ? "The server does not offer this action (HTTP 404). If Architect was just updated, restart its backend."
+          : `The server answered HTTP ${res.status}${res.statusText ? ` (${res.statusText})` : ""} without details.`)
+        : text) || res.statusText;
 
       logError("api_request", errorMsg, {
         requestId,

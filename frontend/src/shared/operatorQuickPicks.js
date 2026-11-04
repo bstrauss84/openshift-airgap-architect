@@ -230,3 +230,82 @@ export const resolveScenarioPicks = (scenario, minor) => {
   if (scenario?.versionPicks) return scenario.versionPicks[minor] || null;
   return scenario?.picks || null;
 };
+
+/*
+ * Selection logic shared by Install (OperatorsStep) and Mirroring
+ * (OperatorsSection) — v2.2.0 R-UX07. Pure functions: callers own their state.
+ * Ownership is the operator's `sources` (["manual"], a Quick Pick id, or an
+ * "import:…" source); Install additionally records `scenarioAdded`.
+ */
+
+/** Adds `source` to an operator's sources; an operator without any counts as manually selected. */
+export const ensureSources = (op, source) => {
+  const sources = new Set(op.sources && op.sources.length ? op.sources : ["manual"]);
+  if (source) sources.add(source);
+  return { ...op, sources: Array.from(sources) };
+};
+
+const sameId = (item, found) => item.id === found.id;
+
+/**
+ * Adds a Quick Pick's operators for `minor`, taken only from the loaded
+ * catalogs (never invented): a name the catalogs do not contain is reported
+ * in `missing`, not added.
+ * @returns {{ selected: object[], scenarioAdded: object, added: string[], missing: string[] } | null}
+ *   null when the Quick Pick is not defined for `minor` (no fallback to another minor)
+ */
+export function applyScenarioPicks({ selected = [], scenarioAdded = {}, scenario, minor, catalogs = {}, catalogImages = {}, matches = sameId }) {
+  const picks = resolveScenarioPicks(scenario, minor);
+  if (!picks) return null;
+  const nextSelected = [...selected];
+  const nextAdded = { ...scenarioAdded };
+  const added = [];
+  const missing = [];
+  Object.entries(picks).forEach(([catalogId, names]) => {
+    const list = catalogs[catalogId] || [];
+    names.forEach((name) => {
+      const target = name.toLowerCase();
+      const found = list.find((op) => op.name?.toLowerCase() === target);
+      if (!found) { missing.push(name); return; }
+      const existingIndex = nextSelected.findIndex((item) => matches(item, found));
+      if (existingIndex >= 0) {
+        const prevSources = selected.find((item) => matches(item, found))?.sources || [];
+        nextSelected[existingIndex] = ensureSources(nextSelected[existingIndex], scenario.id);
+        if (!prevSources.includes(scenario.id)) {
+          nextAdded[found.id] = { ...(nextAdded[found.id] || {}), [scenario.id]: true };
+        }
+        return;
+      }
+      nextSelected.push({ ...found, catalogImage: catalogImages[catalogId], sources: [scenario.id] });
+      nextAdded[found.id] = { ...(nextAdded[found.id] || {}), [scenario.id]: true };
+      added.push(found.name);
+    });
+  });
+  return { selected: nextSelected, scenarioAdded: nextAdded, added, missing };
+}
+
+/**
+ * Removes a Quick Pick: drops its source from every operator and removes only
+ * operators it added that no other source (manual, another Quick Pick, an
+ * import) still holds. Without `scenarioAdded` (Mirroring keeps none),
+ * ownership is decided by `sources` alone.
+ * @returns {{ selected: object[], scenarioAdded: object|null }}
+ */
+export function removeScenarioPicks({ selected = [], scenarioAdded = null, scenarioId }) {
+  const nextAdded = scenarioAdded ? { ...scenarioAdded } : null;
+  const nextSelected = selected
+    .map((op) => {
+      const sources = (op.sources || ["manual"]).filter((source) => source !== scenarioId);
+      const addedByScenario = nextAdded ? Boolean(nextAdded[op.id]?.[scenarioId]) : (op.sources || []).includes(scenarioId);
+      if (nextAdded) {
+        const entry = { ...(nextAdded[op.id] || {}) };
+        delete entry[scenarioId];
+        if (Object.keys(entry).length === 0) delete nextAdded[op.id];
+        else nextAdded[op.id] = entry;
+      }
+      if (addedByScenario && sources.length === 0) return null;
+      return { ...op, sources };
+    })
+    .filter(Boolean);
+  return { selected: nextSelected, scenarioAdded: nextAdded };
+}

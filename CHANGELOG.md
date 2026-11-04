@@ -5,6 +5,93 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - Unreleased *(not yet released — set the date when the release is tagged; it must match the tag)*
+
+> Detailed notes: [docs/releases/v2.2.0.md](docs/releases/v2.2.0.md)
+>
+> A MINOR feature release on top of 2.1.2: it adds **Mirroring**, a second workflow beside Install that plans and
+> runs oc-mirror v2 without an install. OpenShift support is unchanged (4.20, 4.21, 4.22; later versions are
+> refused). Plain `podman compose up --build -d` / `docker compose up --build -d` is still the supported way to build
+> and run it. Full guide: [docs/MIRRORING_WORKFLOW.md](docs/MIRRORING_WORKFLOW.md#part-a--user-guide).
+>
+> **Lab-tested, not yet customer-accepted.** The three Mirroring workflows passed lab tests with the real oc-mirror
+> 4.22.19 against synthetic registries. Mirroring an OpenShift release payload or real Red Hat operator content end to
+> end, production registries as destinations, and customer RHEL 9 / Podman 4.9.4 / FIPS hosts have not been
+> demonstrated.
+>
+> **Certification.** This file does not state a certification result for 2.2.0. Any verdict belongs to a run bound to
+> the exact released commit and is published with that release's evidence on the Releases page. Earlier verdicts and
+> owner risk acceptances do **not** carry over. The base images are unchanged, so earlier image findings are **not**
+> resolved by this release.
+
+### Added
+
+- **Mirroring workflow**:
+  - **Profiles** — independent profiles, separate from Install, each with its own content, its own locked OpenShift
+    release, its own storage location and its own history.
+  - **Content** — the OpenShift platform release, operators and additional images, in any combination.
+  - **Operators** — catalog discovery (scan of the Red Hat, Certified and Community catalogs) and a live catalog check
+    of the selected packages, channels and version ranges. The same Scenario Quick Picks as Install.
+  - **Import** — existing ImageSetConfiguration files can be imported, with bounded, strict validation.
+- **ImageSetConfiguration preview** — a labelled DRAFT while a profile is incomplete, then the validated file. Install
+  and Mirroring share one oc-mirror v2 structural check.
+- **Three oc-mirror workflows** — mirror to disk, disk to mirror and mirror to mirror. Each sits behind a structured
+  preflight and writes an immutable run plan. One oc-mirror run at a time per server.
+- **Connected → disconnected transfer:**
+  - **Prepare transfer** writes `SHA256SUMS`, the exact configuration and its provenance, and checks archived blobs and
+    catalog pinning.
+  - **Receive transfer** verifies every file before anything is loaded.
+  - **Order checks** — gaps and rollbacks are refused; **Full transfer** repairs a gap.
+  - **Disk to mirror** uses the received configuration byte for byte, with network confinement.
+- **oc-mirror build check on receipt** — compares the disconnected side's oc-mirror with the SHA-256 recorded in the
+  transfer. It is advisory and never blocking, and it is not a FIPS statement. Tools are not bundled into transfers.
+- **Credentials:**
+  - the Red Hat pull secret stays in page memory per profile (or the mounted secret, when switched on);
+  - destination credentials are entered per run, and **Help me generate** builds them in the browser;
+  - anonymous access is available for registries without login;
+  - nothing is stored.
+- **Storage location per profile** — any directory the server can write, with **Browse…**. `OAA_MIRROR_STORAGE_ROOT`
+  sets the default.
+- **Operations** for Mirroring:
+  - every run, transfer, receipt, catalog check and profile-started scan, with outcome, checksums, command (credentials
+    hidden), related operations and log;
+  - **Run the same again** for runs that stopped for a temporary reason, with result checks and scoped signature
+    retries.
+- **Enterprise deployment:**
+  - `docs/ENTERPRISE_PODMAN_DEPLOYMENT.md` and `scripts/deploy/oaa-deploy.sh` (staged preflight, build, up and verify);
+  - an optional `oaa_build_ca` build secret for HTTPS-inspecting proxies;
+  - clearer tool-download failure messages;
+  - an optional Mirroring storage volume in `docker-compose.yml`.
+
+### Changed
+
+- The landing page offers **Mirroring**. The Install recovery screen for an unsupported minor also offers **Open
+  Mirroring**. Install and Mirroring share the Tools drawer and **Home**.
+- Field Manual FIPS checklist: points to Red Hat's FIPS-capable installation program (`openshift-install-fips`) and no
+  longer claims oc-mirror builds are FIPS-capable. Only that sentence changes, and only for FIPS-enabled configurations.
+- Generated SSH public keys carry the neutral comment `openshift-airgap-architect-generated` instead of the server's
+  `user@hostname`. Pasted keys keep their own comment.
+
+### Fixed
+
+- **Run oc-mirror (Install):**
+  - the cache directory is used for every workflow;
+  - `--since` is passed for mirror to disk only, and its hint names the accepted `yyyy-MM-dd` format;
+  - external ImageSetConfiguration files are no longer always blocked by preflight;
+  - parallel images and layers are limited to 1–10.
+- Archive size must be a whole number of GiB, at least 1. oc-mirror refuses fractions.
+- Locking the Install release saves pending selections first, and an incomplete selection is refused.
+- Install Start Over no longer cancels Mirroring runs or touches Mirroring profiles.
+- The Trust & Proxy proxy fields no longer scroll sideways off the screen.
+- Tall dialogs scroll inside themselves.
+
+### Security
+
+- Backend dependency updates for published advisories: `undici` 7.30.1, `zod` 4 (from 3), `body-parser` 1.20.9
+  (override). Request schemas now bound every collection.
+- Catalog downloads verify TLS against the same trust oc-mirror uses and check every manifest and blob against its
+  digest. Mirroring credentials are never persisted.
+
 ## [2.1.2] - 2026-10-22 *(provisional date — set at release preparation; confirm it matches the tag)*
 
 > Detailed notes: [docs/releases/v2.1.2.md](docs/releases/v2.1.2.md)

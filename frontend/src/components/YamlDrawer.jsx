@@ -40,7 +40,20 @@ export default function YamlDrawer({
      bundle). The preview content above is generated with credentials forced
      in so "Show sensitive values" can reveal them, and must never be what a
      Download writes. Without this callback, Download fails closed. */
-  fetchExportFile = null
+  fetchExportFile = null,
+  /* v2.2.0 Mirroring: an explicit mode instead of a faked step id. "imageset"
+     shows the ImageSetConfiguration pane only, labelled with `sourceLabel`
+     (e.g. the profile name) and `emptyMessage` when nothing is generated. The
+     defaults leave every Install pane exactly as it was. */
+  mode = null,
+  sourceLabel = "Generated",
+  emptyMessage = null,
+  /* v2.2.0 M4 (imageset mode): what the shown file has and has not been
+     checked against, e.g. structure vs live catalog availability. */
+  statusNote = null,
+  /* v2.2.0 R-UX09 (imageset mode): the shown file is a DRAFT of a profile
+     that is not ready. A notice (node) explains why; Download is disabled. */
+  draftNotice = null
 }) {
   // State for drawer width (persisted to localStorage, reset on close)
   const [drawerWidth, setDrawerWidth] = useState(() => {
@@ -187,6 +200,8 @@ export default function YamlDrawer({
      regardless of the Export Options, because the reveal toggle needs them.
      Any failure downloads nothing and says so. */
   const downloadFile = async (filename) => {
+    // A draft is never handed over as a file (R-UX09), whatever enabled the button.
+    if (draftNotice) return;
     setDownloadError("");
     try {
       if (typeof fetchExportFile !== "function") {
@@ -466,7 +481,7 @@ metadata:
 
     // TODO: When uploaded ImageSet config is stored in state, prioritize it over generated
     // Check state.ocMirror?.uploadedImageSetConfig or similar field
-    const source = 'Generated'; // Will be 'Uploaded' when user provides their own
+    const source = sourceLabel; // "Generated" for Install; the profile for Mirroring
 
     return (
       <div className="yaml-config-pane" data-artifact="imageset-config.yaml" style={{ flex: 1, overflow: 'auto', padding: 16 }}>
@@ -483,16 +498,19 @@ metadata:
             }}>
               {source}
             </span>
+            {draftNotice ? <span className="yaml-draft-badge">DRAFT</span> : null}
           </div>
           <button
             type="button"
             className="ghost small"
             onClick={() => downloadFile('imageset-config.yaml')}
-            disabled={!content || !!paneError || loading}
+            disabled={!content || !!paneError || loading || Boolean(draftNotice)}
+            title={draftNotice ? 'A draft cannot be downloaded: resolve the blockers first.' : undefined}
           >
             Download
           </button>
         </div>
+        {draftNotice ? <div className="note warning yaml-draft-notice" role="status" style={{ marginBottom: 8 }}>{draftNotice}</div> : null}
         {renderGenerationNotice(Boolean(content), paneError, paneStale)}
         {loading && !content && <p className="subtle">Generating...</p>}
         {content && (
@@ -516,7 +534,7 @@ metadata:
           <div className="note" style={{ marginTop: 16 }}>
             <p><strong>No ImageSet configuration available yet.</strong></p>
             <p className="subtle" style={{ marginTop: 8, marginBottom: 0 }}>
-              Complete the Operators tab to generate an ImageSet configuration, or upload your own on the Run oc-mirror tab.
+              {emptyMessage || "Complete the Operators tab to generate an ImageSet configuration, or upload your own on the Run oc-mirror tab."}
             </p>
           </div>
         )}
@@ -526,6 +544,11 @@ metadata:
 
   // Main config rendering logic
   const renderConfigs = () => {
+    // Mirroring profile: the ImageSetConfiguration only.
+    if (mode === 'imageset') {
+      return renderImageSetWithSwitching();
+    }
+
     // Operators tab: show ImageSet only
     if (activeStepId === 'operators') {
       return renderSingleConfig('imageset-config.yaml');
@@ -604,6 +627,7 @@ metadata:
         <h2 id="yaml-drawer-title" className="card-title" style={{ margin: 0, flex: 1 }}>
           YAML Preview
         </h2>
+        {mode !== 'imageset' && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.875rem', cursor: 'pointer' }}>
           <input
             type="checkbox"
@@ -613,6 +637,7 @@ metadata:
           />
           <span>Show sensitive values</span>
         </label>
+        )}
         <button
           type="button"
           className="ghost icon-button"
@@ -623,9 +648,14 @@ metadata:
         </button>
       </div>
       <p className="note subtle" style={{ margin: '8px 20px 0' }} data-download-policy-note="true">
-        Revealing values only changes what is shown here. Download saves each file using your
-        Export Options on Assets &amp; Guide — the same rules as the bundle.
+        {mode === 'imageset'
+          ? <>An ImageSetConfiguration holds no credentials, so there is nothing to reveal. Download saves exactly this file, generated again at that moment.</>
+          : <>Revealing values only changes what is shown here. Download saves each file using your
+            Export Options on Assets &amp; Guide — the same rules as the bundle.</>}
       </p>
+      {mode === 'imageset' && statusNote ? (
+        <p className="note subtle" style={{ margin: '8px 20px 0' }} data-validation-note="true">{statusNote}</p>
+      ) : null}
       {downloadError ? (
         <div className="note warning" role="alert" style={{ margin: '8px 20px 0' }} data-download-error="true">
           {downloadError}

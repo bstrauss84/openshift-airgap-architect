@@ -52,10 +52,29 @@ ARG OCP_MIRROR_SHA256=""
 # curl/tar for the binary fetch, python3+make+gcc-c++ for node-gyp. It is kept
 # because the builder stage genuinely depends on them and a future base-image
 # slim-down must fail HERE, in the builder, rather than silently at `npm ci`.
-RUN dnf install -y --setopt=install_weak_deps=false \
-    ca-certificates tar python3 make gcc-c++ \
+# --- Build-time CA trust (corporate HTTPS inspection) -----------------------
+# Networked RUN steps below mount an OPTIONAL build secret `oaa_build_ca` (a
+# PEM file with the inspecting proxy's CA). It is never written to a layer or
+# the image history: each step concatenates it with the image's system bundle
+# into a temporary file for curl, dnf, npm and Node, and deletes it in the same
+# step. Supply it with
+#   podman build --secret id=oaa_build_ca,src=/path/corp-ca.pem,type=file ...
+# (scripts/deploy/oaa-deploy.sh does this). Without it the steps behave as
+# before. Do NOT pass a CA as a --build-arg: build args are recorded in history.
+# `mode=0444` because some steps run as UID 1001 and a secret defaults to 0400 root.
+RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
+    set -e && OAA_DNF_CA="" && \
+    if [ -s /run/secrets/oaa_build_ca ]; then \
+      cat /etc/pki/tls/certs/ca-bundle.crt /run/secrets/oaa_build_ca > /tmp/oaa-build-ca.pem && \
+      export CURL_CA_BUNDLE=/tmp/oaa-build-ca.pem SSL_CERT_FILE=/tmp/oaa-build-ca.pem \
+             NODE_EXTRA_CA_CERTS=/run/secrets/oaa_build_ca npm_config_cafile=/tmp/oaa-build-ca.pem && \
+      OAA_DNF_CA="$(for r in $(sed -n 's/^\[\(.*\)\]$/\1/p' /etc/yum.repos.d/*.repo); do printf -- '--setopt=%s.sslcacert=/tmp/oaa-build-ca.pem ' "$r"; done)" && \
+      echo "build CA: using the oaa_build_ca build secret for this step (not stored in the image)"; \
+    fi && \
+    dnf install -y --setopt=install_weak_deps=false ${OAA_DNF_CA} \
+      ca-certificates tar python3 make gcc-c++ \
     && dnf clean all \
-    && rm -rf /var/cache/dnf
+    && rm -rf /var/cache/dnf /tmp/oaa-build-ca.pem
 
 # Bake oc and oc-mirror, resolved from Red Hat release channels (no hardcoded
 # z-stream) and verified against each channel's own sha256sum.txt.
@@ -93,7 +112,26 @@ ARG OC_MIRROR_CHANNEL=latest
 # those files fit in the 64 KiB pipe buffer — latent, not safe. Do not
 # reintroduce `| awk '...; exit'`, `| head -1` or `| grep -m1` here: all three
 # close the pipe early and recreate this.
-RUN set -e && \
+# Downloads retry transient failures only (curl --retry: timeouts, 408/429/5xx;
+# never TLS or other 4xx), bounded, and a failure says what kind it was.
+RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
+    set -e && \
+    if [ -s /run/secrets/oaa_build_ca ]; then \
+      cat /etc/pki/tls/certs/ca-bundle.crt /run/secrets/oaa_build_ca > /tmp/oaa-build-ca.pem && \
+      export CURL_CA_BUNDLE=/tmp/oaa-build-ca.pem SSL_CERT_FILE=/tmp/oaa-build-ca.pem \
+             NODE_EXTRA_CA_CERTS=/run/secrets/oaa_build_ca npm_config_cafile=/tmp/oaa-build-ca.pem && \
+      OAA_DNF_CA="$(for r in $(sed -n 's/^\[\(.*\)\]$/\1/p' /etc/yum.repos.d/*.repo); do printf -- '--setopt=%s.sslcacert=/tmp/oaa-build-ca.pem ' "$r"; done)" && \
+      echo "build CA: using the oaa_build_ca build secret for this step (not stored in the image)"; \
+    fi && \
+    fetch() { \
+      curl -fsSL --proto '=https' --retry 4 --retry-delay 5 --retry-connrefused --connect-timeout 30 "$@" || { rc=$?; \
+        case $rc in \
+          35|51|53|54|58|59|60|66|77|80|82|83|90|91) echo "FATAL: TLS verification failed for $* (curl $rc). Behind an HTTPS-inspecting proxy, supply its CA as the oaa_build_ca build secret (README: Corporate CA and proxy)." >&2 ;; \
+          5|6|7|28|97) echo "FATAL: could not connect for $* (curl $rc): check HTTPS_PROXY / NO_PROXY and that mirror.openshift.com is allowed." >&2 ;; \
+          22) echo "FATAL: HTTP error for $* (curl 22) — not a TLS or proxy problem; a 407 means the proxy needs credentials in HTTPS_PROXY." >&2 ;; \
+          *) echo "FATAL: download failed for $* (curl $rc)." >&2 ;; \
+        esac; return $rc; }; \
+    } && \
     _arch="$(uname -m)" && \
     case "$_arch" in \
       x86_64)        _dir="x86_64" ;; \
@@ -111,28 +149,28 @@ RUN set -e && \
     _cbase="https://mirror.openshift.com/pub/openshift-v4/${_dir}/clients/ocp" && \
     _oc_base="${_cbase}/${OC_CHANNEL}" && \
     _mirror_base="${_cbase}/${OC_MIRROR_CHANNEL}" && \
-    _oc_rel="$(curl -fsSL "${_oc_base}/release.txt")" && \
-    _mirror_rel="$(curl -fsSL "${_mirror_base}/release.txt")" && \
+    _oc_rel="$(fetch "${_oc_base}/release.txt")" && \
+    _mirror_rel="$(fetch "${_mirror_base}/release.txt")" && \
     _oc_ver="$(printf '%s\n' "${_oc_rel}" | awk '/^Name:/{v=$2} END{print v}')" && \
     _mirror_ver="$(printf '%s\n' "${_mirror_rel}" | awk '/^Name:/{v=$2} END{print v}')" && \
     [ -n "${_oc_ver}" ] || { echo "FATAL: could not resolve oc version from ${_oc_base}"; exit 1; } && \
     [ -n "${_mirror_ver}" ] || { echo "FATAL: could not resolve oc-mirror version from ${_mirror_base}"; exit 1; } && \
     if [ -n "${OCP_CLIENT_SHA256}" ]; then _oc_check="${OCP_CLIENT_SHA256}"; else \
-      _oc_sums="$(curl -fsSL "${_oc_base}/sha256sum.txt")" && \
+      _oc_sums="$(fetch "${_oc_base}/sha256sum.txt")" && \
       _oc_check="$(printf '%s\n' "${_oc_sums}" | awk '$2=="openshift-client-linux.tar.gz"{v=$1} END{print v}')"; fi && \
     if [ -n "${OCP_MIRROR_SHA256}" ]; then _mirror_check="${OCP_MIRROR_SHA256}"; else \
-      _mirror_sums="$(curl -fsSL "${_mirror_base}/sha256sum.txt")" && \
+      _mirror_sums="$(fetch "${_mirror_base}/sha256sum.txt")" && \
       _mirror_check="$(printf '%s\n' "${_mirror_sums}" | awk '$2=="oc-mirror.tar.gz"{v=$1} END{print v}')"; fi && \
     [ -n "${_oc_check}" ] || { echo "FATAL: no SHA256 for openshift-client-linux.tar.gz"; exit 1; } && \
     [ -n "${_mirror_check}" ] || { echo "FATAL: no SHA256 for oc-mirror.tar.gz"; exit 1; } && \
     _oc_url="${OCP_CLIENT_URL:-${_oc_base}/openshift-client-linux.tar.gz}" && \
     _mirror_url="${OCP_MIRROR_URL:-${_mirror_base}/oc-mirror.tar.gz}" && \
     echo "Downloading oc ${_oc_ver} (${_dir}) from: ${_oc_url}" && \
-    curl -fsSL "${_oc_url}" -o /tmp/oc.tgz && \
+    fetch "${_oc_url}" -o /tmp/oc.tgz && \
     echo "${_oc_check}  /tmp/oc.tgz" | sha256sum --check --strict && \
     tar -xzf /tmp/oc.tgz -C /usr/local/bin oc && chmod +x /usr/local/bin/oc && rm -f /tmp/oc.tgz && \
     echo "Downloading oc-mirror ${_mirror_ver} (${_dir}) from: ${_mirror_url}" && \
-    curl -fsSL "${_mirror_url}" -o /tmp/oc-mirror.tgz && \
+    fetch "${_mirror_url}" -o /tmp/oc-mirror.tgz && \
     echo "${_mirror_check}  /tmp/oc-mirror.tgz" | sha256sum --check --strict && \
     tar -xzf /tmp/oc-mirror.tgz -C /usr/local/bin oc-mirror && chmod +x /usr/local/bin/oc-mirror && rm -f /tmp/oc-mirror.tgz && \
     mkdir -p /app && { \
@@ -143,7 +181,8 @@ RUN set -e && \
       echo "OC_MIRROR_RESOLVED_SHA256=${_mirror_check}"; \
       echo "OC_MIRROR_RESOLVED_CHANNEL=${OC_MIRROR_CHANNEL}"; \
       echo "TOOLS_RESOLVED_ARCH=${_dir}"; \
-    } > /app/tools-provenance.env && cat /app/tools-provenance.env
+    } > /app/tools-provenance.env && cat /app/tools-provenance.env && \
+    rm -f /tmp/oaa-build-ca.pem
 
 WORKDIR /app
 COPY backend/package.json backend/package-lock.json* ./
@@ -154,7 +193,16 @@ COPY backend/package.json backend/package-lock.json* ./
 # of which the minimal runtime image provides, so the tree is portable across
 # the stage boundary. Both stages are nodejs-22 from the same RHEL 9.8 module
 # stream (node v22.23.2, NODE_MODULE_VERSION 127), so the native ABI matches.
-RUN npm ci --omit=dev
+RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
+    set -e && \
+    if [ -s /run/secrets/oaa_build_ca ]; then \
+      cat /etc/pki/tls/certs/ca-bundle.crt /run/secrets/oaa_build_ca > /tmp/oaa-build-ca.pem && \
+      export CURL_CA_BUNDLE=/tmp/oaa-build-ca.pem SSL_CERT_FILE=/tmp/oaa-build-ca.pem \
+             NODE_EXTRA_CA_CERTS=/run/secrets/oaa_build_ca npm_config_cafile=/tmp/oaa-build-ca.pem && \
+      OAA_DNF_CA="$(for r in $(sed -n 's/^\[\(.*\)\]$/\1/p' /etc/yum.repos.d/*.repo); do printf -- '--setopt=%s.sslcacert=/tmp/oaa-build-ca.pem ' "$r"; done)" && \
+      echo "build CA: using the oaa_build_ca build secret for this step (not stored in the image)"; \
+    fi && npm ci --omit=dev --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000 && \
+    rm -f /tmp/oaa-build-ca.pem
 
 # ---------------------------------------------------------------------------
 # Runtime — Red Hat's Node.js 22 runtime image: no gcc, no kernel-headers
@@ -212,13 +260,22 @@ USER root
 #                             the build instead of shipping a Node-less image.
 # Both assertions are stronger than the bare `microdnf remove` they replace,
 # which only ever proved that one invocation returned 0.
-RUN microdnf install -y --nodocs --setopt=install_weak_deps=0 \
+RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
+    set -e && OAA_DNF_CA="" && \
+    if [ -s /run/secrets/oaa_build_ca ]; then \
+      cat /etc/pki/tls/certs/ca-bundle.crt /run/secrets/oaa_build_ca > /tmp/oaa-build-ca.pem && \
+      export CURL_CA_BUNDLE=/tmp/oaa-build-ca.pem SSL_CERT_FILE=/tmp/oaa-build-ca.pem \
+             NODE_EXTRA_CA_CERTS=/run/secrets/oaa_build_ca npm_config_cafile=/tmp/oaa-build-ca.pem && \
+      OAA_DNF_CA="$(for r in $(sed -n 's/^\[\(.*\)\]$/\1/p' /etc/yum.repos.d/*.repo); do printf -- '--setopt=%s.sslcacert=/tmp/oaa-build-ca.pem ' "$r"; done)" && \
+      echo "build CA: using the oaa_build_ca build secret for this step (not stored in the image)"; \
+    fi && \
+    microdnf install -y --nodocs --setopt=install_weak_deps=0 ${OAA_DNF_CA} \
     util-linux openssh-clients \
     && if rpm -q nodejs-nodemon >/dev/null 2>&1; then microdnf remove -y nodejs-nodemon; fi \
     && ! rpm -q nodejs-nodemon >/dev/null 2>&1 \
     && node --version && npm --version \
     && microdnf clean all \
-    && rm -rf /var/cache/yum /var/cache/dnf
+    && rm -rf /var/cache/yum /var/cache/dnf /tmp/oaa-build-ca.pem
 
 # oc, oc-mirror and their recorded provenance cross the stage boundary as
 # already-verified bytes. Verification (sha256sum --check --strict against each
@@ -259,8 +316,15 @@ ENV OAA_CANONICAL_DATA_DIR=/app/data
 COPY shared /shared
 COPY backend/scripts/entrypoint.sh /app/entrypoint.sh
 COPY --from=build-info /tmp/build-env.sh /app/build-env.sh
+# Modes are normalised because COPY keeps the build host's: under a
+# restrictive umask (077) a checkout is 0600 and root-owned in the image, and
+# /shared (outside /app) would be unreadable to UID 1001; OpenShift's arbitrary
+# UID reads through group 0. `a+rX` adds read (and traverse on directories)
+# only. The useradd fallback is grouped so `|| true` cannot swallow a failed
+# chmod or chown.
 RUN chmod +x /app/entrypoint.sh && chown -R 1001:0 /app \
-    && useradd -r -u 1001 -g 0 -o -M -d /app appuser 2>/dev/null || true
+    && chmod -R a+rX /app /shared \
+    && { useradd -r -u 1001 -g 0 -o -M -d /app appuser 2>/dev/null || true; }
 
 # --- PROOF A: bind the shipped image to the source candidate --------------
 #

@@ -10,7 +10,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AppProvider, useApp } from "./store.jsx";
 import { getVersionLocked, detectUnknownSchema } from "./shared/versionHelpers.js";
 
@@ -18,6 +18,10 @@ const STORAGE_KEY = "airgap-architect-state";
 import Sidebar from "./components/Sidebar.jsx";
 import Modal from "./components/Modal.jsx";
 import LandingPage from "./LandingPage.jsx";
+// The Mirroring workflow loads on demand (v2.2.0 M5): the Install wizard never
+// needs it, so it is kept out of the eager bundle.
+const MirroringShell = React.lazy(() => import("./mirroring/MirroringShell.jsx"));
+import { useThemePreference } from "./hooks/useThemePreference.js";
 import BlueprintStep from "./steps/BlueprintStep.jsx";
 import PlaceholderCard from "./components/PlaceholderCard.jsx";
 import MethodologyStep from "./steps/MethodologyStep.jsx";
@@ -64,8 +68,7 @@ import { ensureDocsIndexForMinor, isDocsIndexResolvedForMinor } from "./docsInde
  */
 export const isVersionedDataReady = (minor) =>
   Boolean(minor) && areCatalogsLoadedForMinor(minor) && isDocsIndexResolvedForMinor(minor);
-import { SUPPORTED_MINORS } from "./shared/versionPolicy.js";
-import { compareVersions } from "../../shared/versionUtils.js";
+import { SUPPORTED_MINORS, getNewestSupportedMinor } from "./shared/versionPolicy.js";
 import { UPDATE_STATUS, isUrgentUpdateStatus, updateStatusOf, verifiedLatestRelease } from "../../shared/updateStatus.js";
 import { apiFetch } from "./api.js";
 import { getFeedbackConfig } from "./feedbackApi.js";
@@ -211,7 +214,7 @@ class ErrorBoundary extends React.Component {
 // Exported for tests/version-gate-data-loading.test.jsx: this gate is the single
 // load-and-support boundary, so its behaviour is asserted directly rather than
 // inferred through the whole App tree.
-export const VersionSupportGate = ({ children }) => {
+export const VersionSupportGate = ({ children, onOpenMirroring }) => {
   const { state, startOver, updateState } = useApp();
   const selectedMinor = getOpenShiftMinorFromState(state);
 
@@ -275,8 +278,8 @@ export const VersionSupportGate = ({ children }) => {
   const isSupported = SUPPORTED_MINORS.includes(selectedMinor);
 
   if (!isSupported) {
-    // Get newest supported version (don't mutate SUPPORTED_MINORS)
-    const newestSupported = [...SUPPORTED_MINORS].sort((a, b) => compareVersions(b, a))[0];
+    // Newest supported version, from the shared policy (does not mutate SUPPORTED_MINORS).
+    const newestSupported = getNewestSupportedMinor();
 
     // Unsupported version - show recovery UI, do NOT mount AppShell
     return (
@@ -341,6 +344,13 @@ export const VersionSupportGate = ({ children }) => {
             >
               Switch to {newestSupported}
             </button>
+            {onOpenMirroring ? (
+              // Mirroring does not depend on the Install release, so an
+              // unsupported Install state must not lock the user out of it.
+              <button type="button" className="ghost" onClick={onOpenMirroring}>
+                Open Mirroring
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -397,8 +407,28 @@ export const VersionSupportGate = ({ children }) => {
  */
 const ShellViewContext = createContext(null);
 
+/** Which top-level workflow is open; survives a reload within the tab. */
+const WORKFLOW_SESSION_KEY = "oaa-active-workflow";
+
 export const ShellViewProvider = ({ children }) => {
   const [showLanding, setShowLanding] = useState(true);
+  // "install" (landing page and the Install wizard) or "mirroring" (v2.2.0).
+  const [workflow, setWorkflowState] = useState(() => {
+    try {
+      return sessionStorage.getItem(WORKFLOW_SESSION_KEY) === "mirroring" ? "mirroring" : "install";
+    } catch {
+      return "install";
+    }
+  });
+  const setWorkflow = useCallback((next) => {
+    setWorkflowState(next);
+    try {
+      if (next === "mirroring") sessionStorage.setItem(WORKFLOW_SESSION_KEY, "mirroring");
+      else sessionStorage.removeItem(WORKFLOW_SESSION_KEY);
+    } catch {
+      /* storage unavailable: the choice simply does not survive a reload */
+    }
+  }, []);
   const [active, setActive] = useState(0);
   // The YAML drawer is here for the same reason: it is something the user
   // explicitly opened, and a version-data reload used to slam it shut.
@@ -415,15 +445,23 @@ export const ShellViewProvider = ({ children }) => {
    * did it, because they do not make the gate block.
    */
   const scrollMemoryRef = useRef({ top: 0, forActive: 0 });
+  /**
+   * The Install step the user was on when they chose Home (v2.2.0 M3). Home is
+   * navigation, not Start Over: choosing Install again resumes this exact step
+   * instead of recomputing "first incomplete". Session memory only.
+   */
+  const installReturnStepRef = useRef(null);
   const value = useMemo(
     () => ({
       showLanding, setShowLanding,
+      workflow, setWorkflow,
       active, setActive,
       yamlDrawerOpen, setYamlDrawerOpen,
       showPreview, setShowPreview,
       scrollMemoryRef,
+      installReturnStepRef,
     }),
-    [showLanding, active, yamlDrawerOpen, showPreview]
+    [showLanding, workflow, setWorkflow, active, yamlDrawerOpen, showPreview]
   );
   return <ShellViewContext.Provider value={value}>{children}</ShellViewContext.Provider>;
 };
@@ -441,15 +479,16 @@ const AppShell = () => {
   const {
     active, setActive,
     showLanding, setShowLanding,
+    setWorkflow,
+    installReturnStepRef,
     yamlDrawerOpen, setYamlDrawerOpen,
     showPreview, setShowPreview,
     scrollMemoryRef,
   } = useShellView();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showReleaseWarning, setShowReleaseWarning] = useState(false);
-  const [showBlueprintWarning, setShowBlueprintWarning] = useState(false);
   const [showCoreLockWarning, setShowCoreLockWarning] = useState(false);
   const [lockAndProceedLoading, setLockAndProceedLoading] = useState(false);
+  const [lockError, setLockError] = useState("");
   const [showStartOverConfirm, setShowStartOverConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [showChangeReleaseWarning, setShowChangeReleaseWarning] = useState(false);
@@ -459,7 +498,7 @@ const AppShell = () => {
   const [validationModal, setValidationModal] = useState(null);
   const [highlightErrors, setHighlightErrors] = useState(false);
   const [pendingNavIndex, setPendingNavIndex] = useState(null);
-  const [theme, setTheme] = useState(() => localStorage.getItem("airgap-theme") || "light");
+  const [theme, setTheme] = useThemePreference();
   const [previewFiles, setPreviewFiles] = useState({});
   const [previewError, setPreviewError] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -481,7 +520,6 @@ const AppShell = () => {
   const previewRequestIdRef = useRef(0);
   const prevMethodologyRef = useRef(state?.methodology?.method);
   const importingRef = useRef(false);  // Track when import is in progress
-  const [confirmingRelease, setConfirmingRelease] = useState(false);
   const [showStartOverModal, setShowStartOverModal] = useState(false);
   const [startOverRunningJobs, setStartOverRunningJobs] = useState([]);
   const [startOverCheckingJobs, setStartOverCheckingJobs] = useState(false);
@@ -656,7 +694,9 @@ const AppShell = () => {
     [segmentedFlowV1, visibleSteps]
   );
   const blueprintReady = Boolean(state?.blueprint?.arch && state?.blueprint?.platform);
-  const releaseReady = Boolean(getOpenShiftMinorFromState(state) && state?.release?.patchVersion);
+  // The server locks only a complete selection (channel AND patch, F19), so the
+  // client offers the lock under the same rule.
+  const releaseReady = Boolean(getOpenShiftMinorFromState(state) && state?.release?.channel && state?.release?.patchVersion);
 
   const errorFlags = useMemo(() => {
     if (!state) return {};
@@ -855,11 +895,6 @@ const AppShell = () => {
       updateState({ ui: { ...state.ui, visitedSteps } });
     }
   }, [active, visibleSteps, state?.ui, showLanding, updateState]);
-
-  useEffect(() => {
-    document.body.dataset.theme = theme;
-    localStorage.setItem("airgap-theme", theme);
-  }, [theme]);
 
   useEffect(() => {
     const close = (e) => {
@@ -1141,50 +1176,6 @@ metadata:
       setActiveStep(active - 1);
     }
   };
-  const confirmBlueprintAndProceed = () => {
-    if (!blueprintReady) return;
-    setShowBlueprintWarning(false);
-    setHighlightErrors(false);
-    updateState({
-      blueprint: {
-        ...state.blueprint,
-        confirmed: true,
-        confirmationTimestamp: Date.now()
-      },
-      reviewFlags: { ...(state.reviewFlags || {}), blueprint: false }
-    });
-    const target = pendingNavIndex ?? active;
-    setPendingNavIndex(null);
-    setActiveStep(target, { skipReviewForStep: "blueprint" });
-  };
-
-  const confirmReleaseAndProceed = async () => {
-    if (!releaseReady || confirmingRelease) return;
-    setConfirmingRelease(true);
-    try {
-      const data = await apiFetch("/api/operators/confirm", { method: "POST" });
-      setHighlightErrors(false);
-      const newMinor = data.version?.selectedMinor || state.release?.channel;
-      const invalidated = computeOperatorMinorInvalidation(state.operators, newMinor);
-      const operatorPatch = invalidated ? {
-        operators: invalidated,
-        reviewFlags: { ...(state.reviewFlags || {}), release: false, operators: true },
-      } : {
-        reviewFlags: { ...(state.reviewFlags || {}), release: false },
-      };
-      updateState({
-        release: { ...state.release, confirmed: true },
-        version: data.version,
-        ...operatorPatch,
-      });
-      setShowReleaseWarning(false);
-      const target = pendingNavIndex ?? active + 1;
-      setPendingNavIndex(null);
-      setActiveStep(target, { skipReviewForStep: "blueprint", markComplete: "blueprint" });
-    } finally {
-      setConfirmingRelease(false);
-    }
-  };
   const handleInstallClick = async () => {
     // If no progress (fresh start), clear state like Start Over does
     if (!hasProgress) {
@@ -1192,7 +1183,13 @@ metadata:
       if (nextState) setState(nextState);
     }
     setShowLanding(false);
-    const nextIndex = hasProgress ? firstIncompleteStepIndex : 0;
+    // Returning from Home resumes the exact step; otherwise the existing
+    // "continue at the first incomplete step" behaviour applies.
+    const returnStep = installReturnStepRef.current;
+    installReturnStepRef.current = null;
+    const nextIndex = hasProgress && returnStep != null && returnStep < visibleSteps.length
+      ? returnStep
+      : hasProgress ? firstIncompleteStepIndex : 0;
     setActive(nextIndex);
     const stepId = visibleSteps[nextIndex]?.id;
     if (stepId && state?.ui) {
@@ -1228,8 +1225,24 @@ metadata:
     const ephemeralSecret = (state.blueprint?.blueprintPullSecretEphemeral || "").trim();
     const secretValid = ephemeralSecret && validateBlueprintPullSecretOptional(ephemeralSecret).valid;
     setLockAndProceedLoading(true);
+    setLockError("");
     try {
-      const data = await apiFetch("/api/operators/confirm", { method: "POST" });
+      // F19: the lock confirms the release the SERVER holds, and selections reach
+      // the server through a 600 ms debounce. Locking inside that window confirmed
+      // an older (possibly empty) release and then adopted it below, replacing the
+      // selection on screen. Save first; never lock a selection the server lacks.
+      const flush = await flushPendingSave();
+      if (!flush.ok) {
+        setLockError(`Your release selection could not be saved to the server (${flush.error}), so nothing was locked. Check that the backend is reachable, then try again.`);
+        return;
+      }
+      let data;
+      try {
+        data = await apiFetch("/api/operators/confirm", { method: "POST" });
+      } catch (err) {
+        setLockError(`${err?.message || "The release could not be locked."} Nothing was locked.`);
+        return;
+      }
       // This is the live re-lock path after "Change OpenShift release". If the
       // newly locked minor differs from the one the stored operator metadata was
       // resolved against, that metadata and the active selection it drives are
@@ -1521,7 +1534,7 @@ metadata:
         ) : null}
         <div className="app landing-view">
           <div className="content landing-content">
-            <LandingPage hasProgress={hasProgress} onStartInstall={handleInstallClick} />
+            <LandingPage hasProgress={hasProgress} onStartInstall={handleInstallClick} onStartMirroring={() => setWorkflow("mirroring")} />
           </div>
         </div>
         <Modal
@@ -1666,7 +1679,7 @@ metadata:
       {showLanding ? (
         <div className="app landing-view">
           <div className="content landing-content">
-            <LandingPage hasProgress={hasProgress} onStartInstall={handleInstallClick} />
+            <LandingPage hasProgress={hasProgress} onStartInstall={handleInstallClick} onStartMirroring={() => setWorkflow("mirroring")} />
           </div>
         </div>
       ) : (
@@ -1858,44 +1871,13 @@ metadata:
                 : "—"}
             </dd>
           </dl>
+          {lockError ? <div className="note warning" role="alert">{lockError}</div> : null}
           <div className="actions">
-            <button type="button" className="ghost" onClick={() => { setShowCoreLockWarning(false); setPendingNavIndex(null); }}>
+            <button type="button" className="ghost" onClick={() => { setShowCoreLockWarning(false); setPendingNavIndex(null); setLockError(""); }}>
               No, go back
             </button>
             <button type="button" className="primary" onClick={lockAndProceed} disabled={!blueprintReady || !releaseReady || lockAndProceedLoading || blueprintPullSecretBlocking}>
               {lockAndProceedLoading ? "Locking…" : "Yes, lock selections"}
-            </button>
-          </div>
-        </Modal>
-        <Modal
-          isOpen={showReleaseWarning}
-          onClose={() => setShowReleaseWarning(false)}
-          ariaLabelledBy="release-warning-title"
-        >
-          <h3 id="release-warning-title">Release selection</h3>
-          <p className="subtle">
-            This release selection will be locked from this point, and you&apos;ll need to click Start Over to change it later. Continue?
-          </p>
-          <div className="actions">
-            <button type="button" className="ghost" onClick={() => setShowReleaseWarning(false)}>No</button>
-            <button type="button" className="primary" onClick={confirmReleaseAndProceed} disabled={!releaseReady || confirmingRelease}>
-              {confirmingRelease ? "…" : "Yes"}
-            </button>
-          </div>
-        </Modal>
-        <Modal
-          isOpen={showBlueprintWarning}
-          onClose={() => setShowBlueprintWarning(false)}
-          ariaLabelledBy="blueprint-warning-title"
-        >
-          <h3 id="blueprint-warning-title">Blueprint selection</h3>
-          <p className="subtle">
-            These selections will be locked from this point, and you&apos;ll need to click Start Over to change them later. Continue?
-          </p>
-          <div className="actions">
-            <button type="button" className="ghost" onClick={() => setShowBlueprintWarning(false)}>No</button>
-            <button type="button" className="primary" onClick={confirmBlueprintAndProceed} disabled={!blueprintReady}>
-              Yes
             </button>
           </div>
         </Modal>
@@ -2034,6 +2016,12 @@ metadata:
           onExportRun={exportRun}
           onImportClick={() => importRef.current?.click()}
           onStartOver={handleStartOverClick}
+          onHome={() => {
+            // Navigation only: no Start Over, no reset, no job cancellation.
+            installReturnStepRef.current = active;
+            setShowLanding(true);
+          }}
+          workflowLabel="Install"
           jobsCount={jobsCount}
           onNavigateToOperations={() => attemptNavigate(visibleSteps.findIndex((s) => s.id === "operations"))}
           isLocked={foundationalLocked}
@@ -2052,13 +2040,38 @@ metadata:
   );
 };
 
+/**
+ * Top-level workflow router (v2.2.0). Install keeps its existing gated shell:
+ * VersionSupportGate still wraps the landing page and the wizard, and nothing
+ * catalog-dependent mounts for an unsupported Install minor. Mirroring renders
+ * beside it, outside that gate, because it does not use the Install release.
+ */
+const WorkflowRouter = () => {
+  const { workflow, setWorkflow, setShowLanding } = useShellView();
+  if (workflow === "mirroring") {
+    return (
+      <React.Suspense fallback={<div className="loading" role="status">Loading Mirroring…</div>}>
+        <MirroringShell
+          onExit={() => {
+            setShowLanding(true);
+            setWorkflow("install");
+          }}
+        />
+      </React.Suspense>
+    );
+  }
+  return (
+    <VersionSupportGate onOpenMirroring={() => setWorkflow("mirroring")}>
+      <AppShell />
+    </VersionSupportGate>
+  );
+};
+
 const App = () => (
   <AppProvider>
     <ErrorBoundary>
       <ShellViewProvider>
-        <VersionSupportGate>
-          <AppShell />
-        </VersionSupportGate>
+        <WorkflowRouter />
       </ShellViewProvider>
     </ErrorBoundary>
   </AppProvider>

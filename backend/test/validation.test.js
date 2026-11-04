@@ -54,7 +54,7 @@ test("runImportSchema: accepts minimal valid payload (state only)", () => {
 test("runImportSchema: rejects missing state", () => {
   const result = runImportSchema.safeParse({ schemaVersion: 1 });
   assert.strictEqual(result.success, false);
-  assert.ok(result.error.errors.some((e) => e.path.includes("state")));
+  assert.ok(result.error.issues.some((e) => e.path.includes("state")));
 });
 
 test("runImportSchema: rejects non-object state", () => {

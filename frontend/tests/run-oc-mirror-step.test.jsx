@@ -197,3 +197,34 @@ describe("T7C.3 — job polling stops when the job is gone", () => {
    * `tests/operator-scan-stale-job-polling.test.jsx`.
    */
 });
+
+describe("F12 (v2.2.0 M5) — Install parallelism fields follow the binary's 1–10", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("advertises 1–10 (was 1–32); a stored 16 shows its error only after blur; a preflight checklist renders", async () => {
+    const state = stateWithRunOcMirrorStep({ mirrorWorkflow: { parallelImages: 16 } });
+    vi.mocked(apiFetch).mockImplementation((path) => {
+      if (path === "/api/state") return Promise.resolve(state);
+      if (path === "/api/jobs") return Promise.resolve({ jobs: [] });
+      if (path === "/api/ocmirror/preflight") {
+        return Promise.resolve({
+          ok: false, blockers: ["Parallel images must be a whole number from 1 to 10."], warnings: [], checks: {},
+          fieldErrors: { parallelImages: { severity: "blocker", message: "Parallel images must be a whole number from 1 to 10." } },
+          items: [{ id: "options", status: "block", label: "oc-mirror options", detail: "Parallel images must be a whole number from 1 to 10." }]
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(<AppProvider><RunOcMirrorStep /></AppProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: /Advanced options/i }));
+    const input = await screen.findByLabelText(/Parallel images/);
+    expect(input).toHaveAttribute("max", "10");
+    expect(screen.getByLabelText(/Parallel layers/)).toHaveAttribute("max", "10");
+    expect(screen.queryByText("Parallel images must be a whole number from 1 to 10.")).toBeNull();
+    fireEvent.blur(input);
+    expect(screen.getAllByText("Parallel images must be a whole number from 1 to 10.").length).toBeGreaterThanOrEqual(1);
+    fireEvent.click(screen.getAllByTestId("run-preflight-btn")[0]);
+    expect(await screen.findByText("Not ready to run.")).toBeInTheDocument();
+    expect(screen.getByText("Blocked")).toBeInTheDocument();
+  });
+});

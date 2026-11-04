@@ -11,6 +11,105 @@
 
 import { z } from "zod";
 import logger, { generateErrorId } from "./logger.js";
+import { OC_MIRROR_CLI_LIMITS } from "../../shared/ocMirrorCliLimits.js";
+import { GO_DURATION_RE, SINCE_DATE_RE, RUN_LOG_LEVELS } from "./mirroringState.js";
+
+// ===================================================================
+// ERROR WORDING — stable across the Zod 3 → 4 migration (F20)
+// ===================================================================
+
+/**
+ * Zod 4 changed every default issue message ("Required" became "Invalid
+ * input: expected string, received undefined"). API clients read these
+ * messages — RunOcMirrorStep translates "Required", "Invalid enum value",
+ * "String must contain at least" and "at most" into field guidance — so the
+ * response wording is part of the API contract and is kept exactly as Zod 3
+ * produced it. Messages a schema sets itself ("Channel is required", the
+ * pull-secret refine) take precedence over this map; unknown codes fall back
+ * to Zod's own wording.
+ */
+const zod3TypeName = (value) => {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  if (typeof value === "number") return Number.isNaN(value) ? "nan" : "number";
+  if (value instanceof Map) return "map";
+  if (value instanceof Set) return "set";
+  if (value instanceof Date) return "date";
+  return typeof value;
+};
+const zod3Values = (values) => values.map((v) => (typeof v === "string" ? `'${v}'` : String(v))).join(" | ");
+const ZOD3_SIZE_NOUN = { string: ["String", "character(s)"], array: ["Array", "element(s)"], set: ["Set", "element(s)"] };
+
+export function zod3IssueMessage(issue) {
+  switch (issue.code) {
+    case "invalid_type": {
+      if (issue.input === undefined) return "Required";
+      if (issue.expected === "int") return `Expected integer, received ${Number.isInteger(issue.input) ? "number" : "float"}`;
+      return `Expected ${issue.expected === "record" ? "object" : issue.expected}, received ${zod3TypeName(issue.input)}`;
+    }
+    case "invalid_value": {
+      const values = issue.values || [];
+      if (values.length === 1 && issue.inst?._zod?.def?.type === "literal") {
+        return `Invalid literal value, expected ${JSON.stringify(values[0])}`;
+      }
+      if (issue.input === undefined) return "Required";
+      if (values.every((v) => typeof v === "string") && typeof issue.input !== "string") {
+        return `Expected ${zod3Values(values)}, received ${zod3TypeName(issue.input)}`;
+      }
+      return `Invalid enum value. Expected ${zod3Values(values)}, received '${issue.input}'`;
+    }
+    case "too_small":
+    case "too_big": {
+      const small = issue.code === "too_small";
+      const bound = small ? issue.minimum : issue.maximum;
+      if (issue.origin === "number" || issue.origin === "int") {
+        const rel = small ? (issue.inclusive ? "greater than or equal to" : "greater than") : (issue.inclusive ? "less than or equal to" : "less than");
+        return `Number must be ${rel} ${bound}`;
+      }
+      const noun = ZOD3_SIZE_NOUN[issue.origin];
+      if (!noun) return undefined;
+      const rel = issue.exact ? "exactly" : small ? (issue.inclusive ? "at least" : "over") : (issue.inclusive ? "at most" : "under");
+      return `${noun[0]} must contain ${rel} ${bound} ${noun[1]}`;
+    }
+    case "unrecognized_keys":
+      return `Unrecognized key(s) in object: ${issue.keys.map((k) => `'${k}'`).join(", ")}`;
+    case "invalid_union": {
+      // Zod 3 reported the branch that matched the input's type but failed a
+      // check (e.g. an array over its maximum) rather than a generic failure.
+      const typed = (issue.errors || []).find((branch) => branch.length
+        && !branch.some((i) => i.path.length === 0 && (i.code === "invalid_type" || i.code === "invalid_value")));
+      return typed ? typed[0].message : "Invalid input";
+    }
+    case "invalid_key":
+      // Zod 3 reported the key's own failure ("String must contain at most …").
+      return issue.issues?.[0]?.message;
+    default:
+      return undefined;
+  }
+}
+
+z.config({ customError: zod3IssueMessage });
+
+// ===================================================================
+// RESOURCE BOUNDS (GHSA-mrhx-c7xc-m3w5 / CVE-2023-54404)
+// ===================================================================
+
+/**
+ * Zod collects one issue per failing element. Zod >= 4.6.6 rejects a
+ * collection whose LEADING check is a maximum size before parsing any element;
+ * a collection without one is still parsed element by element. So every
+ * array in these schemas starts with .max(), and records — which have no size
+ * check of their own — go through boundedRecord, whose key-count check runs
+ * first and stops the pipe before any entry is parsed.
+ */
+const boundedRecord = (keySchema, valueSchema, maxKeys) =>
+  z.unknown().check((ctx) => {
+    const v = ctx.value;
+    if (v && typeof v === "object" && !Array.isArray(v) && Object.keys(v).length > maxKeys) {
+      ctx.issues.push({ code: "custom", message: `Object must contain at most ${maxKeys} key(s)`, input: v, continue: false });
+    }
+  }).pipe(z.record(keySchema, valueSchema));
 
 // ===================================================================
 // COMMON SCHEMAS - Reusable building blocks
@@ -79,6 +178,12 @@ export const sshKeypairSchema = z.object({
 export const operatorScanSchema = z.object({
   pullSecret: pullSecretSchema.optional(), // Optional if using mounted auth
   catalog: z.string().min(1).optional(), // Optional - scans all catalogs if not specified
+  // v2.2.0 Mirroring: explicit catalog minor; validated (exact + supported) by the route.
+  catalogMinor: z.string().max(16).optional(),
+  // v2.2.0 Mirroring: the profile that asked (recorded for Operations) and the
+  // explicit source credential choice, the same contract as runs and live checks.
+  profileId: z.string().regex(/^p-[A-Za-z0-9_-]{1,64}$/).optional(),
+  rhAuthSource: z.enum(["inline", "mounted"]).optional(),
 });
 
 // ===================================================================
@@ -87,6 +192,8 @@ export const operatorScanSchema = z.object({
 
 export const ocMirrorPreflightSchema = z.object({
   mode: z.enum(["mirrorToDisk", "diskToMirror", "mirrorToMirror"]).default("mirrorToDisk"),
+  // Mirroring: a full transfer (everything, not only what changed) — rebaselines the disconnected side.
+  fullBaseline: z.boolean().optional(),
   archivePath: z.string().optional(),
   workspacePath: z.string().optional(),
   cachePath: z.string().optional(),
@@ -100,8 +207,9 @@ export const ocMirrorPreflightSchema = z.object({
   minBytes: z.number().nonnegative().optional(),
   advanced: z.object({
     logLevel: z.enum(["info", "debug"]).optional(),
-    parallelImages: z.number().int().min(1).max(32).optional(),
-    parallelLayers: z.number().int().min(1).max(32).optional(),
+    // The binary accepts 1–10 (F12, shared/ocMirrorCliLimits.js), not 1–32.
+    parallelImages: z.number().int().min(OC_MIRROR_CLI_LIMITS.parallelImages.min).max(OC_MIRROR_CLI_LIMITS.parallelImages.max).optional(),
+    parallelLayers: z.number().int().min(OC_MIRROR_CLI_LIMITS.parallelLayers.min).max(OC_MIRROR_CLI_LIMITS.parallelLayers.max).optional(),
     imageTimeout: z.string().optional(),
     retryTimes: z.number().int().min(0).max(10).optional(),
     retryDelay: z.string().optional(),
@@ -110,7 +218,7 @@ export const ocMirrorPreflightSchema = z.object({
     signatureOptions: z.object({
       disableCertified: z.boolean().optional(),
       disableCommunity: z.boolean().optional(),
-      customRegistries: z.array(z.string()).optional()
+      customRegistries: z.array(z.string().max(253)).max(50).optional()
     }).optional(),
     removeSignatures: z.boolean().optional()
   }).optional()
@@ -122,6 +230,8 @@ export const ocMirrorPreflightSchema = z.object({
 
 export const ocMirrorRunSchema = z.object({
   mode: z.enum(["mirrorToDisk", "diskToMirror", "mirrorToMirror"]).default("mirrorToDisk"),
+  // Mirroring: a full transfer (everything, not only what changed) — rebaselines the disconnected side.
+  fullBaseline: z.boolean().optional(),
   archivePath: z.string().optional(), // Required for disk modes but not mirrorToMirror
   workspacePath: z.string().optional(),
   cachePath: z.string().optional(),
@@ -135,8 +245,9 @@ export const ocMirrorRunSchema = z.object({
   configContent: z.string().optional(),
   advanced: z.object({
     logLevel: z.enum(["info", "debug"]).optional(),
-    parallelImages: z.number().int().min(1).max(32).optional(),
-    parallelLayers: z.number().int().min(1).max(32).optional(),
+    // The binary accepts 1–10 (F12, shared/ocMirrorCliLimits.js), not 1–32.
+    parallelImages: z.number().int().min(OC_MIRROR_CLI_LIMITS.parallelImages.min).max(OC_MIRROR_CLI_LIMITS.parallelImages.max).optional(),
+    parallelLayers: z.number().int().min(OC_MIRROR_CLI_LIMITS.parallelLayers.min).max(OC_MIRROR_CLI_LIMITS.parallelLayers.max).optional(),
     imageTimeout: z.string().optional(),
     retryTimes: z.number().int().min(0).max(10).optional(),
     retryDelay: z.string().optional(),
@@ -145,7 +256,7 @@ export const ocMirrorRunSchema = z.object({
     signatureOptions: z.object({
       disableCertified: z.boolean().optional(),
       disableCommunity: z.boolean().optional(),
-      customRegistries: z.array(z.string()).optional()
+      customRegistries: z.array(z.string().max(253)).max(50).optional()
     }).optional(),
     removeSignatures: z.boolean().optional()
   }).optional()
@@ -345,7 +456,7 @@ export function validateBody(schema) {
       if (error instanceof z.ZodError) {
         const errorId = generateErrorId();
         // Format validation errors in a user-friendly way
-        const errors = error.errors.map((err) => ({
+        const errors = error.issues.map((err) => ({
           path: err.path.join("."),
           message: err.message,
         }));
@@ -375,3 +486,128 @@ export function validateBody(schema) {
     }
   };
 }
+
+// ===================================================================
+// /api/mirroring - Mirroring workflow profiles (v2.2.0 M1)
+// ===================================================================
+
+/**
+ * Create/update body for a Mirroring profile. Strict: unknown keys are
+ * refused, so a client cannot supply filesystem paths, history or job ids —
+ * those are derived or recorded by the server. Field contents are whitelisted
+ * again by mirroringState.normalizeProfile.
+ */
+export const mirroringProfileWriteSchema = z.object({
+  name: z.string().max(80).optional(),
+  content: z.object({
+    platform: z.boolean().optional(),
+    operators: z.boolean().optional(),
+    additionalImages: z.boolean().optional(),
+  }).strict().optional(),
+  platform: z.object({
+    release: z.object({}).passthrough().optional(),
+    version: z.object({}).passthrough().optional(),
+    architecture: z.string().max(16).nullable().optional(),
+    graph: z.boolean().optional(),
+    kubeVirtContainer: z.boolean().optional(),
+  }).strict().optional(),
+  operators: z.object({
+    catalogMinor: z.string().max(16).nullable().optional(),
+    catalogMinorSource: z.enum(["platform", "user"]).nullable().optional(),
+    selected: z.array(z.object({}).passthrough()).max(500).optional(),
+  }).strict().optional(),
+  additionalImages: z.array(z.union([z.string(), z.object({}).passthrough()])).max(500).optional(),
+  // M5: archive size in GiB per archive file — a whole number >= 1 (the
+  // canonical schema's archiveSize rule); null removes it (oc-mirror default).
+  options: z.object({
+    archiveSize: z.number().int("Archive size must be a whole number of GiB.").min(1, "Archive size must be at least 1 GiB.").max(Number.MAX_SAFE_INTEGER).nullable().optional(),
+  }).strict().optional(),
+  execution: z.object({
+    mode: z.enum(["mirrorToDisk", "diskToMirror", "mirrorToMirror"]).optional(),
+    registryUrl: z.string().max(2048).optional(),
+    // M5: oc-mirror options kept with the profile for its runs; null clears one.
+    options: z.object({
+      parallelImages: z.number().int().min(OC_MIRROR_CLI_LIMITS.parallelImages.min).max(OC_MIRROR_CLI_LIMITS.parallelImages.max).nullable().optional(),
+      parallelLayers: z.number().int().min(OC_MIRROR_CLI_LIMITS.parallelLayers.min).max(OC_MIRROR_CLI_LIMITS.parallelLayers.max).nullable().optional(),
+      retryTimes: z.number().int().min(0).max(10).nullable().optional(),
+      retryDelay: z.string().max(16).regex(GO_DURATION_RE, "Use a duration such as 1s, 30s or 2m.").nullable().optional(),
+      imageTimeout: z.string().max(16).regex(GO_DURATION_RE, "Use a duration such as 10m, 30m or 1h.").nullable().optional(),
+      logLevel: z.enum(RUN_LOG_LEVELS).nullable().optional(),
+      since: z.string().max(10).regex(SINCE_DATE_RE, "Use a date as yyyy-MM-dd, for example 2026-01-31.").nullable().optional(),
+    }).strict().optional(),
+  }).strict().optional(),
+}).strict();
+
+export const mirroringEmptySchema = z.object({}).passthrough();
+
+/**
+ * POST /api/mirroring/import/analyze and /apply (M4). Files travel as base64
+ * of their raw bytes so the server's UTF-8 check sees exactly what is on disk
+ * (a browser text reader would silently replace invalid bytes). Bounds: 10
+ * files; each base64 string fits a 1 MiB file; totals are checked again on
+ * the decoded bytes.
+ */
+export const mirroringImportSchema = z.object({
+  files: z.array(z.object({
+    name: z.string().max(255),
+    contentBase64: z.string().max(1400000),
+  }).strict()).min(1).max(10),
+  mode: z.enum(["separate", "merge", "into"]).optional(),
+  profileId: z.string().max(40).nullable().optional(),
+  resolutions: boundedRecord(z.string().max(400), z.string().max(8), 1000).optional(),
+  names: z.array(z.string().max(80)).max(10).optional(),
+}).strict();
+
+/** POST /api/mirroring/profiles/:id/imports/:importId/review — leave unresolved items out, explicitly. */
+export const mirroringImportReviewSchema = z.object({
+  action: z.literal("omit"),
+  itemIds: z.union([z.literal("all"), z.array(z.string().max(40)).min(1).max(200)]),
+}).strict();
+
+/** POST /api/mirroring/profiles/:id/reconcile-catalog — explicit catalog/platform conflict resolution (M4). */
+export const mirroringReconcileCatalogSchema = z.object({
+  action: z.enum(["align", "split"]),
+}).strict();
+
+/** POST /api/mirroring/active — the profile the Mirroring UI has open, or null. */
+export const mirroringActiveSchema = z.object({
+  profileId: z.string().max(40).nullable(),
+}).strict();
+
+/**
+ * POST /api/mirroring/profiles/:id/verify-catalogs (M5). The pull secret is
+ * used for this check only and never stored; "mounted" uses the secret
+ * mounted into the container.
+ */
+export const mirroringVerifyCatalogsSchema = z.object({
+  rhAuthSource: z.enum(["inline", "mounted"]).optional(),
+  rhPullSecret: pullSecretSchema.optional(),
+}).strict();
+
+/** POST /api/mirroring/profiles/:id/transfer (M6): the mirror-to-disk run to transfer. */
+export const mirroringTransferPrepareSchema = z.object({
+  jobId: z.string().min(6).max(64).regex(/^[A-Za-z0-9_-]+$/),
+  // M7 (DOC-155): prepare even though oc-mirror left a catalog unpinned; the
+  // manifest then records the transfer as not offline-ready.
+  acknowledgeUnpinned: z.boolean().optional(),
+}).strict();
+
+/** POST /api/mirroring/profiles/:id/operations/:jobId/retry — fresh credentials for the attempt only. */
+export const mirroringRetrySchema = z.object({
+  rhAuthSource: z.enum(["inline", "mounted"]).optional(),
+  rhPullSecret: pullSecretSchema.optional(),
+  mirrorAuthSource: z.enum(["inline"]).optional(),
+  mirrorPullSecret: pullSecretSchema.optional(),
+  registryUrl: z.string().max(2048).optional(),
+  isolateNetwork: z.boolean().optional()
+}).strict();
+
+/** POST /api/mirroring/profiles/:id/storage: one of the approved storage roots (container path). */
+export const mirroringStorageChoiceSchema = z.object({
+  base: z.string().min(1).max(1024).refine((v) => v.startsWith("/"), "Use an absolute path.")
+}).strict();
+
+/** POST /api/mirroring/receive (M6): a directory on the server that holds a transfer. */
+export const mirroringReceiveSchema = z.object({
+  transferDir: z.string().min(1).max(4096),
+}).strict();

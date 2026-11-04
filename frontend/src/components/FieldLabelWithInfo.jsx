@@ -257,12 +257,17 @@ function FieldLabelWithInfo({ label, hint, required, id: idProp, children, class
       ref={iconRef}
       type="button"
       className="field-info-icon"
-      tabIndex="-1"
+      // Keyboard reachable (v2.2.0 M2). This was tabIndex="-1", which left the
+      // help for every field mouse-only: a keyboard user could never open a
+      // long-hint popover, and a short hint never appeared on focus. The icon
+      // is now in the tab order; Enter/Space opens a long hint, focus shows a
+      // short one, Escape closes either.
       aria-label={isLongHint ? "Open help (click to read)" : "More information"}
       aria-describedby={visible ? id : undefined}
       aria-expanded={isLongHint ? visible : undefined}
       style={{ userSelect: "none" }}
       onClick={() => setVisible((v) => !v)}
+      onFocus={isLongHint ? undefined : () => { cancelClose(); setVisible(true); }}
       onBlur={() => { if (!isLongHint) { cancelClose(); setVisible(false); } }}
       onMouseEnter={isLongHint ? undefined : () => { cancelClose(); setVisible(true); }}
       onMouseLeave={isLongHint ? undefined : scheduleClose}

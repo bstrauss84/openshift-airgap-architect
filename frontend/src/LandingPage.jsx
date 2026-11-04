@@ -1,7 +1,7 @@
 /**
  * OpenShift Airgap Architect - Landing Page
  *
- * Landing page with path selection cards: Install (primary), Upgrade, Operator mirroring.
+ * Landing page with path selection cards: Install (primary), Upgrade (coming soon), Mirroring.
  * Install CTA shows "Start new install" or "Continue install" based on progress state.
  *
  * @author Bill Strauss
@@ -11,11 +11,12 @@
 import React from "react";
 
 /**
- * Landing page with three path cards: Install (primary), Upgrade, Operator mirroring (disabled).
+ * Landing page with three path cards: Install (primary), Upgrade (coming soon) and Mirroring.
  * Install CTA shows "Start new install" or "Continue install" in a footer rail; onStartInstall is
- * called when the user clicks the Install card (parent decides step index).
+ * called when the user clicks the Install card (parent decides step index). Mirroring opens the
+ * standalone Mirroring workspace (v2.2.0), a separate workflow from the Install wizard.
  */
-const LandingPage = ({ hasProgress, onStartInstall }) => {
+const LandingPage = ({ hasProgress, onStartInstall, onStartMirroring }) => {
   const footerCtaText = hasProgress ? "Continue install →" : "Start new install →";
 
   return (
@@ -59,20 +60,24 @@ const LandingPage = ({ hasProgress, onStartInstall }) => {
           </div>
         </div>
 
-        <div className="landing-card landing-card-operator landing-card-coming-soon" aria-disabled="true">
-          <span className="landing-card-badge">Coming soon</span>
+        <button
+          type="button"
+          className="landing-card landing-card-mirroring"
+          onClick={onStartMirroring}
+          aria-label="Open Mirroring"
+        >
           <div className="landing-card-inner">
             <div className="landing-card-top">
-              <h2 className="landing-card-title">Operator mirroring</h2>
-              <p className="landing-card-subtitle">Mirror and catalog</p>
+              <h2 className="landing-card-title">Mirroring</h2>
+              <p className="landing-card-subtitle">Plan content for disconnected sites</p>
             </div>
             <p className="landing-card-desc">
-              Mirror content and build catalogs without a full install workflow. Use when you need to
-              sync images or manage operator catalogs.
+              Plan oc-mirror v2 content without an install: the OpenShift platform release, operators and
+              additional images, in independent profiles.
             </p>
-            <p className="landing-card-note">Not available in this build.</p>
+            <div className="landing-card-footer-rail">Open Mirroring →</div>
           </div>
-        </div>
+        </button>
       </div>
     </div>
   );

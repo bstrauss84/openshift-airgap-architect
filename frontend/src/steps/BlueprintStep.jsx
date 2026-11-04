@@ -1,13 +1,12 @@
-import React, { useEffect, useRef, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";
 import { getVersionLocked } from "../shared/versionHelpers.js";
-import { validateBlueprintPullSecretOptional, validateManualOpenShiftRelease } from "../validation.js";
+import { validateBlueprintPullSecretOptional } from "../validation.js";
 import SecretInput from "../components/SecretInput.jsx";
-import { sortChannelsBySemverDescending, getNewestSupportedChannel, classifyChannels } from "../shared/cincinnatiChannels.js";
-import { SUPPORTED_MINORS } from "../shared/versionPolicy.js";
-import { parseMinorVersionCore } from "../shared/openShiftMinor.js";
-import { getScenarioId } from "../hostInventoryV2Helpers.js";
+import Button from "../components/Button.jsx";
+import ReleaseSelector from "../components/ReleaseSelector.jsx";
+import { useOpenShiftRelease } from "../hooks/useOpenShiftRelease.js";
 import { listArchSupportForBlueprint, renderableArchitectures } from "../archSupportResolver.js";
 import { reconcileMethodForPlatform } from "../../../shared/installMethods.js";
 
@@ -63,33 +62,6 @@ const platformOptions = [
   { value: "IBM Cloud", label: "IBM Cloud", rec: "Rec: IPI" }
 ];
 
-const JOB_TERMINAL = new Set(["completed", "failed", "cancelled"]);
-
-/**
- * Poll a job until it reaches a terminal status.
- *
- * `signal` is REQUIRED to be honoured, not optional politeness: without it the
- * loop ran for up to `timeoutMs` (two minutes) after the step was unmounted,
- * calling `/api/jobs/<id>` every 400 ms and then writing to the shared app
- * store from a component that no longer exists. Navigating away from Blueprint
- * unmounts the step but NOT `AppProvider`, so those writes landed in live
- * state.
- *
- * The check is at the top of each iteration AND the signal is handed to
- * `apiFetch` (which spreads `options` into `fetch`), so an abort both cancels
- * the in-flight request and stops the next one from being issued.
- */
-async function pollJobUntilTerminal(jobId, { timeoutMs = 120000, signal } = {}) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (signal?.aborted) throw new DOMException("Cincinnati refresh polling cancelled.", "AbortError");
-    const job = await apiFetch(`/api/jobs/${jobId}`, { signal });
-    if (JOB_TERMINAL.has(job.status)) return job;
-    await new Promise((r) => setTimeout(r, 400));
-  }
-  throw new Error("Timed out waiting for Cincinnati refresh job.");
-}
-
 const BlueprintStep = ({ onRequestChangeRelease }) => {
   const { state, updateState } = useApp();
   const blueprint = state.blueprint;
@@ -98,64 +70,27 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
   const locked = blueprint?.confirmed;
   const releaseLocked = getVersionLocked(state);
 
-  const [channels, setChannels] = useState([]);
-  const [newerUnsupportedChannels, setNewerUnsupportedChannels] = useState([]);
-  const [patches, setPatches] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [patchesLoading, setPatchesLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshNote, setRefreshNote] = useState("");
-  const [updatedMessage, setUpdatedMessage] = useState(false);
+  // Release selection is shared with Mirroring (useOpenShiftRelease). This
+  // adapter reproduces Blueprint's previous writes exactly, including the
+  // install-domain side effect that marks operator selections stale whenever
+  // the release changes. MUST stay the first hook with effects in this
+  // component: its mount/abort effect is the lifecycle guard every later
+  // effect here relies on (see useOpenShiftRelease).
+  const releaseSelection = useOpenShiftRelease({
+    release,
+    version,
+    locked: releaseLocked,
+    writeRelease: (nextRelease, { manual } = {}) =>
+      updateState(manual
+        ? { release: nextRelease, operators: { ...state.operators, stale: true } }
+        : { release: nextRelease }),
+    writeVersion: (nextVersion) =>
+      updateState({ version: nextVersion, operators: { ...state.operators, stale: true } }),
+    onRefreshJobFailed: (jobId) => updateState({ ui: { ...(state.ui || {}), highlightJobId: jobId } })
+  });
+  const { mountedRef, abortRef } = releaseSelection;
   const [mountedSecretBadge, setMountedSecretBadge] = useState(false);
-  const [refreshError, setRefreshError] = useState("");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [manualMinor, setManualMinor] = useState("");
-  const [manualPatch, setManualPatch] = useState("");
-  const [manualApplyError, setManualApplyError] = useState("");
-  /** Suppress automatic patch fetch for N `release.channel` effect runs (forced refresh + StrictMode). */
-  const channelPatchAutoFetchSuppressRef = useRef(0);
-  const prevAdvancedOpenRef = useRef(false);
-  const patchFetchGenerationRef = useRef(0);
-  /**
-   * Unmount guard.
-   *
-   * Every async path in this step (`refresh`, `fetchPatches`, the two mount
-   * effects) resumes after an `await` and then calls `setState` and/or
-   * `updateState`. `updateState` reaches `AppProvider`, which OUTLIVES this
-   * step — navigating away unmounts only the step — so an unguarded resume is
-   * not a harmless React no-op: it mutates live application state and triggers
-   * a persistence POST. `mountedRef` gates those resumes; `abortRef` cancels
-   * the requests themselves.
-   */
-  const mountedRef = useRef(true);
-  const abortRef = useRef(null);
-  /** Handle of the 5 s "Channels updated." banner timer, so it can be cleared. */
-  const updatedMessageTimerRef = useRef(null);
 
-  // MUST be the first effect in this component: React runs effects, and their
-  // cleanups, in declaration order, so this is what guarantees `abortRef`
-  // is populated before any later effect reads it and aborted before any later
-  // cleanup runs. `mountedRef` is re-armed on mount rather than only cleared on
-  // unmount, because StrictMode (src/main.jsx) mounts, unmounts and remounts.
-  useEffect(() => {
-    mountedRef.current = true;
-    const controller = new AbortController();
-    abortRef.current = controller;
-    return () => {
-      mountedRef.current = false;
-      controller.abort();
-      clearTimeout(updatedMessageTimerRef.current);
-      updatedMessageTimerRef.current = null;
-    };
-  }, []);
-
-  /** Show the transient "Channels updated." banner, replacing any pending hide. */
-  const showUpdatedMessage = () => {
-    if (!mountedRef.current) return;
-    setUpdatedMessage(true);
-    clearTimeout(updatedMessageTimerRef.current);
-    updatedMessageTimerRef.current = setTimeout(() => setUpdatedMessage(false), 5000);
-  };
   const blueprintPullSecretRaw = state.blueprint?.blueprintPullSecretEphemeral ?? "";
   const blueprintPullSecretTrimmed = blueprintPullSecretRaw.trim();
   const blueprintPullSecretError = useMemo(() => {
@@ -260,254 +195,6 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
       .catch(() => {});
   }, []);
 
-  const updateVersionSelection = (patch) => {
-    const channel = patch.selectedChannel ?? version.selectedChannel ?? (release?.channel ? `stable-${release.channel}` : null);
-    const channelMinor = channel ? parseMinorVersionCore(channel.replace(/^stable-/i, "")) : null;
-    const patchVersion = patch.selectedVersion !== undefined ? patch.selectedVersion : (version.selectedVersion ?? release?.patchVersion);
-    updateState({
-      version: {
-        selectedChannel: version.selectedChannel ?? (release?.channel ? `stable-${release.channel}` : null),
-        selectedVersion: version.selectedVersion ?? release?.patchVersion,
-        selectionTimestamp: version.selectionTimestamp ?? Date.now(),
-        confirmedByUser: false,
-        confirmationTimestamp: null,
-        locked: false,
-        ...patch,
-        selectedMinor: channelMinor || null,
-        selectedPatch: patchVersion || null,
-      },
-      operators: {
-        ...state.operators,
-        stale: true
-      }
-    });
-  };
-
-  useEffect(() => {
-    const signal = abortRef.current?.signal;
-    setLoading(true);
-    apiFetch("/api/cincinnati/channels", { signal })
-      .then((data) => {
-        // Resumed after an await. Everything below writes component state or
-        // the SHARED store, so a dead step must write nothing. This is a
-        // suppression of post-unmount writes only: while mounted the branch
-        // logic — including the No-Fallback behaviour, which never synthesises
-        // or clears a selection on a failed load — is unchanged.
-        if (!mountedRef.current) return;
-        const { supported, newerUnsupported } = classifyChannels(data.channels || []);
-        setChannels(sortChannelsBySemverDescending(supported));
-        setNewerUnsupportedChannels(sortChannelsBySemverDescending(newerUnsupported));
-
-        if (!supported.length && !releaseLocked) {
-          updateState({
-            release: { ...release, channel: null, patchVersion: null, confirmed: false, followLatestMinor: true }
-          });
-          updateVersionSelection({ selectedChannel: null, selectedVersion: null, selectionTimestamp: Date.now() });
-        }
-        if (!releaseLocked && !release?.channel && supported.length) {
-          const channel = getNewestSupportedChannel(data.channels);
-          if (channel) {
-            updateState({
-              release: { ...release, channel, followLatestMinor: true, confirmed: false }
-            });
-            updateVersionSelection({ selectedChannel: `stable-${channel}`, selectedVersion: null, selectionTimestamp: Date.now() });
-          }
-        }
-      })
-      .finally(() => {
-        if (!mountedRef.current) return;
-        setLoading(false);
-        apiFetch("/api/cincinnati/update", { method: "POST", signal })
-          .then((data) => {
-            if (!mountedRef.current) return;
-            if (data.channels?.length) {
-              const { supported, newerUnsupported } = classifyChannels(data.channels);
-              setChannels(sortChannelsBySemverDescending(supported));
-              setNewerUnsupportedChannels(sortChannelsBySemverDescending(newerUnsupported));
-            }
-          })
-          .catch(() => {});
-      })
-      // apiFetch rejects on a network failure and on any non-2xx, and
-      // `.finally` re-raises whatever it was handed, so the initial channel
-      // load produced an unhandled rejection whenever the backend was
-      // unreachable. Behaviour is otherwise unchanged and deliberately so:
-      // `loading` is already cleared in the `.finally` above, `channels`
-      // stays empty, and a previously selected channel is left untouched —
-      // no fallback to an unverified version.
-      .catch(() => {});
-  }, []);
-
-  const fetchPatches = async (channel, force = false) => {
-    if (!channel) return;
-    if (force && channel !== release?.channel) {
-      channelPatchAutoFetchSuppressRef.current = 1;
-    }
-    const gen = ++patchFetchGenerationRef.current;
-    setPatchesLoading(true);
-    setPatches([]);
-    const endpoint = force ? "/api/cincinnati/patches/update" : "/api/cincinnati/patches";
-    const signal = abortRef.current?.signal;
-    try {
-      const data = force
-        ? await apiFetch(endpoint, { method: "POST", body: JSON.stringify({ channel }), signal })
-        : await apiFetch(`${endpoint}?channel=${encodeURIComponent(channel)}`, { signal });
-      if (!mountedRef.current) return;
-      if (gen !== patchFetchGenerationRef.current) return;
-      setPatches(data.versions || []);
-      if (releaseLocked) {
-        return;
-      }
-      if (data.versions?.length) {
-        const patchVersion = data.versions[0];
-        updateState({ release: { ...release, channel, patchVersion, confirmed: false } });
-        updateVersionSelection({
-          selectedChannel: `stable-${channel}`,
-          selectedVersion: patchVersion,
-          selectionTimestamp: Date.now()
-        });
-      } else {
-        updateState({ release: { ...release, channel, patchVersion: null, confirmed: false } });
-        updateVersionSelection({
-          selectedChannel: `stable-${channel}`,
-          selectedVersion: null,
-          selectionTimestamp: Date.now()
-        });
-      }
-    } finally {
-      if (mountedRef.current) setPatchesLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!release?.channel) return;
-    if (channelPatchAutoFetchSuppressRef.current > 0) {
-      channelPatchAutoFetchSuppressRef.current -= 1;
-      return;
-    }
-    fetchPatches(release.channel).catch(() => {
-      if (mountedRef.current) setPatchesLoading(false);
-    });
-  }, [release?.channel]);
-
-  useEffect(() => {
-    const wasOpen = prevAdvancedOpenRef.current;
-    if (advancedOpen && !wasOpen) {
-      setManualMinor(String(release?.channel ?? ""));
-      setManualPatch(String(release?.patchVersion ?? ""));
-    }
-    prevAdvancedOpenRef.current = advancedOpen;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-seed when the panel opens; release is read from the render that opened it.
-  }, [advancedOpen]);
-
-  const updateChannel = (channel) => {
-    if (releaseLocked) return;
-    // User explicitly changed minor: drop stale patch list / in-flight fetches from manual entry or prior channel.
-    channelPatchAutoFetchSuppressRef.current = 0;
-    patchFetchGenerationRef.current += 1;
-    setPatches([]);
-    setPatchesLoading(true);
-    updateState({
-      release: { ...release, channel, patchVersion: null, confirmed: false, followLatestMinor: false }
-    });
-    updateVersionSelection({ selectedChannel: `stable-${channel}`, selectedVersion: null, selectionTimestamp: Date.now() });
-  };
-
-  const updatePatch = (patchVersion) => {
-    if (releaseLocked) return;
-    updateState({ release: { ...release, patchVersion, confirmed: false } });
-    updateVersionSelection({ selectedChannel: `stable-${release.channel}`, selectedVersion: patchVersion, selectionTimestamp: Date.now() });
-  };
-
-  const refresh = async () => {
-    const signal = abortRef.current?.signal;
-    setRefreshing(true);
-    setRefreshError("");
-    setRefreshNote("Queuing Cincinnati refresh…");
-    try {
-      const { jobId } = await apiFetch("/api/cincinnati/refresh-job", {
-        method: "POST",
-        body: JSON.stringify({ preferredChannel: release?.channel || null }),
-        signal
-      });
-      if (!mountedRef.current) return;
-      setRefreshNote("Refresh running—Operations shows live progress…");
-      const job = await pollJobUntilTerminal(jobId, { signal });
-      if (!mountedRef.current) return;
-      if (job.status !== "completed") {
-        const outLines = job.output ? String(job.output).trim().split("\n").filter(Boolean) : [];
-        const msg =
-          (job.message && String(job.message).trim()) ||
-          outLines[outLines.length - 1] ||
-          "Cincinnati refresh failed.";
-        setRefreshError(String(msg));
-        updateState({ ui: { ...(state.ui || {}), highlightJobId: jobId } });
-        return;
-      }
-      const chRes = await apiFetch("/api/cincinnati/channels", { signal });
-      if (!mountedRef.current) return;
-      const { supported, newerUnsupported } = classifyChannels(chRes.channels || []);
-      const newChannels = sortChannelsBySemverDescending(supported);
-      setChannels(newChannels);
-      setNewerUnsupportedChannels(sortChannelsBySemverDescending(newerUnsupported));
-
-      if (newChannels.length === 0) {
-        showUpdatedMessage();
-        return;
-      }
-      const newestChannel = getNewestSupportedChannel(chRes.channels);
-      const followLatest = release?.followLatestMinor === true;
-      let channelToLoad;
-      if (releaseLocked) {
-        channelToLoad = release?.channel || newestChannel;
-      } else if (followLatest) {
-        channelToLoad = newestChannel;
-      } else {
-        const cur = release?.channel;
-        channelToLoad = cur && newChannels.includes(cur) ? cur : newestChannel;
-      }
-      await fetchPatches(channelToLoad, false);
-      if (!mountedRef.current) return;
-      showUpdatedMessage();
-    } catch (e) {
-      if (!mountedRef.current) return;
-      setPatchesLoading(false);
-      setRefreshError(e?.message || String(e));
-    } finally {
-      // Reached by the early `return`s above as well, so it needs its own guard.
-      if (mountedRef.current) {
-        setRefreshNote("");
-        setRefreshing(false);
-      }
-    }
-  };
-
-  const applyManualRelease = () => {
-    setManualApplyError("");
-    const r = validateManualOpenShiftRelease(manualMinor, manualPatch);
-    if (!r.ok) {
-      setManualApplyError(r.errors[0]);
-      return;
-    }
-    const minor = manualMinor.trim();
-    const patch = manualPatch.trim();
-    if (minor !== (release?.channel || "")) {
-      channelPatchAutoFetchSuppressRef.current = 2;
-      patchFetchGenerationRef.current += 1;
-    }
-    updateState({
-      release: { ...release, channel: minor, patchVersion: patch, confirmed: false, followLatestMinor: false },
-      operators: { ...state.operators, stale: true }
-    });
-    updateVersionSelection({
-      selectedChannel: `stable-${minor}`,
-      selectedVersion: patch,
-      selectionTimestamp: Date.now()
-    });
-    setPatches([patch]);
-    setRefreshError("");
-  };
-
   return (
     <div className="step">
       <div className="step-header">
@@ -534,12 +221,15 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
             {platformOptions.map((option) => (
               <button
                 key={option.value}
+                type="button"
                 className={`select-card ${blueprint?.platform === option.value ? "selected" : ""}`}
+                aria-pressed={blueprint?.platform === option.value}
                 disabled={locked}
                 onClick={() => selectPlatform(option.value)}
               >
                 <div className="card-title">{option.label}</div>
                 <div className="card-sub">{option.rec}</div>
+                <span className="select-card-check" aria-hidden="true">✓ Selected</span>
               </button>
             ))}
           </div>
@@ -557,7 +247,9 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
               return (
                 <button
                   key={option.value}
+                  type="button"
                   className={`select-card ${blueprint?.arch === option.value ? "selected" : ""}`}
+                  aria-pressed={blueprint?.arch === option.value}
                   disabled={locked || !isSupported}
                   // The matrix carries a reason for every closed cell, so the
                   // tooltip can name the OpenShift minor and the documentation
@@ -567,149 +259,29 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
                 >
                   <div className="card-title">{option.label}</div>
                   <div className="card-sub">{option.sub}</div>
+                  <span className="select-card-check" aria-hidden="true">✓ Selected</span>
                 </button>
               );
             })}
           </div>
         </section>
 
-        <section className="card">
-          <div className="card-header" style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "8px 16px" }}>
-            <h3 style={{ margin: 0 }}>OpenShift release</h3>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-              <div style={{ display: "flex", flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                {locked && releaseLocked && onRequestChangeRelease ? (
-                  <button type="button" className="ghost" onClick={onRequestChangeRelease}>
-                    Change release
-                  </button>
-                ) : null}
-                <button type="button" className="ghost" onClick={refresh} disabled={releaseLocked || refreshing}>
-                  Update
-                </button>
-              </div>
-              {((refreshing && refreshNote) || updatedMessage) && (
-                <span
-                  className="subtle"
-                  style={{
-                    fontSize: "0.8125rem",
-                    lineHeight: 1.25,
-                    textAlign: "right",
-                    maxWidth: "300px"
-                  }}
-                >
-                  {refreshing && refreshNote ? refreshNote : "Channels updated."}
-                </span>
-              )}
-            </div>
-          </div>
-          {refreshError ? (
-            <div className="note" style={{ marginBottom: 12, color: "var(--danger, #c62828)" }} role="alert">
-              {refreshError}
-            </div>
+        <ReleaseSelector
+          selection={releaseSelection}
+          release={release}
+          idPrefix="blueprint"
+          headerActions={locked && releaseLocked && onRequestChangeRelease ? (
+            <Button variant="secondary" onClick={onRequestChangeRelease}>
+              Change release
+            </Button>
           ) : null}
-          {newerUnsupportedChannels.length > 0 ? (
-            <div className="note warning" style={{ marginBottom: 12 }} role="alert">
-              ⚠️ OpenShift {newerUnsupportedChannels.join(", ")} {newerUnsupportedChannels.length === 1 ? "is" : "are"} available upstream but not yet supported by this version of OpenShift Airgap Architect.
-              {" "}Supported versions: {SUPPORTED_MINORS.join(", ")}
-            </div>
-          ) : null}
-          <div className="field-grid" style={{ alignItems: "flex-end", gap: "0.5rem 1rem" }}>
-            <label className="label-emphasis" style={{ minWidth: "10rem" }}>
-              Minor channel
-              <select
-                value={release?.channel ?? ""}
-                disabled={releaseLocked}
-                onChange={(e) => updateChannel(e.target.value || null)}
-              >
-                <option value="" disabled>Select channel</option>
-                {release?.channel && !channels.includes(release.channel) ? (
-                  <option key={`manual-ch-${release.channel}`} value={release.channel}>
-                    stable-{release.channel} (manual)
-                  </option>
-                ) : null}
-                {channels.map((ch) => (
-                  <option key={ch} value={ch}>stable-{ch}</option>
-                ))}
-              </select>
-            </label>
-            <label className="label-emphasis" style={{ minWidth: "10rem" }}>
-              Patch version
-              <select
-                value={release?.patchVersion ?? ""}
-                disabled={releaseLocked || patchesLoading || !release?.channel}
-                onChange={(e) => updatePatch(e.target.value || null)}
-              >
-                <option value="" disabled>Select patch</option>
-                {release?.patchVersion && !patches.includes(release.patchVersion) ? (
-                  <option key={`manual-pv-${release.patchVersion}`} value={release.patchVersion}>
-                    {release.patchVersion} (manual)
-                  </option>
-                ) : null}
-                {patches.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {loading ? <div className="loading">Loading channels…</div> : null}
-          {patchesLoading && release?.channel ? <div className="loading">Loading patches…</div> : null}
-          <details
-            className="subtle"
-            style={{ marginTop: 12, marginBottom: 8 }}
-            onToggle={(e) => setAdvancedOpen(e.target.open)}
-          >
-            <summary style={{ cursor: "pointer", fontWeight: 600 }}>Advanced: set release manually</summary>
-            <p className="note" style={{ marginTop: 10, marginBottom: 8 }}>
-              Use only when Cincinnati lists are empty or wrong for your environment. Verify versions against the{" "}
-              <a
-                href="https://github.com/openshift/cincinnati-graph-data/tree/master/channels"
-                target="_blank"
-                rel="noreferrer"
-              >
-                openshift/cincinnati-graph-data channels
-              </a>{" "}
-              tree for your disconnected reality before locking the blueprint.
+          footer={(
+            <p className="note note-prominent">
+              Operator scans are blocked until you lock these selections.
+              {releaseLocked ? " Release is locked." : ""}
             </p>
-            <div className="field-grid" style={{ alignItems: "flex-end", gap: "0.5rem 1rem", maxWidth: "32rem" }}>
-              <label className="label-emphasis">
-                Minor (e.g. 4.20, 4.21)
-                <input
-                  type="text"
-                  data-testid="blueprint-manual-minor"
-                  value={manualMinor}
-                  disabled={releaseLocked}
-                  onChange={(e) => setManualMinor(e.target.value)}
-                  placeholder="4.21"
-                  autoComplete="off"
-                />
-              </label>
-              <label className="label-emphasis">
-                Patch (e.g. 4.21.5)
-                <input
-                  type="text"
-                  data-testid="blueprint-manual-patch"
-                  value={manualPatch}
-                  disabled={releaseLocked}
-                  onChange={(e) => setManualPatch(e.target.value)}
-                  placeholder="4.21.5"
-                  autoComplete="off"
-                />
-              </label>
-              <button type="button" className="primary" data-testid="blueprint-manual-apply" onClick={applyManualRelease} disabled={releaseLocked}>
-                Apply
-              </button>
-            </div>
-            {manualApplyError ? (
-              <div className="note" style={{ marginTop: 8, color: "var(--danger, #c62828)" }} role="alert">
-                {manualApplyError}
-              </div>
-            ) : null}
-          </details>
-          <p className="note note-prominent">
-            Operator scans are blocked until you lock these selections.
-            {releaseLocked ? " Release is locked." : ""}
-          </p>
-        </section>
+          )}
+        />
 
         <section className="card pull-secret-section">
           <h3>Red Hat pull secret</h3>

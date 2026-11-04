@@ -124,7 +124,9 @@ export function hostInNoProxyCidr(host, cidrs) {
 export class CidrAwareEnvHttpProxyAgent {
   constructor(options = {}) {
     this.proxyAgent = new EnvHttpProxyAgent(options);
-    this.directAgent = new Agent();
+    // TLS options (custom CA for verified registry fetches) apply to the
+    // CIDR-bypassed direct path too, not only to undici's own agents.
+    this.directAgent = new Agent(options.connect ? { connect: options.connect } : undefined);
     this.noProxyOverride = options.noProxy;
   }
 

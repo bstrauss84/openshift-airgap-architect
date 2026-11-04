@@ -1,15 +1,15 @@
 {
-  "_purpose": "Canonical structural authority for the oc-mirror v2 ImageSetConfiguration document that Airgap Architect generates. Consumed by backend/test/imageset-config-schema.test.js.",
+  "_purpose": "Canonical structural authority for the oc-mirror v2 ImageSetConfiguration document. ONE file for every workflow: the Install generator's output, the Install external-config preflight, Mirroring profile previews and Mirroring imports are all validated against it at runtime by backend/src/imagesetConfigValidator.js. Also consumed by backend/test/imageset-config-schema.test.js.",
   "_authorityScope": "GLOBAL. This schema belongs to oc-mirror v2, NOT to any OpenShift minor. oc-mirror is resolved from clients/ocp/latest, the latest available globally, independent of the target cluster minor (CLAUDE.md 'External tool version policy'). Do NOT copy this file under data/params/<minor>/ — per-minor copies would encode a dependency that does not exist and would reproduce the clone-and-drift pattern that produced 810 stale citations.",
   "_doNotInfer": "A key's absence from this file means oc-mirror rejects it, not that it is merely undocumented. oc-mirror decodes with DisallowUnknownFields, so any unlisted key is a hard parse failure.",
-  "_relatedBacklog": "DOC-166. This file is the first implementation slice: it establishes the global structural authority in a form tests can enforce. The relocation of data/params/4.20/oc-mirror-v2.json into this scope is deliberately NOT done here (see docs/minor-release/4.22/DOC166_OC_MIRROR_V2_AUTHORITY.md).",
-
+  "_relatedBacklog": "DOC-166. Slice 1 (Tranche 1.5) established this file as the global structural authority. v2.2.0 M4 made it a runtime authority: typed `fields`, binary-checked and Architect-policy `rules`, re-verified against the then-current global oc-mirror binary. The relocation of data/params/4.20/oc-mirror-v2.json into this scope is still deliberately NOT done (see docs/minor-release/4.22/DOC166_OC_MIRROR_V2_AUTHORITY.md §6).",
   "provenance": {
     "apiSource": "github.com/openshift/oc-mirror internal/pkg/api/v2alpha1",
     "apiCommit": "3f66edaf31831b93043b0baa55d02462d4e7ee39",
     "apiFiles": {
       "type_config.go": "7e0900621632148bd811d3b40a0c5d763de3e4d139f2db5f1900be36f69beccb",
-      "type_config_include.go": "535450b6e7159ef9c9515f1cb6fce428f498e791fac3f4f4a6a6b6e24b3c13cd"
+      "type_config_include.go": "535450b6e7159ef9c9515f1cb6fce428f498e791fac3f4f4a6a6b6e24b3c13cd",
+      "type_platform.go": "e307e259457ec1ca8e55239c0da7bf23a6636e1f957d491e01860288d060c9ac"
     },
     "binaryVerifiedAgainst": {
       "channel": "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest",
@@ -18,15 +18,28 @@
       "binarySha256": "e03f81341d1186a03504a1be8f356265b974004782f07a35123e9cf6e35808d8"
     },
     "verifiedOn": "2026-10-07",
-    "method": "Every path below was either read from the pinned API source or probed directly with `oc-mirror --v2 -c <file> --dry-run`. Rejected paths carry the verbatim error."
+    "method": "Every path below was either read from the pinned API source or probed directly with `oc-mirror --v2 -c <file> --dry-run`. Rejected paths carry the verbatim error.",
+    "configFiles": {
+      "internal/pkg/config/load.go": "cad254f2dba679ffeb0d08eb69ecebdcdfd90546a547efab610e8bfba133395d",
+      "internal/pkg/config/validate.go": "3b618f9a0c49c249100f6d2ec493261323322b8eaac54163d5ecd461d19cc4f0",
+      "internal/pkg/config/defaults.go": "3012778d441b23029f6f83dda4b041bdb2478d40e8bc754d85db035536852ca4"
+    },
+    "reverifiedAgainst": {
+      "channel": "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest",
+      "channelReleaseName": "4.22.19",
+      "tarballSha256": "58251fe1be6eb60e26bb8123e6c033c96051e99e8ff666330e89dc469a0e26ae",
+      "tarballChecksumVerifiedAgainst": "the channel's own sha256sum.txt, before use",
+      "componentVersion": "4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d",
+      "binarySha256": "55b55cf1627426dca1910c71c177e3696e0984616ef36f9543fde269ae924a3a",
+      "apiFilesAtCommit": "ed9ff0d: type_config.go, type_config_include.go and type_platform.go are byte-identical to the hashes above (fetched from github.com/openshift/oc-mirror at ed9ff0d)",
+      "verifiedOn": "2026-10-26",
+      "method": "36 probe documents run through `oc-mirror --v2 -c <file> file://<dir> --dry-run` with an isolated HOME; verdicts are recorded per rule below and as fixtures in backend/test/fixtures/imageset-config/binary-probes.json."
+    }
   },
-
   "apiVersion": "mirror.openshift.io/v2alpha1",
   "kind": "ImageSetConfiguration",
-
   "strictDecoding": true,
   "strictDecodingEvidence": "internal/pkg/config/load.go calls yaml.UnmarshalStrict and dec.DisallowUnknownFields(). Probing a deliberately bogus top-level key returns: json: unknown field \"totallyBogusTopLevelField\".",
-
   "paths": [
     "apiVersion",
     "kind",
@@ -83,7 +96,6 @@
     "mirror.samples",
     "mirror.samples[].name"
   ],
-
   "rejectedPaths": {
     "kubeVirtContainer": {
       "error": "json: unknown field \"kubeVirtContainer\"",
@@ -116,7 +128,6 @@
       "note": "As includeMin. Never emitted by the generator, so catalog-only: no generated artifact was affected."
     }
   },
-
   "valueShapeRules": [
     {
       "path": "mirror.blockedImages",
@@ -130,7 +141,6 @@
       "default": "ocp"
     }
   ],
-
   "semanticRules": [
     {
       "id": "architectures-default",
@@ -138,7 +148,13 @@
       "sourceEvidence": "internal/pkg/config/defaults.go completeReleaseArchitectures sets DefaultPlatformArchitecture = \"amd64\"",
       "binaryEvidence": "With no architectures the binary requests .../graph?arch=amd64; with architectures [arm64] it requests arch=arm64.",
       "consequence": "Omitting architectures for a non-x86_64 target cluster mirrors the WRONG release payload while the configuration still parses cleanly. Architect must emit architectures whenever the Blueprint architecture is known.",
-      "acceptedValues": ["amd64", "arm64", "multi", "ppc64le", "s390x"]
+      "acceptedValues": [
+        "amd64",
+        "arm64",
+        "multi",
+        "ppc64le",
+        "s390x"
+      ]
     },
     {
       "id": "no-mixed-version-filters",
@@ -157,12 +173,356 @@
       "sourceEvidence": "internal/pkg/config/validate.go validateOperatorOptions / validateOperator / validatePackageChannels / validateReleaseChannels"
     }
   ],
-
   "architectMapping": {
     "_note": "Blueprint target-cluster architecture -> mirror.platform.architectures value. Implemented by normalizeBlueprintArch in backend/src/generate.js, shared with install-config architecture.",
     "x86_64": "amd64",
     "aarch64": "arm64",
     "ppc64le": "ppc64le",
     "s390x": "s390x"
+  },
+  "fields": {
+    "apiVersion": {
+      "type": "string",
+      "required": "architect",
+      "enum": [
+        "mirror.openshift.io/v2alpha1"
+      ],
+      "binaryBehaviour": "not checked: ReadConfig validates kind only; v1alpha2 and arbitrary strings decode (probes 02, 03, 27)"
+    },
+    "kind": {
+      "type": "string",
+      "required": "binary",
+      "enum": [
+        "ImageSetConfiguration"
+      ],
+      "caseSensitiveKey": true,
+      "binaryBehaviour": "missing -> 'configuration missing `kind`'; other values -> 'cannot parse \"X\" as \"ImageSetConfiguration\"' (probes 04, 20b, 20c, 35)"
+    },
+    "archiveSize": {
+      "type": "integer",
+      "min": 1,
+      "binaryBehaviour": "int64: strings and fractions are rejected (probes 06, 07); negative values are accepted (probe 29), so the minimum is Architect policy"
+    },
+    "mirror": {
+      "type": "object",
+      "required": "binary",
+      "caseSensitiveKey": true,
+      "binaryBehaviour": "missing -> 'configuration missing the `mirror` stanza' (probe 05); empty or null -> 'no images to copy' at run time (probes 21, 22)"
+    },
+    "mirror.platform": {
+      "type": "object"
+    },
+    "mirror.platform.graph": {
+      "type": "boolean",
+      "binaryBehaviour": "a string is rejected (probe 08)"
+    },
+    "mirror.platform.architectures": {
+      "type": "array<string>",
+      "itemEnum": [
+        "amd64",
+        "arm64",
+        "multi",
+        "ppc64le",
+        "s390x"
+      ],
+      "binaryBehaviour": "unknown values decode, then fail at collection with 'no release images found' (probe 19)"
+    },
+    "mirror.platform.release": {
+      "type": "string"
+    },
+    "mirror.platform.kubeVirtContainer": {
+      "type": "boolean"
+    },
+    "mirror.platform.channels": {
+      "type": "array<object>"
+    },
+    "mirror.platform.channels[].name": {
+      "type": "string",
+      "required": "architect",
+      "binaryBehaviour": "missing decodes, then fails at collection with 'no release images found' (probe 15)"
+    },
+    "mirror.platform.channels[].type": {
+      "type": "string",
+      "enum": [
+        "ocp",
+        "okd"
+      ],
+      "binaryBehaviour": "PlatformType.UnmarshalJSON maps an unknown string to the zero value (ocp) silently (probe 09; type_platform.go)"
+    },
+    "mirror.platform.channels[].minVersion": {
+      "type": "string"
+    },
+    "mirror.platform.channels[].maxVersion": {
+      "type": "string"
+    },
+    "mirror.platform.channels[].shortestPath": {
+      "type": "boolean"
+    },
+    "mirror.platform.channels[].full": {
+      "type": "boolean"
+    },
+    "mirror.operators": {
+      "type": "array<object>"
+    },
+    "mirror.operators[].catalog": {
+      "type": "string",
+      "required": "binary",
+      "format": "image-reference",
+      "binaryBehaviour": "missing -> 'reference name is empty' (probe 11); unparseable -> 'unable to parse image correctly' (probe 28)"
+    },
+    "mirror.operators[].targetCatalog": {
+      "type": "string"
+    },
+    "mirror.operators[].targetTag": {
+      "type": "string"
+    },
+    "mirror.operators[].full": {
+      "type": "boolean"
+    },
+    "mirror.operators[].skipDependencies": {
+      "type": "boolean"
+    },
+    "mirror.operators[].targetCatalogSourceTemplate": {
+      "type": "string"
+    },
+    "mirror.operators[].packages": {
+      "type": "array<object>",
+      "binaryBehaviour": "optional in practice: a catalog without packages reaches collection (probe 23)"
+    },
+    "mirror.operators[].packages[].name": {
+      "type": "string",
+      "required": "architect",
+      "binaryBehaviour": "missing is not rejected before network collection (probe 24)"
+    },
+    "mirror.operators[].packages[].defaultChannel": {
+      "type": "string"
+    },
+    "mirror.operators[].packages[].minVersion": {
+      "type": "string",
+      "format": "semver"
+    },
+    "mirror.operators[].packages[].maxVersion": {
+      "type": "string",
+      "format": "semver"
+    },
+    "mirror.operators[].packages[].channels": {
+      "type": "array<object>"
+    },
+    "mirror.operators[].packages[].channels[].name": {
+      "type": "string",
+      "required": "architect"
+    },
+    "mirror.operators[].packages[].channels[].minVersion": {
+      "type": "string",
+      "format": "semver",
+      "binaryBehaviour": "non-semver -> 'must respect semantic versioning notation' (probe 17)"
+    },
+    "mirror.operators[].packages[].channels[].maxVersion": {
+      "type": "string",
+      "format": "semver"
+    },
+    "mirror.additionalImages": {
+      "type": "array<object>",
+      "binaryBehaviour": "an array of strings is rejected (probe 10)"
+    },
+    "mirror.additionalImages[].name": {
+      "type": "string",
+      "required": "binary",
+      "format": "image-reference",
+      "binaryBehaviour": "empty -> 'reference name is empty'; no tag/digest -> 'unable to parse image correctly' (probes 16, 31)"
+    },
+    "mirror.additionalImages[].targetRepo": {
+      "type": "string"
+    },
+    "mirror.additionalImages[].targetTag": {
+      "type": "string"
+    },
+    "mirror.blockedImages": {
+      "type": "array<object>",
+      "binaryBehaviour": "an array of strings is rejected (probe 18)"
+    },
+    "mirror.blockedImages[].name": {
+      "type": "string",
+      "required": "architect",
+      "note": "a regular expression matched against image references, not an image reference"
+    },
+    "mirror.helm": {
+      "type": "object"
+    },
+    "mirror.helm.local": {
+      "type": "array<object>"
+    },
+    "mirror.helm.local[].name": {
+      "type": "string",
+      "required": "architect"
+    },
+    "mirror.helm.local[].version": {
+      "type": "string"
+    },
+    "mirror.helm.local[].path": {
+      "type": "string"
+    },
+    "mirror.helm.local[].imagePaths": {
+      "type": "array<string>"
+    },
+    "mirror.helm.repositories": {
+      "type": "array<object>"
+    },
+    "mirror.helm.repositories[].url": {
+      "type": "string",
+      "required": "architect",
+      "format": "http-url-without-credentials"
+    },
+    "mirror.helm.repositories[].name": {
+      "type": "string",
+      "required": "architect"
+    },
+    "mirror.helm.repositories[].charts": {
+      "type": "array<object>"
+    },
+    "mirror.helm.repositories[].charts[].name": {
+      "type": "string",
+      "required": "architect"
+    },
+    "mirror.helm.repositories[].charts[].version": {
+      "type": "string"
+    },
+    "mirror.helm.repositories[].charts[].path": {
+      "type": "string"
+    },
+    "mirror.helm.repositories[].charts[].imagePaths": {
+      "type": "array<string>"
+    },
+    "mirror.samples": {
+      "type": "array<object>"
+    },
+    "mirror.samples[].name": {
+      "type": "string",
+      "required": "architect"
+    }
+  },
+  "fieldTypes": {
+    "string": "JSON string (YAML scalars that are numbers or booleans are NOT strings: oc-mirror rejects `minVersion: 1.0`; quote it)",
+    "integer": "whole number within the int64 range",
+    "boolean": "true or false",
+    "object": "mapping",
+    "array<object>": "sequence of mappings",
+    "array<string>": "sequence of strings"
+  },
+  "requiredness": {
+    "binary": "oc-mirror itself refuses the document without it",
+    "architect": "oc-mirror decodes the document but then fails later or silently loses intent; Architect refuses it up front"
+  },
+  "rules": [
+    {
+      "id": "yaml-single-document",
+      "authority": "architect",
+      "rule": "Exactly one non-empty YAML document.",
+      "binaryBehaviour": "Documents after the first are silently ignored (probe 14: two documents, one image mirrored)."
+    },
+    {
+      "id": "yaml-duplicate-key",
+      "authority": "binary",
+      "rule": "No duplicate mapping key.",
+      "binaryBehaviour": "'key \"additionalImages\" already set in map' (probe 12)."
+    },
+    {
+      "id": "yaml-case-duplicate-key",
+      "authority": "architect",
+      "rule": "No two keys in one mapping that differ only in letter case.",
+      "binaryBehaviour": "Go's encoding/json matches field names case-insensitively and keeps the LAST value: probe 34 mirrored only the second list."
+    },
+    {
+      "id": "yaml-key-case",
+      "authority": "architect",
+      "severity": "warning",
+      "rule": "Keys use the documented spelling. A case variant below the top level (e.g. additionalimages) is read as the documented key and reported.",
+      "binaryBehaviour": "Accepted (probe 33). Top-level kind and mirror are matched exactly (probes 35, 36)."
+    },
+    {
+      "id": "yaml-anchors-aliases",
+      "authority": "architect",
+      "rule": "At most 20 aliases, and at most 20000 nodes after alias expansion.",
+      "binaryBehaviour": "Aliases are accepted (probe 13); the bound protects the importer from alias expansion bombs."
+    },
+    {
+      "id": "yaml-tags",
+      "authority": "architect",
+      "rule": "YAML 1.2 core types only: no !!binary, !!timestamp, !!set or custom tags.",
+      "binaryBehaviour": "!!binary decodes to bytes and then fails as an image reference (probe 32)."
+    },
+    {
+      "id": "yaml-depth",
+      "authority": "architect",
+      "rule": "Nesting depth at most 32."
+    },
+    {
+      "id": "encoding",
+      "authority": "architect",
+      "rule": "UTF-8 text without NUL or other control characters (a UTF-8 BOM is accepted and ignored); at most 1 MiB."
+    },
+    {
+      "id": "unknown-field",
+      "authority": "binary",
+      "rule": "Only keys listed in fields are allowed.",
+      "binaryBehaviour": "DisallowUnknownFields: 'json: unknown field' (rejectedPaths)."
+    },
+    {
+      "id": "field-type",
+      "authority": "binary",
+      "rule": "Each value has the type listed in fields.",
+      "binaryBehaviour": "'cannot unmarshal … into Go struct field' (probes 06, 07, 08, 10, 18)."
+    },
+    {
+      "id": "required",
+      "authority": "mixed",
+      "rule": "Fields marked required are present and non-empty; see requiredness."
+    },
+    {
+      "id": "enum",
+      "authority": "mixed",
+      "rule": "Fields with enum or itemEnum take one of the listed values."
+    },
+    {
+      "id": "empty-mirror",
+      "authority": "architect",
+      "rule": "mirror has at least one of platform channels, operators, additionalImages, helm or samples.",
+      "binaryBehaviour": "'no images to copy' (probes 21, 22)."
+    },
+    {
+      "id": "no-duplicates",
+      "authority": "binary",
+      "rule": "Unique catalogs (by catalog, targetCatalog and targetTag), package names per catalog, channel names per package and release channel names.",
+      "binaryBehaviour": "validate.go; probes 25, 30."
+    },
+    {
+      "id": "no-mixed-version-filters",
+      "authority": "binary",
+      "rule": "A package filters by package-level OR channel-level minVersion/maxVersion, never both.",
+      "binaryBehaviour": "probe 26."
+    },
+    {
+      "id": "semver-version-filters",
+      "authority": "binary",
+      "rule": "Operator minVersion/maxVersion parse as semantic versions (Masterminds semver: optional v, one to three numeric parts, optional pre-release and build).",
+      "binaryBehaviour": "probe 17."
+    },
+    {
+      "id": "image-reference",
+      "authority": "binary",
+      "rule": "Catalogs and additional images are image references with a tag or digest; catalogs may also use the oci:// transport.",
+      "binaryBehaviour": "probes 11, 16, 28, 31."
+    },
+    {
+      "id": "credentials-in-url",
+      "authority": "architect",
+      "rule": "No user:password@ credentials embedded in any URL or reference. Registry credentials belong in an auth file, never in the configuration."
+    }
+  ],
+  "findingAuthorities": {
+    "binary": "oc-mirror refuses the document when it loads it",
+    "binary-at-run": "oc-mirror loads the document, then fails while collecting content",
+    "architect": "oc-mirror would accept the document but silently lose or misread part of the user's intent, or the value is meaningless; Architect refuses it up front",
+    "mixed": "see the field's requiredness or enum source"
   }
 }

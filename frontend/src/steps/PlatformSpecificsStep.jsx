@@ -3045,10 +3045,12 @@ ssd-container`}
                     key={opt.value}
                     type="button"
                     className={`select-card ${(platformConfig.nutanixTopology || "ha") === opt.value ? "selected" : ""}`}
+                    aria-pressed={(platformConfig.nutanixTopology || "ha") === opt.value}
                     onClick={() => updatePlatformConfig({ nutanixTopology: opt.value })}
                   >
                     <div className="card-title">{opt.label}</div>
                     <div className="card-sub">{opt.sub}</div>
+                    <span className="select-card-check" aria-hidden="true">✓ Selected</span>
                   </button>
                 ))}
               </div>

@@ -548,7 +548,7 @@ Recommendation: Run high-side version on RHEL 9 x86_64 for full feature support.
 | Dependency | Required For | Source | Notes |
 |---|---|---|---|
 | openshift-install | Automated install | Included in low-side bundle | Statically linked binary |
-| oc-mirror | Registry upload | Included in low-side bundle | Statically linked binary |
+| oc-mirror | Registry upload | Included in low-side bundle | Dynamically linked glibc binary (corrected 2026-11-03: the shipped oc-mirror 4.22.19, SHA-256 `55b55cf1…924a3a`, is `ELF 64-bit … dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2` and needs libc, libpthread, libdl and libresolv). Use the build for the host's RHEL version, as Red Hat documents. |
 | mirror-registry | Registry install | Included in low-side bundle | RHEL only |
 | dnsmasq | PXE boot | System package (dnf/apt) | Must be installed on high-side |
 | podman | Container deployment | System package (dnf/apt) | Optional alternative to systemd |

@@ -241,7 +241,9 @@ describe("Runtime package staging directory lifecycle", () => {
       result = stage();
     } finally {
       process.env.PATH = savedPath;
-      process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE = savedMode;
+      // Assigning undefined would store the string "undefined" (= auto mode).
+      if (savedMode === undefined) delete process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE;
+      else process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE = savedMode;
     }
 
     assert.equal(result.included, false, "no container engine must fail closed");

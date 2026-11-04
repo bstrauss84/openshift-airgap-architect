@@ -30,11 +30,17 @@ import os from "node:os";
 import path from "node:path";
 
 import { runScanJob, createSharedAuthRelease, getResults } from "../src/operators.js";
+import { setCatalogOpenerForTests } from "../src/verifiedCatalog.js";
 import { activeProcesses } from "../src/processRegistry.js";
 import { isTerminalJobStatus, TERMINAL_JOB_STATUSES } from "../src/jobStatus.js";
 import { getJob, updateJob, writeTempAuth, safeUnlink } from "../src/utils.js";
 import { listTempArtifacts, releaseAllTempArtifacts } from "../src/tempArtifacts.js";
 import { createShutdownHandler } from "../src/shutdown.js";
+
+// These tests drive oc-mirror stand-ins; the verified catalog fetch is
+// covered by verified-catalog-fetch.test.js. The catalog name is passed
+// through so the stand-ins see what they always saw.
+setCatalogOpenerForTests(async (image) => ({ localReference: image, resolvedDigest: `sha256:${"d".repeat(64)}`, manifestDigest: `sha256:${"d".repeat(64)}`, fetchedAt: Date.now(), close: async () => {} }));
 
 const silentLogger = { info() {}, warn() {}, error() {}, debug() {} };
 
@@ -96,6 +102,12 @@ const waitForTerminal = (jobId) =>
     const job = getJob(jobId);
     return job && isTerminalJobStatus(job.status) ? job : null;
   }, `job ${jobId} to reach a terminal state`);
+
+/** The oc-mirror child, once the (stand-in) verified catalog fetch has handed over to it. */
+const waitForChild = async (jobId) => {
+  await waitFor(() => typeof activeProcesses.get(jobId)?.on === "function", `job ${jobId} to start its oc-mirror child`);
+  return activeProcesses.get(jobId);
+};
 
 const waitForDeregistration = (jobId) =>
   waitFor(() => !activeProcesses.has(jobId), `job ${jobId} to leave the process registry`);
@@ -184,7 +196,7 @@ describe("Operator scan process ownership", () => {
   it("times out a scan that never finishes, and the child actually dies", async () => {
     const neverExits = fixtureBinary("never-exits", "setInterval(() => {}, 1000);");
     const jobId = startScan({ ocMirrorPath: neverExits, timeoutMs: 50 });
-    const child = activeProcesses.get(jobId);
+    const child = await waitForChild(jobId);
     assert.ok(child, "precondition: the scan is registered");
     const exited = new Promise((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
 
@@ -209,7 +221,7 @@ describe("Operator scan process ownership", () => {
       timeoutMs: 50,
       sigkillAfterMs: 150
     });
-    const child = activeProcesses.get(jobId);
+    const child = await waitForChild(jobId);
     assert.ok(child, "precondition: the scan is registered");
     const exited = new Promise((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
 
@@ -253,7 +265,7 @@ describe("Operator scan process ownership", () => {
     // What POST /api/jobs/:id/stop does, minus its own registry delete: the
     // child's `close` handler owns that, and watching for it is how this test
     // knows the late callback has actually run without waiting on a clock.
-    const child = activeProcesses.get(jobId);
+    const child = await waitForChild(jobId);
     assert.ok(child, "precondition: the scan must be cancellable at all");
     child.kill("SIGTERM");
     updateJob(jobId, { status: "cancelled", message: "Stopped by user.", progress: 0 });
@@ -275,7 +287,7 @@ describe("Operator scan process ownership", () => {
     const authFile = writeTempAuth("{\"auths\":{\"registry.example.test\":{}}}");
     const jobId = startScan({ ocMirrorPath: neverExits, authFile });
 
-    const child = activeProcesses.get(jobId);
+    const child = await waitForChild(jobId);
     assert.ok(child, "the scan must be visible to shutdown");
     const exited = new Promise((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
 
@@ -304,46 +316,77 @@ describe("Operator scan process ownership", () => {
   });
 
   it("a fast scan must not delete the credential a slow sibling is still using", async () => {
-    // The defect this pins: one pull secret serves every catalog in a scan
-    // request, and each child used to unlink it from its own `close` handler,
-    // so whichever catalog finished first deleted the credential the other
-    // two were still passing to --authfile.
-    //
-    // Independent review found that the fix (the refcounted `onSettled`
-    // releaser) had NO test: reverting it to the per-child unlink left this
-    // whole suite green. `createSharedAuthRelease` was covered only as a pure
-    // helper — nothing asserted that runScanJob actually uses it, and nothing
-    // exercised the multi-catalog case where the bug occurs.
+    // One pull secret serves every catalog in a scan request. Since v2.2.0 M7 it is
+    // used by OAA's verified catalog fetch only (oc-mirror lists a loopback
+    // copy without it), so it must outlive every sibling's FETCH — and nothing
+    // longer. Reverting to a per-scan unlink fails the first assertion.
     const authFile = writeTempAuth("{\"auths\":{\"registry.example.test\":{}}}");
     const release = createSharedAuthRelease(authFile, 2);
+    let finishSlowFetch;
+    const slowFetch = new Promise((r) => { finishSlowFetch = r; });
+    const resolver = (wait) => async (image) => { await wait; return { localReference: image, resolvedDigest: `sha256:${"e".repeat(64)}`, manifestDigest: `sha256:${"e".repeat(64)}`, fetchedAt: Date.now(), close: async () => {} }; };
 
     const slow = startScan({
       catalogId: "certified",
-      ocMirrorPath: fixtureBinary("shared-slow", "setTimeout(() => {}, 400);"),
+      ocMirrorPath: fixtureBinary("shared-slow", "setTimeout(() => {}, 1500);"),
       authFile,
-      onSettled: release
+      onSettled: release,
+      catalogResolver: resolver(slowFetch)
     });
     const fast = startScan({
       catalogId: "redhat",
       ocMirrorPath: fixtureBinary("shared-fast", "// exits immediately\n"),
       authFile,
-      onSettled: release
+      onSettled: release,
+      catalogResolver: resolver(Promise.resolve())
     });
 
     await waitForTerminal(fast);
-    assert.equal(
-      fs.existsSync(authFile),
-      true,
-      "the first catalog to finish must not delete a credential its sibling is still using"
-    );
+    assert.equal(fs.existsSync(authFile), true, "the first catalog to finish must not delete a credential its sibling's fetch still needs");
 
+    finishSlowFetch();
+    await waitForChild(slow);
+    await waitFor(() => !fs.existsSync(authFile), "the credential to be released once every fetch is done");
+    assert.notEqual(getJob(slow).status, "completed", "released while oc-mirror is still running: it never needed the credential");
+    assert.deepEqual(listTempArtifacts().filter((a) => a.path === authFile), [], "and it must be deregistered once released");
     await waitForTerminal(slow);
-    await waitFor(() => !fs.existsSync(authFile), "the last scan to settle to release the credential");
-    assert.deepEqual(
-      listTempArtifacts().filter((a) => a.path === authFile),
-      [],
-      "and it must be deregistered once released"
-    );
+  });
+
+  it("stopping during the verified fetch cancels the job; oc-mirror never starts", async () => {
+    const marker = path.join(scratch, "fetch-stop-spawned");
+    let aborted = false;
+    const jobId = startScan({
+      ocMirrorPath: fixtureBinary("must-not-run", `require("fs").writeFileSync(${JSON.stringify(marker)}, "x");`),
+      catalogResolver: (_image, { signal }) => new Promise((_resolve, reject) => {
+        signal.addEventListener("abort", () => { aborted = true; reject(Object.assign(new Error("Stopped."), { code: "ABORTED" })); });
+      })
+    });
+    const handle = activeProcesses.get(jobId);
+    assert.ok(handle, "the fetch phase must be stoppable");
+    handle.kill("SIGTERM");
+    activeProcesses.delete(jobId);
+    updateJob(jobId, { status: "cancelled", message: "Stopped by user.", progress: 0 });
+    await waitFor(() => aborted, "the fetch to be aborted");
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(getJob(jobId).status, "cancelled");
+    assert.equal(fs.existsSync(marker), false);
+    assert.equal(activeProcesses.has(jobId), false);
+  });
+
+  it("a job cancelled while its fetch finishes leaves nothing registered and spawns nothing", async () => {
+    // Shutdown marks jobs cancelled without removing the registry entry. The
+    // fetch then completing must not leave its handle behind (it did once).
+    const marker = path.join(scratch, "late-fetch-spawned");
+    let finish;
+    const jobId = startScan({
+      ocMirrorPath: fixtureBinary("late-must-not-run", `require("fs").writeFileSync(${JSON.stringify(marker)}, "x");`),
+      catalogResolver: (image) => new Promise((r) => { finish = () => r({ localReference: image, resolvedDigest: `sha256:${"f".repeat(64)}`, manifestDigest: `sha256:${"f".repeat(64)}`, fetchedAt: Date.now(), close: async () => {} }); })
+    });
+    updateJob(jobId, { status: "cancelled", message: "Server shutdown.", progress: 0 });
+    finish();
+    await waitForDeregistration(jobId);
+    assert.equal(getJob(jobId).status, "cancelled");
+    assert.equal(fs.existsSync(marker), false);
   });
 
   it("leaves a mounted REGISTRY_AUTH_FILE alone", async () => {

@@ -10,6 +10,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { nanoid } from "nanoid";
 import { db, dataDir } from "./db.js";
 import logger from "./logger.js";
@@ -212,6 +213,11 @@ const listJobs = () => db.prepare("SELECT * FROM jobs ORDER BY created_at DESC")
 
 const listJobsByType = (type) => db.prepare("SELECT * FROM jobs WHERE type = ?").all(type);
 
+/** Newest jobs of one workflow (metadata `workflow`), without their output. */
+const listWorkflowJobSummaries = (workflow, limit = 200) => db
+  .prepare("SELECT id, type, status, message, progress, created_at, updated_at, metadata_json FROM jobs WHERE metadata_json LIKE ? ORDER BY created_at DESC LIMIT ?")
+  .all(`%"workflow":${JSON.stringify(String(workflow))}%`, limit);
+
 /** Delete jobs in terminal state (completed, failed, cancelled). Returns number deleted. */
 const deleteCompletedJobs = () => {
   const result = db.prepare("DELETE FROM jobs WHERE status IN ('completed', 'failed', 'cancelled')").run();
@@ -314,13 +320,60 @@ const ensureTempDir = () => {
   return dir;
 };
 
+/**
+ * Where a run's temporary registry auth file is written: memory-backed when
+ * possible, so a credential never reaches the persistent data volume.
+ *   1. OAA_SECRET_TMPDIR, when set (administrator's choice; must be ours, 0700);
+ *   2. /dev/shm/oaa-secrets-<uid>-<hash of DATA_DIR> (tmpfs; unique to this
+ *      instance, so the boot sweep never touches another instance's files);
+ *   3. DATA_DIR/tmp (persistent) when neither is usable — reported by the
+ *      preflight, never silent.
+ * A directory is used only when it is a real directory (not a link), owned by
+ * this process's user and not accessible to others.
+ */
+let secretDirCache = null;
+const privateDir = (dir) => {
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const st = fs.lstatSync(dir);
+    const uid = typeof process.getuid === "function" ? process.getuid() : null;
+    if (!st.isDirectory() || st.isSymbolicLink() || (uid !== null && st.uid !== uid)) return false;
+    if ((st.mode & 0o077) !== 0) fs.chmodSync(dir, 0o700);
+    return true;
+  } catch {
+    return false;
+  }
+};
+const secretTempLocation = () => {
+  if (secretDirCache) return secretDirCache;
+  const configured = process.env.OAA_SECRET_TMPDIR;
+  const uid = typeof process.getuid === "function" ? process.getuid() : "u";
+  const tag = crypto.createHash("sha256").update(path.resolve(dataDir)).digest("hex").slice(0, 12);
+  const candidates = [
+    ...(configured && path.isAbsolute(configured) ? [{ dir: path.resolve(configured), memoryBacked: null, source: "OAA_SECRET_TMPDIR" }] : []),
+    { dir: `/dev/shm/oaa-secrets-${uid}-${tag}`, memoryBacked: true, source: "/dev/shm" }
+  ];
+  for (const c of candidates) {
+    if (privateDir(c.dir)) { secretDirCache = c; return c; }
+  }
+  secretDirCache = { dir: ensureTempDir(), memoryBacked: false, source: "DATA_DIR/tmp" };
+  logger.warn({ tag: "credentials", dir: secretDirCache.dir }, "No memory-backed directory for temporary registry credentials; using DATA_DIR/tmp");
+  return secretDirCache;
+};
+const secretTempDir = () => secretTempLocation().dir;
+// Leave no empty private directory behind on a normal exit (files are released by their owners).
+process.once("exit", () => {
+  if (!secretDirCache || secretDirCache.source === "DATA_DIR/tmp") return;
+  try { if (!fs.readdirSync(secretDirCache.dir).length) fs.rmdirSync(secretDirCache.dir); } catch { /* best effort */ }
+});
+
 const writeTempAuth = (contents) => {
-  const dir = ensureTempDir();
+  const dir = secretTempDir();
   const filePath = path.join(dir, `registry-auth-${nanoid()}.json`);
-  fs.writeFileSync(filePath, contents, { mode: 0o600, encoding: "utf8" });
-  // A registry pull secret on a persistent volume. Its owner unlinks it from
-  // the child's `close` handler, which a terminating process never reaches,
-  // so shutdown needs to know it exists.
+  fs.writeFileSync(filePath, contents, { mode: 0o600, encoding: "utf8", flag: "wx" });
+  // Its owner unlinks it from the child's `close` handler, which a
+  // terminating process never reaches, so shutdown needs to know it exists;
+  // the boot sweep removes any that survived a crash.
   return trackTempArtifact(filePath, "file", "registry-auth");
 };
 
@@ -370,6 +423,7 @@ export {
   getJobMetadata,
   listJobs,
   listJobsByType,
+  listWorkflowJobSummaries,
   deleteCompletedJobs,
   cleanupOldJobs,
   getJobsCount,
@@ -378,6 +432,8 @@ export {
   setState,
   redactJobOutputForStorage,
   writeTempAuth,
+  secretTempDir,
+  secretTempLocation,
   mergePullSecrets,
   safeUnlink,
   appendJobOutput

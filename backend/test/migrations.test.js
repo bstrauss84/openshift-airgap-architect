@@ -193,14 +193,26 @@ export const down = (db) => {
       const beforeCount = beforeMigrations.length;
       assert.ok(beforeCount >= 2, "Should have at least 2 migrations applied");
 
-      // Rollback last migration
+      // Rollback the last migration: 004 (v2.2.0 M7 verified catalog identity).
+      const rolledBack004 = await rollbackMigration(db);
+      assert.ok(rolledBack004?.includes("004"), "Should rollback 004_operator_catalog_identity first");
+      const tables004 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((t) => t.name);
+      assert.ok(!tables004.includes("operator_catalog_identity"), "operator_catalog_identity should be dropped");
+
+      // Then 003 (v2.2.0 M5 operator package details).
+      const rolledBack003 = await rollbackMigration(db);
+      assert.ok(rolledBack003?.includes("003"), "Should rollback 003_operator_package_details first");
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((t) => t.name);
+      assert.ok(!tables.includes("operator_package_details"), "operator_package_details should be dropped");
+
+      // Then 002.
       const rolledBack = await rollbackMigration(db);
       assert.ok(rolledBack, "Should return name of rolled back migration");
       assert.ok(rolledBack.includes("002"), "Should rollback 002_add_jobs_metadata migration");
 
       // Check migration count decreased
       const afterMigrations = db.prepare("SELECT name FROM migrations").all();
-      assert.strictEqual(afterMigrations.length, beforeCount - 1, "Should have one fewer migration");
+      assert.strictEqual(afterMigrations.length, beforeCount - 3, "Should have three fewer migrations");
 
       // Check metadata_json column was removed
       const columns = db.prepare("PRAGMA table_info(jobs)").all();
@@ -301,7 +313,7 @@ export const down = (db) => {
       assert.ok(status.total >= 2, "Should have at least 2 total migrations");
       assert.ok(status.appliedCount >= 1, "Should have at least 1 applied migration");
       assert.strictEqual(status.pendingCount, 1, "Should have 1 pending migration");
-      assert.ok(status.pending[0].includes("002"), "Pending migration should be 002");
+      assert.ok(status.pending[0].includes("004"), "Pending migration should be the last one, 004");
 
       db.close();
       cleanupTestDb();

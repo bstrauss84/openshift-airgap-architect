@@ -127,7 +127,9 @@ const MethodologyStep = ({ highlightErrors }) => {
             {methods.map((option) => (
               <button
                 key={option.value}
+                type="button"
                 className={`select-card ${method === option.value ? "selected" : ""}`}
+                aria-pressed={method === option.value}
                 onClick={() => updateState({ methodology: { method: option.value } })}
                 disabled={!allowed.includes(option.value)}
                 title={!allowed.includes(option.value) ? "Not supported for selected platform" : ""}
@@ -137,6 +139,7 @@ const MethodologyStep = ({ highlightErrors }) => {
                   {recommended === option.value ? <span className="badge">Recommended</span> : null}
                 </div>
                 <div className="card-sub">{option.sub}</div>
+                <span className="select-card-check" aria-hidden="true">✓ Selected</span>
               </button>
             ))}
           </div>

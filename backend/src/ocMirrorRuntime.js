@@ -385,6 +385,27 @@ async function resolveOcMirrorBinary(dataDir) {
   };
 }
 
+/**
+ * The oc-mirror binary a run would use, found WITHOUT downloading anything
+ * (v2.2.0 M5 preflight): OC_MIRROR_BIN, else the binary built into the image
+ * when it implements `--v2 list operators`. Returns { path, source, arch },
+ * { error } when OC_MIRROR_BIN is set but unusable, or null when a run would
+ * have to download and verify the global-latest release first.
+ */
+function peekOcMirrorBinary() {
+  const envBin = process.env.OC_MIRROR_BIN?.trim();
+  if (envBin) {
+    const preflight = runPreflight(envBin);
+    return preflight.ok
+      ? { path: envBin, source: "env", arch: getRuntimeArch() }
+      : { error: `OC_MIRROR_BIN is set to ${envBin}, which cannot be used: ${preflight.message}` };
+  }
+  if (fs.existsSync(BAKED_IN_OC_MIRROR) && runPreflight(BAKED_IN_OC_MIRROR).ok && supportsV2ListOperators(BAKED_IN_OC_MIRROR)) {
+    return { path: BAKED_IN_OC_MIRROR, source: "baked-in", arch: BAKED_IN_ARCH };
+  }
+  return null;
+}
+
 function getLocalBinaryArch() {
   if (_lastResolvedArch) return _lastResolvedArch;
   if (fs.existsSync(BAKED_IN_OC_MIRROR)) {
@@ -473,6 +494,7 @@ async function getBinariesForExportArch(exportArch, dataDir, targetMinor) {
 export {
   getRuntimeArch,
   resolveOcMirrorBinary,
+  peekOcMirrorBinary,
   getLocalBinaryArch,
   getBinariesForExportArch,
   verifySha256,

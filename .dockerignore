@@ -46,3 +46,13 @@ playwright.config.*
 *.code-workspace
 # Git internals
 .git/
+# Trust material and keys never enter the build context (v2.2.0 M7): a
+# corporate CA belongs in a build secret (oaa_build_ca), never in a layer.
+*.pem
+**/*.pem
+*.crt
+**/*.crt
+*.key
+**/*.key
+*.p12
+**/*.p12

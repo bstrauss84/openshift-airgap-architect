@@ -469,7 +469,7 @@ Creates a background job to refresh Cincinnati data.
 
 ## Operator Catalog
 
-Operator catalog scanning uses `oc-mirror list operators` to query Red Hat catalogs.
+Operator catalog scanning downloads each catalog over TLS verified by the backend (registry credentials are used for that download only) and lists the local, digest-pinned copy with `oc-mirror list operators`.
 
 ### `GET /api/operators/credentials`
 
@@ -545,7 +545,7 @@ Initiates operator catalog scan (synchronous for now, may become async).
 - `500 Internal Server Error` - Scan failed
 
 **Notes:**
-- Runs `oc-mirror list operators --catalog=<catalog>`
+- Downloads `<catalog>` over verified TLS, then runs `oc-mirror list operators` against the digest-pinned local copy (no credentials passed to oc-mirror)
 - Requires pull secret with `registry.redhat.io` auth
 - `MOCK_MODE=true` bypasses actual scan, returns mock data
 
@@ -949,8 +949,7 @@ Generates a new SSH key pair.
 **Request Body:**
 ```json
 {
-  "algorithm": "ed25519",  // or "rsa", "ecdsa"
-  "comment": "user@hostname"
+  "algorithm": "ed25519"  // or "rsa", "ecdsa"
 }
 ```
 
@@ -958,9 +957,12 @@ Generates a new SSH key pair.
 ```json
 {
   "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
-  "publicKey": "ssh-ed25519 AAAAC3... user@hostname"
+  "publicKey": "ssh-ed25519 AAAAC3... openshift-airgap-architect-generated"
 }
 ```
+
+Every generated public key carries the fixed comment `openshift-airgap-architect-generated` (v2.2.0). Earlier versions used
+ssh-keygen's default, the server's `user@hostname`. There is no comment field in the request; keys you paste keep their own comment.
 
 **Supported Algorithms:**
 - `ed25519` (default) - Recommended
@@ -1366,7 +1368,9 @@ publishes the backend on a Route with no authentication.
 `GET /api/secrets/rh-pull-secret` for the `{ available: boolean }` indication,
 and `rhAuthSource: "mounted"` on `/api/ocmirror/preflight` and
 `/api/ocmirror/run` to authenticate server-side without transferring the
-credential. Operator catalog scans authenticate via `REGISTRY_AUTH_FILE`.
+credential. Install operator catalog scans authenticate via `REGISTRY_AUTH_FILE`; Mirroring scans
+(`catalogMinor` + `profileId`) send `rhAuthSource: "inline"` with `pullSecret`, or `rhAuthSource: "mounted"`
+for this mounted pull secret, and never fall back to `REGISTRY_AUTH_FILE`.
 
 ---
 
@@ -1477,7 +1481,7 @@ Endpoints that expose sensitive data or operations:
 - `GET /api/jobs`, `GET /api/jobs/:id`, `GET /api/jobs/:id/stream` - return whole job rows; request bodies are **credential-stripped before storage as of v2.1**
 - `GET /api/state`, `GET /api/run/export` - sanitized. `POST /api/run/import` previously persisted through the weaker *export* sanitizer, laundering SSH private keys, platform and BMC passwords and proxy userinfo into stored state; it now persists through `sanitizeStateForPersistence`, the same path `POST /api/state` uses. Closed in v2.1; covered by `backend/test/run-import-sanitizer-boundary.test.js`.
 - `POST /api/ocmirror/run`, `POST /api/ocmirror/preflight` - execute oc-mirror, optionally using the mounted pull secret, for an unauthenticated caller
-- `POST /api/operators/scan`, `POST /api/operators/prefetch` - use the mounted `REGISTRY_AUTH_FILE`
+- `POST /api/operators/scan`, `POST /api/operators/prefetch` - use the mounted `REGISTRY_AUTH_FILE` (Install); a Mirroring scan with `rhAuthSource: "mounted"` uses the mounted Red Hat pull secret instead
 - `GET /api/fs/ls` - directory listing (allowlisted to the data dir and `/tmp`)
 - `POST /api/system/path-check` - spawns `df` on a caller-supplied path, no allowlist
 - `GET`/`POST /api/generate` - renders install-config, agent-config and imageset-config from server state with `includeCredentials` **forced on** for preview, so the response body carries the pull secret and any other configured credential. Combined with unrestricted CORS this is readable cross-origin.

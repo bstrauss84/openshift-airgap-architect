@@ -148,7 +148,9 @@ if (fs.existsSync(containerfile)) {
       desc: "COPY --chown=1001:0 shared/ ./shared/ (sibling of frontend/, so ../../shared resolves)",
     },
     {
-      pattern: /^RUN npm ci$/m,
+      // `npm ci` (never `npm install`) in the builder; since v2.2.0 M7 the RUN
+      // carries an optional build-CA secret mount and retry flags first.
+      pattern: /^RUN (?:--mount=type=secret,id=oaa_build_ca[^\n]*\\\n(?:[^\n]*\\\n)*?[^\n]*\bfi && )?npm ci\b/m,
       desc: "RUN npm ci",
     },
     {
@@ -222,8 +224,11 @@ if (!fs.existsSync(sharedVersionUtils)) {
 }
 
 // 4. Verify frontend imports that reference shared/versionUtils.js
+// App.jsx was listed here until v2.2.0 M2 moved its version handling into the
+// shared release selector; validation.js imports it from the src/ root, so
+// the same `../../shared` resolution is still checked at that depth.
 const frontendImports = [
-  "frontend/src/App.jsx",
+  "frontend/src/validation.js",
   "frontend/src/shared/versionPolicy.js",
   "frontend/src/shared/cincinnatiChannels.js",
 ];

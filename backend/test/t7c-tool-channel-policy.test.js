@@ -51,12 +51,17 @@ const DIRECTIVES = CONTAINERFILE.split("\n")
  * line further down is legitimate and must not be caught here).
  */
 const TOOL_BLOCK = (() => {
+  // Located by content (the RUN that fetches from mirror.openshift.com), not
+  // by its first line: M7 put an optional build-secret mount in front.
   const lines = DIRECTIVES.split("\n");
-  const start = lines.findIndex((l) => l.startsWith("RUN set -e &&"));
-  assert.ok(start >= 0, "tool-acquisition RUN not found");
-  let end = start;
-  while (end < lines.length && lines[end].trimEnd().endsWith("\\")) end += 1;
-  return lines.slice(start, end + 1).join("\n");
+  for (let start = 0; start < lines.length; start++) {
+    if (!lines[start].startsWith("RUN ")) continue;
+    let end = start;
+    while (end < lines.length && lines[end].trimEnd().endsWith("\\")) end += 1;
+    const block = lines.slice(start, end + 1).join("\n");
+    if (block.includes("mirror.openshift.com")) return block;
+  }
+  assert.fail("tool-acquisition RUN not found");
 })();
 
 /** Highest supported minor, by numeric comparison rather than sort order. */
@@ -167,14 +172,21 @@ describe("T7C — build-time fetches let curl finish and honour its exit status"
     });
   }
 
-  it("every curl in the tool-acquisition block either captures or writes to a file", () => {
-    // Capturing into a variable makes the assignment take curl's own exit
-    // status; -o writes to disk and is likewise not a pipeline.
+  it("every fetch in the tool-acquisition block either captures or writes to a file", () => {
+    // Since M7 curl runs inside one `fetch` wrapper (bounded retries, failure
+    // classification). The wrapper must hand back curl's own status, and every
+    // call site must be a capture or a -o download — never a pipeline.
+    // An invocation is `curl -…`; "(curl $rc)" in the failure messages is text.
+    const wrapper = TOOL_BLOCK.split("\n").filter((l) => /(^|[\s;&|({])curl\s+-/.test(l));
+    assert.equal(wrapper.length, 1, "curl is called only by the fetch wrapper");
+    assert.match(wrapper[0], /curl [^|]*"\$@" \|\| \{ rc=\$\?;/, "the wrapper keeps curl's exit status");
+    assert.match(TOOL_BLOCK, /return \$rc; \}/, "and returns it");
     const offenders = TOOL_BLOCK.split("\n")
-      .filter((l) => l.includes("curl "))
+      .filter((l) => /\bfetch "/.test(l))
       .filter((l) => !/-o\s+\S+/.test(l))
-      .filter((l) => !/="\$\(curl[^|]*\)"/.test(l));
-    assert.deepEqual(offenders, [], "a curl whose status cannot be observed");
+      .filter((l) => !/="\$\(fetch [^|]*\)"/.test(l));
+    assert.deepEqual(offenders, [], "a fetch whose status cannot be observed");
+    assert.ok(TOOL_BLOCK.split("\n").filter((l) => /\bfetch "/.test(l)).length >= 6, "release, checksum and tarball fetches all go through it");
   });
 
   it("the parsers consume the whole stream (END-block form)", () => {

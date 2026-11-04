@@ -1,6 +1,6 @@
 {
   "name": "openshift-airgap-architect",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "OpenShift Airgap Installation Configuration Generator",
   "private": true,
   "scripts": {

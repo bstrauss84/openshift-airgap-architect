@@ -78,6 +78,12 @@ const DECLARED_EGRESS = Object.freeze([
     source: "backend/src/docs.js:16",
   },
   {
+    host: "registry.redhat.io",
+    purpose: "operator catalog download over verified TLS for catalog scans and live catalog checks (v2.2.0 M7); the default catalogs live here, and a catalog the user names on another registry is fetched from that registry the same way",
+    classification: "connected-only",
+    source: "backend/src/verifiedRegistry.js (host taken from the catalog reference), backend/src/operators.js",
+  },
+  {
     host: "github.com",
     purpose: "feedback submission target and generated-artifact provenance comments (the latter are inert text, not calls)",
     classification: "optional",

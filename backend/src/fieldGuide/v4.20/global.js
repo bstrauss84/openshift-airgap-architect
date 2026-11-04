@@ -76,7 +76,7 @@ export const fipsPrereqs = {
     { text: "Set fips: true in install-config.yaml under the top-level spec. Confirm it is present before proceeding." },
     { text: "All nodes will be provisioned in FIPS mode automatically when fips: true is set in install-config.yaml — no per-node action is needed." },
     { text: "The pull secret and mirror credentials must be stored in FIPS-compliant formats. Avoid md5-based auth tokens." },
-    { text: "Confirm oc-mirror and openshift-install are FIPS-capable builds (Red Hat distributed binaries are; community-built binaries may not be)." },
+    { text: "Use the FIPS-capable installation program Red Hat documents for FIPS clusters: openshift-install-fips, from the openshift-install-rhel9-<arch> download, run on a RHEL 9 host in FIPS mode. For oc-mirror, Red Hat documents only that you install the binary for the RHEL version you use; it publishes no separate FIPS oc-mirror and makes no FIPS statement for it — check it against your own FIPS requirements rather than assuming FIPS capability." },
     { text: "If a proxy is in use, ensure the proxy uses FIPS-approved TLS cipher suites and the proxy CA is trusted by the installer." },
     { text: "For bare-metal agent-based installs with FIPS, the agent ISO itself must be built with FIPS binaries — the openshift-install binary on a FIPS host will produce a FIPS-mode ISO automatically." },
     { text: "Verify etcd encryption uses FIPS-approved AES-CBC encryption post-install:", cmd: "oc get apiserver cluster -o jsonpath='{.spec.encryption}'" },

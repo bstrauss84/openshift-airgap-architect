@@ -38,11 +38,24 @@ This document catalogs all configurable environment variables for the OpenShift 
   - Contains `state.db` (SQLite), `tmp/` directory, and job output directories
   - Permissions must allow read/write for the application user
 
----
+### `OAA_MIRROR_STORAGE_ROOT`
+- **Type:** Path (absolute, inside the container)
+- **Default:** unset — new Mirroring profiles start in `DATA_DIR/oc-mirror`
+- **Required:** No
+- **Description:** The default storage location for NEW Mirroring profiles (archives, oc-mirror workspace and cache, received transfers, plans, each under `<location>/profiles/<id>/`). Users can still type any writable directory for a profile before it writes anything, as in Install's Run oc-mirror step.
+- **Example:** `OAA_MIRROR_STORAGE_ROOT=/mnt/mirror-data` with the volume `-v /data/mirror:/mnt/mirror-data:Z`
+- **Security:** Every location must be a real directory (not a symbolic link), not `/`, a system directory, the application's directory or another profile's directory, and writable by the backend user (UID 1001 in containers). A location that fails a check blocks that profile's runs with the reason; nothing falls back to `DATA_DIR`.
+- **Notes:**
+  - Read once at start-up
+  - Existing profiles keep their location; nothing is moved
+  - See docs/ENTERPRISE_PODMAN_DEPLOYMENT.md §9
 
-## Build and Version Information
-
-These variables are typically set during CI/CD builds and displayed in the UI (Tools → About).
+### `OAA_SECRET_TMPDIR`
+- **Type:** Path (absolute)
+- **Default:** unset — `/dev/shm/oaa-secrets-<uid>-<hash>` (memory), else `DATA_DIR/tmp`
+- **Required:** No
+- **Description:** Where oc-mirror runs' temporary registry auth files are written (0600, removed after each run; leftovers removed at start-up). Must be a directory owned by the backend user and not accessible to others.
+- **Example:** `OAA_SECRET_TMPDIR=/run/user/1001/oaa`
 
 ### `APP_GIT_SHA`
 - **Type:** String
@@ -301,7 +314,8 @@ FEEDBACK_BURST_MAX=1                   # 1 per 30 seconds
   3. `${HOME}/.openshift/pull-secret` (`oc` CLI default, non-container dev runs)
 - **Notes:**
   - Used by `POST /api/ocmirror/preflight` and `POST /api/ocmirror/run` when the request selects `rhAuthSource: "mounted"`
-  - **Not** used by operator catalog scans — those authenticate via `REGISTRY_AUTH_FILE`, a separate mechanism
+  - Mirroring (v2.2.0): the one mounted **source** credential for Mirroring catalog scans, live catalog checks, preflight and runs — each only when the user switches on "Use the pull secret mounted into the container" (`rhAuthSource: "mounted"`). Never used for the destination registry.
+  - **Not** used by Install operator catalog scans — those authenticate via `REGISTRY_AUTH_FILE`, a separate mechanism
   - Can be overridden by a wizard-provided pull secret in state
   - As of v2.1 the Blueprint pull-secret field is **not** pre-populated from this file, and `GET /api/secrets/rh-pull-secret/content` returns `410 ENDPOINT_WITHDRAWN`. Only `GET /api/secrets/rh-pull-secret` → `{ available: boolean }` is exposed.
 
@@ -313,7 +327,8 @@ FEEDBACK_BURST_MAX=1                   # 1 per 30 seconds
 - **Example:** `REGISTRY_AUTH_FILE=/opt/auth/config.json`
 - **Notes:**
   - Backend generates temporary auth files for oc-mirror runs
-  - Permanent file can be provided for operator scans
+  - Permanent file can be provided for **Install** operator scans
+  - **Not** used by Mirroring (v2.2.0): Mirroring scans name their source credential explicitly (pasted, or the mounted Red Hat pull secret above) and never fall back to this file
   - Format: Docker registry auth JSON (same as `pull-secret.json` structure)
 
 ### `OC_MIRROR_BIN`
@@ -375,12 +390,27 @@ FEEDBACK_BURST_MAX=1                   # 1 per 30 seconds
 - **Description:** Reserved for future airgap mode variations
 - **Notes:** Currently unused; placeholder for potential high-side/low-side workflow modes
 
+### `AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE`
+- **Type:** String: `auto`, `fixture` or `none`
+- **Default:** `auto`
+- **Required:** No
+- **Description:** How the high-side runtime package obtains the backend and frontend image archives.
+- **Notes:** `auto` exports the images named by `RUNTIME_PACKAGE_BACKEND_IMAGE` / `RUNTIME_PACKAGE_FRONTEND_IMAGE`
+  (default `localhost/openshift-airgap-architect-{backend,frontend}:latest`) with podman or docker when one is present;
+  the shipped container has neither. `none` never calls a container engine (the package is produced without image
+  archives and says so). `fixture` writes placeholder archives for tests. The backend test runner defaults to `none`
+  and to test-owned image names, so a suite run never reads or exports the operator's own images; a test that needs
+  another mode sets it explicitly.
+
 ### `AIRGAP_RUNTIME_SIDE`
 - **Type:** String
 - **Default:** None
 - **Required:** No
-- **Description:** Reserved for high-side/low-side deployment tracking
-- **Notes:** Currently unused; placeholder for future disconnected workflow features
+- **Description:** Marks the deployment side. The high-side runtime package sets `high-side`.
+- **Notes:** With `high-side` (v2.2.0) the backend makes no Internet request on its own: no Cincinnati cache warm-up at
+  start and no release update check (as with `CHECK_UPDATES=false`). Requests a user starts (for example refreshing
+  OpenShift release lists) are still attempted and fail without network access. Mirroring disk to mirror confines
+  oc-mirror to the destination registry independently of this setting.
 
 ---
 
@@ -558,6 +588,8 @@ These are set on the **frontend** container/service, not the backend.
 | `OAA_NGINX_LISTEN_ADDRESS` | 0.0.0.0 | No | Frontend | `127.0.0.1` in the authenticated overlay |
 | `OAA_NGINX_RESOLVER` | (from resolv.conf) | No | Frontend | Override for the /api proxy's DNS resolver |
 | `DATA_DIR` | /data | No | Backend | SQLite + job outputs |
+| `OAA_MIRROR_STORAGE_ROOT` | (DATA_DIR/oc-mirror) | No | Backend | Default Mirroring location for new profiles (container path) |
+| `OAA_SECRET_TMPDIR` | (/dev/shm, else DATA_DIR/tmp) | No | Backend | Temporary registry auth files for oc-mirror runs |
 | `APP_GIT_SHA` | "unknown" | No | Backend | Optional revision provenance (About page) |
 | `APP_BUILD_TIME` | "unknown" | No | Backend | Build timestamp |
 | `APP_REPO` | bstrauss84/… | No | Backend | GitHub repo whose Releases are checked |
@@ -670,8 +702,11 @@ services:
 - **Fix:** Add reverse proxy IPs to `TRUSTED_PROXIES`
 
 ### Operator scan fails with auth errors
-- **Check:** `REGISTRY_AUTH_FILE` points to a valid pull secret. Operator scans read
-  **only** this variable; a `PULL_SECRET_FILE` mount will not authenticate a scan.
+- **Check (Install):** `REGISTRY_AUTH_FILE` points to a valid pull secret. Install operator scans read
+  **only** this variable; a `PULL_SECRET_FILE` mount will not authenticate an Install scan.
+- **Check (Mirroring):** paste the pull secret for the scan, or mount it (`PULL_SECRET_FILE` /
+  `/run/secrets/pull-secret`) and switch on "Use the pull secret mounted into the container".
+  `REGISTRY_AUTH_FILE` is not used by Mirroring. The failed scan's reason is shown in Operators and Operations.
 - **Check:** File is readable by UID 1001 (backend user in containers)
 - **Check:** Pull secret contains `registry.redhat.io` and `quay.io` auth
 

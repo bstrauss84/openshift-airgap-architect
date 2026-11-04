@@ -59,11 +59,16 @@ the build context. `backend/Containerfile` declares `ARG APP_GIT_SHA=unknown` an
 
 **Primary workflow when you have a local git repo:**
 
-1. From the repo root:
+1. From the repo root, build first and replace the running containers only when
+   both images built:
    ```bash
    git pull
-   podman compose up --build -d
+   scripts/deploy/oaa-deploy.sh build && scripts/deploy/oaa-deploy.sh up --recreate && scripts/deploy/oaa-deploy.sh verify
    ```
+   On a workstation with a current Podman, `podman compose up --build -d` also works.
+   On RHEL 9 (Podman 4.9, podman-compose 1.0.6) use the script: podman-compose 1.0.6
+   ignores a failed build and would start images that were never built (see
+   [ENTERPRISE_PODMAN_DEPLOYMENT.md](ENTERPRISE_PODMAN_DEPLOYMENT.md)).
    Optionally prefix `APP_GIT_SHA=$(git rev-parse HEAD)` to also record the
    revision; update checks do not need it.
 

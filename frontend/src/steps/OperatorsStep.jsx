@@ -23,7 +23,8 @@ import {
 // Quick Pick membership is a VERSION-AWARE PRESET, and reconciliation needs to
 // read it too, so the table lives in shared/ rather than module-private here.
 // See shared/operatorQuickPicks.js for why.
-import { scenarios, resolveScenarioPicks } from "../shared/operatorQuickPicks.js";
+import ScenarioQuickPicks from "../components/operators/ScenarioQuickPicks.jsx";
+import { scenarios, resolveScenarioPicks, ensureSources, applyScenarioPicks, removeScenarioPicks } from "../shared/operatorQuickPicks.js";
 import { useCatalogScanProgress } from "../useCatalogScanProgress.js";
 import SecretInput from "../components/SecretInput.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
@@ -32,6 +33,9 @@ import Button from "../components/Button.jsx";
 import Switch from "../components/Switch.jsx";
 import OptionRow from "../components/OptionRow.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
+import OperatorCatalogBrowser from "../components/operators/OperatorCatalogBrowser.jsx";
+import SelectedOperatorCard from "../components/operators/SelectedOperatorCard.jsx";
+import OperatorVersionConstraints from "../components/operators/OperatorVersionConstraints.jsx";
 
 
 const catalogImages = catalogImagesForMinor;
@@ -39,7 +43,6 @@ const catalogImages = catalogImagesForMinor;
 
 const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const { state, updateState, setState } = useApp();
-  const [activeTab, setActiveTab] = useState("redhat");
   const [authAvailable, setAuthAvailable] = useState(false);
   const [jobs, setJobs] = useState({});
   const [jobStatuses, setJobStatuses] = useState({});
@@ -60,6 +63,12 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   // Local state for text inputs (onBlur pattern)
   const [additionalImagesLocal, setAdditionalImagesLocal] = useState(() => state.imagesetConfig?.additionalImages || "");
   const [archiveSizeLocal, setArchiveSizeLocal] = useState(() => state.imagesetConfig?.archiveSize || "");
+  const [archiveSizeTouched, setArchiveSizeTouched] = useState(false);
+  // oc-mirror reads archiveSize as an int64: "4.5" makes it refuse the whole
+  // file, and 0 or a negative number is meaningless (v2.2.0 M4 finding).
+  const archiveSizeError = String(archiveSizeLocal ?? "").trim() && !/^[1-9]\d*$/.test(String(archiveSizeLocal).trim())
+    ? "Enter a whole number of GiB, 1 or more (for example 100). oc-mirror refuses fractions, so the ImageSetConfiguration is not generated until this is fixed."
+    : "";
 
   // Sync local state when store changes
   useEffect(() => {
@@ -108,12 +117,9 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const hasResults = catalogs.redhat.length || catalogs.certified.length || catalogs.community.length;
   const fastMode = Boolean(state.operators?.fastMode);
   const cachedAt = state.operators?.cachedAt || null;
-  const selectedIds = new Set(selected.map((op) => op.id));
-  const filteredCatalogs = {
-    redhat: catalogs.redhat.filter((op) => !selectedIds.has(op.id)),
-    certified: catalogs.certified.filter((op) => !selectedIds.has(op.id)),
-    community: catalogs.community.filter((op) => !selectedIds.has(op.id))
-  };
+  // Selected operators are listed in the Selected panel, not in the catalog
+  // browser (OperatorCatalogBrowser excludes these ids; search never removes them).
+  const selectedIds = useMemo(() => new Set(selected.map((op) => op.id)), [selected]);
 
   // Measured width of the selected-operators grid.
   //
@@ -242,9 +248,16 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     const hasUnresolvedIntent =
       selectedNow.some((op) => !isOperatorResolved(op)) || Object.keys(pendingNow).length > 0;
     if (state.operators?.version === version && catalogs.redhat.length && !hasUnresolvedIntent) return;
+    // Superseded-response guard (v2.2.0 M3). This load used to have no
+    // cancellation: if the locked minor changed while the request was in
+    // flight, the late answer still stamped THAT minor's catalogs and
+    // reconciled the selections against it, overwriting the current minor's
+    // state. The poller below already guards its writes the same way.
+    let cancelled = false;
     setLoadingCatalogs(true);
     apiFetch(`/api/operators/status?version=${version}`)
       .then((data) => {
+        if (cancelled) return;
         setState((prev) => {
           const nextCatalogs = normalizeCatalogs(data);
           // Catalogs for the currently locked minor have landed: turn preserved
@@ -263,7 +276,9 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           };
         });
       })
-      .finally(() => setLoadingCatalogs(false))
+      .finally(() => {
+        if (!cancelled) setLoadingCatalogs(false);
+      })
       // Same shape as the initial Cincinnati channel load: apiFetch rejects on
       // a network failure and on any non-2xx, and `.finally` re-raises what it
       // was handed, so an unreachable backend on this step produced an
@@ -271,6 +286,13 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
       // flag is already cleared above and the existing catalogs are left
       // alone rather than being replaced with an empty set.
       .catch(() => {});
+    return () => {
+      cancelled = true;
+      // This run set the flag, so it clears it: a superseded load must not
+      // leave "Loading operators…" spinning when the next run returns early
+      // (for example after Unlock). A run that does fetch sets it again.
+      setLoadingCatalogs(false);
+    };
   }, [selectionsKey]);
 
   useEffect(() => {
@@ -286,85 +308,41 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const scanEnabled = canScan && hasCredentialSource;
   const scenarioReady = hasResults;
 
-  const ensureSources = (op, source) => {
-    const sources = new Set(op.sources && op.sources.length ? op.sources : ["manual"]);
-    if (source) sources.add(source);
-    return { ...op, sources: Array.from(sources) };
-  };
 
+  // Selection logic shared with Mirroring (shared/operatorQuickPicks.js, v2.2.0 R-UX07).
   const applyScenario = (scenario) => {
     setState((prev) => {
-      const images = catalogImages(version);
-      const prevSelected = prev.operators?.selected || [];
-      const nextSelected = [...prevSelected];
-      const scenarioAdded = { ...(prev.operators?.scenarioAdded || {}) };
-
       // Version-specific picks, or a flat pick's static list. Never a fallback
       // to another minor's list — handleScenarioClick refuses before we get here.
-      const picks = resolveScenarioPicks(scenario, version);
-      if (!picks) return prev;
-
-      Object.entries(picks).forEach(([catalogId, names]) => {
-        const list = catalogs[catalogId] || [];
-        names.forEach((name) => {
-          const target = name.toLowerCase();
-          const found = list.find((op) => op.name?.toLowerCase() === target);
-          if (!found) return;
-          const existingIndex = nextSelected.findIndex((item) => item.id === found.id);
-          if (existingIndex >= 0) {
-            nextSelected[existingIndex] = ensureSources(nextSelected[existingIndex], scenario.id);
-            const prevSources = prevSelected.find((item) => item.id === found.id)?.sources || [];
-            if (!prevSources.includes(scenario.id)) {
-              scenarioAdded[found.id] = { ...(scenarioAdded[found.id] || {}), [scenario.id]: true };
-            }
-            return;
-          }
-          nextSelected.push({ ...found, catalogImage: images[catalogId], sources: [scenario.id] });
-          scenarioAdded[found.id] = { ...(scenarioAdded[found.id] || {}), [scenario.id]: true };
-        });
+      const result = applyScenarioPicks({
+        selected: prev.operators?.selected || [],
+        scenarioAdded: prev.operators?.scenarioAdded || {},
+        scenario,
+        minor: version,
+        catalogs,
+        catalogImages: catalogImages(version)
       });
+      if (!result) return prev;
       const scenarios = { ...(prev.operators?.scenarios || {}), [scenario.id]: true };
       return {
         ...prev,
-        operators: { ...prev.operators, selected: nextSelected, scenarios, scenarioAdded, version }
+        operators: { ...prev.operators, selected: result.selected, scenarios, scenarioAdded: result.scenarioAdded, version }
       };
     });
   };
 
   const removeScenarioOperators = (scenarioId) => {
     setState((prev) => {
-      const prevSelected = prev.operators?.selected || [];
-      const scenarioAdded = { ...(prev.operators?.scenarioAdded || {}) };
-      const nextSelected = prevSelected
-        .map((op) => {
-          const sources = (op.sources || ["manual"]).filter((source) => source !== scenarioId);
-          const addedByScenario = Boolean(scenarioAdded[op.id]?.[scenarioId]);
-          const removeEntirely = addedByScenario && sources.length === 0;
-          if (removeEntirely) {
-            const nextAdded = { ...(scenarioAdded[op.id] || {}) };
-            delete nextAdded[scenarioId];
-            if (Object.keys(nextAdded).length === 0) {
-              delete scenarioAdded[op.id];
-            } else {
-              scenarioAdded[op.id] = nextAdded;
-            }
-            return null;
-          }
-          const nextAdded = { ...(scenarioAdded[op.id] || {}) };
-          delete nextAdded[scenarioId];
-          if (Object.keys(nextAdded).length === 0) {
-            delete scenarioAdded[op.id];
-          } else {
-            scenarioAdded[op.id] = nextAdded;
-          }
-          return { ...op, sources };
-        })
-        .filter(Boolean);
+      const result = removeScenarioPicks({
+        selected: prev.operators?.selected || [],
+        scenarioAdded: prev.operators?.scenarioAdded || {},
+        scenarioId
+      });
       const scenarios = { ...(prev.operators?.scenarios || {}) };
       delete scenarios[scenarioId];
       return {
         ...prev,
-        operators: { ...prev.operators, selected: nextSelected, scenarios, scenarioAdded, version }
+        operators: { ...prev.operators, selected: result.selected, scenarios, scenarioAdded: result.scenarioAdded, version }
       };
     });
   };
@@ -996,7 +974,7 @@ gcr.io/vendor/database:stable
               aria-label="Additional images to mirror"
             />
           </div>
-          <div style={{ marginTop: 12 }}>
+          <div className="field-control-stack" style={{ marginTop: 12 }}>
             <FieldLabelWithInfo
               label="Archive chunk size — GiB (optional)"
               hint={`Maximum size for each archive file when mirroring to disk for transfer.
@@ -1036,64 +1014,35 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
               style={{ maxWidth: 120, marginTop: 6 }}
               value={archiveSizeLocal}
               onChange={(e) => setArchiveSizeLocal(e.target.value)}
-              onBlur={(e) => updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), archiveSize: e.target.value } })}
+              onBlur={(e) => {
+                setArchiveSizeTouched(true);
+                updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), archiveSize: e.target.value } });
+              }}
               placeholder="e.g. 100"
               aria-label="Archive chunk size in GiB"
+              className={archiveSizeTouched && archiveSizeError ? "input-error" : ""}
+              aria-invalid={archiveSizeTouched && archiveSizeError ? "true" : undefined}
+              aria-describedby={archiveSizeTouched && archiveSizeError ? "error-imageset-archive-size" : undefined}
             />
+            <div className="field-control-support">
+              {archiveSizeTouched && archiveSizeError ? (
+                <span id="error-imageset-archive-size" className="field-error" role="alert">{archiveSizeError}</span>
+              ) : null}
+            </div>
           </div>
         </CollapsibleSection>
 
         <section className="card">
           <h3 className="card-title">Scenario Quick Picks</h3>
           <p className="card-subtitle">One-click presets for common operator sets.</p>
-          <div className="scenario-picks">
-            {scenarios.map((scenario) => {
-              const isVersionAware = Boolean(scenario.versionPicks);
-              // No `default` fallback: a version-aware pick with no row for this
-              // minor is undefined, not "the previous minor's list".
-              const effectiveVersion = isVersionAware && scenario.versionPicks[version] ? version : null;
-              const isUndefinedForVersion = isVersionAware && !effectiveVersion;
-              const isActive = Boolean(scenarioSelections?.[scenario.id]);
-              // Chosen under a previous minor and not yet reconciled: this is
-              // intent, not a current selection, so it must not read as active.
-              const isPending = !isActive && Boolean(pendingScenarioIntent?.[scenario.id]);
-              const titleText = isPending
-                ? `Previously selected — will be re-applied after the OpenShift ${version} operator scan`
-                : isUndefinedForVersion
-                  ? `Not defined for OpenShift ${version || "(no version selected)"}`
-                  : !scenarioReady
-                    ? "Scenario picks need operator catalogs"
-                    : scenario.description
-                      ? `${scenario.description}${isVersionAware ? ` (${effectiveVersion})` : ""}`
-                      : isVersionAware
-                        ? `Version-aware quick pick (${effectiveVersion})`
-                        : "";
-
-              return (
-                <button
-                  key={scenario.id}
-                  type="button"
-                  className={`scenario-pick ${isActive ? "selected" : ""}${isPending ? " pending" : ""}`}
-                  onClick={() => handleScenarioClick(scenario)}
-                  title={titleText}
-                  disabled={!scenarioReady || isUndefinedForVersion}
-                  aria-pressed={isActive}
-                  data-selection-state={isActive ? "active" : isPending ? "pending" : "none"}
-                >
-                  <span className="scenario-pick-label">{scenario.label}</span>
-                  {isVersionAware && effectiveVersion && (
-                    <span className="scenario-pick-version subtle" aria-label={`for OpenShift ${effectiveVersion}`}>
-                      {effectiveVersion}
-                    </span>
-                  )}
-                  {isActive ? <span className="scenario-pick-check" aria-hidden>✓</span> : null}
-                  {isPending ? (
-                    <span className="scenario-pick-pending">Pending review</span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
+          <ScenarioQuickPicks
+            scenarios={scenarios}
+            version={version}
+            ready={scenarioReady}
+            isActive={(id) => scenarioSelections?.[id]}
+            isPending={(id) => pendingScenarioIntent?.[id]}
+            onToggle={handleScenarioClick}
+          />
         </section>
 
         <section className="card">
@@ -1117,14 +1066,7 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
           <div ref={selectedGridRef} className="selected-grid">
             {selected.length === 0 ? <div className="subtle">No operators selected.</div> : null}
             {selected.map((op) => (
-              <div key={op.id} className="selected-card">
-                {/* Human-readable displayName leads; `op.name` stays the canonical
-                    package identifier used for selection, state and generation. */}
-                <div className="operator-name">{op.displayName || op.name}</div>
-                {op.displayName ? <div className="subtle">Package: {op.name}</div> : null}
-                <div className="subtle">Default channel: {op.defaultChannel || "unknown"}</div>
-                <button className="ghost" onClick={() => removeOperator(op.id)}>Remove</button>
-              </div>
+              <SelectedOperatorCard key={op.id} op={op} onRemove={removeOperator} />
             ))}
           </div>
         </div>
@@ -1147,145 +1089,31 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
             <p className="note">
               Specify minimum and maximum operator versions to mirror. Leave blank to mirror all versions from the default channel.
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
-              {selected.map((op) => (
-                <div key={op.id} style={{ padding: "1rem", border: "1px solid var(--border-subtle)", borderRadius: "4px" }}>
-                  <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>{op.name}</div>
-                  <div className="subtle" style={{ marginBottom: "1rem" }}>
-                    Channel: {op.defaultChannel || "unknown"}
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                    <FieldLabelWithInfo
-                      label="Min version (optional)"
-                      hint={`Minimum operator version to mirror for ${op.name}.
-
-**What is this:**
-The lowest operator version number to include when mirroring this operator from its default channel. All versions >= minVersion and <= maxVersion will be mirrored.
-
-**When needed:**
-Optional. Use when you want to exclude older operator versions from your disconnected environment (e.g., only mirror versions 1.5.0 and newer).
-
-**Format:**
-Semantic version string: MAJOR.MINOR.PATCH (e.g., 1.5.0, 2.0.1, 0.9.12)
-
-**How it's used:**
-Written to imageset-config.yaml as:
-mirror.operators[].packages[].channels[].includeConfig.minVersion: "1.5.0"
-
-oc-mirror will only mirror operator bundles with version >= minVersion.
-
-**Important:**
-⚠️ Version must exist in the operator's channel - if no versions match the constraint, mirroring will fail
-⚠️ Versions are operator-specific, not OpenShift versions (e.g., OpenShift Virtualization uses versions like 4.15.0, not OpenShift 4.20)
-⚠️ Must be valid semver format - invalid format will cause oc-mirror errors
-
-**Example:**
-Operator: kubevirt-hyperconverged, Channel: stable
-Set minVersion: "4.15.0" to only mirror OpenShift Virtualization 4.15.0 and newer`}
-                    >
-                      <input
-                        type="text"
-                        value={op.minVersion || ""}
-                        onChange={(e) => {
-                          const value = e.target.value.trim();
-                          setState((prev) => ({
-                            ...prev,
-                            operators: {
-                              ...prev.operators,
-                              selected: prev.operators.selected.map((item) =>
-                                item.id === op.id ? { ...item, minVersion: value || undefined } : item
-                              )
-                            }
-                          }));
-                        }}
-                        placeholder="e.g. 1.5.0"
-                        style={{ width: "100%" }}
-                      />
-                    </FieldLabelWithInfo>
-                    <FieldLabelWithInfo
-                      label="Max version (optional)"
-                      hint={`Maximum operator version to mirror for ${op.name}.
-
-**What is this:**
-The highest operator version number to include when mirroring this operator from its default channel. All versions >= minVersion and <= maxVersion will be mirrored.
-
-**When needed:**
-Optional. Use when you want to exclude newer operator versions that may be untested or incompatible (e.g., cap at version 2.5.0 to avoid 3.x).
-
-**Format:**
-Semantic version string: MAJOR.MINOR.PATCH (e.g., 2.5.0, 3.0.1, 1.12.5)
-
-**How it's used:**
-Written to imageset-config.yaml as:
-mirror.operators[].packages[].channels[].includeConfig.maxVersion: "2.5.0"
-
-oc-mirror will only mirror operator bundles with version <= maxVersion.
-
-**Important:**
-⚠️ Version must exist in the operator's channel - if no versions match the constraint, mirroring will fail
-⚠️ Versions are operator-specific, not OpenShift versions
-⚠️ Must be valid semver format - invalid format will cause oc-mirror errors
-⚠️ maxVersion must be >= minVersion if both are specified
-
-**Example:**
-Operator: local-storage-operator, Channel: stable
-Set maxVersion: "4.14.5" to cap at version 4.14.5 (avoid 4.15+ until tested)`}
-                    >
-                      <input
-                        type="text"
-                        value={op.maxVersion || ""}
-                        onChange={(e) => {
-                          const value = e.target.value.trim();
-                          setState((prev) => ({
-                            ...prev,
-                            operators: {
-                              ...prev.operators,
-                              selected: prev.operators.selected.map((item) =>
-                                item.id === op.id ? { ...item, maxVersion: value || undefined } : item
-                              )
-                            }
-                          }));
-                        }}
-                        placeholder="e.g. 2.5.0"
-                        style={{ width: "100%" }}
-                      />
-                    </FieldLabelWithInfo>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <OperatorVersionConstraints
+              selected={selected}
+              onChange={(id, patch) => {
+                setState((prev) => ({
+                  ...prev,
+                  operators: {
+                    ...prev.operators,
+                    selected: prev.operators.selected.map((item) =>
+                      item.id === id ? { ...item, ...patch } : item
+                    )
+                  }
+                }));
+              }}
+            />
           </CollapsibleSection>
         )}
 
         <section className="card">
-        <div className="tabs">
-          {["redhat", "certified", "community"].map((tab) => (
-            <button
-              key={tab}
-              className={`tab ${activeTab === tab ? "active" : ""}`}
-              onClick={() => setActiveTab(tab)}
-            >
-              {tab === "redhat" ? "Red Hat" : tab === "certified" ? "Certified" : "Community"}
-            </button>
-          ))}
-        </div>
-        <div className="operator-scroll">
-          {loadingCatalogs && !(filteredCatalogs[activeTab] || []).length ? (
-            <div className="loading">Loading operators…</div>
-          ) : null}
-          <div className="operator-grid">
-            {(filteredCatalogs[activeTab] || []).map((op) => (
-              <button key={op.id} className="operator-card" onClick={() => selectOperator(op)}>
-                {/* Human-readable displayName leads; `op.name` stays the canonical
-                    package identifier used for selection, state and generation. */}
-                <div className="operator-name">{op.displayName || op.name}</div>
-                {op.displayName ? <div className="subtle">Package: {op.name}</div> : null}
-                <div className="subtle">Default channel: {op.defaultChannel || "unknown"}</div>
-                <span className="operator-add">Add</span>
-              </button>
-            ))}
-          </div>
-        </div>
+          <OperatorCatalogBrowser
+            catalogs={catalogs}
+            selectedIds={selectedIds}
+            onSelect={selectOperator}
+            loading={loadingCatalogs}
+            idPrefix="install"
+          />
         </section>
       </div>
     </div>

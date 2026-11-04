@@ -1,9 +1,17 @@
 /**
  * OpenShift Airgap Architect - Tools Drawer Component
  *
- * Right-side overlay drawer for global tools: dark mode toggle, export/import run,
- * start over, and about information. Job logs are on the Operations step (sidebar).
+ * Right-side overlay drawer for global tools: Home, dark mode toggle, export/import
+ * run, start over, and about information. Job logs are on the Operations step (sidebar).
  * Portaled to document.body with backdrop, Escape key close, and focus trap.
+ *
+ * SHARED ACROSS WORKFLOWS (v2.2.0 M3). Install and Mirroring open the same
+ * drawer from the same header position; an Upgrade workflow can reuse it.
+ * Common sections (Navigation, Appearance, About) are always present and behave
+ * identically. Workflow-specific sections appear only when the host supplies
+ * their handlers: Install passes Export/Import Run and Start Over; Mirroring
+ * does not, because those act on the Install run. `workflowLabel` names the
+ * workflow the drawer was opened from.
  *
  * @author Bill Strauss
  *
@@ -107,6 +115,8 @@ export default function ToolsDrawer({
   onExportRun,
   onImportClick,
   onStartOver,
+  onHome = null,
+  workflowLabel = "Install",
   logAction,
   buildInfo = null,
   updateInfo = null
@@ -166,9 +176,34 @@ export default function ToolsDrawer({
               </button>
             </div>
             <p className="subtle" style={{ marginTop: 0, marginBottom: 20 }}>
-              Theme, run export/import, and start over. Background jobs and logs are on the{" "}
-              <strong>Operations</strong> step in the sidebar.
+              {onStartOver ? (
+                <>
+                  Theme, run export/import, and start over. Background jobs and logs are on the{" "}
+                  <strong>Operations</strong> step in the sidebar.
+                </>
+              ) : (
+                <>Theme and navigation for the {workflowLabel} workflow.</>
+              )}
             </p>
+
+            {onHome ? (
+              <section className="card" style={{ marginBottom: 16 }}>
+                <h3 className="card-title" style={{ marginTop: 0 }}>Navigation</h3>
+                <p className="card-subtitle" style={{ marginTop: 0 }}>
+                  Return to the landing page. Nothing is reset: your {workflowLabel} work is kept for this session and
+                  running operations continue. Choose {workflowLabel} again to pick up where you left off.
+                </p>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    onClose();
+                    onHome();
+                  }}
+                >
+                  Home
+                </Button>
+              </section>
+            ) : null}
 
             <section className="card" style={{ marginBottom: 16 }}>
               <h3 className="card-title" style={{ marginTop: 0 }}>Appearance</h3>
@@ -184,6 +219,7 @@ export default function ToolsDrawer({
               </OptionRow>
             </section>
 
+            {onExportRun || onImportClick ? (
             <section className="card" style={{ marginBottom: 16 }}>
               <h3 className="card-title" style={{ marginTop: 0 }}>Run state</h3>
               <div className="tools-actions" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -201,7 +237,9 @@ export default function ToolsDrawer({
                 and it does not back up job history, downloaded binaries or server data volumes.
               </p>
             </section>
+            ) : null}
 
+            {onStartOver ? (
             <section className="card" style={{ marginBottom: 16 }}>
               <h3 className="card-title" style={{ marginTop: 0 }}>Start over</h3>
               <p className="card-subtitle" style={{ marginTop: 0 }}>
@@ -217,6 +255,7 @@ export default function ToolsDrawer({
                 Start Over
               </Button>
             </section>
+            ) : null}
 
             <section className="card tools-about-section">
               <div className="about-header">

@@ -16,7 +16,7 @@
 
 On **Apple Silicon or other non-x86_64 hosts**, follow **README** (“Platform and architecture”) as the product source of truth for current runtime behavior. Use **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** as historical/working context.
 
-If you use `compose down --remove-orphans` followed by `image prune --force` before `compose up --build`, prune may report *image is in use by a container*. That usually means another container (or Podman’s reference) still uses that image; you can ignore it or run `podman container prune -f` (or `docker container prune -f`) first. The app will still run. In the frontend container, *Re-optimizing dependencies because lockfile has changed* is normal when the lockfile or mounts differ from Vite’s cache and is safe to ignore.
+Rebuild with `scripts/deploy/oaa-deploy.sh build && scripts/deploy/oaa-deploy.sh up --recreate` (or `compose build` then `compose up -d`). Do not prune or reset Podman as part of a rebuild: `podman image prune`, `podman container prune` and especially `podman system reset` act on **every** project of that user, not just this one. In the frontend container, *Re-optimizing dependencies because lockfile has changed* is normal when the lockfile or mounts differ from Vite’s cache and is safe to ignore.
 
 ## Verify before pushing
 

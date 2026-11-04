@@ -77,6 +77,7 @@ These files are valuable but may include historical context, implementation note
   - Related comparative/context planning docs:
     - `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`
     - `docs/OC_MIRROR_V2_RUN_TAB_RESEARCH_AND_PLAN.md`
+    - `docs/MIRRORING_WORKFLOW.md` — v2.2.0 standalone Mirroring workflow: owner decisions, M1 backend contract, UI acceptance contract (status lives in `docs/BACKLOG_STATUS.md`, PHX-029)
 
 ### Tier 3: Historical or superseded
 

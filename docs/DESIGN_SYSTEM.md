@@ -11,6 +11,7 @@ These contract rules govern UI structure and scope decisions:
 
 - Keep a stable "hallway with doors" flow across scenarios. Hallway navigation stays consistent; door content is scenario-aware.
 - Top-level door model remains: Identity and Access, Networking, Connectivity and Mirroring, Trust and Proxy, Platform Specifics, Hosts/Inventory, Review and Export.
+- **The door model is scoped to the Install workflow** (owner decision, 2026-10-23). The standalone **Mirroring** workflow (landing card "Mirroring", `docs/MIRRORING_WORKFLOW.md`) is a separate hallway with its own navigation, state and version selections; it is not a door of the Install wizard and adds none. Its screens still use every pattern in this document.
 - Default to a guided lane with curated fields; advanced lane is opt-in and curated.
 - Prefer conditionally required fields with clear reason text when dependencies are enabled.
 - Do not expand the wizard by exposing every YAML path directly as a form field.
@@ -74,6 +75,14 @@ Use the `Button` component (`src/components/Button.jsx`). It maps `variant` → 
 
 ---
 
+## Selection cards (`.select-card`)
+
+Selection cards are `<button type="button">` elements and MUST carry `aria-pressed={selected}` plus the visible cue `<span className="select-card-check" aria-hidden="true">✓ Selected</span>` (v2.2.0 M2, all call sites). A pressed card shows the check text and a heavier border, so selection never depends on colour alone; `:focus-visible` shows a focus ring. Use a grid such as `.mirroring-content-grid` (3 / 2 / 1 columns at the 900 px / 640 px breakpoints) for sets of combinable choices.
+
+## Reduced motion
+
+`@media (prefers-reduced-motion: reduce)` in `styles.css` applies app-wide: transitions and animations are effectively instant and hover lifts are removed. New animated components need no extra rule unless they animate by another mechanism (JavaScript, `requestAnimationFrame`), which must check `matchMedia("(prefers-reduced-motion: reduce)")` itself.
+
 ## Cards
 
 ```html
@@ -129,6 +138,8 @@ Use `.modal-backdrop` + `.modal` for all overlay dialogs:
 ---
 
 ## Help and Info Popovers
+
+**Keyboard access (v2.2.0 M2).** The help icon is in the tab order. Focus shows a short hint; Enter/Space opens a long-hint popover; Escape closes either. It was previously `tabIndex="-1"`, which made every field's help mouse-only.
 
 All field help uses `FieldLabelWithInfo` (`src/components/FieldLabelWithInfo.jsx`). Short hints (≤180 chars) become a hover tooltip; longer hints become a click-triggered, persistent, scrollable popover. Both are portaled to `document.body` and positioned `fixed`.
 
@@ -419,20 +430,21 @@ Validation truth and validation presentation are separate concerns.
 
 ### Presentation timing
 
-Visible field-level error treatment (red borders, inline error text, `aria-invalid`) MUST NOT appear on first entry into a pristine step. Errors become visible when ANY of these conditions is true:
+Visible field-level error treatment (red borders, inline error text, `aria-invalid`) MUST NOT appear on first entry into a pristine step. **Resolved 2026-10-23 (X10, owner decision): the touched/blur/Proceed model in [Validation Presentation Model](#validation-presentation-model) governs.** An inline error becomes visible only when:
 
-1. **Attempted advance** — the user tried to proceed/navigate away from the current step while it had errors (`highlightErrors` flag).
-2. **Needs review** — the step is flagged for review after import, version change, or explicit skip (`state.reviewFlags[stepId]`).
-3. **Field-level interaction** — a specific field was changed or blurred into an invalid state (where implemented via local touch/blur tracking).
+1. **Field-level interaction** — that field was blurred (touched) while invalid; or
+2. **Attempted advance** — the user pressed Next/Proceed/Continue for the current step while it had errors (`highlightErrors`, or a component-local "attempted" flag).
 
-Each step component computes a `showFieldErrors` boolean from these signals and gates all `fieldErrors.*` rendering on it:
+**Needs review does not reveal inline errors.** `state.reviewFlags[stepId]` drives the sidebar indicator and step-level notices only. The earlier rule `showFieldErrors = highlightErrors || needsReview` is **withdrawn**: it turned whole steps red after an import or a version change, before the user had touched anything.
 
 ```jsx
-const needsReview = Boolean(state.reviewFlags?.[stepId]);
-const showFieldErrors = highlightErrors || needsReview;
+// Validation truth: always computed.
+const errors = validateStep(state, stepId).fieldErrors;
+// Presentation: per field, after blur or an explicit Proceed.
+const fieldErrorVisible = (name) => Boolean(errors[name]) && (highlightErrors || touchedFields[name]);
 ```
 
-When the user corrects a field, its error presentation clears immediately (the underlying `fieldErrors` object updates reactively).
+When the user corrects a field, its error presentation clears immediately (the underlying `fieldErrors` object updates reactively). No step computes the withdrawn `|| needsReview` form (verified in code, 2026-10-23); DOC-222 / A15 tracks steps that still lack per-field touched/blur tracking. New screens (Mirroring included) use the model above from the start.
 
 ### Error placement
 
@@ -441,10 +453,10 @@ Field-level errors belong in the support row (row 3) of the 3-row subgrid. Use t
 ```jsx
 <div className="field-control-stack">
   <FieldLabelWithInfo label="..." hint="..." required>
-    <input className={showFieldErrors && fieldErrors.x ? "input-error" : ""} />
+    <input className={fieldErrorVisible("x") ? "input-error" : ""} />
   </FieldLabelWithInfo>
   <div className="field-control-support">
-    {showFieldErrors && fieldErrors.x && (
+    {fieldErrorVisible("x") && (
       <span id="error-x" className="field-error" role="alert">{fieldErrors.x}</span>
     )}
   </div>
@@ -457,12 +469,12 @@ NEVER render an error span as a standalone grid child in `.field-grid` — it fl
 
 Every visibly invalid control must have:
 
-- `aria-invalid="true"` (gated on `showFieldErrors`)
+- `aria-invalid="true"` (gated on the same `fieldErrorVisible(...)` as its inline error)
 - `aria-describedby` pointing to its error span's `id`
 
 ### Conditional requiredness
 
-Fields that are required only under certain conditions (e.g., vSphere legacy fields when `placementMode === "legacy"`) follow the same lifecycle. The validator computes conditional errors; presentation is gated on `showFieldErrors`.
+Fields that are required only under certain conditions (e.g., vSphere legacy fields when `placementMode === "legacy"`) follow the same lifecycle. The validator computes conditional errors; presentation is gated on `fieldErrorVisible(...)`, and `touchedFields` resets when a mode change reveals new fields (see Structural mode changes).
 
 ### Theme verification
 

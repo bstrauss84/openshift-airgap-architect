@@ -116,12 +116,47 @@ describe("An operator's own files are not this backend's to delete", () => {
       `every cleanup path must check ownership first; unguarded at line(s) ${unguarded.map((u) => u.n).join(", ")}`
     );
 
+    // v2.2.0 M5 (F13): after the pull secret is written, the config and auth
+    // file are owned by a run-resources object (ocMirrorRunResources.js) that a
+    // signature retry can take over; its release() is the guarded unlink for
+    // the error, close and remaining early-return paths. Only the invalid-
+    // pull-secret return, which precedes that object, unlinks directly.
     const guarded = (source.match(/if \(configPathIsOurs\) safeUnlink\(configPathToUse\);/g) || []).length;
-    assert.equal(guarded, 5, `expected all 5 cleanup paths guarded, found ${guarded}`);
+    assert.equal(guarded, 1, `expected the one pre-resources path guarded, found ${guarded}`);
+    assert.match(source, /createRunResources\(\{ configPath: configPathToUse, configIsOurs: configPathIsOurs, authFile \}\)/,
+      "the run's resources must carry the ownership flag");
+    const resourcesSource = fs.readFileSync(path.join(REPO_BACKEND, "src", "ocMirrorRunResources.js"), "utf8");
+    assert.match(resourcesSource, /if \(configIsOurs && configPath\) safeUnlink\(configPath\);/,
+      "release() must check ownership before unlinking the config");
 
     // And ownership is claimed only on the generated branch.
     const claims = (source.match(/configPathIsOurs = true;/g) || []).length;
     assert.equal(claims, 1, "exactly one branch may claim ownership of the config file");
+  });
+
+  it("run resources: release() leaves a config it does not own and removes only once", async () => {
+    const { createRunResources } = await import("../src/ocMirrorRunResources.js");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "oaa-run-resources-"));
+    try {
+      const operatorFile = path.join(dir, "operator-imageset.yaml");
+      const generated = path.join(dir, "generated.yaml");
+      const auth = path.join(dir, "auth.json");
+      for (const f of [operatorFile, generated, auth]) fs.writeFileSync(f, "x");
+
+      const external = createRunResources({ configPath: operatorFile, configIsOurs: false, authFile: auth });
+      assert.deepEqual(external.paths(), [auth]);
+      assert.equal(external.release(), true);
+      assert.equal(fs.existsSync(operatorFile), true, "an operator's file must survive");
+      assert.equal(fs.existsSync(auth), false);
+      assert.equal(external.release(), false, "a second release does nothing");
+      assert.deepEqual(external.paths(), []);
+
+      const ours = createRunResources({ configPath: generated, configIsOurs: true });
+      ours.release();
+      assert.equal(fs.existsSync(generated), false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("the scan route releases its pull secret when oc-mirror cannot be resolved", () => {

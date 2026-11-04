@@ -355,7 +355,11 @@ describe('Operator cross-minor transition — review state and quick-pick semant
       render(<App />);
       await lockOntoNewMinor();
       await openOperatorsStep();
+      // Post-lock AND reconciled. Since F19 (v2.2.0 M5) the lock first saves the
+      // selection the user had — old-minor operators with the quick pick still
+      // active — so `scenarios` alone also matches that pre-lock snapshot.
       await waitFor(() => {
+        expect(latestPersisted()?.version?.locked).toBe(true);
         expect(latestPersisted()?.operators?.scenarios).toEqual({ gitops: true });
       });
     }

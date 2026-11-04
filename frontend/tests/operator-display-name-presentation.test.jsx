@@ -20,10 +20,15 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const src = fs.readFileSync(
-  path.join(__dirname, "../src/steps/OperatorsStep.jsx"),
-  "utf8"
-);
+// v2.2.0 M3: the two card render sites moved into shared components used by
+// both the Install Operators step and Mirroring profiles. The contract is
+// unchanged; it is now asserted where the markup lives, and the Install step
+// is asserted to render through those components.
+const stepSrc = fs.readFileSync(path.join(__dirname, "../src/steps/OperatorsStep.jsx"), "utf8");
+const src = [
+  "../src/components/operators/OperatorCatalogBrowser.jsx",
+  "../src/components/operators/SelectedOperatorCard.jsx"
+].map((rel) => fs.readFileSync(path.join(__dirname, rel), "utf8")).join("\n");
 const generateSrc = fs.readFileSync(
   path.join(__dirname, "../../backend/src/generate.js"),
   "utf8"
@@ -51,6 +56,12 @@ const showsPackageLine = (op) => Boolean(op.displayName);
 describe("C: operator card presentation hierarchy", () => {
   it("has exactly two card render sites (catalog tile + selected card)", () => {
     expect(cardBlocks().length).toBe(2);
+  });
+
+  it("the Install Operators step renders both through the shared components", () => {
+    expect(stepSrc).toMatch(/<OperatorCatalogBrowser[\s\S]*onSelect=\{selectOperator\}/);
+    expect(stepSrc).toMatch(/<SelectedOperatorCard key=\{op\.id\} op=\{op\} onRemove=\{removeOperator\} \/>/);
+    expect(stepSrc).not.toContain('<div className="operator-name">');
   });
 
   it("both sites lead with displayName and fall back to the package name", () => {
@@ -115,13 +126,14 @@ describe("C: fallback behavior", () => {
 
 describe("C: canonical identity is unchanged by presentation", () => {
   it("selection and removal remain keyed on the canonical id, not displayName", () => {
-    const selectIdx = src.indexOf("const selectOperator");
-    const selectBody = src.slice(selectIdx, selectIdx + 900);
+    // selectOperator / removeOperator stay in the step (state logic).
+    const selectIdx = stepSrc.indexOf("const selectOperator");
+    const selectBody = stepSrc.slice(selectIdx, selectIdx + 900);
     expect(selectBody).toContain("item.id === op.id");
     expect(selectBody).not.toContain("displayName ===");
 
-    const removeIdx = src.indexOf("const removeOperator");
-    const removeBody = src.slice(removeIdx, removeIdx + 600);
+    const removeIdx = stepSrc.indexOf("const removeOperator");
+    const removeBody = stepSrc.slice(removeIdx, removeIdx + 600);
     expect(removeBody).toContain("op.id !== id");
     expect(removeBody).not.toContain("displayName");
   });

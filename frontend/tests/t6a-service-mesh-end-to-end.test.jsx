@@ -75,13 +75,16 @@ const catalogFor = (minor) =>
 
 describe("T6A §2 — the reproduction tracks production", () => {
   it("applyScenario still skips a not-found package silently", () => {
-    expect(SRC).toMatch(/const found = list\.find\(\(op\) => op\.name\?\.toLowerCase\(\) === target\);/);
-    expect(SRC).toMatch(/if \(!found\) return;/);
+    // v2.2.0 R-UX07: the lookup lives in shared/operatorQuickPicks.js; Install calls it.
+    const SHARED = readFileSync(join(REPO, "frontend", "src", "shared", "operatorQuickPicks.js"), "utf8");
+    expect(SHARED).toMatch(/const found = list\.find\(\(op\) => op\.name\?\.toLowerCase\(\) === target\);/);
+    expect(SHARED).toMatch(/if \(!found\) \{ missing\.push\(name\); return; \}/);
+    expect(SRC).toMatch(/applyScenarioPicks\(/);
   });
 
-  it("there is still no warning, log or counter on that branch", () => {
+  it("there is still no warning, log or counter on that branch in Install", () => {
     const apply = SRC.slice(SRC.indexOf("const applyScenario"), SRC.indexOf("const removeScenarioOperators"));
-    expect(apply).not.toMatch(/console\.|warn|notFound|missingPackage|skipped/i);
+    expect(apply).not.toMatch(/console\.|warn|notFound|missingPackage|skipped|\.missing/i);
   });
 });
 

@@ -1132,26 +1132,23 @@ body[data-theme="dark"] .sticky-panel {
   align-items: flex-start;
 }
 
+/* The three proxy fields share the row and reflow (3 → 2 → 1 columns) instead
+   of scrolling sideways: a fixed 500px column minimum overflowed every viewport
+   narrower than ~1900px and hid HTTP Proxy / No Proxy off the sides.
+   Textareas resize vertically only, so resizing never widens the row. */
 .proxy-fields-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(500px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: 20px;
   margin-bottom: 20px;
   align-items: start;
-  overflow-x: auto;
 }
 
 .proxy-fields-grid .proxy-field-cell {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-@media (max-width: 800px) {
-  .proxy-fields-grid {
-    grid-template-columns: 1fr;
-    overflow-x: visible;
-  }
+  min-width: 0;
 }
 
 .proxy-field-input {
@@ -2991,6 +2988,11 @@ body[data-theme="dark"] .scenario-pick-pending {
   padding: 20px;
   border-radius: 12px;
   width: min(520px, 92vw);
+  /* A dialog taller than the window scrolls inside itself instead of being
+     cut off with its buttons out of reach. */
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
 }
 
@@ -4969,6 +4971,30 @@ body[data-theme="dark"] .scenario-summary-resize-handle.resizing .scenario-summa
   grid-column: 1 / -1;
 }
 
+/*
+ * Base field-structure rules, unscoped (v2.2.0 M2) so any form — Mirroring
+ * included — gets the same stack/support/helper presentation without opting
+ * into the Platform Specifics paired subgrid. The paired layout above stays
+ * scoped to .platform-specifics.
+ */
+.field-control-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+}
+
+.field-control-support {
+  display: flex;
+  flex-direction: column;
+}
+
+.field-control-stack .field-helper {
+  font-size: 0.8em;
+  color: var(--text-secondary, #666);
+  margin-top: 2px;
+}
+
 /* Stack a FieldLabelWithInfo control with its helper/error/warning in one grid cell. */
 .platform-specifics .field-control-stack {
   display: flex;
@@ -6895,3 +6921,905 @@ body[data-theme="dark"] .yaml-config-pane::-webkit-scrollbar-thumb:hover {
     gap: 0.5rem;
   }
 }
+
+
+/* ------------------------------------------------------------------------
+ * Shared OpenShift release selector (v2.2.0 M2). Values are the ones the
+ * Blueprint card used inline before the extraction.
+ * ------------------------------------------------------------------------ */
+.release-selector-header {
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.release-selector-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.release-selector-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.release-selector-status {
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  text-align: right;
+  max-width: 300px;
+}
+
+.release-selector-error {
+  margin-bottom: 12px;
+  color: var(--color-danger);
+}
+
+.release-selector-grid {
+  align-items: flex-end;
+  gap: 0.5rem 1rem;
+}
+
+.release-selector-grid > .field-with-info-row {
+  min-width: 10rem;
+}
+
+/* Keep the Install appearance the release card had before the extraction:
+   emphasised 13px labels with the control directly beneath (no 2.5rem
+   label-row normalisation, which exists for wrapping labels in long forms). */
+.release-selector-grid .field-with-info-row > span.field-title-line,
+.release-selector-manual-grid .field-with-info-row > span.field-title-line {
+  min-height: 0;
+}
+
+.release-selector .label-emphasis select,
+.release-selector .label-emphasis input {
+  font: inherit;
+}
+
+.release-selector-grid .field-with-info-row > select {
+  align-self: flex-start;
+}
+
+.release-selector-manual-grid {
+  align-items: flex-end;
+  gap: 0.5rem 1rem;
+  max-width: 32rem;
+}
+
+/* ------------------------------------------------------------------------
+ * Selection cards: a non-colour selected cue (v2.2.0 M2, app-wide).
+ * Selection used to be shown by colour/border alone. A card that carries
+ * aria-pressed="true" also shows a check mark and a heavier border, so the
+ * state survives greyscale, high-contrast and colour-vision differences.
+ * ------------------------------------------------------------------------ */
+.select-card[aria-pressed="true"] {
+  border-width: 3px;
+  position: relative;
+}
+
+.select-card-check {
+  display: none;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.select-card[aria-pressed="true"] .select-card-check {
+  display: inline;
+}
+
+body[data-theme="dark"] .select-card-check {
+  color: #93c5fd;
+}
+
+.select-card:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+body[data-theme="dark"] .select-card:focus-visible {
+  outline-color: #93c5fd;
+}
+
+/* ------------------------------------------------------------------------
+ * Landing card: Mirroring (v2.2.0 M2). Same interaction model as the
+ * Install card; the established primary blue instead of Install red.
+ * ------------------------------------------------------------------------ */
+.landing-card-mirroring {
+  cursor: pointer;
+  background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 50%, #1d4ed8 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.landing-card-mirroring:hover {
+  transform: translateY(-8px) scale(1.01);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+  filter: brightness(1.03) saturate(1.05);
+}
+
+.landing-card-mirroring:active {
+  transform: translateY(-2px) scale(0.995);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+}
+
+.landing-card-mirroring .landing-card-footer-rail {
+  color: #eff6ff;
+}
+
+.landing-card-mirroring:hover .landing-card-footer-rail {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  filter: brightness(1.05);
+}
+
+.landing-card:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 3px;
+}
+
+/* ------------------------------------------------------------------------
+ * Mirroring workspace (v2.2.0 M2)
+ * ------------------------------------------------------------------------ */
+.mirroring-content-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.mirroring-content-grid .select-card {
+  width: 100%;
+  max-width: 100%;
+  min-height: 9rem;
+  justify-content: flex-start;
+  gap: 6px;
+  color: inherit;
+}
+
+.mirroring-content-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.mirroring-content-card-desc {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text-subtle);
+}
+
+@media (max-width: 900px) {
+  .mirroring-content-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .mirroring-content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mirroring-profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mirroring-profile-list .select-card {
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  padding: 0.875rem 1rem;
+  color: inherit;
+}
+
+.mirroring-profile-meta {
+  font-size: 0.8125rem;
+  color: var(--text-subtle);
+  margin-top: 2px;
+}
+
+.mirroring-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .mirroring-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mirroring-paths {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  font-size: 0.875rem;
+}
+
+.mirroring-paths dt {
+  color: var(--text-subtle);
+}
+
+.mirroring-paths dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+}
+
+/* ------------------------------------------------------------------------
+ * Reduced motion (v2.2.0 M2, app-wide). Users who ask the OS for less motion
+ * get no lifts, slides or animated transitions anywhere in the app; state
+ * changes still happen, they just are not animated.
+ * ------------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .select-card:hover:not(:disabled),
+  .landing-card-install:hover,
+  .landing-card-install:active,
+  .landing-card-mirroring:hover,
+  .landing-card-mirroring:active {
+    transform: none !important;
+  }
+}
+
+.mirroring-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mirroring-theme-label {
+  color: #e5e7eb;
+  font-size: 0.875rem;
+}
+
+.mirroring-name-grid {
+  margin-top: 0;
+  grid-template-columns: minmax(0, 28rem);
+}
+
+.mirroring-name-grid .field-with-info-row > span.field-title-line {
+  min-height: 0;
+}
+
+.mirroring-card-subtitle {
+  margin: 4px 0 12px;
+}
+
+.mirroring-group-label {
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+/* ------------------------------------------------------------------------
+ * Shared operator components (v2.2.0 M3): search, grouped matches,
+ * constraints list, unresolved intent cards. Values match the styles the
+ * Install Operators step used inline before the extraction.
+ * ------------------------------------------------------------------------ */
+.operator-catalog-browser {
+  margin-top: 16px;
+}
+
+.operator-browser-title {
+  margin: 0 0 8px;
+}
+
+/* Search grows with the card up to a comfortable reading width and never
+   drops below a usable size; the placeholder is short enough not to clip. */
+.operator-search-field {
+  width: min(100%, 40rem);
+  margin: 0 0 12px;
+}
+
+.operator-search-field .field-with-info-row > span.field-title-line {
+  min-height: 0;
+}
+
+.operator-search-field input[type="search"] {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.tabs[role="tablist"] {
+  flex-wrap: wrap;
+}
+
+/* Compact, left-aligned Remove inside a selected-operator card (M3 feedback). */
+.selected-card .selected-card-remove {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.selected-card-verification {
+  font-size: 0.8125rem;
+}
+
+.operator-match-group + .operator-match-group {
+  margin-top: 16px;
+}
+
+.operator-match-group-title {
+  margin: 0 0 8px;
+  font-size: 0.875rem;
+}
+
+.operator-constraints-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.operator-constraints-item {
+  padding: 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+}
+
+.operator-constraints-name {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.operator-constraints-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .operator-constraints-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.selected-card-unresolved {
+  border-style: dashed;
+}
+
+.selected-card-note {
+  font-size: 0.8125rem;
+  color: #92400e;
+}
+
+body[data-theme="dark"] .selected-card-note {
+  color: #fcd34d;
+}
+
+.mirroring-image-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* One image row (M3 feedback): label on top, then the input and a compact
+   Remove on the SAME grid row, then the support band (error, then helper)
+   underneath. The field wrappers use display: contents so their children
+   join this grid; the DOM keeps the field-control-stack / support structure
+   the guard checks. Remove is anchored to the input row, so showing or
+   clearing an error never moves it. */
+.mirroring-image-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  row-gap: 4px;
+  align-items: center;
+  max-width: 48rem;
+}
+
+.mirroring-image-row > .field-control-stack,
+.mirroring-image-row .field-with-info-row {
+  display: contents;
+}
+
+.mirroring-image-row .field-title-line {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.mirroring-image-row .field-with-info-row > input {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+}
+
+.mirroring-image-row > .mirroring-image-remove {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: center;
+  white-space: nowrap;
+}
+
+.mirroring-image-row .field-control-support {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mirroring-content-summary dd {
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+/* ------------------------------------------------------------------------
+ * Mirroring import (v2.2.0 M4). Status is carried by an icon and words, the
+ * border tone only reinforces it.
+ * ------------------------------------------------------------------------ */
+.mirroring-import-modal {
+  width: min(760px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+}
+
+.mirroring-import-files,
+.mirroring-import-records {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mirroring-import-file,
+.mirroring-import-record {
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.mirroring-import-file.tone-error { border-left-color: #b91c1c; }
+.mirroring-import-file.tone-warning { border-left-color: #b45309; }
+.mirroring-import-file.tone-info { border-left-color: #2563eb; }
+.mirroring-import-file.tone-ok { border-left-color: #15803d; }
+
+.mirroring-import-file-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mirroring-import-file-name {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.mirroring-import-file-head > button {
+  flex: none;
+}
+
+.mirroring-import-status {
+  margin-top: 4px;
+  font-size: 0.875rem;
+}
+
+.mirroring-import-status-icon {
+  display: inline-block;
+  min-width: 1.25em;
+  font-weight: 700;
+}
+
+.mirroring-import-meta {
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.mirroring-import-findings {
+  margin: 6px 0 0 18px;
+  padding: 0;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.mirroring-import-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mirroring-import-item > button {
+  flex: none;
+}
+
+.mirroring-import-item-state {
+  font-weight: 600;
+}
+
+.mirroring-import-mode,
+.mirroring-import-conflicts {
+  margin-top: 12px;
+}
+
+.mirroring-import-conflict {
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 8px;
+  margin: 8px 0;
+  padding: 8px 12px;
+}
+
+.mirroring-import-conflict legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+
+.mirroring-import-original {
+  max-height: 55vh;
+  overflow: auto;
+  font-size: 0.8125rem;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  white-space: pre;
+}
+
+body[data-theme="dark"] .mirroring-import-original {
+  background: #0f172a;
+  color: #e5e7eb;
+  border-color: #374151;
+}
+
+body[data-theme="dark"] .mirroring-import-file,
+body[data-theme="dark"] .mirroring-import-record,
+body[data-theme="dark"] .mirroring-import-conflict {
+  border-color: #374151;
+}
+
+body[data-theme="dark"] .mirroring-import-file.tone-error { border-left-color: #f87171; }
+body[data-theme="dark"] .mirroring-import-file.tone-warning { border-left-color: #fbbf24; }
+body[data-theme="dark"] .mirroring-import-file.tone-info { border-left-color: #60a5fa; }
+body[data-theme="dark"] .mirroring-import-file.tone-ok { border-left-color: #4ade80; }
+
+.mirroring-status {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+}
+
+.mirroring-import-record code {
+  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+}
+
+/* ------------------------------------------------------------------------
+ * Preflight checklist (v2.2.0 M5) — shared by Install "Run oc-mirror" and
+ * Mirroring. The status is always written out ("Passed", "Blocked", …); the
+ * left border repeats it in colour and uses the import-review tones.
+ * ------------------------------------------------------------------------ */
+.preflight-checklist { margin-top: 12px; min-width: 0; }
+.preflight-checklist-title { margin: 0 0 4px; font-size: 0.9375rem; }
+.preflight-checklist-summary { margin: 0 0 8px; font-size: 0.875rem; }
+.preflight-checklist-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.preflight-item {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  gap: 4px 12px;
+  border: 1px solid var(--border-color);
+  border-left-width: 4px;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.875rem;
+  min-width: 0;
+}
+.preflight-item.tone-error { border-left-color: #b91c1c; }
+.preflight-item.tone-warning { border-left-color: #b45309; }
+.preflight-item.tone-unverified { border-left-color: #7c3aed; border-left-style: dashed; }
+.preflight-item.tone-ok { border-left-color: #15803d; }
+.preflight-item.tone-info { border-left-color: #2563eb; }
+.preflight-item-status { font-weight: 600; white-space: nowrap; }
+.preflight-item-symbol { display: inline-block; width: 1.1em; text-align: center; }
+.preflight-item-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.preflight-item-label { font-weight: 600; }
+.preflight-item-detail { color: var(--text-secondary); overflow-wrap: anywhere; }
+body[data-theme="dark"] .preflight-item.tone-error { border-left-color: #f87171; }
+body[data-theme="dark"] .preflight-item.tone-warning { border-left-color: #fbbf24; }
+body[data-theme="dark"] .preflight-item.tone-unverified { border-left-color: #a78bfa; }
+body[data-theme="dark"] .preflight-item.tone-ok { border-left-color: #4ade80; }
+body[data-theme="dark"] .preflight-item.tone-info { border-left-color: #60a5fa; }
+@media (max-width: 640px) {
+  .preflight-item { grid-template-columns: 1fr; }
+}
+
+/* Mirroring execution (v2.2.0 M5) */
+.mirroring-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px 16px;
+  align-items: start;
+}
+.mirroring-verify-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mirroring-verify-list,
+.mirroring-run-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mirroring-run-status { margin: 8px 0 4px; }
+.mirroring-run-log,
+.mirroring-plan-yaml {
+  margin: 0;
+  max-height: 22rem;
+  overflow: auto;
+  padding: 8px 10px;
+  background: var(--code-bg);
+  color: var(--code-color);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mirroring-run-record {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.875rem;
+  min-width: 0;
+}
+.mirroring-run-record-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+.mirroring-run-record-plan {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+.mirroring-run-record code { font-size: 0.75rem; }
+/* Every run option control fills its column up to the control-enum width, so
+   number, text, date and select controls line up (DESIGN_SYSTEM "Control Width"). */
+.mirroring-options-grid input,
+.mirroring-options-grid select {
+  width: 100%;
+  max-width: 280px;
+  box-sizing: border-box;
+}
+/* Native date control: dark picker icon and calendar in dark mode (as for <select>). */
+body[data-theme="dark"] .mirroring-options-grid input[type="date"] { color-scheme: dark; }
+
+/* Mirroring workflows and transfer (v2.2.0 M6) — same card grid as content selection. */
+.mirroring-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  width: 100%;
+}
+.mirroring-workflow-grid .select-card {
+  width: 100%;
+  max-width: 100%;
+  min-height: 7.5rem;
+  justify-content: flex-start;
+  gap: 4px;
+  color: inherit;
+  text-align: left;
+}
+.mirroring-workflow-grid .select-card:disabled { opacity: 0.7; cursor: not-allowed; }
+.mirroring-workflow-desc { font-size: 0.8125rem; line-height: 1.4; color: var(--text-subtle); }
+@media (max-width: 900px) { .mirroring-workflow-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .mirroring-workflow-grid { grid-template-columns: 1fr; } }
+.mirroring-receive { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mirroring-receive-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; }
+.mirroring-receive-row .field-control-stack { flex: 1 1 22rem; min-width: 0; }
+.mirroring-receive-row .field-control-stack input { width: 100%; box-sizing: border-box; }
+.mirroring-receive-row > button { margin-top: 1.6rem; }
+.mirroring-receive-problems { margin: 6px 0 0 18px; padding: 0; }
+.mirroring-receive-result { margin-top: 6px; }
+.mirroring-receive-result dd, .mirroring-receive-result code { overflow-wrap: anywhere; min-width: 0; }
+.mirroring-receive-explain { margin-bottom: 12px; }
+.mirroring-receive-explain p { margin: 0 0 8px; }
+.mirroring-receive-explain ol { margin: 0 0 8px 20px; padding: 0; }
+.mirroring-receive-explain li { margin-bottom: 4px; }
+.mirroring-bulk-text { width: 100%; box-sizing: border-box; font-family: monospace; font-size: 0.8125rem; }
+.mirroring-bulk-text.is-dragging { outline: 2px dashed #3b82f6; outline-offset: 2px; }
+.mirroring-bulk-file { margin-top: 4px; }
+.mirroring-bulk-summary { margin-top: 12px; }
+.mirroring-bulk-summary p { margin: 0 0 6px; }
+.mirroring-bulk-invalid { margin: 4px 0 0 18px; padding: 0; max-height: 12rem; overflow: auto; }
+.mirroring-bulk-invalid code { overflow-wrap: anywhere; }
+.modal.mirroring-bulk-modal { width: min(46rem, 92vw); }
+.mirroring-same-architect { margin: 8px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+/* Mirroring: Profiles | Operations switch. The pressed view is also bold and
+   underlined, so it never depends on colour alone. */
+/* R-UX05: the step header is position: sticky, but a sticky element stays inside its parent, and .step
+   (flex: 1; min-height: 0 in the .main flex column) was only as tall as the viewport, so the header left after
+   one screen. In Mirroring the step grows with its content; .main stays the scroll container. */
+.mirroring-shell .step { flex: 0 0 auto; }
+.mirroring-shell [id] { scroll-margin-top: 96px; }
+.mirroring-view-switch { display: flex; gap: 6px; flex-wrap: wrap; align-self: center; }
+.mirroring-view-switch button[aria-pressed="true"] { font-weight: 700; box-shadow: inset 0 -3px 0 #3b82f6; }
+@media (max-width: 600px) {
+  .mirroring-shell .step-header { flex-direction: column; align-items: stretch; }
+  .mirroring-view-switch { align-self: flex-start; }
+}
+/* Air-gap step guide in the run card: words carry the state (Done / Next / Step n). */
+.mirroring-steps-wrap { margin: 0 0 12px; }
+.mirroring-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; }
+.mirroring-step { border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 0.8125rem; background: var(--card-bg); }
+.mirroring-step.is-current { border: 2px solid #3b82f6; padding: 5px 7px; }
+.mirroring-step-state { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-subtle); font-weight: 600; }
+.mirroring-step.is-current .mirroring-step-state { color: inherit; }
+.mirroring-step-title { font-weight: 600; }
+.mirroring-step-detail { color: var(--text-subtle); overflow-wrap: anywhere; }
+.mirroring-steps-note { margin: 6px 0 0; font-size: 0.8125rem; }
+.mirroring-receive-suggestion { margin-bottom: 8px; overflow-wrap: anywhere; }
+.mirroring-run-details { margin-left: auto; }
+/* Operations view */
+.mirroring-ops-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 70vh; overflow: auto; }
+.mirroring-ops-item.select-card { padding: 8px 10px; min-height: 0; width: 100%; box-sizing: border-box; }
+.mirroring-ops-item .card-title { font-size: 0.9rem; }
+.mirroring-ops-status { font-size: 0.8125rem; font-weight: 600; }
+.mirroring-op-summary dd, .mirroring-op-summary code { overflow-wrap: anywhere; min-width: 0; }
+.mirroring-op-subheading { margin: 14px 0 2px; font-size: 0.95rem; }
+.mirroring-op-command { max-height: 10rem; }
+.mirroring-op-log { max-height: 28rem; }
+.mirroring-op-links { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.mirroring-op-failure ul { margin: 4px 0 4px 18px; padding: 0; }
+.mirroring-needs { margin: 0 0 10px; }
+.mirroring-storage { margin: 0 0 12px; }
+.mirroring-storage .mirroring-op-subheading { margin-top: 0; }
+.mirroring-storage-source { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text-subtle); }
+.mirroring-storage-paths dd, .mirroring-storage-paths code { overflow-wrap: anywhere; min-width: 0; }
+.mirroring-op-archives { list-style: none; margin: 4px 0 0; padding: 0; font-size: 0.8125rem; display: flex; flex-direction: column; gap: 4px; }
+.mirroring-op-archives li, .mirroring-op-archives code { overflow-wrap: anywhere; }
+/* Help me generate (registry credentials) */
+.modal.registry-cred-helper { width: min(40rem, 92vw); }
+.registry-cred-entry { border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px; margin: 0 0 10px; min-width: 0; }
+.registry-cred-entry legend { font-weight: 600; padding: 0 4px; }
+.registry-cred-entry input { width: 100%; box-sizing: border-box; }
+.registry-cred-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0 12px; }
+.registry-cred-keep { display: block; margin: 8px 0; }
+.mirroring-storage-select { max-width: 100%; }
+.mirroring-storage-current code { font-size: 0.9rem; overflow-wrap: anywhere; }
+.mirroring-storage-free { margin: 2px 0 8px; }
+.mirroring-storage-roots { margin: 2px 0 8px 18px; padding: 0; font-size: 0.8125rem; }
+.mirroring-storage-roots li, .mirroring-storage-roots code { overflow-wrap: anywhere; }
+.mirroring-storage-roots-title { margin: 8px 0 0; }
+.mirroring-storage-input { width: 100%; max-width: 36rem; box-sizing: border-box; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.875rem; }
+.mirroring-storage-actions { margin-top: 4px; flex-wrap: wrap; }
+.mirroring-storage-actions button { overflow-wrap: anywhere; text-align: left; }
+.mirroring-op-recovery { margin: 10px 0; }
+.mirroring-op-recovery p { margin: 4px 0; }
+.mirroring-op-checks { margin: 4px 0 8px 18px; padding: 0; font-size: 0.875rem; }
+.mirroring-op-checks li { overflow-wrap: anywhere; }
+.modal.mirroring-retry-modal { width: min(40rem, 92vw); }
+.mirroring-retry-modal input[type="text"] { width: 100%; box-sizing: border-box; }
+.mirroring-op-retry { align-items: center; }
+/* Choose a folder on the server */
+.modal.server-folder-browser { width: min(38rem, 92vw); }
+.server-folder-current { margin: 6px 0; overflow-wrap: anywhere; }
+.server-folder-list { list-style: none; margin: 4px 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; max-height: 40vh; overflow: auto; }
+.server-folder-list button { overflow-wrap: anywhere; text-align: left; }
+
+/* Visually hidden, still announced (live regions, extra labels). */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* R-UX06: catalog browser and Selected side by side; one pane at a time on narrow screens. */
+.mirroring-operator-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 16px; align-items: start; margin-top: 12px; }
+.mirroring-operator-workspace.is-narrow { grid-template-columns: minmax(0, 1fr); }
+.mirroring-operator-browse, .mirroring-operator-selected { min-width: 0; }
+.mirroring-pane-switch { display: flex; gap: 6px; }
+.mirroring-pane-switch button[aria-pressed="true"] { font-weight: 700; box-shadow: inset 0 -3px 0 #3b82f6; }
+.mirroring-selected-panel { position: sticky; top: 88px; max-height: calc(100vh - 140px); overflow: auto; border: 1px solid var(--border-color, #d1d5db); border-radius: 10px; padding: 12px; background: var(--card-bg, #fff); }
+.is-narrow .mirroring-selected-panel { position: static; max-height: none; }
+.mirroring-selected-heading { margin: 0 0 8px; font-size: 1rem; }
+.mirroring-selected-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mirroring-selected-row { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; border: 1px solid var(--border-color, #e5e7eb); border-left-width: 4px; border-radius: 6px; padding: 6px 8px; }
+.mirroring-selected-row.tone-ok { border-left-color: #16a34a; }
+.mirroring-selected-row.tone-warning { border-left-color: #d97706; }
+.mirroring-selected-row.tone-error { border-left-color: #dc2626; }
+.mirroring-selected-row.tone-unverified { border-left-color: #8b5cf6; border-left-style: dashed; }
+.mirroring-selected-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mirroring-selected-name { font-weight: 600; overflow-wrap: anywhere; }
+.mirroring-selected-meta, .mirroring-selected-detail { font-size: 0.8125rem; overflow-wrap: anywhere; }
+.mirroring-selected-status { font-size: 0.8125rem; font-weight: 600; }
+.mirroring-check { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-color, #e5e7eb); }
+.mirroring-check-heading { margin: 0 0 4px; font-size: 0.9375rem; }
+.mirroring-check-explain { margin: 0 0 8px; font-size: 0.8125rem; }
+.mirroring-check-actions-list ul { margin: 4px 0 0 18px; padding: 0; }
+.mirroring-source-cred-actions { margin-top: 4px; }
+.mirroring-destination-auth { border: none; margin: 0 0 8px; padding: 0; }
+.mirroring-destination-auth .toggle-row { display: block; margin-bottom: 4px; }
+.mirroring-destination-okd { margin: 4px 0 8px; }
+body[data-theme="dark"] .mirroring-selected-panel { background: #1f2937; border-color: #374151; }
+body[data-theme="dark"] .mirroring-selected-row { border-color: #374151; }
+body[data-theme="dark"] .mirroring-selected-row.tone-ok { border-left-color: #22c55e; }
+body[data-theme="dark"] .mirroring-selected-row.tone-warning { border-left-color: #f59e0b; }
+body[data-theme="dark"] .mirroring-selected-row.tone-error { border-left-color: #f87171; }
+body[data-theme="dark"] .mirroring-selected-row.tone-unverified { border-left-color: #a78bfa; }
+.mirroring-quick-picks { margin-top: 12px; }
+.mirroring-quick-picks-heading { margin: 0 0 2px; font-size: 1rem; }
+.mirroring-quick-picks-subtitle { margin: 0 0 8px; font-size: 0.8125rem; }
+
+/* R-UX01: one row of contextual tabs under the profile overview. Words carry the state (selected is bold and
+   underlined; blockers are written "· n to fix"), never colour alone. */
+.mirroring-tabs { display: flex; gap: 4px; overflow-x: auto; margin: 4px 0 12px; border-bottom: 1px solid var(--border-color, #d1d5db); scrollbar-width: thin; }
+.mirroring-tab { flex: 0 0 auto; background: none; border: none; border-bottom: 3px solid transparent; padding: 8px 14px; font: inherit; color: inherit; cursor: pointer; white-space: nowrap; }
+.mirroring-tab:hover { background: rgba(59, 130, 246, 0.08); }
+.mirroring-tab:focus-visible { outline: 2px solid #3b82f6; outline-offset: -2px; }
+.mirroring-tab.active { font-weight: 700; border-bottom-color: #3b82f6; }
+.mirroring-tab-badge { font-weight: 600; color: #b45309; }
+body[data-theme="dark"] .mirroring-tabs { border-bottom-color: #374151; }
+body[data-theme="dark"] .mirroring-tab-badge { color: #fbbf24; }
+.mirroring-tabpanel > * + * { margin-top: 16px; }
+.mirroring-latest-activity { margin: 8px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mirroring-readiness-list { margin: 6px 0 0 18px; padding: 0; }
+.mirroring-readiness-list li { margin-bottom: 4px; }
+/* R-UX09: a DRAFT is labelled in words, not colour alone, and never downloadable. */
+.yaml-draft-badge { font-size: 0.75rem; padding: 2px 6px; border-radius: 3px; font-weight: 700; letter-spacing: 0.04em; border: 1px dashed #b45309; color: #b45309; }
+body[data-theme="dark"] .yaml-draft-badge { border-color: #fbbf24; color: #fbbf24; }
+.yaml-draft-blockers { margin: 6px 0 0 18px; padding: 0; }
+.yaml-draft-blockers li { margin-bottom: 4px; }
+/* The tab row scrolls inside its column on narrow screens instead of widening the page: grid items default to
+   min-width: auto (their content's min-content), which the non-wrapping tabs would otherwise set. */
+.mirroring-layout > *, .mirroring-detail, .mirroring-tabpanel { min-width: 0; }
+.mirroring-tabs { max-width: 100%; }
+
+/* Owner C (2026-11-03): the profile's content tabs stay in the flow until they reach the top of the scroll
+   area, then stick right under the sticky step header (whose measured height is --mirroring-header-h). Their
+   parent (.mirroring-detail) spans the whole profile, so they stay stuck through every panel; scrolling back
+   up returns them to their place. Not a fixed overlay and no second tab bar. */
+.mirroring-tabs { position: sticky; top: var(--mirroring-header-h, 0px); z-index: 5; background: #f5f6f8; }
+body[data-theme="dark"] .mirroring-tabs { background: #0b1120; }
+/* Anchored targets and the Selected panel clear both sticky rows. */
+.mirroring-shell [id] { scroll-margin-top: calc(var(--mirroring-header-h, 52px) + 56px); }
+.mirroring-selected-panel { top: calc(var(--mirroring-header-h, 52px) + 52px); max-height: calc(100vh - var(--mirroring-header-h, 52px) - 215px); }

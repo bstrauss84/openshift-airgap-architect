@@ -9,6 +9,7 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import React, { useEffect } from "react";
+import { OC_MIRROR_CLI_LIMITS } from "../../../shared/ocMirrorCliLimits.js";
 import { createPortal } from "react-dom";
 import Button from "./Button.jsx";
 import { useFocusTrap } from "../hooks/useFocusTrap.js";
@@ -45,10 +46,10 @@ function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
 
   const hasNonDefaultAdvanced = advanced && (
     (advanced.logLevel && advanced.logLevel !== "info") ||
-    (advanced.parallelImages != null && advanced.parallelImages !== 4) ||
-    (advanced.parallelLayers != null && advanced.parallelLayers !== 3) ||
+    (advanced.parallelImages != null && advanced.parallelImages !== OC_MIRROR_CLI_LIMITS.parallelImages.default) ||
+    (advanced.parallelLayers != null && advanced.parallelLayers !== OC_MIRROR_CLI_LIMITS.parallelLayers.default) ||
     advanced.imageTimeout ||
-    (advanced.retryTimes != null && advanced.retryTimes !== 3) ||
+    (advanced.retryTimes != null && advanced.retryTimes !== 5) ||
     advanced.retryDelay ||
     advanced.since ||
     advanced.strictArchive
@@ -172,16 +173,16 @@ function RunConfirmationModal({ isOpen, onClose, onConfirm, config }) {
                   {advanced.logLevel && advanced.logLevel !== "info" && (
                     <li>Log level: {advanced.logLevel}</li>
                   )}
-                  {advanced.parallelImages != null && advanced.parallelImages !== 4 && (
+                  {advanced.parallelImages != null && advanced.parallelImages !== OC_MIRROR_CLI_LIMITS.parallelImages.default && (
                     <li>Parallel images: {advanced.parallelImages}</li>
                   )}
-                  {advanced.parallelLayers != null && advanced.parallelLayers !== 3 && (
+                  {advanced.parallelLayers != null && advanced.parallelLayers !== OC_MIRROR_CLI_LIMITS.parallelLayers.default && (
                     <li>Parallel layers: {advanced.parallelLayers}</li>
                   )}
                   {advanced.imageTimeout && (
                     <li>Image timeout: {advanced.imageTimeout}</li>
                   )}
-                  {advanced.retryTimes != null && advanced.retryTimes !== 3 && (
+                  {advanced.retryTimes != null && advanced.retryTimes !== 5 && (
                     <li>Retry times: {advanced.retryTimes}</li>
                   )}
                   {advanced.retryDelay && (

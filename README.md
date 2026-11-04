@@ -1,6 +1,6 @@
 # OpenShift Airgap Architect
 
-A local-first wizard that generates OpenShift disconnected (air-gapped) installation assets. It runs entirely on your machine using Docker or Podman—no data is sent to external services except when you explicitly trigger operator discovery or release-channel updates.
+A local-first wizard that generates OpenShift disconnected (air-gapped) installation assets and, from v2.2.0, plans and runs oc-mirror content mirroring. It runs entirely on your machine using Docker or Podman—no data is sent to external services except when you explicitly trigger operator discovery, release-channel updates or an oc-mirror run.
 
 <!--
   TEMPORARY RELEASE NOTICE — maintainer note.
@@ -11,6 +11,11 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
 
   The "Release history" section further down is PERMANENT and must stay when this
   block is removed.
+
+  v2.2.0 PRE-RELEASE WORDING: the "Coming in v2.2.0" subsection describes work that is
+  not yet released. At the separately approved v2.2.0 release, change only that
+  subsection: its heading ("Coming in v2.2.0" → "New in v2.2.0"), its status paragraph,
+  and add the v2.2.0 release-notes link to the list below. Nothing else needs rewriting.
 -->
 
 ## 🚀 Major v2.x update available
@@ -25,9 +30,46 @@ rather than assuming a single release. The parameter catalogs, validation,
 documentation links and Field Guide all follow your chosen version. I appreciate
 everyone who has continued following and using the project.
 
+### Released: v2.0 and v2.1 — version awareness and OpenShift 4.22
+
 **v2.0 supports OpenShift 4.20 and 4.21; v2.1 adds 4.22.** The supported set is
-4.20, 4.21 and 4.22, and later releases are rejected rather than approximated. See
-[Release history](#release-history) for what is published and where to download it.
+4.20, 4.21 and 4.22, and later releases are rejected rather than approximated. The
+v2.1.1 and v2.1.2 patches added update notifications, build identity and export
+credential fixes. See [Release history](#release-history) for what is published and
+where to download it.
+
+### Coming in v2.2.0 — Mirroring (pre-release, in testing)
+
+v2.2.0 is a minor feature release, not another patch: it adds a second workflow beside
+Install. **Mirroring** plans and runs oc-mirror v2 without an install:
+
+- **Independent profiles** — each with its own content, its own locked OpenShift
+  release (4.20–4.22), its own storage location and its own history, separate from Install.
+- **Content** — the platform release, operators (catalog discovery, the same Scenario
+  Quick Picks as Install, and a live check that each package and channel exists) and
+  additional images; existing ImageSetConfiguration files can be imported.
+- **ImageSetConfiguration** — a labelled DRAFT while the profile is incomplete, then the
+  validated file, checked against the oc-mirror v2 schema.
+- **Three workflows** — mirror to disk, disk to mirror and mirror to mirror, each behind
+  a preflight check.
+- **Connected → disconnected transfer** — Prepare transfer adds checksums, the exact
+  configuration and its provenance; Receive transfer verifies every file, refuses
+  transfers that arrive out of order, and compares the disconnected side's oc-mirror with
+  the build that made the archives (advisory, never blocking).
+- **Credentials** — the Red Hat pull secret stays in page memory for one profile and
+  destination credentials are given per run; neither is ever stored. Anonymous access
+  for destination registries that need no login.
+- **Operations** — every run, transfer and check with its log and result, and "Run the
+  same again" for runs that stopped for a temporary reason.
+
+**Status:** not yet released. The three workflows pass lab tests with the real
+oc-mirror 4.22.19 against synthetic registries; validation at customer sites (RHEL 9,
+Podman 4.9, FIPS, a real disconnected registry with OpenShift release content) is still
+pending. Supported OpenShift versions remain 4.20, 4.21 and 4.22. Preview on this branch:
+[Mirroring workflow](#mirroring-workflow) and the full
+[Mirroring user guide](docs/MIRRORING_WORKFLOW.md#part-a--user-guide).
+
+### Upgrading
 
 **If you are upgrading, please read the release notes and the migration guide before
 you start.** There are changes to how saved configurations work and a required
@@ -35,7 +77,7 @@ version-confirmation step, and a few things behave differently on purpose.
 
 **Before upgrading, save your configuration with Tools → Export Run**, and restore it
 afterwards with Tools → Import Run. Credentials are deliberately excluded and must be
-re-entered.
+re-entered. Mirroring profiles are kept on the server, not in an exported run.
 
 - [Changelog](CHANGELOG.md) — everything, newest first
 - [v2.1.2 release notes](docs/releases/v2.1.2.md) — patch: export credential fixes and maintenance
@@ -53,12 +95,15 @@ re-entered.
   - [Key features](#key-features)
 - **Getting Started**
   - [Quick start (container)](#quick-start-container)
+  - [Enterprise deployment (RHEL 9, FIPS, proxy, Podman 4.9)](#enterprise-deployment)
+  - [Mirroring storage on its own volume](#mirroring-storage-volume)
   - [Local development](#local-development)
   - [Running without Compose](#running-without-compose)
   - [Container run](#container-run)
   - [Corporate HTTP proxy and backend egress](#corporate-proxy-backend-egress)
   - [Updating the app](#updating-the-app)
 - **Core Workflows**
+  - [Mirroring workflow](#mirroring-workflow)
   - [Generating assets](#generating-assets)
   - [Operator workflows](#operator-workflows)
   - [Run oc-mirror](#run-oc-mirror)
@@ -74,7 +119,7 @@ re-entered.
 - **Reference**
   - [Screenshots](#screenshots)
   - [Architecture](#architecture)
-  - [Install-config references (4.20/4.21/4.22)](#install-config-references-420421)
+  - [Install-config references (4.20/4.21/4.22)](#install-config-references-420421422)
   - [Release history](#release-history)
   - [License and contributing](#license-and-contributing)
   - [Documentation and governance map](#documentation-and-governance-map)
@@ -92,6 +137,8 @@ OpenShift Airgap Architect guides you through scenario-based configuration (Bare
 
 The app uses official OpenShift 4.20–4.22 parameter catalogs and aligns generated YAML with the docs for the selected version.
 
+A separate **Mirroring** workflow plans and runs oc-mirror v2 content (platform release, operators, additional images) without an install, including the transfer to and receipt on a disconnected side; see [Mirroring workflow](#mirroring-workflow).
+
 <a id="who-its-for"></a>
 ## Who it's for
 
@@ -105,13 +152,14 @@ The app uses official OpenShift 4.20–4.22 parameter catalogs and aligns genera
 - **Scenario-driven UI** — Pick install method (e.g. Agent-Based, vSphere IPI); the wizard shows only relevant steps and fields
 - **Version-aware** — Cincinnati channels and patch selection; generated assets match the chosen OCP version (4.20, 4.21 or 4.22). Version-specific parameter catalogs, Field Guide content with version-correct documentation URLs, and metadata-driven annotations for fields introduced or deprecated across versions
 - **Credentials-safe** — Pull secrets and BMC/vCenter-style credentials are not persisted by default; optional export with explicit inclusion. Helpers generate pull secrets and SSH keypairs locally and are not stored (see [Identity & Access](#screenshots) and [Mirror secret helper](#screenshots)).
-- **Operator discovery** — Optional scan of certified/community/Red Hat operators via `oc-mirror list operators` (requires registry.redhat.io auth)
+- **Operator discovery** — Optional scan of certified/community/Red Hat operators: Architect downloads each catalog over TLS it verifies itself and lists it with `oc-mirror list operators` (requires registry.redhat.io auth)
 - **Trust and proxy** — additionalTrustBundle and proxy settings with version-appropriate policy (e.g. Proxyonly / Always)
+- **Mirroring workflow** — Independent oc-mirror profiles (platform, operators, additional images) with a per-profile release lock, catalog discovery and live catalog checks, DRAFT and validated ImageSetConfiguration preview, mirror to disk, checksummed transfer, verified receipt and disk to mirror, or mirror to mirror; see [Mirroring workflow](#mirroring-workflow)
 - **Run oc-mirror** — Built-in tab to run oc-mirror v2 directly from the app (mirror-to-disk, disk-to-mirror, mirror-to-mirror workflows; per-run credentials; comprehensive preflight validation with blockers; live job streaming to Operations)
 - **Operations** — Background job viewer with live streaming output, job history, and downloadable timestamped logs for Cincinnati refresh, operator scans, and oc-mirror runs
 - **Modal accessibility** — Consistent focus trap behavior across all dialogs with keyboard navigation (Tab/Shift+Tab cycling, Escape key support, focus restoration)
 - **Feedback (GitHub-oriented)** — Optional in-app feedback drawer that generates a prefilled GitHub issue URL plus copyable markdown fallback. Hidden/disabled on high-side profiles.
-- **Dark mode** — Toggle between light and dark themes from the Tools menu; all UI elements honor the selected theme
+- **Dark mode** — Toggle between light and dark themes in the Tools drawer; all UI elements honor the selected theme
 - **Live YAML Preview** — Right-side resizable drawer shows real-time generated YAML as you configure. Displays install-config.yaml (or split view with agent-config.yaml for agent-based scenarios). ImageSet config visible on Operators tab. Credentials obfuscated by default with "Show sensitive values" toggle. Download individual files. Syntax highlighting for readability. Available on all configuration tabs after Blueprint lock-in.
 - **IPv6-only single-stack support** — Configure OpenShift clusters with IPv6 networking only (no IPv4). IP stack mode selector supports IPv4-only, IPv6-only, and dual-stack (IPv4+IPv6) modes. Available for bare metal and vSphere platforms (all installation methods). Automatic state migration from v1.2.x exports.
 - **Export options** — Choose whether to include credentials, certificates, client tools, and openshift-install in the run bundle. Advanced option to bundle a complete high-side runtime package (container images + deployment scripts) for deploying the application on fully disconnected systems.
@@ -159,23 +207,90 @@ podman compose up --build -d
 
 If your system only has `podman-compose` (Python), use that; the project does not ship a separate `podman-compose.yml`.
 
+> **Enterprise hosts (RHEL 9 with Podman 4.9 / podman-compose 1.0.6, FIPS, an HTTPS-inspecting proxy,
+> restrictive umask):** use the staged procedure instead of `compose up --build` —
+> `scripts/deploy/oaa-deploy.sh preflight`, then `build`, `up` (runtime smoke test, then backend, then frontend), `verify` (or `all`). podman-compose 1.0.6
+> ignores a failed image build and then tries to run images that were never built; the script checks every
+> build, retries dropped CDN transfers a bounded number of times, passes your proxy CA to the build as a
+> secret, and verifies the result over HTTP. See [docs/ENTERPRISE_PODMAN_DEPLOYMENT.md](docs/ENTERPRISE_PODMAN_DEPLOYMENT.md).
+
 Then open the UI at **http://localhost:5173** (ports are bound to localhost by default; see [Container run](#container-run) to change that).
+
+<a id="enterprise-deployment"></a>
+### Enterprise deployment (RHEL 9, FIPS, proxy, Podman 4.9)
+
+Full guide: **[docs/ENTERPRISE_PODMAN_DEPLOYMENT.md](docs/ENTERPRISE_PODMAN_DEPLOYMENT.md)**. Run these checks as the user
+who will own the containers, in a real login (ssh or console — not `su` or `sudo -i`). Each line says what you should
+see; if you see something else, **STOP** and fix that first.
+
+| Check | Command | Expected | STOP if |
+|---|---|---|---|
+| Rootless session | `loginctl show-user "$(id -un)" -p State -p Linger; echo "$XDG_RUNTIME_DIR"` | `State=active` (or `Linger=yes`), `/run/user/<uid>` | empty `XDG_RUNTIME_DIR`, or no session — log in directly as that user |
+| User systemd and D-Bus | `systemctl --user is-system-running` | `running` or `degraded` | `Failed to connect to bus` (session or lingering missing; an administrator enables lingering) |
+| cgroup manager | `podman info --format '{{.Host.CgroupManager}}'` | `systemd` | `systemd` with no user session — see guide §5 before using the temporary `cgroupfs` override |
+| Versions | `podman --version; podman-compose --version` | Podman 4.9+ / podman-compose 1.0.6+ | podman-compose 1.0.6 continues after a failed build — use the staged script below, never `compose up --build` |
+| FIPS / crypto policy | `fips-mode-setup --check; update-crypto-policies --show` | as your organisation requires | never disable FIPS; a corporate CA FIPS rejects must be replaced |
+| Corporate CA | `curl -sSI https://cdn-ubi.redhat.com/ -o /dev/null && echo ok` | `ok` | `SSL certificate problem` — pass your proxy CA to the build: `OAA_BUILD_CA=/path/ca.pem` |
+| Proxy and Quay CDN | `env \| grep -i _proxy; curl -sSI https://quay.io/v2/ -o /dev/null -w '%{http_code}\n'` | `401` (reachable) | timeouts — allow `quay.io`, `cdn*.quay.io`, `registry.access.redhat.com`, `cdn-ubi.redhat.com` (guide §4) |
+| umask and readability | `umask` | `0022` (or `0077` — handled; see guide §6) | — |
+| SELinux and volumes | `getenforce` | `Enforcing` (keep it) | bind mounts without `:Z`/`:z` fail with `permission denied` |
+| Free space | `df -h ~/.local/share/containers` | ≥ 20 GB, plus room for mirrored content | low space — put Mirroring content on its own volume (below) |
+
+Then run the staged procedure — preflight, build, start (smoke test, backend, frontend), verify:
+
+```bash
+scripts/deploy/oaa-deploy.sh preflight     # read-only; prints BLOCK lines with the fix
+scripts/deploy/oaa-deploy.sh build         # each image built and checked separately
+scripts/deploy/oaa-deploy.sh up            # refuses images it did not build; stops at the first failed stage
+scripts/deploy/oaa-deploy.sh verify        # HTTP checks of 127.0.0.1:4000 and :5173
+```
+
+Build-time needs the network (Red Hat CDN, npm, nodejs.org, GitHub, mirror.openshift.com, through your proxy);
+the running backend needs only what you mirror from. A failed or half-created start is replaced with
+`scripts/deploy/oaa-deploy.sh up --recreate` — it removes only this project's containers and keeps the data
+volume. For a support case, collect the diagnostics in guide §5.5 (proxy credentials are redacted).
+Never use `podman system reset`, `system migrate` or global `prune` to "fix" a deployment.
+
+<a id="mirroring-storage-volume"></a>
+### Mirroring storage on its own volume
+
+Mirroring archives, oc-mirror's workspace and cache can reach hundreds of GB. Like the Install workflow's Run oc-mirror
+step, each Mirroring profile can use any directory the server can write. To use a separate disk with containers, mount it
+into the backend and type the path **inside the container** in the profile's **Storage and run options** card:
+
+```yaml
+# compose.override.yml (or docker-compose.yml), backend service
+services:
+  backend:
+    volumes:
+      - /data/mirror:/mnt/mirror-data:Z      # host path : container path : SELinux label
+    # optional: make it the default for new profiles
+    # environment:
+    #   - OAA_MIRROR_STORAGE_ROOT=/mnt/mirror-data
+```
+
+Then choose `/mnt/mirror-data` (not `/data/mirror`, which exists only on the host). The directory must be writable by
+the container user (rootless Podman: `podman unshare chown 1001:0 /data/mirror`, or `:U` on the mount). Under it every
+profile gets its own `profiles/<id>/` with `archives/sets/<plan>/`, `plans/<plan>/`, `received/<plan>/`, `workspace/`
+and `cache/`. A profile's location can be changed until it writes anything; after that it stays put, so its history
+and cache are never split — nothing is moved. Running the backend directly on a host: type an absolute host path.
+Details: guide §9.
 
 ### Rebuild and restart (preserving data)
 
-The command flow to cleanly rebuild and restart the stack while keeping all existing state:
+Build the new images **first**, and replace the running containers only once both builds succeeded:
 
-**Podman**
+**Podman** (recommended; required on RHEL 9 / podman-compose 1.0.6)
 ```bash
-podman compose down --remove-orphans && podman image prune -f && podman compose up --build -d
+scripts/deploy/oaa-deploy.sh build && scripts/deploy/oaa-deploy.sh up --recreate && scripts/deploy/oaa-deploy.sh verify
 ```
 
 **Docker**
 ```bash
-docker compose down --remove-orphans && docker image prune -f && docker compose up --build -d
+docker compose build && docker compose up -d
 ```
 
-The `backend-data` named volume is preserved unless you explicitly pass `-v` to `compose down`. All app state (wizard configuration, job history) lives in that volume.
+The `backend-data` named volume is preserved unless you explicitly pass `-v` to `compose down`. All app state (wizard configuration, job history) lives in that volume. Old images are kept so you can roll back; remove them yourself when no longer needed (`podman images`, `podman rmi <id>`). Do not use `podman system reset` to "clean up": it deletes every image, container and volume of that user, in every project.
 
 ### SELinux (Podman on Fedora/RHEL)
 
@@ -273,7 +388,11 @@ Lowercase `http_proxy` / `https_proxy` / `no_proxy` are also honored by common s
 
 **Feedback (Tools → Feedback):** With **`FEEDBACK_MODE=github`** (default), the backend **does not** submit issues to the GitHub API. It validates input and returns a pre-filled **`githubIssueUrl`**. Opening that link runs in the **user’s browser**, which must reach **`github.com`** (and related GitHub hosts) via the **workstation** proxy or allowlist—or use the drawer’s copy / JSON export instead of opening the link. **`FEEDBACK_MODE=offline`** avoids GitHub-oriented behavior entirely (see [Build info and update checks](#build-info-and-update-checks)). Feedback API calls stay between the browser and your backend only.
 
-**TLS interception:** For the **running** backend container, if HTTPS is decrypted at a corporate proxy, add your corporate CA to trust (for example mount a PEM and set **`NODE_EXTRA_CA_CERTS=/path/to/corp-ca-bundle.pem`**) and ensure the same CA is trusted for `curl` and registry TLS. For **image build**, the **build host** (or build root filesystem in CI) must trust the proxy or target CAs so **`curl`** and **`npm`** during `Containerfile` can complete.
+**TLS interception:** an inspecting proxy must be trusted in three separate places — trusting it in one does not fix the others (details: [docs/ENTERPRISE_PODMAN_DEPLOYMENT.md](docs/ENTERPRISE_PODMAN_DEPLOYMENT.md#3-certificate-trust-three-separate-places)):
+
+- **Host** (pulling the UBI base images): the host trust store (`update-ca-trust`) or `/etc/containers/certs.d/<registry>/ca.crt`.
+- **Image build** (`dnf`, `curl`, `npm ci` inside `RUN` steps): these use the *image's* trust, not the host's. Pass the CA as a build secret: `OAA_BUILD_CA=/path/corp-ca.pem scripts/deploy/oaa-deploy.sh build` (`podman build --secret id=oaa_build_ca,src=…,type=file`). It is never written to a layer or the image history; never pass a CA as a `--build-arg`.
+- **Running backend**: mount the CA read-only and set **`SSL_CERT_FILE`** (oc-mirror, oc, Architect's verified catalog downloads) and **`NODE_EXTRA_CA_CERTS`** (Node requests) to it.
 
 **Quick troubleshooting:**
 
@@ -283,7 +402,8 @@ Lowercase `http_proxy` / `https_proxy` / `no_proxy` are also honored by common s
 | Tools → About update check errors | Optional **GitHub** API access; set `CHECK_UPDATES=false` to disable (see [Build info and update checks](#build-info-and-update-checks)). |
 | Operator scan or Run oc-mirror fails with registry timeouts | **Proxy** or **firewall** to `registry.redhat.io` / `quay.io` (and other image hosts in your `imageset-config.yaml`); confirm **`REGISTRY_AUTH_FILE`** is set for auth (separate from HTTP proxy). |
 | AWS GovCloud region list empty or errors | Backend needs **`mirror.openshift.com`** for the `openshift-install` tarball used to read stream metadata. |
-| **`docker compose build` / `podman build` fails** downloading oc or oc-mirror | **Build-time** egress: set proxy on the **build host** or pass build proxy settings; or use **`OCP_CLIENT_URL`** / **`OCP_MIRROR_URL`** to internal tarball URLs. |
+| **`docker compose build` / `podman build` fails** downloading oc or oc-mirror | **Build-time** egress: set proxy on the **build host** or pass build proxy settings; or use **`OCP_CLIENT_URL`** / **`OCP_MIRROR_URL`** to internal tarball URLs. **`curl: (60)` / `SSL certificate problem`** there is a trust problem, not egress: pass the proxy CA as `OAA_BUILD_CA` (see TLS interception). |
+| **`writing blob: … unexpected EOF`** pulling a UBI base image | A proxy or firewall dropped a Quay **CDN** transfer: allow `cdn.quay.io` and `cdn01.quay.io` … `cdn06.quay.io`. Not a credentials or tag problem; the deploy script retries it a bounded number of times. |
 | **`npm ci` fails inside backend image build** | Allow **`registry.npmjs.org`** (or npm mirror) from the build environment through the proxy. |
 | Feedback “open GitHub” does nothing or errors in the browser | **Browser** cannot reach **`github.com`**; fix workstation proxy/allowlist or use **`FEEDBACK_MODE=offline`** / copy-export workflow. |
 
@@ -295,6 +415,9 @@ Lowercase `http_proxy` / `https_proxy` / `no_proxy` are also honored by common s
 | | `mirror.openshift.com` | **Image build** (`Containerfile` `curl`) and **runtime** client downloads (`openshift-install`, optional `oc-mirror` resolution / export). |
 | | `docs.redhat.com` | **Update Docs Links** (field manual doc cache). |
 | | `registry.npmjs.org` | **Image build** only: `npm ci` for backend (and frontend) dependencies in Containerfiles. |
+| | `registry.access.redhat.com`, `cdn.quay.io`, `cdn01.quay.io` … `cdn06.quay.io` | **Build host**: UBI base images; their layers are served by Quay's CDN (Red Hat article 7084334). |
+| | `cdn-ubi.redhat.com` | **Image build**: `dnf` / `microdnf` package installs in the Containerfiles. |
+| | `nodejs.org`, `github.com` | **Image build** (backend): contacted while the native SQLite module installs (Node headers, prebuilt-binary attempt). |
 | **Browser (Feedback, github mode)** | `github.com` (and related GitHub hosts) | User opens pre-filled issue link from Tools → Feedback; not a backend `fetch`. |
 | **2 — Representative registries** (not exhaustive) | `registry.redhat.io`, `quay.io`, `registry.access.redhat.com`, `registry.connect.redhat.com`, `cloud.openshift.com` | Operator catalog scan (`oc-mirror list operators`), typical connected **Run oc-mirror** pulls; align with your pull secret and official mirror docs. |
 
@@ -559,6 +682,47 @@ Before updating, open **Tools → Export Run** and save your configuration JSON;
 
 Update checks compare the installed application version with the newest published GitHub Release and do **not** require `APP_GIT_SHA` (see [Build info and update checks](#build-info-and-update-checks)).
 
+<a id="mirroring-workflow"></a>
+## Mirroring workflow
+
+> **Full guide:** [Mirroring user guide](docs/MIRRORING_WORKFLOW.md#part-a--user-guide) in
+> [`docs/MIRRORING_WORKFLOW.md`](docs/MIRRORING_WORKFLOW.md) — content, credentials, the three workflows, transfer
+> integrity, the oc-mirror build check and current limits. Mirroring is new in v2.2.0, which is in pre-release testing.
+
+**Mirroring** (landing page → **Open Mirroring**) plans and runs oc-mirror v2 without an install. It is
+independent of Install: its own profiles, its own OpenShift release per profile, its own storage and history.
+A profile can hold any combination of **OpenShift platform** content (one 4.20, 4.21 or 4.22 release),
+**Operators** (Red Hat, Certified and Community catalogs) and **Additional images**. Unsupported versions are
+refused, never replaced.
+
+| Workflow | Where it runs | What it does |
+|---|---|---|
+| Mirror to disk → **Prepare transfer** | Connected side | Downloads the images into archive files, then adds checksums (`SHA256SUMS`), the exact configuration and its provenance (`oaa-transfer/`) |
+| **Receive transfer** → Disk to mirror | Disconnected side | Verifies every copied file, then uploads the verified archives into your registry with the received configuration, byte for byte |
+| Mirror to mirror | One machine that reaches both sides | Copies straight from the sources into your registry |
+
+Quick start:
+
+1. **New profile** → name it and choose the content.
+2. **Platform**: choose the channel and patch, **Lock release**.
+3. **Operators**: **Scan catalogs** for the minor (Red Hat pull secret), add operators or a Scenario Quick Pick,
+   **Check catalogs**.
+4. **Additional images**: add image references.
+5. **Show YAML**: DRAFT while items remain to fix; the validated ImageSetConfiguration once ready.
+6. **Run & transfers**: choose the workflow, enter the credentials it needs (used for that run only, never
+   stored), **Run preflight**, run. Follow it in **Operations**.
+7. Disconnected site: **Prepare transfer**, copy the archives with `SHA256SUMS` and `oaa-transfer/`, then
+   **Receive transfer…** and **Disk to mirror** on the disconnected side.
+
+On receipt, the disconnected side compares its own oc-mirror with the build that made the archives (same bytes
+or a different build; never blocking, and not a FIPS or suitability statement). v2.2.0 does not carry oc-mirror
+or oc inside a transfer.
+
+Full guide, including credentials, storage, integrity checks, transfer order and current limits:
+[docs/MIRRORING_WORKFLOW.md — Part A](docs/MIRRORING_WORKFLOW.md#part-a--user-guide).
+Screenshots: [Mirroring](#screenshots-mirroring). Storage for large mirrors:
+[Mirroring storage on its own volume](#mirroring-storage-volume).
+
 <a id="generating-assets"></a>
 ## Generating assets
 
@@ -611,7 +775,7 @@ See `HIGH_SIDE_STARTUP_GUIDE.md` in the runtime package for complete instruction
 <a id="operator-workflows"></a>
 ## Operator workflows
 
-- **Operator scan** uses `oc-mirror list operators` and requires valid **registry.redhat.io** credentials.
+- **Operator scan** downloads each catalog over verified TLS (the pull secret is used only for that download) and lists the local copy with `oc-mirror list operators`; it requires valid **registry.redhat.io** credentials. A registry certificate that cannot be verified fails the scan; trust a corporate CA with `SSL_CERT_FILE` / `SSL_CERT_DIR` or `/etc/containers/certs.d/<host>/ca.crt`.
 - **Recommended:** Mount an auth file into the backend and set `REGISTRY_AUTH_FILE`:
 
   ```bash
@@ -725,14 +889,15 @@ mkdir -p /mnt/fast-ssd/oc-mirror/cache
 
 #### Rebuild and restart after adding the override
 
-**Podman** (explicit `-f` for reliable override consumption on RHEL 9/10):
+**Podman** (both files passed explicitly — reliable on RHEL 9/10):
 ```bash
-podman compose -f docker-compose.yml -f compose.override.yml down --remove-orphans && podman image prune -f && podman compose -f docker-compose.yml -f compose.override.yml up --build -d
+OAA_COMPOSE_FILES=docker-compose.yml:compose.override.yml scripts/deploy/oaa-deploy.sh up --recreate && scripts/deploy/oaa-deploy.sh verify
 ```
+(Add `scripts/deploy/oaa-deploy.sh build &&` in front when the images must be rebuilt as well.)
 
 **Docker:**
 ```bash
-docker compose down --remove-orphans && docker image prune -f && docker compose up --build -d
+docker compose up -d
 ```
 
 The named `backend-data` volume (app state, SQLite database) is **preserved** — only the `oc-mirror` paths are now served from your external mount.
@@ -797,7 +962,7 @@ If you see `EACCES: permission denied` in the Browse directory modal or in oc-mi
 1. Check that your `compose.override.yml` includes `:Z` on every volume mount.
 2. Check that the host directory is owned by your user: `ls -la /path/to/large-drive/`
 3. If both look correct, check SELinux context: `ls -laZ /path/to/large-drive/oc-mirror` — it should include `container_file_t` or similar after a `:Z`-mounted start.
-4. Rebuild after any change: `podman compose down --remove-orphans && podman compose up --build -d`
+4. Restart after any change: `OAA_COMPOSE_FILES=docker-compose.yml:compose.override.yml scripts/deploy/oaa-deploy.sh up --recreate` (no rebuild is needed for mount changes)
 
 ### Mounting a Red Hat pull secret for oc-mirror (persistent, no paste required)
 
@@ -814,7 +979,7 @@ services:
       - /path/to/large-drive/oc-mirror:/data/oc-mirror:Z
 ```
 
-`REGISTRY_AUTH_FILE` is intentionally NOT set in `docker-compose.yml`. The backend reads `REGISTRY_AUTH_FILE` from its own environment to locate the auth JSON, then passes credentials to oc-mirror via `--authfile=<path>` — the env var itself is stripped from the child oc-mirror process because oc-mirror v2's embedded cache registry (distribution/distribution v3) interprets `REGISTRY_*` env vars as registry config keys, causing a goroutine panic at startup (`registry/handlers/app.go NewApp`). Set `REGISTRY_AUTH_FILE` only in a `compose.override.yml` alongside the file mount. A mounted `REGISTRY_AUTH_FILE` is used by both the Operators scan and the Run oc-mirror tab, so you do not need to retain a pull secret from Blueprint for those operations. (`REGISTRY_AUTH_FILE` and the mounted *pull secret* described under [Mounted Red Hat pull secret](#mounted-red-hat-pull-secret) are separate mechanisms: operator scans read only the former.)
+`REGISTRY_AUTH_FILE` is intentionally NOT set in `docker-compose.yml`. The backend reads `REGISTRY_AUTH_FILE` from its own environment to locate the auth JSON, then uses those credentials for the runs that need them (`--authfile=<path>` for mirror runs; the Operators scan uses them only for its own verified catalog download) — the env var itself is stripped from the child oc-mirror process because oc-mirror v2's embedded cache registry (distribution/distribution v3) interprets `REGISTRY_*` env vars as registry config keys, causing a goroutine panic at startup (`registry/handlers/app.go NewApp`). Set `REGISTRY_AUTH_FILE` only in a `compose.override.yml` alongside the file mount. A mounted `REGISTRY_AUTH_FILE` is used by both the Operators scan and the Run oc-mirror tab, so you do not need to retain a pull secret from Blueprint for those operations. (`REGISTRY_AUTH_FILE` and the mounted *pull secret* described under [Mounted Red Hat pull secret](#mounted-red-hat-pull-secret) are separate mechanisms: operator scans read only the former.)
 
 Alternatively, on the Blueprint step tick **"Retain pull secret for use on subsequent pages"** after entering your Red Hat pull secret. The session-retained secret is then available as a one-click option in the Run oc-mirror Authentication section for the mirror-to-disk and mirror-to-mirror workflows.
 
@@ -1123,11 +1288,13 @@ The **Tools → About** panel shows build info (version, revision when supplied,
   - Confirm runtime first: use `podman compose up --build` (preferred) and verify `podman info` reports the expected graph root and overlay driver.
   - Treat SELinux as a separate control: if the same failure reproduces in permissive mode, SELinux is likely not the root cause for this specific error pattern.
   - Check hardened controls/agents (Trellix/McAfee or similar) and allowlist Podman/Buildah + `/var/lib/containers` paths; this is a frequent root cause of `quotactl(...)=EACCES` on hardened RHEL.
-  - If policy cannot be changed quickly, move container storage to a filesystem/profile that does not block Podman quota operations (or remove the blocking project-quota policy on the storage path), then run `podman system reset -f` and rebuild.
+  - If policy cannot be changed quickly, move container storage to a filesystem/profile that does not block Podman quota operations (or remove the blocking project-quota policy on the storage path) and rebuild. Do **not** use `podman system reset` for this: it deletes every image, container and volume of that user (all projects) and can disrupt the rootless network of running containers. To start from an empty store, point Podman at a new `graphroot` instead and remove the old one only after the new deployment works.
   - `quotacheck` is not the right validation tool for XFS project quotas in this scenario; use `mount`, `xfs_quota`, `podman info`, and `strace` evidence instead.
 - **"Blocked request. This host ("…") is not allowed"** — You are running the Vite dev server (e.g. in a container or locally) and opening the app using a hostname that Vite does not allow by default (for example an OpenShift Route hostname like `airgap-architect.cjmays.com`). Set the environment variable **`VITE_ALLOWED_HOSTS`** to that hostname so the dev server accepts the request. Example: `VITE_ALLOWED_HOSTS=airgap-architect.cjmays.com`. For multiple hostnames, use a comma-separated list with no spaces. See [Running behind a reverse proxy or OpenShift Route](#running-behind-a-reverse-proxy-or-openshift-route) for where to set it (Compose, OpenShift, Kubernetes, or local dev) and how to confirm the correct hostname.
 - **"additional properties 'platform' not allowed"** — You're using the Python **`docker-compose`** with an old schema. Prefer **`podman compose`** so Podman doesn't delegate to `/usr/local/bin/docker-compose`; see [Quick start](#quick-start-container). On macOS, see also the compose-provider workaround in `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md` or CONTRIBUTING.
-- **"no such image" or "image not known" after build (Podman)** — Use **`podman compose`** for the whole workflow. If it still happens, try a clean rebuild: `podman compose down`, `podman rmi localhost/openshift-airgap-architect-backend:latest` (if it exists), then `podman compose up --build`.
+- **"no such image" or "image not known" after build (Podman)** — With podman-compose 1.0.6 this usually means the **build failed** and compose went on to run an image that was never built. Build with `scripts/deploy/oaa-deploy.sh build`, which stops at the first failed build and says why, then `up`.
+- **`unable to start unit "runc-buildah-….scope"` (build) or `"libpod-….scope"` (container start): Interactive authentication required** — rootless Podman without a usable systemd user session (`su` / `sudo -i`). Log in as that user directly (or have an administrator enable lingering). `podman --cgroup-manager=cgroupfs compose …` does **not** help: the option is not passed to the compose provider's own `podman` calls. A temporary, verified alternative is `scripts/deploy/oaa-deploy.sh write-cgroupfs-override ~/oaa-cgroupfs.conf`, `export CONTAINERS_CONF_OVERRIDE=~/oaa-cgroupfs.conf`, check `podman info --format '{{.Host.CgroupManager}}'` prints `cgroupfs`, then `up --recreate`. `scripts/deploy/oaa-deploy.sh preflight` blocks on this before building or starting; see [docs/ENTERPRISE_PODMAN_DEPLOYMENT.md](docs/ENTERPRISE_PODMAN_DEPLOYMENT.md#5-systemd-cgroups-sessions-and-rootless-networking).
+- **Containers show `Up` but the UI or API does not answer** — rootless port forwarding can fail while the container runs; `scripts/deploy/oaa-deploy.sh verify` checks the published ports over HTTP and prints the container logs.
 - **Port already in use** — Change `PORT` (backend) or the host port in `docker-compose.yml` (e.g. 4001:4000, 5174:5173).
 - **Operator scan fails** — Ensure registry.redhat.io credentials are valid and mounted (or pasted in UI for that session). If the job fails with a message about the binary not running, the backend runtime architecture may not have a usable oc-mirror (e.g. Apple Silicon: use native aarch64 binary or set **OC_MIRROR_BIN** / **OC_MIRROR_URL**). See **Platform and architecture** above and `docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`.
 - **oc-mirror run fails with auth error** — Ensure the correct credentials are provided for the selected workflow. Mirror-to-disk needs a Red Hat pull secret (registry.redhat.io / quay.io); disk-to-mirror needs mirror registry credentials; mirror-to-mirror needs both. If using `REGISTRY_AUTH_FILE`, verify the file is mounted and accessible inside the container.
@@ -1141,79 +1308,145 @@ The **Tools → About** panel shows build info (version, revision when supplied,
 <a id="screenshots"></a>
 ## Screenshots
 
-The wizard walks through Blueprint → Methodology → scenario-specific steps → Operators (optional) → Assets & Guide. Below are key screens in order.
+Captured from the running application (v2.2.0 development build, light theme, 1440 px wide). All names,
+addresses and credentials shown are synthetic examples.
 
-**Landing — Choose workflow.** Install (net-new disconnected), Upgrade (coming soon), or Operator mirroring (coming soon).
+### Install
 
-![Landing page: Install, Upgrade, Operator mirroring cards](docs/images/landing.png?v=2)
+The wizard walks through Blueprint → Methodology → scenario-specific steps → Operators (optional) → Assets & Guide.
 
-**Blueprint — Foundational choices.** Target platform, CPU architecture, OpenShift release (channel + patch), and Red Hat pull secret. Tick "Retain pull secret for use on subsequent pages" to make it available for operator scan and Run oc-mirror without re-pasting.
+**Landing — Choose workflow.** Install (net-new disconnected install), Mirroring (oc-mirror content without an install), and Upgrade (coming soon).
 
-![Blueprint: platform, architecture, release, pull secret](docs/images/blueprint.png?v=2)
+![Landing page with the Install, Upgrade (coming soon) and Mirroring cards](docs/images/v2.2.0/landing.png)
 
-**Methodology — Scenario summary and installer type.** After lock-in, the scenario summary shows what will be generated; you pick IPI, UPI, or Agent-Based Installer.
+**Blueprint — Foundational choices.** Target platform, CPU architecture, OpenShift release (channel and patch, 4.20–4.22 only; a newer upstream release such as 5.0 is named and refused), and an optional Red Hat pull secret. After you paste one, "Retain pull secret for use on subsequent pages" keeps it in memory for operator scans and Run oc-mirror without re-pasting.
 
-![Methodology: scenario summary and installation type](docs/images/methodology.png)
+![Blueprint step: Bare Metal, x86_64, stable-4.22 / 4.22.20 selected, the unsupported 5.0 notice and the pull secret field](docs/images/v2.2.0/blueprint.png)
 
-**Identity & Access — Cluster identity and credentials.** Base domain, cluster name, mirror registry pull secret (paste/upload or generate via helper), SSH key (paste or generate keypair), and FIPS mode. Credentials are not stored by default.
+**Methodology — Installer type.** IPI, UPI or Agent-Based Installer, limited to what the platform supports. The scenario summary above every step expands to show what will be generated.
 
-![Identity & Access: cluster identity, pull secret, SSH key, FIPS](docs/images/identity-access.png)
+![Methodology step with Agent-Based Installer selected](docs/images/v2.2.0/methodology.png)
 
-**Mirror registry pull secret helper.** Generates pull secret JSON locally from registry FQDN and credentials; not stored or exported.
+**Identity & Access — Cluster identity and credentials.** Cluster name and base domain, the mirror registry pull secret (paste, upload or "Help me generate"; anonymous pulls are also possible), SSH public key (paste or generate), and FIPS mode. Credentials are not stored.
 
-![Mirror registry pull secret helper](docs/images/mirror-secret-helper.png)
+![Identity & Access step with a mirror registry enabled, a masked pull secret and an example SSH public key](docs/images/v2.2.0/identity-access.png)
 
-**SSH keypair helper.** Generate a keypair locally; the app reminds you to save the private key — it is not stored.
+**Mirror registry pull secret helper.** Builds the pull secret JSON in the browser from the registry address, user name and password; not stored or exported.
 
-![Generate SSH keypair helper](docs/images/ssh-keypair-helper.png)
+![Mirror registry pull secret helper with example values and the generated JSON](docs/images/v2.2.0/mirror-secret-helper.png)
 
-**Networking — Machine, cluster, and service CIDRs.** IPv4 by default; enable IPv6 for dual-stack and optional cluster/service IPv6 fields.
+**SSH keypair helper.** Generates a keypair; the private key must be saved immediately because it is not stored.
 
-![Networking: IPv4 only](docs/images/networking-ipv4.png)
+![Generate SSH keypair dialog before generating: key type and the save-now warning](docs/images/v2.2.0/ssh-keypair-helper.png)
 
-![Networking: dual-stack with IPv6](docs/images/networking-dualstack.png)
+**Networking — Machine, cluster and service networks.** IPv4, IPv6 or dual-stack; API and Ingress VIPs for bare metal.
 
-**Connectivity & Mirroring — Local registry and NTP.** Mirror mapping (source → mirror paths) and NTP servers for install-config and agent-config.
+![Networking step, IPv4 only, with API and Ingress VIPs](docs/images/v2.2.0/networking-ipv4.png)
 
-![Connectivity & Mirroring: mirror paths and NTP](docs/images/connectivity-mirroring.png)
+![Networking step, dual-stack, with IPv6 networks and VIPs](docs/images/v2.2.0/networking-dualstack.png)
 
-**Trust & Proxy — Corporate proxy and CA bundles.** Optional proxy (HTTP/HTTPS/noProxy); mirror and proxy CA bundles; trust bundle policy (Proxyonly / Always).
+**Connectivity & Mirroring — Mirror mapping and NTP.** With a mirror registry: the local registry, source → mirror paths (pre-filled for the release repositories), and NTP servers for install-config and agent-config.
 
-![Trust & Proxy: proxy and CA bundles](docs/images/trust-proxy.png)
+![Connectivity & Mirroring step with mirror paths for mirror.example.com:8443 and two NTP servers](docs/images/v2.2.0/connectivity-mirroring.png)
 
-**Platform Specifics — Advanced options.** Boot artifact URI, hyperthreading, capabilities, CPU partitioning, minimal ISO, and other scenario-specific options.
+**Trust & Proxy — Corporate proxy and CA bundles.** HTTP/HTTPS proxy and no-proxy list, mirror and proxy CA bundles, trust bundle policy (Proxyonly / Always) and a trust analysis.
 
-![Platform Specifics: advanced options](docs/images/platform-specifics.png)
+![Trust & Proxy step with the proxy enabled and the CA bundle fields](docs/images/v2.2.0/trust-proxy.png)
 
-**Platform Specifics — vSphere IPI.** The step changes by scenario; for vSphere IPI it shows vCenter server, datacenter, datastore, optional compute cluster and VM network, failure domains, and credentials.
+**Platform Specifics.** Changes by scenario: for Bare Metal Agent it holds the optional day-2 bare metal fields and the BMC CA certificate; for vSphere IPI the vCenter credentials, failure domains (datacenter, compute cluster, datastore, networks), storage and machine counts.
 
-![Platform Specifics: vSphere IPI](docs/images/platform-specifics-vsphere-ipi.png)
+![Platform Specifics for Bare Metal Agent-Based](docs/images/v2.2.0/platform-specifics.png)
 
-**Hosts / Inventory — Bare metal nodes (Agent-Based).** Instructions to gather host info (interfaces, disks), then set node counts and edit each host (role, root device, network, bond/VLAN). You can apply settings from one node to others.
+![Platform Specifics for vSphere IPI with a failure domain](docs/images/v2.2.0/platform-specifics-vsphere-ipi.png)
 
-![Hosts: how to gather host info](docs/images/hosts-instructions.png)
+**Hosts / Inventory — Nodes (Agent-Based).** Commands to gather interface and disk facts from each machine, then node counts and a grid where each node opens in an editor (role, hostname, root device hints, network). Settings can be applied from one node to others.
 
-![Hosts: node grid and edit panel](docs/images/hosts-grid-edit.png)
+![Hosts step: how to gather host information](docs/images/v2.2.0/hosts-instructions.png)
 
-![Apply settings to other nodes](docs/images/hosts-apply-settings-modal.png)
+![Hosts step: node grid with master-0 open in the node editor](docs/images/v2.2.0/hosts-grid-edit.png)
 
-**Operators — Catalog strategy and discovery.** Scenario Quick Picks (e.g. Virtualization, GitOps), selected operators, and available catalogs. Enable discovery and run Scan / Update Operators to populate from registry.redhat.io.
+![Apply settings to other nodes dialog](docs/images/v2.2.0/hosts-apply-settings-modal.png)
 
-![Operators: quick picks and selected operators](docs/images/operators-quick-picks.png)
+**Operators — Catalog strategy.** Scenario Quick Picks (here Virtualization and Local Storage), the selected operators with their packages and default channels, and the Red Hat, Certified and Community catalogs to browse and search. Scanning the catalogs needs registry.redhat.io credentials; once scanned, the listing is kept on the server and reused, as here (a cached listing of the Red Hat 4.22 catalogs from an earlier lab scan; no credential entered).
 
-![Operators: discovery and scan](docs/images/operators-discovery.png)
+![Install Operators step: Virtualization and Local Storage Quick Picks applied, five selected operators and the Red Hat catalog](docs/images/v2.2.0/operators-install.png)
 
-**Assets & Guide — Export and previews.** Export options (credentials, certificates, oc/oc-mirror, openshift-install), architecture choice for bundle binaries, and previews of install-config.yaml, agent-config.yaml, imageset-config.yaml, and the Field Manual.
+**Assets & Guide — Export and previews.** Export options per credential class, then previews of install-config.yaml, agent-config.yaml, imageset-config.yaml and the Field Manual; Download Bundle.
 
-![Assets & Guide: export options and install-config preview](docs/images/assets-and-guide.png)
+![Assets & Guide: export options and the install-config.yaml preview](docs/images/v2.2.0/assets-and-guide.png)
 
-**imageset-config.yaml** (generated for mirroring): platform channel/version and operator packages/channels.
+**imageset-config.yaml** (generated for mirroring): platform channel and version range, architectures, update graph and operators.
 
-![imageset-config.yaml preview](docs/images/imageset-config-preview.png)
+![imageset-config.yaml preview for stable-4.22, 4.22.20](docs/images/v2.2.0/imageset-config-preview.png)
 
-**Tools menu.** Theme (light/dark mode toggle), Export Run / Import Run, Open Operations (background jobs), and Start Over.
+**Tools.** Home, light/dark theme, Export Run / Import Run (credentials excluded), Start Over and About.
 
-![Tools: theme, export/import, operations, start over](docs/images/tools-menu.png)
+![Tools drawer](docs/images/v2.2.0/tools-menu.png)
+
+<a id="screenshots-mirroring"></a>
+### Mirroring
+
+How to use it: [Mirroring workflow](#mirroring-workflow) and the user guide in [docs/MIRRORING_WORKFLOW.md](docs/MIRRORING_WORKFLOW.md#part-a--user-guide). The run and transfer records below come from a lab run of the exact oc-mirror 4.22.19 against synthetic registries, not from a customer environment.
+
+**Profiles and overview.** Each profile has its own content, OpenShift release, storage and history. The overview states what is included, the status in words and anything still to fix; the content tabs and Run & transfers sit below it.
+
+![Mirroring: profile list and the overview of "Edge site — OpenShift 4.22" with the Platform tab](docs/images/v2.2.0/mirroring-overview.png)
+
+**Platform — release and lock.** The same release selector as Install, per profile. Lock holds the release steady while you build the rest of the profile.
+
+![Mirroring Platform tab with release 4.22.20 locked](docs/images/v2.2.0/mirroring-platform.png)
+
+**Operators — catalogs, Quick Picks, selection.** Catalog discovery (scan once per minor), the shared Scenario Quick Picks, the catalog browser with search, and the Selected list with each operator's live catalog check status.
+
+![Mirroring Operators tab: Virtualization and Local Storage Quick Picks applied, the Red Hat catalog and five selected operators](docs/images/v2.2.0/mirroring-operators.png)
+
+**Additional images.** Any image references, one per row or several at once.
+
+![Mirroring Additional images tab with two images](docs/images/v2.2.0/mirroring-additional-images.png)
+
+**Show YAML — DRAFT and validated preview.** While a profile still has items to fix (here: the release is not locked yet), the drawer shows a DRAFT of the ImageSetConfiguration with the blockers and a Go to button; it cannot be downloaded. Once the profile is ready, the validated file is shown, checked against the oc-mirror v2 schema and the scanned catalogs, and Download saves exactly that file.
+
+![YAML drawer showing a DRAFT ImageSetConfiguration and the blocker "Lock the selected OpenShift release"](docs/images/v2.2.0/mirroring-imageset-draft.png)
+
+![YAML drawer showing the validated ImageSetConfiguration for release 4.22.20 with Download](docs/images/v2.2.0/mirroring-imageset-preview.png)
+
+**Run & transfers — choose the workflow.** Mirror to disk → Prepare transfer → carry across → Receive transfer → Disk to mirror, or Mirror to mirror; the five steps show where the profile is.
+
+![Workflow chooser with the five transfer steps and Mirror to mirror selected](docs/images/v2.2.0/mirroring-workflow-chooser.png)
+
+**Credentials and destination.** The Red Hat pull secret for the source, the destination registry, and destination credentials (or anonymous access). Credentials are used for this run only and never stored.
+
+![Credentials and destination card: empty pull secret, destination mirror.example.com:8443/ocp4, masked destination credentials](docs/images/v2.2.0/mirroring-run-destination.png)
+
+![Help me generate for destination registry credentials](docs/images/v2.2.0/mirroring-registry-credential-helper.png)
+
+**Preflight and run.** Preflight first; the run starts only when nothing blocks it.
+
+![Preflight and run card for mirror to mirror](docs/images/v2.2.0/mirroring-run-preflight.png)
+
+**Prepare the transfer (connected side).** After a mirror to disk: checksums, the exact configuration and provenance written next to the archives.
+
+![Prepare the transfer card showing a ready transfer](docs/images/v2.2.0/mirroring-prepare-transfer.png)
+
+**Operations.** Every run, transfer, receipt and catalog check, newest first. Selecting one shows its outcome, the oc-mirror build that ran, the plan and configuration checksums, archive files with sizes and SHA-256, the command (credentials file never shown), related operations and the output; the log can be downloaded. Shown here: the lab mirror to disk behind the transfer above.
+
+![Mirroring Operations with a completed mirror to disk selected: details, archive checksum, command and oc-mirror output](docs/images/v2.2.0/mirroring-operations.png)
+
+**Receive transfer (disconnected side).** Name the folder the files were copied to; every file is checked before anything is loaded.
+
+![Receive a transfer dialog](docs/images/v2.2.0/mirroring-receive-transfer.png)
+
+**Received profile and disk to mirror.** The received profile is read-only; the received transfers list shows what was verified and how this server's oc-mirror compares with the build that made the archives ("same executable … not a FIPS or suitability statement").
+
+![Disconnected side: the received profile with disk to mirror as the next step](docs/images/v2.2.0/mirroring-disconnected-overview.png)
+
+![Received transfers card: verified plan and the oc-mirror build comparison](docs/images/v2.2.0/mirroring-received-transfers.png)
+
+![Preflight and run card for disk to mirror](docs/images/v2.2.0/mirroring-disk-to-mirror-run.png)
+
+**Dark theme.**
+
+![Mirroring overview in the dark theme](docs/images/v2.2.0/mirroring-overview-dark.png)
 
 <a id="architecture"></a>
 ## Architecture
@@ -1222,10 +1455,19 @@ The wizard walks through Blueprint → Methodology → scenario-specific steps �
 - **Backend:** Node.js, Express, SQLite (state and job history). Container image: Red Hat UBI 9 Node.js 22; runs as non-root (UID 1001) via entrypoint that chowns the data volume then drops to `appuser`; build-info stage uses UBI 9 minimal. `oc` and `oc-mirror` are resolved at build time from their respective Red Hat channels — no z-stream is hardcoded — and each is verified against that channel's own `sha256sum.txt` for the build architecture. See [Tool version policy](#platform-and-architecture-multi-arch--apple-silicon).
 - **Data:** Parameter catalogs and doc index under `data/params` and `data/docs-index`; frontend copies under `frontend/src/data` for the build. See `docs/DATA_AND_FRONTEND_COPIES.md`.
 
+<a id="install-config-references-420421422"></a>
 <a id="install-config-references-420421"></a>
 ## Install-config references (4.20/4.21/4.22)
 
 Use these official docs to validate `install-config.yaml` for supported platforms:
+
+**OpenShift 4.22:**
+
+- [AWS GovCloud](https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_aws/installation-config-parameters-aws)
+- [Azure Government](https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_azure/installation-config-parameters-azure)
+- [VMware vSphere](https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_vmware_vsphere/installation-config-parameters-vsphere)
+- [Nutanix](https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_nutanix/installation-config-parameters-nutanix)
+- [Agent-based Installer](https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent)
 
 **OpenShift 4.21:**
 

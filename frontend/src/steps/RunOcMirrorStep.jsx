@@ -22,6 +22,8 @@ import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
 import SecretInput from "../components/SecretInput.jsx";
 import RunConfirmationModal from "../components/RunConfirmationModal.jsx";
+import OcMirrorParallelismFields from "../components/OcMirrorParallelismFields.jsx";
+import PreflightChecklist from "../components/PreflightChecklist.jsx";
 
 const DEFAULT_ARCHIVE_PATH = "/data/oc-mirror/archives";
 const DEFAULT_WORKSPACE_PATH = "/data/oc-mirror/workspace";
@@ -111,8 +113,6 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
   const [localWorkspacePath, setLocalWorkspacePath] = React.useState(workspacePath);
   const [localCachePath, setLocalCachePath] = React.useState(cachePath);
   const [localRegistryUrl, setLocalRegistryUrl] = React.useState(registryUrl);
-  const [localParallelImages, setLocalParallelImages] = React.useState(String(parallelImages));
-  const [localParallelLayers, setLocalParallelLayers] = React.useState(String(parallelLayers));
   const [localImageTimeout, setLocalImageTimeout] = React.useState(imageTimeout);
   const [localRetryTimes, setLocalRetryTimes] = React.useState(String(retryTimes));
   const [localRetryDelay, setLocalRetryDelay] = React.useState(retryDelay);
@@ -138,8 +138,6 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
   useEffect(() => { setLocalWorkspacePath(workspacePath); }, [workspacePath]);
   useEffect(() => { setLocalCachePath(cachePath); }, [cachePath]);
   useEffect(() => { setLocalRegistryUrl(registryUrl); }, [registryUrl]);
-  useEffect(() => { setLocalParallelImages(String(parallelImages)); }, [parallelImages]);
-  useEffect(() => { setLocalParallelLayers(String(parallelLayers)); }, [parallelLayers]);
   useEffect(() => { setLocalImageTimeout(imageTimeout); }, [imageTimeout]);
   useEffect(() => { setLocalRetryTimes(String(retryTimes)); }, [retryTimes]);
   useEffect(() => { setLocalRetryDelay(retryDelay); }, [retryDelay]);
@@ -288,7 +286,7 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
         mode,
         archivePath: mode !== "mirrorToMirror" ? archivePath : undefined,
         workspacePath: mode === "mirrorToMirror" ? workspacePath : undefined,
-        cachePath: mode !== "mirrorToMirror" ? cachePath : undefined,
+        cachePath: cachePath || undefined,
         registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
         configSourceType,
         configPath: configSourceType === "external" ? configPath : undefined,
@@ -399,7 +397,7 @@ export default function RunOcMirrorStep({ onNavigateToOperations } = {}) {
       dryRun,
       archivePath: mode !== "mirrorToMirror" ? archivePath : undefined,
       workspacePath: mode === "mirrorToMirror" ? workspacePath : undefined,
-      cachePath: mode !== "mirrorToMirror" ? cachePath : undefined,
+      cachePath: cachePath || undefined,
       registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
       configSourceType,
       configPath: configSourceType === "external" ? configPath : undefined,
@@ -643,7 +641,7 @@ Opens a file browser showing files in /data - easier than typing paths manually.
               <span>
                 {mode === "mirrorToDisk" && "Archive = destination for tar archives. Cache speeds up subsequent incremental runs. No workspace needed — the archive path serves that role."}
                 {mode === "diskToMirror" && "Archive = source from a previous mirror-to-disk run. Cache is optional. Cluster-resources output is written inside the archive directory."}
-                {mode === "mirrorToMirror" && "Workspace is required (cluster-resources output). No archive or cache needed."}
+                {mode === "mirrorToMirror" && "Workspace is required (incremental history and cluster-resources output). No archive. The cache is used too, so later runs copy only what is new."}
               </span>
               <button
                 type="button"
@@ -802,7 +800,7 @@ Do not delete the workspace between mirror runs if you want incremental mirrorin
                 {renderFieldError("workspacePath")}
               </div>
             )}
-            {mode !== "mirrorToMirror" && (
+            {(
               <div>
                 <FieldLabelWithInfo
                   label="Cache directory"
@@ -820,8 +818,8 @@ Without cache, every mirror run downloads all layers from scratch - wasteful for
 **Safe to delete:**
 If you delete the cache directory, oc-mirror automatically recreates it on the next run. You'll lose the speed benefit for that run, but no data loss. Deleting cache is useful if you're low on disk space and willing to re-download layers.
 
-**Not used in mirror-to-mirror mode:**
-In mirror-to-mirror, oc-mirror pulls directly from source registry and pushes to destination registry without creating tar archives, so there's no layer caching step.
+**Used in every mode, mirror to mirror included:**
+oc-mirror keeps its local cache for all three workflows (verified against the shipped oc-mirror). Without a cache directory, mirror to mirror falls back to $HOME/.oc-mirror/.cache inside the container, which every run without a cache path shares and which is lost with the container.
 
 **Example:**
 /data/cache (grows to 10-50GB+ over time)`}
@@ -1336,74 +1334,12 @@ oc-mirror uses these credentials to authenticate when pushing mirrored images to
           <div className="ocmirror-advanced-options" style={{ marginTop: 16 }}>
             <h4 style={{ marginTop: 0, marginBottom: 12, fontSize: "0.9375rem", fontWeight: 600 }}>Performance & Parallelization</h4>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem", marginBottom: 20 }}>
-              <FieldLabelWithInfo
-                label="Parallel images"
-                hint={`Maximum number of container images to download/mirror simultaneously (1-32).
-
-**Default:**
-4 concurrent images
-
-**Why it matters:**
-Higher values speed up mirroring but consume more network bandwidth, memory, and registry connections
-
-**When to increase:**
-For fast networks (10Gbps+) with powerful systems, you can increase to 8-16
-
-**When to decrease:**
-For slow/unstable connections or limited bandwidth, reduce to 2-4
-
-**Resource usage:**
-Each concurrent image can use 100-500MB of RAM, so monitor memory usage on large mirrors
-
-**Troubleshooting:**
-If you see out-of-memory errors or registry throttling, reduce this value
-
-**Example:**
-Set to 8 for fast networks, 2 for slow connections`}
-              >
-                <input
-                  type="number"
-                  min={1}
-                  max={32}
-                  value={localParallelImages}
-                  onChange={(e) => setLocalParallelImages(e.target.value)}
-                  onBlur={(e) => updateMirrorWorkflow({ parallelImages: Number(e.target.value) || 4 })}
-                />
-              </FieldLabelWithInfo>
-              <FieldLabelWithInfo
-                label="Parallel layers"
-                hint={`Maximum number of image layers to download concurrently (1-32).
-
-**Default:**
-5 concurrent layers
-
-**What are layers:**
-Layers are the individual filesystem chunks that make up container images
-
-**Why it matters:**
-Higher values can speed up mirroring for images with many layers, but also consume more network bandwidth and memory
-
-**Recommendation:**
-For most installations, the default (5) is sufficient. Only increase this if you have very fast networks (10Gbps+) AND you're mirroring images with many layers (20+ layers per image)
-
-**Risk:**
-Too high can cause memory exhaustion or registry throttling
-
-**Works with Parallel images:**
-Both settings affect overall mirror performance - tune them together
-
-**Example:**
-Set to 8 for very fast networks with large images, keep at 5 for most cases`}
-              >
-                <input
-                  type="number"
-                  min={1}
-                  max={32}
-                  value={localParallelLayers}
-                  onChange={(e) => setLocalParallelLayers(e.target.value)}
-                  onBlur={(e) => updateMirrorWorkflow({ parallelLayers: Number(e.target.value) || 5 })}
-                />
-              </FieldLabelWithInfo>
+              <OcMirrorParallelismFields
+                idPrefix="install-ocmirror"
+                values={{ parallelImages, parallelLayers }}
+                onCommit={(key, value) => updateMirrorWorkflow({ [key]: value })}
+                serverErrors={preflightResult?.fieldErrors || {}}
+              />
             </div>
 
             <h4 style={{ marginTop: 0, marginBottom: 12, fontSize: "0.9375rem", fontWeight: 600 }}>Timeouts & Retries</h4>
@@ -1539,31 +1475,29 @@ Set to 'debug' when troubleshooting mirror failures or connection issues`}
             {mode === "mirrorToDisk" && (
               <FieldLabelWithInfo
                 label="Since (incremental)"
-                hint={`Timestamp or digest for incremental mirroring - only mirror images published after this point. Optional.
-
-**What is this:**
-Useful for reducing mirror time and bandwidth when you've already mirrored a base set of images and only want to sync newer content
+                hint={`Mirror only content published on or after this date (mirror to disk only). Optional.
 
 **Format:**
-• ISO 8601 timestamp: '2024-01-15T10:00:00Z'
-• Image digest: 'sha256:abc123...'
+A date as yyyy-MM-dd, for example 2026-01-31. This is the only format oc-mirror accepts: timestamps such as 2026-01-31T10:00:00Z and image digests are refused with "--since flag needs to be in format yyyy-MM-dd".
 
-**Use case:**
-First mirror (full): Leave blank to mirror all images
-Subsequent mirrors (incremental): Set to timestamp/digest from previous mirror to only pull new/updated images
+**Default:**
+Empty: oc-mirror mirrors what is new since the previous mirror-to-disk run, using the history kept in the workspace.
+
+**When to set it:**
+To rebuild a smaller update archive from a known date, for example after an earlier archive was lost.
 
 **Important:**
-This only works in mirror-to-disk mode (not mirror-to-mirror). The 'since' value is saved in oc-mirror's metadata after each run, so you can reference it for the next incremental mirror. Incremental mirroring significantly reduces bandwidth and time for regular sync operations.
+⚠️ Content published before the date is left out of this archive even if the disconnected side never received it. The option applies only to mirror to disk.
 
 **Example:**
-'2024-06-01T00:00:00Z' to mirror only images published after June 1, 2024`}
+2026-06-01 to mirror only content published from 1 June 2026`}
               >
                 <input
                   type="text"
                   value={localSince}
                   onChange={(e) => setLocalSince(e.target.value)}
                   onBlur={(e) => updateMirrorWorkflow({ since: e.target.value })}
-                  placeholder=""
+                  placeholder="yyyy-MM-dd"
                 />
               </FieldLabelWithInfo>
             )}
@@ -1602,6 +1536,7 @@ This only works in mirror-to-disk mode (not mirror-to-mirror). The 'since' value
             {/* Preflight results */}
             {preflightResult ? (
               <div ref={preflightResultsRef}>
+                <PreflightChecklist items={preflightResult.items || []} ok={Boolean(preflightResult.ok)} />
                 {preflightResult.blockers?.length > 0 ? (
                   <div className="note warning" style={{ marginTop: "1rem" }}>
                     <strong>Preflight blockers:</strong>
@@ -1930,7 +1865,7 @@ This only works in mirror-to-disk mode (not mirror-to-mirror). The 'since' value
           dryRun,
           archivePath: mode !== "mirrorToMirror" ? archivePath : undefined,
           workspacePath: mode === "mirrorToMirror" ? workspacePath : undefined,
-          cachePath: mode !== "mirrorToMirror" ? cachePath : undefined,
+          cachePath: cachePath || undefined,
           registryUrl: mode !== "mirrorToDisk" ? registryUrl : undefined,
           configSourceType,
           advanced: {

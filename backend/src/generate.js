@@ -12,11 +12,11 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import yaml from "js-yaml";
-import { getTrustBundlePolicies, assertSupportedOpenShiftMinorForGeneration } from "./versionPolicy.js";
+import { getTrustBundlePolicies, assertSupportedOpenShiftMinorForGeneration, isSupportedMinor, buildUnsupportedVersionError } from "./versionPolicy.js";
 import { buildFieldGuide } from "./fieldGuide/index.js";
 import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
 import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
-import { isVersionGTE } from "../../shared/versionUtils.js";
+import { isVersionGTE, getMinorVersion } from "../../shared/versionUtils.js";
 import { validateBmcVerifyCA, MAX_BMC_VERIFY_CA_BYTES } from "../../shared/bmcVerifyCA.js";
 import { validateProvisioningNetworkGateway } from "../../shared/provisioningNetworkGateway.js";
 import { resolveArchitectureSupport, ARCHITECTURES } from "../../shared/archSupport.js";
@@ -2130,8 +2130,35 @@ const sortNodes = (nodes) => {
  * the target OpenShift minor. See docs/minor-release/4.22/DOC166_OC_MIRROR_V2_AUTHORITY.md.
  * oc-mirror decodes with `DisallowUnknownFields`, so any key not in that API is a
  * hard parse failure, not a tolerated extra.
+ *
+ * `options.content` (v2.2.0 Mirroring) selects which content groups to emit:
+ * `{ platform, operators, additionalImages }`. When it is absent the output is
+ * the Install workflow's combined configuration, byte-for-byte unchanged.
+ * With it:
+ * - platform content keeps the supported-minor and architecture guards;
+ * - operator content needs a supported catalog minor (`options.catalogMinor`,
+ *   or the platform minor when platform content is also selected) and fails
+ *   closed without one — the catalog minor is independent of the platform
+ *   release, so a mismatch between them is allowed here;
+ * - additional-images-only content needs no OpenShift version, and none is
+ *   invented for it.
  */
-const buildImageSetConfig = (state) => {
+const assertSupportedCatalogMinor = (minor) => {
+  let parsed = null;
+  try { parsed = typeof minor === "string" ? getMinorVersion(minor) : null; } catch { parsed = null; }
+  if (!parsed || parsed !== minor) throw buildUnsupportedVersionError(null);
+  if (!isSupportedMinor(parsed)) throw buildUnsupportedVersionError(parsed);
+  return parsed;
+};
+
+const buildImageSetConfig = (state, options = {}) => {
+  const content = options.content || null;
+  const includePlatform = content ? content.platform === true : true;
+  const includeOperators = content ? content.operators === true : true;
+  const includeAdditional = content ? content.additionalImages === true : true;
+  if (!includePlatform && !includeOperators && !includeAdditional) {
+    throw new Error("ImageSetConfiguration needs at least one content group.");
+  }
   const version = state.release?.patchVersion;
   // Fail closed at the GENERATION BOUNDARY, using the same policy buildInstallConfig
   // applies: throws UNSUPPORTED_VERSION for an unresolvable minor AND for a resolvable
@@ -2142,9 +2169,15 @@ const buildImageSetConfig = (state) => {
   // and before this the generator's `|| "4.20"` default turned exactly that mistake
   // into a silently wrong mirror config rather than a refusal (CLAUDE.md "No Fallback
   // Rule"; `POST /api/ocmirror/run` was the call site that had no guard).
-  const catalogMinor = assertSupportedOpenShiftMinorForGeneration(state);
-  assertTargetArchitectureSupported(state, catalogMinor);
-  const operators = state.operators?.selected || [];
+  let platformMinor = null;
+  if (includePlatform) {
+    platformMinor = assertSupportedOpenShiftMinorForGeneration(state);
+    assertTargetArchitectureSupported(state, platformMinor);
+  }
+  const catalogMinor = content && includeOperators
+    ? assertSupportedCatalogMinor(options.catalogMinor ?? platformMinor)
+    : platformMinor;
+  const operators = includeOperators ? state.operators?.selected || [] : [];
   const cfg = state.imagesetConfig || {};
   const includeGraph = cfg.graph !== false;
   const additionalImages = (cfg.additionalImages || "").split("\n").map((s) => s.trim()).filter(Boolean);
@@ -2162,20 +2195,22 @@ const buildImageSetConfig = (state) => {
     kind: "ImageSetConfiguration",
     ...(archiveSize ? { archiveSize } : {}),
     mirror: {
-      platform: {
-        channels: [
-          {
-            name: `stable-${catalogMinor}`,
-            minVersion: version,
-            maxVersion: version
-          }
-        ],
-        ...(mirrorArch ? { architectures: [mirrorArch] } : {}),
-        ...(includeGraph ? { graph: true } : {}),
-        ...(kubeVirtContainer ? { kubeVirtContainer: true } : {})
-      },
-      operators: [],
-      ...(additionalImages.length ? { additionalImages: additionalImages.map((name) => ({ name })) } : {})
+      ...(includePlatform ? {
+        platform: {
+          channels: [
+            {
+              name: `stable-${platformMinor}`,
+              minVersion: version,
+              maxVersion: version
+            }
+          ],
+          ...(mirrorArch ? { architectures: [mirrorArch] } : {}),
+          ...(includeGraph ? { graph: true } : {}),
+          ...(kubeVirtContainer ? { kubeVirtContainer: true } : {})
+        }
+      } : {}),
+      ...(includeOperators ? { operators: [] } : {}),
+      ...(includeAdditional && additionalImages.length ? { additionalImages: additionalImages.map((name) => ({ name })) } : {})
     }
   };
   const byCatalog = new Map();

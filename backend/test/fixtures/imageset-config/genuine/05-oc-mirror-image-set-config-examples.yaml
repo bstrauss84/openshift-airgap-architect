@@ -1,0 +1,14 @@
+apiVersion: mirror.openshift.io/v1alpha2
+kind: ImageSetConfiguration
+storageConfig:
+  registry:
+    imageURL: example.com/mirror/oc-mirror-metadata
+    skipTLS: false
+mirror:
+  operators:
+  - catalog: registry.redhat.io/redhat/redhat-operator-index:v{product-version}
+    packages:
+    - name: elasticsearch-operator
+      channels:
+      - name: stable-5.7
+      - name: stable

@@ -22,7 +22,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { scenarios } from "../src/shared/operatorQuickPicks.js";
+import { scenarios, applyScenarioPicks } from "../src/shared/operatorQuickPicks.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = join(__dirname, "..", "..");
@@ -126,17 +126,22 @@ describe("T4 — the two absent packages, characterised", () => {
     expect(rh("4.22", "opentelemetry-product")).toBe(true);
   });
 
-  it("a missing package is skipped SILENTLY, which is what makes this matter", () => {
-    expect(SRC).toMatch(/if \(!found\) return;/);
-    // The anchor is the real `applyScenario` body. It used to be a string that
-    // no longer existed in the source, which made the slice empty and the
-    // assertion below vacuous; the claim is the same, it is now actually made.
+  it("a missing package is skipped SILENTLY in Install, which is what makes this matter", () => {
+    // v2.2.0 R-UX07: the lookup is shared (shared/operatorQuickPicks.js). A
+    // package the catalog lacks is never added; the shared result names it in
+    // `missing` (Mirroring shows it), and Install's applyScenario ignores that
+    // list — so Install still skips it silently.
+    const pick = { id: "t4", label: "T4", picks: { redhat: ["present-op", "absent-op"] } };
+    const r = applyScenarioPicks({ selected: [], scenario: pick, minor: "4.22", catalogs: { redhat: [{ id: "redhat:present-op", name: "present-op", catalog: "redhat" }] }, catalogImages: { redhat: "img" } });
+    expect(r.selected.map((op) => op.name)).toEqual(["present-op"]);
+    expect(r.missing).toEqual(["absent-op"]);
     const start = SRC.indexOf("const applyScenario =");
     const end = SRC.indexOf("const removeScenarioOperators =");
     expect(start, "applyScenario not found").toBeGreaterThan(-1);
     expect(end, "removeScenarioOperators not found").toBeGreaterThan(start);
     const applyScenario = SRC.slice(start, end);
-    expect(applyScenario).not.toMatch(/warn|notFound|missingPackage/i);
+    expect(applyScenario).toMatch(/applyScenarioPicks\(/);
+    expect(applyScenario).not.toMatch(/\.missing|warn|notFound|missingPackage/i);
   });
 });
 

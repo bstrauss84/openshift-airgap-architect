@@ -42,8 +42,15 @@ services:
       - FEEDBACK_MODE=${FEEDBACK_MODE:-github}
       - APP_REPO=${APP_REPO:-bstrauss84/openshift-airgap-architect}
       - APP_BRANCH=${APP_BRANCH:-main}
+      # Optional: keep large Mirroring content (archives, oc-mirror workspace and
+      # cache, received transfers) on its own volume instead of backend-data.
+      # The value is a path INSIDE the container; mount the host directory there
+      # (the :Z relabels it for SELinux). New profiles use it; existing profiles
+      # stay where they were created. See docs/ENTERPRISE_PODMAN_DEPLOYMENT.md.
+      # - OAA_MIRROR_STORAGE_ROOT=/mnt/mirror-data
     volumes:
       - backend-data:/data
+      # - /data/mirror:/mnt/mirror-data:Z
     ports:
       - "127.0.0.1:4000:4000"
     stop_grace_period: 3s

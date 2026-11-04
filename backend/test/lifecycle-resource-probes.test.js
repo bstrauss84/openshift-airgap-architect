@@ -280,6 +280,10 @@ describe("lifecycle — repeated state and generation cycles", () => {
     // finding that runtimePackage.js's mkdtemp root was never removed; this
     // asserts the staging contract now holds on the path that creates it.
     const before = new Set(productTempDirs());
+    // The no-engine path, explicitly: on a host with podman, "auto" would
+    // inspect and export whatever the operator's production tags name.
+    const savedMode = process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE;
+    process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE = "none";
 
     const res = await fetch(`${baseUrl}/api/bundle.zip`, {
       method: "POST",
@@ -289,6 +293,8 @@ describe("lifecycle — repeated state and generation cycles", () => {
       })
     });
     await res.arrayBuffer().catch(() => {});
+    if (savedMode === undefined) delete process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE;
+    else process.env.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE = savedMode;
 
     await waitFor(() => {
       const leaked = productTempDirs().filter((n) => !before.has(n));

@@ -49,7 +49,17 @@ USER 1001
 WORKDIR /build/frontend
 # Dev dependencies ARE required here — vite, the React plugin and postcss are
 # what perform the build. They stay in this stage.
-RUN npm ci
+# Optional build-time CA (corporate HTTPS inspection): see backend/Containerfile.
+RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
+    set -e && \
+    if [ -s /run/secrets/oaa_build_ca ]; then \
+      cat /etc/pki/tls/certs/ca-bundle.crt /run/secrets/oaa_build_ca > /tmp/oaa-build-ca.pem && \
+      export CURL_CA_BUNDLE=/tmp/oaa-build-ca.pem SSL_CERT_FILE=/tmp/oaa-build-ca.pem \
+             NODE_EXTRA_CA_CERTS=/run/secrets/oaa_build_ca npm_config_cafile=/tmp/oaa-build-ca.pem && \
+      OAA_DNF_CA="$(for r in $(sed -n 's/^\[\(.*\)\]$/\1/p' /etc/yum.repos.d/*.repo); do printf -- '--setopt=%s.sslcacert=/tmp/oaa-build-ca.pem ' "$r"; done)" && \
+      echo "build CA: using the oaa_build_ca build secret for this step (not stored in the image)"; \
+    fi && npm ci --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000 && \
+    rm -f /tmp/oaa-build-ca.pem
 
 USER root
 WORKDIR /build
@@ -103,7 +113,8 @@ USER root
 # arbitrary UID whose only predictable attribute is membership of group 0, and
 # that UID has to be able to write the rendered config at start.
 RUN chmod 0755 /opt/app-root/bin/oaa-entrypoint.sh /opt/app-root/bin/oaa-render-nginx.sh \
-    && chmod -R g+rX /opt/app-root/src \
+    && chmod 0644 /opt/app-root/etc/oaa-nginx.conf.template \
+    && chmod -R a+rX /opt/app-root/src \
     && /opt/app-root/bin/oaa-render-nginx.sh \
          /opt/app-root/etc/oaa-nginx.conf.template \
          /opt/app-root/etc/nginx.d/oaa.conf \
