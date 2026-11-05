@@ -12,10 +12,7 @@ A local-first wizard that generates OpenShift disconnected (air-gapped) installa
   The "Release history" section further down is PERMANENT and must stay when this
   block is removed.
 
-  v2.2.0 PRE-RELEASE WORDING: the "Coming in v2.2.0" subsection describes work that is
-  not yet released. At the separately approved v2.2.0 release, change only that
-  subsection: its heading ("Coming in v2.2.0" → "New in v2.2.0"), its status paragraph,
-  and add the v2.2.0 release-notes link to the list below. Nothing else needs rewriting.
+  The v2.2.0 subsection was switched to its released wording at publication.
 -->
 
 ## 🚀 Major v2.x update available
@@ -38,7 +35,7 @@ v2.1.1 and v2.1.2 patches added update notifications, build identity and export
 credential fixes. See [Release history](#release-history) for what is published and
 where to download it.
 
-### Coming in v2.2.0 — Mirroring (pre-release, in testing)
+### New in v2.2.0 — Mirroring
 
 v2.2.0 is a minor feature release, not another patch: it adds a second workflow beside
 Install. **Mirroring** plans and runs oc-mirror v2 without an install:
@@ -62,12 +59,13 @@ Install. **Mirroring** plans and runs oc-mirror v2 without an install:
 - **Operations** — every run, transfer and check with its log and result, and "Run the
   same again" for runs that stopped for a temporary reason.
 
-**Status:** not yet released. The three workflows pass lab tests with the real
-oc-mirror 4.22.19 against synthetic registries; validation at customer sites (RHEL 9,
-Podman 4.9, FIPS, a real disconnected registry with OpenShift release content) is still
-pending. Supported OpenShift versions remain 4.20, 4.21 and 4.22. Preview on this branch:
-[Mirroring workflow](#mirroring-workflow) and the full
-[Mirroring user guide](docs/MIRRORING_WORKFLOW.md#part-a--user-guide).
+**Status:** released in v2.2.0 (2026-11-05); see [Release history](#release-history) for
+downloads. The three workflows pass lab tests with the real oc-mirror 4.22.19 against
+synthetic registries; validation at customer sites (RHEL 9, Podman 4.9, FIPS, a real
+disconnected registry with OpenShift release content) is still pending. Supported
+OpenShift versions remain 4.20, 4.21 and 4.22. See [Mirroring workflow](#mirroring-workflow),
+the full [Mirroring user guide](docs/MIRRORING_WORKFLOW.md#part-a--user-guide) and the
+[v2.2.0 release notes](docs/releases/v2.2.0.md).
 
 ### Upgrading
 
@@ -80,6 +78,7 @@ afterwards with Tools → Import Run. Credentials are deliberately excluded and 
 re-entered. Mirroring profiles are kept on the server, not in an exported run.
 
 - [Changelog](CHANGELOG.md) — everything, newest first
+- [v2.2.0 release notes](docs/releases/v2.2.0.md) — minor: the Mirroring workflow
 - [v2.1.2 release notes](docs/releases/v2.1.2.md) — patch: export credential fixes and maintenance
 - [v2.1.1 release notes](docs/releases/v2.1.1.md) — patch: update notifications and build identity
 - [v2.1 release notes](docs/releases/v2.1.0.md) — OpenShift 4.22 support
@@ -687,7 +686,7 @@ Update checks compare the installed application version with the newest publishe
 
 > **Full guide:** [Mirroring user guide](docs/MIRRORING_WORKFLOW.md#part-a--user-guide) in
 > [`docs/MIRRORING_WORKFLOW.md`](docs/MIRRORING_WORKFLOW.md) — content, credentials, the three workflows, transfer
-> integrity, the oc-mirror build check and current limits. Mirroring is new in v2.2.0, which is in pre-release testing.
+> integrity, the oc-mirror build check and current limits. Mirroring is new in v2.2.0.
 
 **Mirroring** (landing page → **Open Mirroring**) plans and runs oc-mirror v2 without an install. It is
 independent of Install: its own profiles, its own OpenShift release per profile, its own storage and history.
@@ -1494,6 +1493,7 @@ Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, 
 | Where to look | What it covers |
 |---|---|
 | [CHANGELOG.md](CHANGELOG.md) | Every release, newest first — features, fixes and breaking changes |
+| [v2.2.0 release notes](docs/releases/v2.2.0.md) | Minor: the Mirroring workflow — oc-mirror profiles, three workflows, verified connected → disconnected transfer, Operations |
 | [v2.1.2 release notes](docs/releases/v2.1.2.md) | Patch: per-file Download and runtime-package credential-exposure fixes, export switches that work, IPv6 rendezvousIP, Field Guide VIP guidance |
 | [v2.1.1 release notes](docs/releases/v2.1.1.md) | Patch: restored update notifications, truthful build identity, corrected repository URL |
 | [v2.1 release notes](docs/releases/v2.1.0.md) | OpenShift 4.22 support, operator preset corrections, version-transition safety |
@@ -1518,6 +1518,7 @@ There is no registry to pull from.
 
 ### At a glance
 
+- **v2.2.0** — Minor release: adds the Mirroring workflow — independent oc-mirror v2 profiles for the OpenShift release, operators and additional images; mirror to disk, a verified connected → disconnected transfer, disk to mirror, and mirror to mirror; Operations history. Lab-tested with the real oc-mirror against synthetic registries; customer acceptance pending at release.
 - **v2.1.2** — Patch release: fixes two export paths that could include excluded credentials (per-file YAML Download; the hidden runtime package), makes the Proxy values and SSH public key switches work, and corrects IPv6-only rendezvousIP, Field Guide VIP checks, documentation links and the post-import notice. Securely delete and rotate credentials in affected files from earlier versions.
 - **v2.1.1** — Patch release: restores update notifications (based on published releases, no Git revision required), reports build identity truthfully, and corrects the repository URL in generated files. Existing v2.1.0 installations may not detect it automatically.
 - **v2.1.0** — OpenShift 4.22 support, with per-version parameter catalogs, Field Guide and documentation. Adds the bare-metal provisioning network gateway setting, enforces supported CPU architectures at generation, and makes operator presets version-aware.

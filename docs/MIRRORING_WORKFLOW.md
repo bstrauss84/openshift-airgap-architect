@@ -12,7 +12,7 @@ reload), M5 (live catalog verification, structured preflight, mirror to disk wit
 immutable plan) and M6 (transfer manifest, verified receive on the disconnected side, disk to
 mirror from the received plan, mirror to mirror, profile isolation) and M7 (verified catalog
 fetch, catalog identity and offline readiness, real-binary disconnected integration, enterprise
-deployment) implemented on `feat/v2.2.0-mirroring`, unreleased.
+deployment) implemented and released in v2.2.0.
 
 **How this file is organised.** Part A is the user guide: what Mirroring is and how to run each of
 its three workflows. Sections 1–5 are the design contract and implementation record that Part A

@@ -40,6 +40,26 @@ cd backend && npm ci && npm test
 
 CI always runs gitleaks on push/PR; the local script is for pre-push checks.
 
+## Preparing a release
+
+Before a release is tagged, complete the **mandatory release-time backlog reconciliation** in
+[`docs/BACKLOG_STATUS.md`](BACKLOG_STATUS.md#release-time-backlog-reconciliation-mandatory): every non-closed item
+(including unnumbered entries and `FQ-*` findings) is reconciled against the exact release candidate, statuses the
+evidence contradicts are corrected with citations, and new release-run findings are recorded without inventing IDs.
+A release whose notes or CHANGELOG claim closure of an item the backlog still shows open is not ready to tag.
+
+Release documentation follows a fixed lifecycle, checked by `scripts/check-release-doc-status.mjs`:
+
+1. **Before tagging:** `docs/releases/v<version>.md` and a `## [<version>]` CHANGELOG section exist, and
+   `node scripts/check-release-doc-status.mjs --phase pre` passes. Pre-release wording ("Coming in", "not yet
+   released", an undated CHANGELOG heading) is correct at this stage; the check lists it as what the closeout must
+   switch. The tagged commit is never edited afterwards.
+2. **After the GitHub Release is public:** a separate docs-only commit switches that wording, dates the CHANGELOG
+   heading with the tag date, and adds the version to the README release-notes list, documentation table and
+   "At a glance". `node scripts/check-release-doc-status.mjs --phase post --tag-date <YYYY-MM-DD>` must pass.
+3. **Closeout:** that commit is on `main` and `develop` on every remote, with CI green, before the release is
+   recorded as closed. The backlog reconciliation updates ship in the same post-release commit.
+
 ## Data and frontend copies
 
 **Canonical** parameter catalogs and docs index live at repo root in `data/params/` and `data/docs-index/`. The frontend keeps **copies** under **`frontend/src/data/`** only (`data/catalogs/` and `data/docs-index/`) so the app works in Docker and standalone builds. Do not add copies in other locations. See **`docs/DATA_AND_FRONTEND_COPIES.md`** for the full convention and sync rules.
