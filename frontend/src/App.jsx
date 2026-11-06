@@ -21,6 +21,8 @@ import LandingPage from "./LandingPage.jsx";
 // The Mirroring workflow loads on demand (v2.2.0 M5): the Install wizard never
 // needs it, so it is kept out of the eager bundle.
 const MirroringShell = React.lazy(() => import("./mirroring/MirroringShell.jsx"));
+const UpgradeShell = React.lazy(() => import("./upgrade/UpgradeShell.jsx"));
+import InstallResetDialog from "./InstallResetDialog.jsx";
 import { useThemePreference } from "./hooks/useThemePreference.js";
 import BlueprintStep from "./steps/BlueprintStep.jsx";
 import PlaceholderCard from "./components/PlaceholderCard.jsx";
@@ -215,7 +217,9 @@ class ErrorBoundary extends React.Component {
 // load-and-support boundary, so its behaviour is asserted directly rather than
 // inferred through the whole App tree.
 export const VersionSupportGate = ({ children, onOpenMirroring }) => {
-  const { state, startOver, updateState } = useApp();
+  const { state, startOver, updateState, setState: setAppState } = useApp();
+  // v2.3.0 §18 (F-SO-8): the recovery "Start new Install…" is confirmed and scoped like every other.
+  const [resetOpen, setResetOpen] = useState(false);
   const selectedMinor = getOpenShiftMinorFromState(state);
 
   // FQ-10: versioned catalog and docs-index data is loaded per minor, on demand, so the
@@ -307,10 +311,16 @@ export const VersionSupportGate = ({ children, onOpenMirroring }) => {
             <button
               type="button"
               className="primary"
-              onClick={startOver}
+              onClick={() => setResetOpen(true)}
             >
-              Start Over
+              New Install…
             </button>
+            <InstallResetDialog
+              isOpen={resetOpen}
+              onClose={() => setResetOpen(false)}
+              startOver={startOver}
+              onReset={(next) => { if (next) setAppState(next); setResetOpen(false); }}
+            />
             <button
               type="button"
               className="ghost"
@@ -412,10 +422,11 @@ const WORKFLOW_SESSION_KEY = "oaa-active-workflow";
 
 export const ShellViewProvider = ({ children }) => {
   const [showLanding, setShowLanding] = useState(true);
-  // "install" (landing page and the Install wizard) or "mirroring" (v2.2.0).
+  // "install" (landing page and the Install wizard), "mirroring" (v2.2.0) or "upgrade" (v2.3.0).
   const [workflow, setWorkflowState] = useState(() => {
     try {
-      return sessionStorage.getItem(WORKFLOW_SESSION_KEY) === "mirroring" ? "mirroring" : "install";
+      const saved = sessionStorage.getItem(WORKFLOW_SESSION_KEY);
+      return saved === "mirroring" || saved === "upgrade" ? saved : "install";
     } catch {
       return "install";
     }
@@ -423,7 +434,7 @@ export const ShellViewProvider = ({ children }) => {
   const setWorkflow = useCallback((next) => {
     setWorkflowState(next);
     try {
-      if (next === "mirroring") sessionStorage.setItem(WORKFLOW_SESSION_KEY, "mirroring");
+      if (next === "mirroring" || next === "upgrade") sessionStorage.setItem(WORKFLOW_SESSION_KEY, next);
       else sessionStorage.removeItem(WORKFLOW_SESSION_KEY);
     } catch {
       /* storage unavailable: the choice simply does not survive a reload */
@@ -521,9 +532,6 @@ const AppShell = () => {
   const prevMethodologyRef = useRef(state?.methodology?.method);
   const importingRef = useRef(false);  // Track when import is in progress
   const [showStartOverModal, setShowStartOverModal] = useState(false);
-  const [startOverRunningJobs, setStartOverRunningJobs] = useState([]);
-  const [startOverCheckingJobs, setStartOverCheckingJobs] = useState(false);
-  const [startOverCheckError, setStartOverCheckError] = useState("");
   const [stepMap, setStepMap] = useState(null);
   const [blockedMessage, setBlockedMessage] = useState("");
   // PHX-033/035: dismissal of the post-import follow-up notice. Session-only by
@@ -753,31 +761,13 @@ const AppShell = () => {
     return idx >= 0 ? idx : Math.max(0, visibleSteps.length - 1);
   }, [visibleSteps, state?.ui?.completedSteps, state?.blueprint?.confirmed, state]);
 
+  // What the landing Install card says exists (navigation context only; no state is changed).
+  const landingInstallStatus = useMemo(() => ({
+    step: hasProgress ? (visibleSteps[installReturnStepRef.current ?? firstIncompleteStepIndex]?.label || null) : null,
+    version: state?.release?.confirmed ? state?.release?.patchVersion || null : null
+  }), [hasProgress, visibleSteps, firstIncompleteStepIndex, state?.release?.confirmed, state?.release?.patchVersion, installReturnStepRef]);
+
   const previewStepId = visibleSteps[active]?.id;
-  const hasRunningOcMirrorJobs = startOverRunningJobs.length > 0;
-  const startOverArtifactPaths = useMemo(() => {
-    const paths = new Set();
-    startOverRunningJobs.forEach((job) => {
-      const meta = getOcMirrorJobMetadata(job);
-      if (meta?.archiveDir) paths.add(meta.archiveDir);
-      if (meta?.workspaceDir) paths.add(meta.workspaceDir);
-      if (meta?.cacheDir) paths.add(meta.cacheDir);
-    });
-    if (!paths.size) {
-      const archivePath = state?.mirrorWorkflow?.archivePath?.trim();
-      const workspacePath = state?.mirrorWorkflow?.workspacePath?.trim();
-      const cachePath = state?.mirrorWorkflow?.cachePath?.trim();
-      if (archivePath) paths.add(archivePath);
-      if (workspacePath) paths.add(workspacePath);
-      if (cachePath) paths.add(cachePath);
-    }
-    return Array.from(paths);
-  }, [
-    startOverRunningJobs,
-    state?.mirrorWorkflow?.archivePath,
-    state?.mirrorWorkflow?.workspacePath,
-    state?.mirrorWorkflow?.cachePath
-  ]);
   const previewTarget = useMemo(() => {
     if (previewStepId === "review") return "install-config.yaml";
     if (previewStepId === "global") return "install-config.yaml";
@@ -1203,21 +1193,10 @@ metadata:
     }
   };
 
-  const handleStartOverClick = async () => {
+  // v2.3.0 §18: "Start new Install…" opens the scoped dialog, which asks the
+  // server what would be cleared, kept and stopped (Install's own runs only).
+  const handleStartOverClick = () => {
     setShowStartOverModal(true);
-    setStartOverRunningJobs([]);
-    setStartOverCheckError("");
-    setStartOverCheckingJobs(true);
-    try {
-      const data = await apiFetch("/api/jobs?type=oc-mirror-run");
-      const running = (data.jobs || []).filter((job) => job.status === "running");
-      setStartOverRunningJobs(running);
-    } catch (error) {
-      setStartOverCheckError(String(error?.message || error));
-      setStartOverRunningJobs([]);
-    } finally {
-      setStartOverCheckingJobs(false);
-    }
   };
 
   const lockAndProceed = async () => {
@@ -1326,12 +1305,9 @@ metadata:
     setChangeReleaseError("");
   };
 
-  const confirmStartOver = async () => {
-    const nextState = await startOver({ cancelRunningOcMirror: hasRunningOcMirrorJobs });
+  const afterInstallReset = (nextState) => {
     if (nextState) setState(nextState);
     setShowStartOverModal(false);
-    setStartOverRunningJobs([]);
-    setStartOverCheckError("");
     setShowLanding(true);
     setActive(0);
     // Close YAML drawer on start over
@@ -1489,13 +1465,8 @@ metadata:
               alt="Red Hat OpenShift Airgap Architect"
             />
           </div>
-          <div className="header-actions">
-            {hasProgress ? (
-              <button type="button" className="ghost" onClick={handleStartOverClick}>
-                Start Over
-              </button>
-            ) : null}
-          </div>
+          {/* v2.3.0 §18: no global reset here; each landing card offers its own scoped actions. */}
+          <div className="header-actions" />
         </header>
         {shouldShowUpdateBanner(updateInfo) ? (
           <div className="update-available-banner" role="alert">
@@ -1534,53 +1505,15 @@ metadata:
         ) : null}
         <div className="app landing-view">
           <div className="content landing-content">
-            <LandingPage hasProgress={hasProgress} onStartInstall={handleInstallClick} onStartMirroring={() => setWorkflow("mirroring")} />
+            <LandingPage hasProgress={hasProgress} installStatus={landingInstallStatus} onStartInstall={handleInstallClick} onStartNewInstall={handleStartOverClick} onStartMirroring={() => setWorkflow("mirroring")} onStartUpgrade={() => setWorkflow("upgrade")} loadSummaries />
           </div>
         </div>
-        <Modal
+        <InstallResetDialog
           isOpen={showStartOverModal}
           onClose={() => setShowStartOverModal(false)}
-          ariaLabelledBy="start-over-title"
-        >
-          <h3 id="start-over-title">Start Over</h3>
-          <p className="subtle">
-            This will clear all selections, lock-ins, and user entries, and return you to the landing page.
-          </p>
-          {startOverCheckingJobs ? (
-            <div className="note subtle">Checking for active oc-mirror runs…</div>
-          ) : null}
-          {startOverCheckError ? (
-            <div className="note warning">
-              Could not verify oc-mirror run status. Continuing with Start Over will still cancel any tracked running oc-mirror jobs.
-            </div>
-          ) : null}
-          {!startOverCheckingJobs && hasRunningOcMirrorJobs ? (
-            <>
-              <div className="note subtle">
-                Active oc-mirror runs: <strong>{startOverRunningJobs.length}</strong>
-              </div>
-              <div className="note warning">
-                An oc-mirror run is currently active. Continuing will cancel that run and may leave partial or incomplete mirror content on disk.
-              </div>
-              <div className="note subtle">
-                Review and validate these paths before restarting a mirror run:
-                <ul style={{ marginTop: 6, marginBottom: 0 }}>
-                  {startOverArtifactPaths.map((p) => (
-                    <li key={p}><code>{p}</code></li>
-                  ))}
-                </ul>
-              </div>
-            </>
-          ) : null}
-          <div className="actions">
-            <button type="button" className="ghost" onClick={() => setShowStartOverModal(false)}>
-              Cancel
-            </button>
-            <button type="button" className="primary" onClick={confirmStartOver} disabled={startOverCheckingJobs}>
-              {hasRunningOcMirrorJobs ? "Yes, cancel run and start over" : "Yes, start over"}
-            </button>
-          </div>
-        </Modal>
+          startOver={startOver}
+          onReset={afterInstallReset}
+        />
       </div>
     );
   }
@@ -1679,7 +1612,7 @@ metadata:
       {showLanding ? (
         <div className="app landing-view">
           <div className="content landing-content">
-            <LandingPage hasProgress={hasProgress} onStartInstall={handleInstallClick} onStartMirroring={() => setWorkflow("mirroring")} />
+            <LandingPage hasProgress={hasProgress} installStatus={landingInstallStatus} onStartInstall={handleInstallClick} onStartNewInstall={handleStartOverClick} onStartMirroring={() => setWorkflow("mirroring")} onStartUpgrade={() => setWorkflow("upgrade")} loadSummaries />
           </div>
         </div>
       ) : (
@@ -1937,50 +1870,12 @@ metadata:
             ) : null}
           </div>
         </Modal>
-        <Modal
+        <InstallResetDialog
           isOpen={showStartOverModal}
           onClose={() => setShowStartOverModal(false)}
-          ariaLabelledBy="start-over-title"
-        >
-          <h3 id="start-over-title">Start Over</h3>
-          <p className="subtle">
-            This will clear all selections, lock-ins, and user entries, and return you to the landing page.
-          </p>
-          {startOverCheckingJobs ? (
-            <div className="note subtle">Checking for active oc-mirror runs…</div>
-          ) : null}
-          {startOverCheckError ? (
-            <div className="note warning">
-              Could not verify oc-mirror run status. Continuing with Start Over will still cancel any tracked running oc-mirror jobs.
-            </div>
-          ) : null}
-          {!startOverCheckingJobs && hasRunningOcMirrorJobs ? (
-            <>
-              <div className="note subtle">
-                Active oc-mirror runs: <strong>{startOverRunningJobs.length}</strong>
-              </div>
-              <div className="note warning">
-                An oc-mirror run is currently active. Continuing will cancel that run and may leave partial or incomplete mirror content on disk.
-              </div>
-              <div className="note subtle">
-                Review and validate these paths before restarting a mirror run:
-                <ul style={{ marginTop: 6, marginBottom: 0 }}>
-                  {startOverArtifactPaths.map((p) => (
-                    <li key={p}><code>{p}</code></li>
-                  ))}
-                </ul>
-              </div>
-            </>
-          ) : null}
-          <div className="actions">
-            <button type="button" className="ghost" onClick={() => setShowStartOverModal(false)}>
-              Cancel
-            </button>
-            <button type="button" className="primary" onClick={confirmStartOver} disabled={startOverCheckingJobs}>
-              {hasRunningOcMirrorJobs ? "Yes, cancel run and start over" : "Yes, start over"}
-            </button>
-          </div>
-        </Modal>
+          startOver={startOver}
+          onReset={afterInstallReset}
+        />
         <Modal
           isOpen={showChangeReleaseWarning}
           onClose={() => { setShowChangeReleaseWarning(false); setChangeReleaseError(""); }}
@@ -2048,6 +1943,19 @@ metadata:
  */
 const WorkflowRouter = () => {
   const { workflow, setWorkflow, setShowLanding } = useShellView();
+  if (workflow === "upgrade") {
+    return (
+      <React.Suspense fallback={<div className="loading" role="status">Loading Upgrade…</div>}>
+        <UpgradeShell
+          onExit={() => {
+            setShowLanding(true);
+            setWorkflow("install");
+          }}
+          onOpenMirroring={() => setWorkflow("mirroring")}
+        />
+      </React.Suspense>
+    );
+  }
   if (workflow === "mirroring") {
     return (
       <React.Suspense fallback={<div className="loading" role="status">Loading Mirroring…</div>}>

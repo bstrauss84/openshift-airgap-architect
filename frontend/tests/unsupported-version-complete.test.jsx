@@ -157,7 +157,7 @@ describe('Complete unsupported version recovery', () => {
     expect(screen.queryByText(/Something went wrong/i)).toBeNull();
 
     // Should show recovery buttons - verify they are enabled and usable
-    const startOverButton = screen.getByRole('button', { name: /Start Over/i });
+    const startOverButton = screen.getByRole('button', { name: /New Install/i });
     const switchButton = screen.getByRole('button', { name: /Switch to 4\.22/i });
 
     expect(startOverButton).toBeInTheDocument();

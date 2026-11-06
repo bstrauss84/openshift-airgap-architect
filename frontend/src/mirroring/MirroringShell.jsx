@@ -60,6 +60,9 @@ const profileMeta = (profile) => {
   if (profile.content?.platform && patch) {
     parts.push(profile.platform.version?.locked ? `Release ${patch} (locked)` : `Release ${patch}`);
   }
+  // v2.3.0: ownership is visible where the profile is listed.
+  if (profile.ownedBy?.workflow === "upgrade") parts.unshift(`Upgrade stage ${profile.ownedBy.stageId?.slice(1) || ""} — release set by its Upgrade plan`.replace("  ", " "));
+  else if (profile.formerOwner) parts.push(`formerly part of Upgrade plan “${profile.formerOwner.planName}”`);
   return parts.join(" — ");
 };
 

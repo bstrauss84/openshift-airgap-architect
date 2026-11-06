@@ -3901,7 +3901,7 @@ app.post("/api/mirroring/profiles/:id", validateBody(mirroringProfileWriteSchema
   }
   // v2.3.0: an Upgrade stage's release and content groups belong to its plan;
   // its operator, image and run choices stay editable (they are the stage's).
-  if (profile.ownedBy && ["content", "platform"].some((k) => req.body?.[k] !== undefined)) return res.status(409).json(ownedProfileRefusal(profile, "change the release or content groups of"));
+  if (profile.ownedBy && (req.body?.platform !== undefined || (req.body?.content && req.body.content.platform !== true))) return res.status(409).json(ownedProfileRefusal(profile, "change the release of (or remove the platform release from)"));
   const written = applyMirroringProfileWrite(profile, req.body || {});
   const derived = deriveCatalogMinor(profile, written, { incomingCatalogMinor: req.body?.operators?.catalogMinor });
   if (derived.error) return res.status(derived.error.status).json({ error: derived.error.message, code: derived.error.code });

@@ -192,6 +192,7 @@ export const operatorScanSchema = z.object({
 
 export const ocMirrorPreflightSchema = z.object({
   mode: z.enum(["mirrorToDisk", "diskToMirror", "mirrorToMirror"]).default("mirrorToDisk"),
+  verifyDestination: z.boolean().optional(),
   // Mirroring: a full transfer (everything, not only what changed) — rebaselines the disconnected side.
   fullBaseline: z.boolean().optional(),
   archivePath: z.string().optional(),

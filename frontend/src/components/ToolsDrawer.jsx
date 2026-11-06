@@ -241,9 +241,10 @@ export default function ToolsDrawer({
 
             {onStartOver ? (
             <section className="card" style={{ marginBottom: 16 }}>
-              <h3 className="card-title" style={{ marginTop: 0 }}>Start over</h3>
+              <h3 className="card-title" style={{ marginTop: 0 }}>New Install</h3>
               <p className="card-subtitle" style={{ marginTop: 0 }}>
-                Clear all selections and return to the landing page.
+                Clears the Install workflow only. Mirroring profiles and Upgrade plans are kept; the next
+                dialog lists exactly what is cleared, kept and stopped before you confirm.
               </p>
               <Button
                 variant="destructive"
@@ -252,7 +253,7 @@ export default function ToolsDrawer({
                   onStartOver();
                 }}
               >
-                Start Over
+                New Install…
               </Button>
             </section>
             ) : null}

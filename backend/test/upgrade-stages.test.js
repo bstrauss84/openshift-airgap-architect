@@ -180,6 +180,9 @@ describe("ownership in the Mirroring workflow", () => {
     }
     const rename = await api("POST", `/api/mirroring/profiles/${stage.profileId}`, { name: "renamed stage" });
     assert.equal(rename.status, 200, JSON.stringify(rename.json));
+    const withOperators = await api("POST", `/api/mirroring/profiles/${stage.profileId}`, { content: { platform: true, operators: true, additionalImages: false } });
+    assert.equal(withOperators.status, 200, "a stage may add operators (catalog at the stage minor)");
+    assert.equal(withOperators.json.operators.catalogMinor, stage.minor);
   });
 });
 

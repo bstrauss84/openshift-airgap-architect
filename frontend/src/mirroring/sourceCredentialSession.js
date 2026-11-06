@@ -34,7 +34,8 @@ export const SITE_LABEL = {
   scan: "the catalog scan",
   check: "the Live catalog check",
   run: "this run",
-  retry: "a retried run"
+  retry: "a retried run",
+  sequence: "the Upgrade stage sequence"
 };
 
 export const getSourceCredential = (profileId) => (profileId ? sessions.get(profileId) || null : null);

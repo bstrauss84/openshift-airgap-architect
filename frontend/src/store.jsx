@@ -204,11 +204,19 @@ const useAppProvider = () => {
         : prev.version
     }));
 
+  /**
+   * Clear the Install workflow (v2.3.0 §18.3). Only ever called from the
+   * confirmed "Start new Install…" dialog, which passes the server preview's
+   * token: Install runs are cancelled only when asked, never another workflow's.
+   */
   const startOver = async (options = {}) => {
-    const cancelRunningOcMirror = options.cancelRunningOcMirror !== false;
+    const body = {
+      cancelInstallRuns: (options.cancelInstallRuns ?? options.cancelRunningOcMirror) !== false,
+      ...(typeof options.previewToken === "string" ? { previewToken: options.previewToken } : {})
+    };
     const data = await apiFetch("/api/start-over", {
       method: "POST",
-      body: JSON.stringify({ cancelRunningOcMirror })
+      body: JSON.stringify(body)
     });
     const next = {
       ...data,

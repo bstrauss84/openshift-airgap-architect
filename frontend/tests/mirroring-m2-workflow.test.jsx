@@ -115,13 +115,14 @@ const card = (title) => screen.getByRole("button", { name: new RegExp(`^${title}
 /* ---------------- tests ---------------- */
 
 describe("landing and gate entry points", () => {
-  it("the Mirroring card is an enabled button; Upgrade is still Coming soon; Install unchanged", () => {
+  it("the Mirroring card is an enabled button; Upgrade is enabled (v2.3.0); Install unchanged", () => {
     const onStartMirroring = vi.fn();
     render(<LandingPage hasProgress={false} onStartInstall={() => {}} onStartMirroring={onStartMirroring} />);
     fireEvent.click(screen.getByRole("button", { name: "Open Mirroring" }));
     expect(onStartMirroring).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Start new install →" })).toBeTruthy();
-    expect(screen.getByText("Upgrade").closest(".landing-card").getAttribute("aria-disabled")).toBe("true");
+    // v2.3.0: the Upgrade card is a workflow of its own; disabled only when no handler is given.
+    expect(screen.getByText("Upgrade").closest(".landing-card").disabled).toBe(true);
     expect(screen.queryByText("Operator mirroring")).toBeNull();
   });
 
@@ -164,7 +165,7 @@ describe("Mirroring shell states", () => {
     expect(screen.queryByRole("button", { name: "Home" })).toBeNull(); // no duplicate header control
     fireEvent.click(screen.getByRole("button", { name: "Open Tools" }));
     const drawer = screen.getByRole("dialog", { name: "Tools" });
-    expect(within(drawer).queryByRole("button", { name: "Start Over" })).toBeNull(); // Install-only action
+    expect(within(drawer).queryByRole("button", { name: "New Install…" })).toBeNull(); // Install-only action
     fireEvent.click(within(drawer).getByRole("button", { name: "Home" }));
     expect(onExit).toHaveBeenCalled();
     expect(server.writes.some((w) => w.path.includes("start-over"))).toBe(false);

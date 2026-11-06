@@ -60,7 +60,7 @@ describe("Home is navigation, not Start Over", () => {
 
     // Install → Home (Tools drawer)
     let drawer = openTools();
-    expect(within(drawer).getByRole("button", { name: "Start Over" })).toBeTruthy(); // Install keeps Start Over
+    expect(within(drawer).getByRole("button", { name: "New Install…" })).toBeTruthy(); // Install keeps its scoped reset (v2.3.0 §18)
     fireEvent.click(within(drawer).getByRole("button", { name: "Home" }));
     await waitFor(() => expect(landing()).not.toBeNull());
 
@@ -71,7 +71,7 @@ describe("Home is navigation, not Start Over", () => {
     // One global theme: toggled from Mirroring...
     fireEvent.click(within(drawer).getByRole("switch", { name: "Dark mode" }));
     expect(document.body.dataset.theme).toBe("dark");
-    expect(within(drawer).queryByRole("button", { name: "Start Over" })).toBeNull();
+    expect(within(drawer).queryByRole("button", { name: "New Install…" })).toBeNull();
     fireEvent.click(within(drawer).getByRole("button", { name: "Home" }));
     await waitFor(() => expect(landing()).not.toBeNull());
 

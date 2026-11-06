@@ -169,7 +169,7 @@ const formatTime = (ms) => (ms ? new Date(ms).toLocaleString() : "—");
 /** Last lines of a job's output, as plain text (oc-mirror colours its log with ANSI codes). */
 const tail = (output, lines = 40) => String(output || "").replace(/\x1b\[[0-9;]*m/g, "").split("\n").slice(-lines).join("\n");
 
-export default function MirroringRunPanel({ profile, onProfileChanged, onProfilesChanged, onShowOperation = null }) {
+export default function MirroringRunPanel({ profile, onProfileChanged, onProfilesChanged, onShowOperation = null, requestDestinationCheck = false }) {
   const idPrefix = `mirroring-run-${profile.id}`;
   const [attempted, setAttempted] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -259,7 +259,9 @@ export default function MirroringRunPanel({ profile, onProfileChanged, onProfile
     ...(mode === "mirrorToDisk" && fullBaseline ? { fullBaseline: true } : {}),
     ...(mode !== "diskToMirror" ? credentialBody() : {}),
     ...(needsRegistry ? { registryUrl: registryUrl.trim(), mirrorAuthSource: "inline", ...(mirrorAnonymous ? { destinationAuth: "anonymous" } : mirrorSecret.trim() ? { mirrorPullSecret: mirrorSecret.trim() } : {}) } : {}),
-    ...(mode === "diskToMirror" ? { receivedPlanId: receivedPlanId || undefined, isolateNetwork } : {})
+    ...(mode === "diskToMirror" ? { receivedPlanId: receivedPlanId || undefined, isolateNetwork } : {}),
+    // v2.3.0: Upgrade stages ask for the post-run destination check, so "in the registry" is evidence, not assumption.
+    ...(requestDestinationCheck && !dryRun && (mode === "mirrorToMirror" || mode === "diskToMirror") ? { verifyDestination: true } : {})
   });
 
   // A preflight describes one state of the profile and credentials; any change makes it stale.
