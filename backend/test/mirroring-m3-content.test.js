@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import yaml from "js-yaml";
 import { app } from "../src/index.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
+import { resetMirroringForTests } from "./helpers/resetWorkflowsForTests.js";
 
 let server;
 let baseUrl;
@@ -33,7 +34,7 @@ const preview = async (id) => api("POST", `/api/mirroring/profiles/${id}/preview
 
 before(async () => {
   ({ server, baseUrl } = await createTestServer(app));
-  await api("POST", "/api/mirroring/start-over", {});
+  await resetMirroringForTests();
 });
 after(async () => closeTestServer(server));
 

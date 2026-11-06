@@ -31,6 +31,7 @@ import { app } from "../src/index.js";
 import { secretTempDir } from "../src/utils.js";
 import { setCatalogOpenerForTests } from "../src/verifiedCatalog.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
+import { resetMirroringForTests } from "./helpers/resetWorkflowsForTests.js";
 
 // These tests drive oc-mirror stand-ins; the verified catalog fetch is
 // covered by verified-catalog-fetch.test.js. The catalog name is passed
@@ -132,7 +133,7 @@ main();
 };
 
 const reset = async () => {
-  await api("POST", "/api/mirroring/start-over", {});
+  await resetMirroringForTests();
   await api("POST", "/api/start-over", { cancelRunningOcMirror: true });
 };
 

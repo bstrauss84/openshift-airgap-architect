@@ -7,6 +7,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { app } from "../src/index.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
+import { resetMirroringForTests } from "./helpers/resetWorkflowsForTests.js";
 
 let server;
 let baseUrl;
@@ -17,7 +18,7 @@ const api = async (method, url, body) => {
 
 before(async () => {
   ({ server, baseUrl } = await createTestServer(app));
-  await api("POST", "/api/mirroring/start-over", {});
+  await resetMirroringForTests();
 });
 after(async () => closeTestServer(server));
 

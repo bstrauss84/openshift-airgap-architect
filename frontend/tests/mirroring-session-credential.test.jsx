@@ -124,7 +124,7 @@ describe("session source credential (R-UX02)", () => {
 describe("anonymous destination registry (carried over from Install)", () => {
   const m2m = { ...baseProfile, content: { platform: false, operators: false, additionalImages: true }, additionalImages: [{ id: "i", name: "quay.io/a/b:1", source: "user" }], execution: { mode: "mirrorToMirror", registryUrl: "mirror.example.com:8443/ocp", options: {} } };
 
-  it("sends the OKD placeholder for the destination host, links the OKD discussion, hides the generator, and restores typed credentials when switched back", async () => {
+  it("sends the explicit anonymous choice (server supplies the OKD placeholder), links the OKD discussion, hides the generator, and restores typed credentials when switched back", async () => {
     render(<MirroringRunPanel profile={m2m} onProfileChanged={vi.fn()} onProfilesChanged={vi.fn()} />);
     const creds = await runCreds();
     const dest = within(creds).getByRole("textbox", { name: /Destination registry credentials/ });
@@ -136,11 +136,15 @@ describe("anonymous destination registry (carried over from Install)", () => {
     expect(within(creds).queryAllByRole("button", { name: "Help me generate" })).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Run preflight" }));
     await waitFor(() => expect(bodies).toHaveLength(1));
-    expect(bodies[0].mirrorPullSecret).toBe(anonymousRegistryAuthJson("mirror.example.com:8443"));
-    expect(bodies[0].mirrorPullSecret).toBe('{"auths":{"mirror.example.com:8443":{"auth":"aWQ6cGFzcwo=","email":""}}}');
+    // v2.3.0 N4: the anonymous choice is explicit; the server supplies the OKD placeholder
+    // (the same value as anonymousRegistryAuthJson) for the destination host.
+    expect(bodies[0].destinationAuth).toBe("anonymous");
+    expect(bodies[0]).not.toHaveProperty("mirrorPullSecret");
+    expect(anonymousRegistryAuthJson("mirror.example.com:8443")).toBe('{"auths":{"mirror.example.com:8443":{"auth":"aWQ6cGFzcwo=","email":""}}}');
     fireEvent.click(within(creds).getByRole("radio", { name: /Use destination registry credentials/ }));
     fireEvent.click(screen.getByRole("button", { name: "Run preflight" }));
     await waitFor(() => expect(bodies).toHaveLength(2));
     expect(bodies[1].mirrorPullSecret).toBe(typed);
+    expect(bodies[1]).not.toHaveProperty("destinationAuth");
   });
 });

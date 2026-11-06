@@ -18,6 +18,7 @@ import { spawnSync } from "node:child_process";
 import { app } from "../src/index.js";
 import { unpinnedCatalogs, stagingSpaceProblem, insideReceivedCopy } from "../src/mirroringTransfer.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
+import { resetMirroringForTests } from "./helpers/resetWorkflowsForTests.js";
 import { redactCommand, sanitizedLog, TEMP_CREDENTIALS } from "../src/mirroringOperations.js";
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || "/data");
@@ -98,7 +99,7 @@ main();
 };
 
 const reset = async () => {
-  await api("POST", "/api/mirroring/start-over", {});
+  await resetMirroringForTests();
   await api("POST", "/api/start-over", { cancelRunningOcMirror: true });
 };
 const CATALOG = (minor) => `registry.redhat.io/redhat/redhat-operator-index:v${minor}`;

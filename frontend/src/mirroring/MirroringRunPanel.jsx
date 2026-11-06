@@ -258,7 +258,7 @@ export default function MirroringRunPanel({ profile, onProfileChanged, onProfile
     dryRun,
     ...(mode === "mirrorToDisk" && fullBaseline ? { fullBaseline: true } : {}),
     ...(mode !== "diskToMirror" ? credentialBody() : {}),
-    ...(needsRegistry ? { registryUrl: registryUrl.trim(), mirrorAuthSource: "inline", ...(mirrorSecret.trim() ? { mirrorPullSecret: mirrorSecret.trim() } : {}) } : {}),
+    ...(needsRegistry ? { registryUrl: registryUrl.trim(), mirrorAuthSource: "inline", ...(mirrorAnonymous ? { destinationAuth: "anonymous" } : mirrorSecret.trim() ? { mirrorPullSecret: mirrorSecret.trim() } : {}) } : {}),
     ...(mode === "diskToMirror" ? { receivedPlanId: receivedPlanId || undefined, isolateNetwork } : {})
   });
 

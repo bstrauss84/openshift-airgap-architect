@@ -28,6 +28,7 @@ import { classifyRecovery } from "../src/mirroringRecovery.js";
 import { parseMapping } from "../src/mirroringVerify.js";
 import { parseSignatureErrors } from "../src/registriesDScope.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
+import { resetMirroringForTests } from "./helpers/resetWorkflowsForTests.js";
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || "/data");
 const SECRET = JSON.stringify({ auths: { "registry.example.invalid:5000": { auth: Buffer.from("u:p").toString("base64") } } });
@@ -114,7 +115,7 @@ before(async () => {
   ({ server, baseUrl } = await createTestServer(app));
 });
 after(async () => {
-  await api("POST", "/api/mirroring/start-over", {}).catch(() => {});
+  await resetMirroringForTests();
   await closeTestServer(server);
   if (originalBin === undefined) delete process.env.OC_MIRROR_BIN; else process.env.OC_MIRROR_BIN = originalBin;
   for (const k of ["STUB_FAIL", "STUB_CORRUPT", "STUB_FAIL_TEXT"]) delete process.env[k];
@@ -122,7 +123,7 @@ after(async () => {
 });
 beforeEach(async () => {
   for (const k of ["STUB_FAIL", "STUB_CORRUPT", "STUB_FAIL_TEXT"]) delete process.env[k];
-  await api("POST", "/api/mirroring/start-over", {});
+  await resetMirroringForTests();
 });
 
 const imagesProfile = async (name) => (await api("POST", "/api/mirroring/profiles", { name, content: { additionalImages: true }, additionalImages: ["registry.example.invalid/a/app:1"] })).json;

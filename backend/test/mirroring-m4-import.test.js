@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { app } from "../src/index.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
+import { resetMirroringForTests } from "./helpers/resetWorkflowsForTests.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FX = path.join(__dirname, "fixtures", "imageset-config");
@@ -38,7 +39,7 @@ const H = "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration
 
 before(async () => {
   ({ server, baseUrl } = await createTestServer(app));
-  await api("POST", "/api/mirroring/start-over", {});
+  await resetMirroringForTests();
 });
 after(async () => closeTestServer(server));
 

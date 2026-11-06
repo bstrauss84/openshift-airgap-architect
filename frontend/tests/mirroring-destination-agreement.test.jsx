@@ -155,7 +155,8 @@ describe("destination ↔ credentials (owner B)", () => {
     fireEvent.change(destInput(c), { target: { value: "anon.example.com:5000/ocp" } });
     fireEvent.click(screen.getByRole("button", { name: "Run preflight" }));
     await waitFor(() => expect(bodies).toHaveLength(1));
-    expect(bodies[0]).toMatchObject({ registryUrl: "anon.example.com:5000/ocp", mirrorPullSecret: '{"auths":{"anon.example.com:5000":{"auth":"aWQ6cGFzcwo=","email":""}}}' });
+    expect(bodies[0]).toMatchObject({ registryUrl: "anon.example.com:5000/ocp", destinationAuth: "anonymous" });
+    expect(bodies[0]).not.toHaveProperty("mirrorPullSecret");
   });
 
   it("while a run is going, the destination cannot be edited", async () => {

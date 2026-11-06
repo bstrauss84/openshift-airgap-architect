@@ -111,6 +111,57 @@ export const isAnonymousPlaceholder = (authJson) => {
   }
 };
 
+/** The registry host[:port] a destination URL names (scheme and repository path dropped). */
+export const destinationRegistryHost = (registryUrl) => {
+  const s = String(registryUrl || "").trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+  return s.split("/")[0].toLowerCase();
+};
+
+/**
+ * v2.3.0 N4: the explicit anonymous-destination choice, made on the server.
+ *
+ * `destinationAuth: "anonymous"` (and only that) means "this registry accepts
+ * pushes without logging in"; the server then supplies the OKD placeholder
+ * itself. Omitting the destination secret is no longer a way to get an
+ * anonymous run. Returns `{ body }` (a copy, possibly with the placeholder) or
+ * `{ error }` when the request is contradictory.
+ */
+export const resolveDestinationAuth = (body) => {
+  const b = body || {};
+  if (b.destinationAuth !== "anonymous") return { body: b };
+  const hasSecret = typeof b.mirrorPullSecret === "string" && b.mirrorPullSecret.trim().length > 0;
+  if (hasSecret && !isAnonymousPlaceholder(b.mirrorPullSecret)) {
+    return { error: "Choose either anonymous destination access or destination credentials, not both." };
+  }
+  const host = destinationRegistryHost(b.registryUrl);
+  if (!host) return { body: b }; // the missing registry URL is reported by its own check
+  return {
+    body: {
+      ...b,
+      mirrorAuthSource: "inline",
+      mirrorPullSecret: JSON.stringify({ auths: { [host]: { auth: OKD_PLACEHOLDER_AUTH, email: "" } } })
+    }
+  };
+};
+
+/**
+ * The destination-credential rule shared by the preflight and every run path
+ * (v2.3.0 N4). Returns a blocker message, or null when the rule is satisfied.
+ */
+export const destinationCredentialProblem = ({ mode, isMirroring, mirrorAuthSource = "reuse", mirrorPullSecret, installSecret }) => {
+  if (mode !== "diskToMirror" && mode !== "mirrorToMirror") return null;
+  if (isMirroring && mirrorAuthSource === "reuse") {
+    return "Mirroring does not reuse the Install workflow's mirror registry credentials. Provide the mirror registry credentials for this run.";
+  }
+  if (mirrorAuthSource === "reuse") {
+    if (!(typeof installSecret === "string" && installSecret.trim())) return "Mirror registry credentials not found in Identity & Access.";
+    try { JSON.parse(installSecret); } catch { return "Mirror registry credentials in Identity & Access do not appear to be valid JSON."; }
+    return null;
+  }
+  if (typeof mirrorPullSecret === "string" && mirrorPullSecret.trim().length > 0) return null;
+  return "Mirror registry credentials are required for this mode. Provide them, or choose anonymous access if the registry accepts pushes without logging in.";
+};
+
 export function sharedPreflightItems({ mode, checks, fieldErrors, archivePath, workspacePath, cachePath, registryUrl, configSourceType, rhPullSecret, rhAuthSource, mirrorPullSecret = null, tool, trust, redHatContent = true, imageRegistries = [] }) {
   const items = [];
   if (mode === "mirrorToDisk" || mode === "diskToMirror") {

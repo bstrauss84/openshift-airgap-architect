@@ -12,6 +12,7 @@ import yaml from "js-yaml";
 import { app } from "../src/index.js";
 import { deriveCatalogMinor, normalizeProfile, catalogMinorReconciliation, generationReadiness } from "../src/mirroringState.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
+import { resetMirroringForTests } from "./helpers/resetWorkflowsForTests.js";
 
 let server;
 let baseUrl;
@@ -33,7 +34,7 @@ const update = (id, body) => api("POST", `/api/mirroring/profiles/${id}`, body);
 
 before(async () => {
   ({ server, baseUrl } = await createTestServer(app));
-  await api("POST", "/api/mirroring/start-over", {});
+  await resetMirroringForTests();
 });
 after(async () => closeTestServer(server));
 

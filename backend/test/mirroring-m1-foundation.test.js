@@ -29,6 +29,7 @@ import path from "node:path";
 import { app } from "../src/index.js";
 import { secretTempDir } from "../src/utils.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
+import { resetMirroringForTests } from "./helpers/resetWorkflowsForTests.js";
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || "/data");
 
@@ -85,7 +86,7 @@ const terminal = (jobId) => waitFor(async () => {
 const stopJob = (jobId) => api("POST", `/api/jobs/${jobId}/stop`, {});
 
 const resetAll = async () => {
-  await api("POST", "/api/mirroring/start-over", {});
+  await resetMirroringForTests();
   const r = await api("POST", "/api/start-over", { cancelRunningOcMirror: true });
   assert.equal(r.status, 200);
 };
@@ -330,22 +331,23 @@ describe("Start Over scoping", () => {
     assert.equal(mirroring.profiles.length, 1, "Mirroring profiles survive Install Start Over");
     assert.equal(mirroring.profiles[0].execution.lastRunJobId, jobId);
 
-    // Mirroring Start Over cancels exactly its own run.
+    // v2.3.0 R1: the global Mirroring reset is retired: 410 Gone, and nothing changes.
     const mso = await api("POST", "/api/mirroring/start-over", {});
-    assert.equal(mso.status, 200);
-    assert.deepEqual(mso.json.cancelledJobIds, [jobId]);
-    assert.equal((await jobOf(jobId)).status, "cancelled");
-    assert.equal(mso.json.mirroring.profiles.length, 0);
+    assert.equal(mso.status, 410);
+    assert.equal(mso.json.code, "MIRRORING_RESET_RETIRED");
+    assert.equal((await jobOf(jobId)).status, "running", "the retired reset cancels nothing");
+    assert.equal((await api("GET", "/api/mirroring")).json.profiles.length, 1, "the retired reset deletes nothing");
+    await stopJob(jobId);
   });
 
-  test("Mirroring Start Over never cancels an Install run", async () => {
+  test("the retired Mirroring reset never cancels an Install run either", async () => {
     useStub("sleep 5");
     await resetAll();
     await lockInstall422();
     const run = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", archivePath: path.join(DATA_DIR, "m1-install-a") });
     assert.equal(run.status, 200, JSON.stringify(run.json));
     const mso = await api("POST", "/api/mirroring/start-over", {});
-    assert.deepEqual(mso.json.cancelledJobIds, []);
+    assert.equal(mso.status, 410);
     assert.equal((await jobOf(run.json.jobId)).status, "running");
     await stopJob(run.json.jobId);
   });

@@ -35,6 +35,7 @@ const OTHER = fs.mkdtempSync("/var/tmp/oaa-mirror-other-test-");
 const { app } = await import("../src/index.js");
 const { getState, setState } = await import("../src/utils.js");
 const { createTestServer, closeTestServer } = await import("./helpers/httpServerLifecycle.js");
+const { resetMirroringForTests } = await import("./helpers/resetWorkflowsForTests.js");
 
 let server;
 let baseUrl;
@@ -91,7 +92,7 @@ before(async () => {
   ({ server, baseUrl } = await createTestServer(app));
 });
 after(async () => {
-  await api("POST", "/api/mirroring/start-over", {}).catch(() => {});
+  await resetMirroringForTests();
   await closeTestServer(server);
   if (originalBin === undefined) delete process.env.OC_MIRROR_BIN; else process.env.OC_MIRROR_BIN = originalBin;
   delete process.env.STUB_ERRORS;
@@ -102,7 +103,7 @@ after(async () => {
 beforeEach(async () => {
   delete process.env.STUB_ERRORS;
   delete process.env.STUB_SLEEP_MS;
-  await api("POST", "/api/mirroring/start-over", {});
+  await resetMirroringForTests();
 });
 
 const imagesProfile = async (name) => (await api("POST", "/api/mirroring/profiles", { name, content: { additionalImages: true }, additionalImages: ["registry.example.invalid/a/app:1"] })).json;

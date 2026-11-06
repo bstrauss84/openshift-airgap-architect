@@ -204,6 +204,8 @@ export const ocMirrorPreflightSchema = z.object({
   rhPullSecret: pullSecretSchema.optional(),
   mirrorAuthSource: z.enum(["reuse", "inline"]).optional(),
   mirrorPullSecret: pullSecretSchema.optional(),
+  // v2.3.0 N4: the explicit anonymous-destination choice (the server supplies the OKD placeholder).
+  destinationAuth: z.enum(["credentials", "anonymous"]).optional(),
   minBytes: z.number().nonnegative().optional(),
   advanced: z.object({
     logLevel: z.enum(["info", "debug"]).optional(),
@@ -242,6 +244,8 @@ export const ocMirrorRunSchema = z.object({
   rhPullSecret: pullSecretSchema.optional(),
   mirrorAuthSource: z.enum(["reuse", "inline"]).optional(),
   mirrorPullSecret: pullSecretSchema.optional(),
+  // v2.3.0 N4: the explicit anonymous-destination choice (the server supplies the OKD placeholder).
+  destinationAuth: z.enum(["credentials", "anonymous"]).optional(),
   configContent: z.string().optional(),
   advanced: z.object({
     logLevel: z.enum(["info", "debug"]).optional(),
@@ -598,6 +602,8 @@ export const mirroringRetrySchema = z.object({
   rhPullSecret: pullSecretSchema.optional(),
   mirrorAuthSource: z.enum(["inline"]).optional(),
   mirrorPullSecret: pullSecretSchema.optional(),
+  // v2.3.0 N4: the explicit anonymous-destination choice (the server supplies the OKD placeholder).
+  destinationAuth: z.enum(["credentials", "anonymous"]).optional(),
   registryUrl: z.string().max(2048).optional(),
   isolateNetwork: z.boolean().optional()
 }).strict();

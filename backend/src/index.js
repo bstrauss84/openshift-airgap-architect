@@ -28,7 +28,7 @@ import { runCincinnatiBackgroundJob } from "./cincinnatiJob.js";
 import { authAvailable, getCatalogs, getResults, runScanJob, createSharedAuthRelease } from "./operators.js";
 import { recordedToolIdentity, compareToolIdentity, localToolIdentity } from "./ocMirrorIdentity.js";
 import { resolveOcMirrorBinary, peekOcMirrorBinary, getRuntimeArch, getLocalBinaryArch, getBinariesForExportArch } from "./ocMirrorRuntime.js";
-import { sharedPreflightItems, describeTrust, item as preflightItem, registryOfImage } from "./ocMirrorPreflightItems.js";
+import { sharedPreflightItems, describeTrust, item as preflightItem, registryOfImage, resolveDestinationAuth, destinationCredentialProblem } from "./ocMirrorPreflightItems.js";
 import { createExecutionPlan, describeOcMirrorTool, readExecutionPlan, isValidPlanId } from "./mirroringPlan.js";
 import { db, dataDir } from "./db.js";
 import { ensureInstaller, getAwsAmi, getAwsRegions, installerPathFor, warmInstallerStream } from "./installer.js";
@@ -2287,8 +2287,11 @@ function checkPathOverlap(archivePath, workspacePath, cachePath, mode) {
  * `opts.workflow === "mirroring"` changes exactly one rule: Mirroring never
  * reuses the Install workflow's stored mirror-registry credentials.
  */
-async function computeOcMirrorPreflight(state, body, opts = {}) {
+async function computeOcMirrorPreflight(state, bodyIn, opts = {}) {
   const isMirroring = opts.workflow === "mirroring";
+  // v2.3.0 N4: the explicit anonymous-destination choice, resolved exactly as the run resolves it.
+  const destinationAuth = resolveDestinationAuth(bodyIn || {});
+  const body = destinationAuth.body || bodyIn || {};
   const mode = body.mode || "mirrorToDisk";
   const archivePath = body.archivePath?.trim() || "";
   const workspacePath = body.workspacePath?.trim() || "";
@@ -2535,34 +2538,12 @@ async function computeOcMirrorPreflight(state, body, opts = {}) {
     }
   }
   if (mode === "diskToMirror" || mode === "mirrorToMirror") {
-    let mirrorSecretPresent = false;
-    if (isMirroring && mirrorAuthSource === "reuse") {
-      const msg = "Mirroring does not reuse the Install workflow's mirror registry credentials. Provide the mirror registry credentials for this run.";
-      blockers.push(msg);
-      fieldErrors.mirrorPullSecret = { severity: "blocker", message: msg };
-    } else if (mirrorAuthSource === "reuse") {
-      const secret = state.credentials?.mirrorRegistryPullSecret;
-      if (secret && typeof secret === "string" && secret.trim().length > 0) {
-        try {
-          JSON.parse(secret);
-          mirrorSecretPresent = true;
-        } catch {
-          // Intentionally suppressed - JSON.parse failure is the expected error case
-          const msg = "Mirror registry credentials in Identity & Access do not appear to be valid JSON.";
-          blockers.push(msg);
-          fieldErrors.mirrorPullSecret = { severity: "blocker", message: msg };
-        }
-      } else {
-        const msg = "Mirror registry credentials not found in Identity & Access.";
-        blockers.push(msg);
-        fieldErrors.mirrorPullSecret = { severity: "blocker", message: msg };
-      }
-    } else if (mirrorPullSecret && typeof mirrorPullSecret === "string" && mirrorPullSecret.trim().length > 0) {
-      mirrorSecretPresent = true;
-    } else {
-      const msg = "Mirror registry credentials are required for this mode.";
-      blockers.push(msg);
-      fieldErrors.mirrorPullSecret = { severity: "blocker", message: msg };
+    const problem = destinationAuth.error
+      || destinationCredentialProblem({ mode, isMirroring, mirrorAuthSource, mirrorPullSecret, installSecret: state.credentials?.mirrorRegistryPullSecret });
+    const mirrorSecretPresent = !problem;
+    if (problem) {
+      blockers.push(problem);
+      fieldErrors.mirrorPullSecret = { severity: "blocker", message: problem };
     }
     if (mode === "diskToMirror") checks.auth = mirrorSecretPresent ? "present" : "missing";
     else if (!mirrorSecretPresent) checks.auth = "missing";
@@ -3235,7 +3216,11 @@ app.post("/api/ocmirror/run", validateBody(ocMirrorRunSchema), async (req, res) 
  * plan's config file, which it never deletes.
  */
 async function startOcMirrorRun(ctx) {
-  const { state, body, workflow = "install", profileId = null, defaults = {}, buildGeneratedConfig, preparePlan = null, envOverrides = null, storage = null, beforeSpawn = null, afterSuccess = null, verifyAfter = null } = ctx;
+  // v2.3.0 N4: the explicit anonymous-destination choice is made here, on the server.
+  const destinationAuth = resolveDestinationAuth(ctx.body || {});
+  if (destinationAuth.error) return { status: 400, json: { error: destinationAuth.error, code: "DESTINATION_AUTH_CONTRADICTORY" } };
+  const body = destinationAuth.body;
+  const { state, workflow = "install", profileId = null, defaults = {}, buildGeneratedConfig, preparePlan = null, envOverrides = null, storage = null, beforeSpawn = null, afterSuccess = null, verifyAfter = null } = ctx;
   const isMirroring = workflow === "mirroring";
   const fromBodyOrDefault = (key) => (isMirroring ? defaults[key] : (body[key]?.trim() || defaults[key]));
   const mode = body.mode || "mirrorToDisk";
@@ -3274,6 +3259,19 @@ async function startOcMirrorRun(ctx) {
 
   if (isMirroring && (mode === "diskToMirror" || mode === "mirrorToMirror") && mirrorAuthSource === "reuse") {
     return { status: 400, json: { error: "Mirroring does not reuse the Install workflow's mirror registry credentials. Provide the mirror registry credentials for this run." } };
+  }
+
+  // v2.3.0 N4: the server-side run contract re-applies the preflight's
+  // credential and trust rules (shared code, ocMirrorPreflightItems.js), so no
+  // run path — Install, Mirroring, "Run the same again", an Upgrade stage or a
+  // stage sequence — can start oc-mirror on a request the preflight blocks.
+  const contractBlockers = [];
+  const destinationProblem = destinationCredentialProblem({ mode, isMirroring, mirrorAuthSource, mirrorPullSecret: mirrorPullSecretRaw, installSecret: state.credentials?.mirrorRegistryPullSecret });
+  if (destinationProblem) contractBlockers.push(destinationProblem);
+  const trustItem = describeTrust();
+  if (trustItem.status === "block") contractBlockers.push(trustItem.detail);
+  if (contractBlockers.length) {
+    return { status: 409, json: { error: `The preflight blocks this run: ${contractBlockers.join(" ")}`, code: "PREFLIGHT_BLOCKED", blockers: contractBlockers } };
   }
 
   // One oc-mirror run at a time (owner decision 5). Checked and reserved
@@ -4796,7 +4794,7 @@ app.post("/api/mirroring/profiles/:id/operations/:jobId/retry", validateBody(mir
       try { h = await hashArchive(path.join(staged, a.file)); } catch { return res.status(409).json({ error: `${a.file} is no longer in the received copy.`, code: "TRANSFER_CHANGED" }); }
       if (h.sha256 !== a.sha256 || h.corrupt.length) return res.status(409).json({ error: `${a.file} changed after it was received; receive the transfer again.`, code: "TRANSFER_CHANGED" });
     }
-    const body = mirroringExecutionBody({ mode: "diskToMirror", registryUrl: req.body.registryUrl || meta.registryUrl, mirrorAuthSource: "inline", mirrorPullSecret: req.body.mirrorPullSecret, receivedPlanId: record.planId, isolateNetwork: req.body.isolateNetwork ?? meta.plan.networkConfined !== false }, profile);
+    const body = mirroringExecutionBody({ mode: "diskToMirror", registryUrl: req.body.registryUrl || meta.registryUrl, mirrorAuthSource: "inline", mirrorPullSecret: req.body.mirrorPullSecret, ...(req.body.destinationAuth ? { destinationAuth: req.body.destinationAuth } : {}), receivedPlanId: record.planId, isolateNetwork: req.body.isolateNetwork ?? meta.plan.networkConfined !== false }, profile);
     // The original attempt's run options, not the profile's current ones.
     if (meta.requestBody?.advanced && typeof meta.requestBody.advanced === "object") body.advanced = { ...meta.requestBody.advanced };
     return runReceivedTransfer(req, res, profile, body, { recoveryOf: originId, classification: recovery.classification, verifyAfter: verifyByDryRun(staged) });
@@ -4810,7 +4808,7 @@ app.post("/api/mirroring/profiles/:id/operations/:jobId/retry", validateBody(mir
     mode: meta.mode,
     ...(req.body.rhAuthSource ? { rhAuthSource: req.body.rhAuthSource } : {}),
     ...(req.body.rhPullSecret ? { rhPullSecret: req.body.rhPullSecret } : {}),
-    ...(meta.mode === "mirrorToMirror" ? { registryUrl: req.body.registryUrl || meta.registryUrl, mirrorAuthSource: "inline", mirrorPullSecret: req.body.mirrorPullSecret } : {}),
+    ...(meta.mode === "mirrorToMirror" ? { registryUrl: req.body.registryUrl || meta.registryUrl, mirrorAuthSource: "inline", mirrorPullSecret: req.body.mirrorPullSecret, ...(req.body.destinationAuth ? { destinationAuth: req.body.destinationAuth } : {}) } : {}),
     // The original run's options exactly (not the profile's current ones).
     advanced: { ...(original.execution?.options || {}) }
   }, profile);
@@ -5532,17 +5530,19 @@ app.post("/api/mirroring/profiles/:id/verify-catalogs", validateBody(mirroringVe
   });
 });
 
-app.post("/api/mirroring/start-over", validateBody(mirroringEmptySchema), (req, res) => {
-  // Scoped to Mirroring: cancels only Mirroring runs, resets only the Mirroring
-  // slice, and deletes no mirrored data on disk.
-  const cancelled = [];
-  for (const job of runningOcMirrorJobs()) {
-    if (!isMirroringJob(job.id)) continue;
-    cancelOcMirrorJob(job, "Cancelled by Mirroring Start Over.");
-    cancelled.push(job.id);
-  }
-  writeMirroringSlice(emptyMirroringSlice());
-  res.json({ ok: true, cancelledJobIds: cancelled, mirroring: describeMirroringSlice(readMirroringSlice()) });
+/**
+ * v2.3.0 R1: the global Mirroring reset is retired. It had no caller in the
+ * application, yet it erased every profile and cancelled every Mirroring run —
+ * after v2.3.0 that would include Upgrade-owned stage profiles and their runs.
+ * It now answers 410 Gone and changes nothing; profiles are managed one at a
+ * time (DELETE /api/mirroring/profiles/:id).
+ */
+app.post("/api/mirroring/start-over", (req, res) => {
+  res.status(410).json({
+    error: "Resetting every Mirroring profile at once is no longer available. Nothing was changed. Delete individual profiles from the Mirroring workspace instead.",
+    code: "MIRRORING_RESET_RETIRED",
+    alternative: "DELETE /api/mirroring/profiles/:id"
+  });
 });
 
 /* DOC-203. Documentation links are per OpenShift minor, so they exist only once
@@ -6979,7 +6979,25 @@ function clearUpdateInfoCache() {
   updateInfoCache = null;
 }
 
+/**
+ * In-process test hooks (v2.3.0). Defined only when NODE_ENV === "test" and
+ * never reachable over HTTP: the public global Mirroring reset is retired
+ * (R1), but test suites still need a clean slate between cases.
+ */
+const __testHooks = process.env.NODE_ENV === "test"
+  ? Object.freeze({
+    resetMirroringSlice: () => {
+      for (const job of runningOcMirrorJobs()) {
+        if (isMirroringJob(job.id)) cancelOcMirrorJob(job, "Cancelled by test reset.");
+      }
+      writeMirroringSlice(emptyMirroringSlice());
+      return describeMirroringSlice(readMirroringSlice());
+    }
+  })
+  : undefined;
+
 export {
+  __testHooks,
   app,
   // DOC-227: exported so the dependency model can be asserted directly rather
   // than only through HTTP.

@@ -20,6 +20,7 @@ import { secretTempDir, secretTempLocation } from "../src/utils.js";
 import { db } from "../src/db.js";
 import { normalizeRegistryKey, parseRegistryAuth, combineRegistryAuths, encodeBasicAuth, RegistryAuthError } from "../src/registryAuth.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
+import { resetMirroringForTests } from "./helpers/resetWorkflowsForTests.js";
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || "/data");
 // Unusual on purpose: quotes, backslash, colon, unicode, emoji, JSON metacharacters.
@@ -106,7 +107,7 @@ before(async () => {
   ({ server, baseUrl } = await createTestServer(app));
 });
 after(async () => {
-  await api("POST", "/api/mirroring/start-over", {}).catch(() => {});
+  await resetMirroringForTests();
   await closeTestServer(server);
   if (originalBin === undefined) delete process.env.OC_MIRROR_BIN; else process.env.OC_MIRROR_BIN = originalBin;
   delete process.env.STUB_SLEEP_MS;
@@ -116,7 +117,7 @@ after(async () => {
 beforeEach(async () => {
   delete process.env.STUB_SLEEP_MS;
   fs.rmSync(capture, { force: true });
-  await api("POST", "/api/mirroring/start-over", {});
+  await resetMirroringForTests();
   await api("POST", "/api/start-over", { cancelRunningOcMirror: true });
 });
 const imagesProfile = async (name) => (await api("POST", "/api/mirroring/profiles", { name, content: { additionalImages: true }, additionalImages: ["registry.example.invalid/a/app:1"] })).json;

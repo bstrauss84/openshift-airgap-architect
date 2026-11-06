@@ -414,7 +414,7 @@ function RetryDialog({ op, onClose, onStarted }) {
     try {
       const body = {
         ...(needsSource && sourceCred.usable ? sourceCred.body : {}),
-        ...(needsDest ? { registryUrl: registry.trim(), mirrorAuthSource: "inline", ...(destSecret.trim() ? { mirrorPullSecret: destSecret.trim() } : {}) } : {})
+        ...(needsDest ? { registryUrl: registry.trim(), mirrorAuthSource: "inline", ...(destAnonymous ? { destinationAuth: "anonymous" } : destSecret.trim() ? { mirrorPullSecret: destSecret.trim() } : {}) } : {})
       };
       const { jobId } = await retryOperation(op.profileId, op.jobId, body);
       onStarted(jobId);
