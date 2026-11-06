@@ -922,12 +922,24 @@ when all of the following hold and have been verified in a real browser:
 
 ## 5. Tranches
 
-M1 backend foundation (done, unreleased) → M2 (done, unreleased) shell, landing card, content chooser,
-shared release selector, selection-card a11y, reduced motion, X10 doc correction →
-M3 (done, unreleased; accepted with corrections) content generation UI, operator picker extraction + search,
-additional-images rows with provenance → M4 (done, unreleased) M3 corrections, shared structural
-authority, import and structural validation, scan reload recovery → M5 (done, unreleased) content validation, offline
-`unverified`, per-profile mirror-to-disk with an immutable plan manifest → M6 (done, unreleased)
-transfer manifest and verified receive, disk-to-mirror from the received plan (never
-regenerated), mirror-to-mirror, contamination fixture, disconnected high-side test → M7 (done, unreleased) verified catalog fetch, catalog identity and offline readiness,
-real-binary disconnected integration, enterprise deployment → post-M7 completion (§3f). All within v2.2.0.
+M1 backend foundation → M2 shell, landing card, content chooser, shared release selector, selection-card a11y,
+reduced motion, X10 doc correction → M3 content generation UI, operator picker extraction + search, additional-images
+rows with provenance → M4 M3 corrections, shared structural authority, import and structural validation, scan reload
+recovery → M5 content validation, offline `unverified`, per-profile mirror-to-disk with an immutable plan manifest →
+M6 transfer manifest and verified receive, disk-to-mirror from the received plan (never regenerated), mirror-to-mirror,
+contamination fixture, disconnected high-side test → M7 verified catalog fetch, catalog identity and offline readiness,
+real-binary disconnected integration, enterprise deployment → post-M7 completion (§3f). **All released in v2.2.0
+(2026-11-05); v2.2.1 (2026-11-06) corrected the container EACCES defect.**
+
+## 6. v2.3.0 changes affecting Mirroring
+
+- **Server-side run contract (N4):** every run path re-applies the preflight's destination-credential and trust rules;
+  anonymous destination access is the explicit `destinationAuth: "anonymous"` (the server supplies the OKD placeholder);
+  otherwise 409 `PREFLIGHT_BLOCKED`.
+- **Global Mirroring reset retired (R1):** `POST /api/mirroring/start-over` answers 410 Gone and changes nothing; profiles
+  are deleted one at a time.
+- **Upgrade stage profiles:** profiles owned by an Upgrade plan are listed as "Upgrade stage"; their release, unlock and
+  delete are refused here (409 `PROFILE_OWNED_BY_UPGRADE`); operator, image and run choices stay editable. See
+  [UPGRADE_WORKFLOW.md](UPGRADE_WORKFLOW.md).
+- **Install Start Over** is now "New Install…", scoped to Install, previewed by the server; it never cancels a Mirroring
+  or Upgrade job.

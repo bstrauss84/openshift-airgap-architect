@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — v2.3.0 candidate (not released)
+
+### Added
+- **Upgrade workflow** (landing page → Upgrade): plan a supported disconnected update of OpenShift 4.20/4.21/4.22 from the
+  OpenShift update graph (recommended edges only; conditional updates only in a deliberate review; one minor per update;
+  per-step channel validation; Control Plane Only for eus 4.20 → 4.22), stage the release content as Upgrade-owned
+  Mirroring profiles with one pinned release per ImageSetConfiguration, run them (single stage or a reviewed sequence)
+  through the existing Mirroring engine with a post-run destination check, and follow OSUS (recommended), CLI or web
+  console instructions that cite version-matched documentation. Evidence-based readiness, optional read-only cluster
+  inventory import, labelled artifacts, and a plan package with verified offline import. See `docs/UPGRADE_WORKFLOW.md`.
+- `GET /api/start-over/preview`: the exact scope of a New Install reset.
+
+### Changed
+- **Landing page:** no global Start Over; each card shows what exists and offers only its own actions. "New Install…"
+  (landing, Tools, Review, unsupported-version recovery) opens one scoped confirmation rendered from the server preview.
+  Opening a workflow is navigation only (the Install card no longer resets Install state when no step was visited).
+- **Install reset** cancels only jobs positively tagged as Install's; Mirroring, Upgrade and unclassified running jobs are
+  never cancelled; in-use temporary files are never swept; server-owned slices (Mirroring, Upgrade) are preserved by one
+  shared list at every Install boundary.
+- `POST /api/mirroring/start-over` is retired: 410 Gone, nothing changed (it had no UI caller).
+
+### Fixed
+- **N4:** every oc-mirror run path re-applies the preflight's destination-credential and trust rules on the server;
+  anonymous destination access is an explicit choice (`destinationAuth: "anonymous"`).
+- **N7:** the export-streaming scaling test is robust to concurrent allocations.
+
+### Documentation
+- README: the v2.0.0 repository-root build context for existing Tekton/OpenShift Builds pipelines.
+- `docs/MIRRORING_WORKFLOW.md`: M1–M7 recorded as released in v2.2.0; v2.3.0 changes affecting Mirroring.
+- `docs/N5_TOOL_REDISTRIBUTION_ASSESSMENT.md`: third-party notice assessment for oc/oc-mirror (no redistribution enabled).
+
 ## [2.2.1] - 2026-11-06
 
 > Detailed notes: [docs/releases/v2.2.1.md](docs/releases/v2.2.1.md)

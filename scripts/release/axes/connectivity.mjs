@@ -84,6 +84,12 @@ const DECLARED_EGRESS = Object.freeze([
     source: "backend/src/verifiedRegistry.js (host taken from the catalog reference), backend/src/operators.js",
   },
   {
+    host: "api.openshift.com",
+    purpose: "OpenShift Update Service graph for Upgrade planning (v2.3.0); one fixed endpoint /api/upgrades_info/v1/graph, allowlisted channel/arch, no redirects, size-capped; never fetched on the high side (AIRGAP_RUNTIME_SIDE=high-side), where graphs are imported",
+    classification: "connected-only",
+    source: "backend/src/updateGraph.js",
+  },
+  {
     host: "github.com",
     purpose: "feedback submission target and generated-artifact provenance comments (the latter are inert text, not calls)",
     classification: "optional",

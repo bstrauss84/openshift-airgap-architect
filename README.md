@@ -110,6 +110,7 @@ re-entered. Mirroring profiles are kept on the server, not in an exported run.
   - [Corporate HTTP proxy and backend egress](#corporate-proxy-backend-egress)
   - [Updating the app](#updating-the-app)
 - **Core Workflows**
+  - [Upgrade workflow](#upgrade-workflow)
   - [Mirroring workflow](#mirroring-workflow)
   - [Generating assets](#generating-assets)
   - [Operator workflows](#operator-workflows)
@@ -690,6 +691,28 @@ Before updating, open **Tools → Export Run** and save your configuration JSON;
 Update checks compare the installed application version with the newest published GitHub Release and do **not** require `APP_GIT_SHA` (see [Build info and update checks](#build-info-and-update-checks)).
 
 <a id="mirroring-workflow"></a>
+## Upgrade workflow
+
+> **Full guide:** [Upgrade user guide](docs/UPGRADE_WORKFLOW.md#part-a--user-guide) in
+> [`docs/UPGRADE_WORKFLOW.md`](docs/UPGRADE_WORKFLOW.md). Upgrade is new in v2.3.0 (in development on
+> `feat/v2.3.0-upgrade`; not released).
+
+**Upgrade** (landing page → **Plan an upgrade**) plans a supported disconnected update of an OpenShift 4.20, 4.21 or
+4.22 cluster. Architect never connects to the cluster or starts an update; the Cluster Version Operator does.
+
+- **Route** from the OpenShift update graph (fetched only from `api.openshift.com`, or imported from a snapshot or your
+  own OpenShift Update Service): recommended updates only, one minor at a time, each step checked in the channel the
+  cluster is on for it. Conditional updates appear only in a deliberate review, with their risks; no command applies
+  them. The graph's origin, time and checksum are shown; an old or imported graph is "as of", never current.
+- **Stages:** every release on the route becomes one Upgrade-owned Mirroring profile with exactly one pinned release per
+  oc-mirror configuration (oc-mirror v2's own multi-channel calculation adds unplanned releases or fails for EUS pairs).
+  Stages run through Mirroring's preflight and runs (mirror to disk, mirror to mirror, disk to mirror, transfers), alone
+  or as a reviewed sequence that stops at the first failure.
+- **Instructions** for the OpenShift Update Service (recommended), the CLI without OSUS (by release digest) and the web
+  console, with documentation of the minor each step updates into. Never `--force`.
+- **Readiness** from evidence only (optional read-only `oc get … -o json` imports); **artifacts** labelled validated,
+  template or produced by a run; a **plan package** with verified offline import.
+
 ## Mirroring workflow
 
 > **Full guide:** [Mirroring user guide](docs/MIRRORING_WORKFLOW.md#part-a--user-guide) in
