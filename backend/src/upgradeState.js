@@ -79,6 +79,9 @@ const normalizeStage = (s, i) => ({
   release: version(s?.release),
   minor: typeof s?.minor === "string" && /^\d+\.\d+$/.test(s.minor) ? s.minor : null,
   profileId: typeof s?.profileId === "string" && /^p-[A-Za-z0-9_-]{8,32}$/.test(s.profileId) ? s.profileId : null,
+  // Received plans: the connected side's stage profile (matched to received transfers by their origin).
+  originProfileId: typeof s?.originProfileId === "string" && /^p-[A-Za-z0-9_-]{8,32}$/.test(s.originProfileId) ? s.originProfileId : null,
+  configSha256: typeof s?.configSha256 === "string" && /^[a-f0-9]{64}$/.test(s.configSha256) ? s.configSha256 : null,
   // Cluster progress is the user's statement (or imported evidence) — never inferred from mirroring.
   clusterUpdated: oneOf(s?.clusterUpdated, ["none", "attested", "evidenced"], "none"),
   clusterUpdatedAt: iso(s?.clusterUpdatedAt)

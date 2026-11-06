@@ -62,12 +62,28 @@ export const stageContentStatus = ({ profile, jobs }) => {
   if (m2m.length) evidence.push({ kind: "mirrored-to-registry", jobId: m2m[m2m.length - 1].id });
   if (d2m.length) evidence.push({ kind: "loaded-into-registry", jobId: d2m[d2m.length - 1].id });
   if (verified.length) evidence.push({ kind: "registry-verified", jobId: verified[verified.length - 1].id, scope: verified[verified.length - 1].meta.verification.scope || null });
+  if ((profile.received || []).length) evidence.push({ kind: "transfer-received", count: profile.received.length });
   const running = jobs.some((j) => j.status === "running");
   const state = running ? "running"
     : verified.length ? "registry-verified"
       : m2m.length || d2m.length ? "in-registry-unverified"
-        : (profile.transfers || []).length ? "transfer-prepared"
-          : m2d.length ? "mirrored-to-disk"
-            : "planned";
+        : (profile.received || []).length ? "transfer-received"
+          : (profile.transfers || []).length ? "transfer-prepared"
+            : m2d.length ? "mirrored-to-disk"
+              : "planned";
   return { state, evidence };
+};
+
+/**
+ * The Mirroring profile that carries a stage: the Upgrade-owned profile of a
+ * planned plan, or — for a plan imported on the disconnected side — the
+ * received profile created from that stage's transfer (matched by the
+ * connected-side profile id the transfer manifest records).
+ */
+export const stageProfileFor = (plan, stage, profiles) => {
+  if (plan.kind === "received") {
+    return Object.values(profiles).find((p) => p.kind === "received" && stage.originProfileId && p.origin?.profileId === stage.originProfileId) || null;
+  }
+  const p = profiles[stage.profileId];
+  return p && p.ownedBy?.planId === plan.id ? p : null;
 };

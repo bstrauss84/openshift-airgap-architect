@@ -63,6 +63,7 @@ export const upgradeSolveSchema = z.object({
 export const upgradeInventorySchema = z.object({ kind: z.enum(INVENTORY_KINDS), text: z.string().min(2).max(20 * 1024 * 1024) }).strict();
 export const upgradeAttestSchema = z.object({ checkId: z.string().max(48), attested: z.boolean(), note: z.string().max(500).optional() }).strict();
 export const upgradeClusterProgressSchema = z.object({ stageId: z.string().regex(/^s[0-9]{1,2}$/), state: z.enum(["none", "attested"]) }).strict();
+export const upgradeImportSchema = z.object({ text: z.string().min(2).max(9 * 1024 * 1024) }).strict();
 export const upgradeActiveSchema = z.object({ planId: z.string().max(40).nullable() }).strict();
 const secretText = z.string().min(2).max(65536);
 export const upgradeSequenceSchema = z.object({
@@ -418,5 +419,5 @@ export function registerUpgradeRoutes(app, deps) {
     res.json({ plan: describePlan(saved), ok: result.ok, alternatives: result.alternatives || [], alternativesTotal: result.alternativesTotal || 0 });
   });
 
-  return { defaultPlanningChannel };
+  return { defaultPlanningChannel, describePlan };
 }

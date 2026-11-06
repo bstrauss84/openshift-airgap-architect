@@ -126,6 +126,8 @@ export const buildEntry = ({ body, text, channel, arch, source, sourceUrl, fetch
     sourceUrl,
     fetchedAt,
     bodySha256: crypto.createHash("sha256").update(text).digest("hex"),
+    // The exact bytes, kept so a plan package can carry a re-verifiable snapshot.
+    rawText: text,
     normalized
   };
 };

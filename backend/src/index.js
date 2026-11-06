@@ -77,8 +77,12 @@ import { createIntegrityTracker, MANIFEST_FILENAME } from "./exportIntegrity.js"
 import { trackTempArtifact, untrackTempArtifact, releaseAllTempArtifacts, listTempArtifacts } from "./tempArtifacts.js";
 import { SERVER_OWNED_SLICES, stripServerOwnedSlices, withServerOwnedSlices, workflowOfJobMetadata, planInstallReset } from "./workflowSlices.js";
 import { normalizeUpgradeSlice, emptyUpgradeSlice, unknownUpgradeSchema } from "./upgradeState.js";
-import { registerUpgradeRoutes } from "./upgradeRoutes.js";
-import { stageSpecs, stageContentStatus, PROFILE_ARCH } from "./upgradeStages.js";
+import { registerUpgradeRoutes, upgradeImportSchema } from "./upgradeRoutes.js";
+import { stageSpecs, stageContentStatus, PROFILE_ARCH, stageProfileFor } from "./upgradeStages.js";
+import { buildPackageDocument, verifyPackageDocument, PackageError, toolAcquisition, instructionsMarkdown, exportableReadiness } from "./upgradePackage.js";
+import { evaluateReadiness } from "./upgradeReadiness.js";
+import { buildInstructions } from "./upgradeInstructions.js";
+import { importGraph as importUpgradeGraph } from "./updateGraph.js";
 import { readCachedGraph as readCachedGraphForUpgrade } from "./updateGraph.js";
 import { createShutdownHandler } from "./shutdown.js";
 import { activeProcesses } from "./processRegistry.js";
@@ -5707,14 +5711,15 @@ const materializeUpgradeStages = (plan) => {
 const upgradeStageViews = (plan) => {
   const profiles = readMirroringSlice().profiles;
   return plan.stages.map((stage) => {
-    const profile = profiles[stage.profileId] || null;
-    const owned = profile?.ownedBy?.planId === plan.id;
+    const profile = stageProfileFor(plan, stage, profiles);
     return {
       ...stage,
+      linkedProfileId: profile?.id || null,
       profileName: profile?.name || null,
-      owned,
+      owned: plan.kind !== "received" && Boolean(profile),
+      received: plan.kind === "received" && Boolean(profile),
       operatorsSelected: profile ? profile.operators.selected.length : 0,
-      content: stageContentStatus({ profile: owned ? profile : null, jobs: owned ? profileJobs(profile) : [] })
+      content: stageContentStatus({ profile, jobs: profile ? profileJobs(profile) : [] })
     };
   });
 };
@@ -5909,8 +5914,8 @@ const upgradeStageEvidence = (plan) => {
   const signatureEvidence = {};
   let registry = "";
   for (const stage of plan.stages) {
-    const profile = profiles[stage.profileId];
-    if (!profile || profile.ownedBy?.planId !== plan.id) continue;
+    const profile = stageProfileFor(plan, stage, profiles);
+    if (!profile) continue;
     const runs = profileJobs(profile).filter((j) => j.type === "oc-mirror-run" && !j.meta.dryRun && ["mirrorToMirror", "diskToMirror"].includes(j.meta.mode) && ["completed", "completed_with_warnings"].includes(j.status));
     const last = runs[runs.length - 1];
     if (!registry && profile.execution?.registryUrl) registry = profile.execution.registryUrl;
@@ -5969,6 +5974,122 @@ const buildUpgradeArtifacts = (plan) => {
   }
   return { files };
 };
+
+/** Everything a plan package carries, computed from server state (RFC §9.3). */
+const upgradePackageInputs = (plan) => {
+  const described = upgradeApi.describePlan(plan);
+  const evidence = upgradeStageEvidence(plan);
+  const readiness = evaluateReadiness(plan, { pathStatus: described.pathStatus, stageViews: described.stageViews || [], signatureEvidence: evidence.signatureEvidence });
+  const instructions = plan.path ? buildInstructions(plan, { readiness, registry: evidence.registry, clusterResources: evidence.clusterResources }) : null;
+  const snapshots = (plan.path?.graphSources || []).map((g) => readCachedGraphForUpgrade(g.source, g.channel, g.arch)).filter((e) => e && e.rawText);
+  const profiles = readMirroringSlice().profiles;
+  let recordedTool = null;
+  const stages = plan.stages.map((stage) => {
+    const profile = stageProfileFor(plan, stage, profiles);
+    let imagesetConfig = null;
+    if (profile && plan.kind !== "received") {
+      try { const pr = projectProfileForGeneration(profile); imagesetConfig = buildCheckedImageSetConfig(pr.state, pr.options); } catch { imagesetConfig = null; }
+      for (const j of profileJobs(profile)) if (j.meta.tool?.sha256) recordedTool = recordedToolIdentity(j.meta.tool);
+    }
+    return { ...stage, imagesetConfig, transfers: (profile?.transfers || []).map((t) => ({ planId: t.planId, cycleKind: t.cycleKind || null, preparedAt: t.preparedAt || null })) };
+  });
+  const tools = toolAcquisition(plan, recordedTool);
+  return { readiness, instructions, snapshots, stages, tools };
+};
+
+/** GET …/package.zip — the small planning hand-off (never archives, never credentials). */
+app.get("/api/upgrade/plans/:id/package.zip", (req, res) => {
+  const plan = readUpgradeSlice().plans.find((p) => p.id === req.params.id);
+  if (!plan) return res.status(404).json({ error: "No such upgrade plan.", code: "PLAN_NOT_FOUND" });
+  if (!plan.path) return res.status(409).json({ error: "Compute the update route first.", code: "PATH_REQUIRED" });
+  const inputs = upgradePackageInputs(plan);
+  const doc = buildPackageDocument({ plan, ...inputs, architect: { version: readAppVersion(), gitSha: (process.env.APP_GIT_SHA || "unknown").trim() } });
+  const files = [];
+  const add = (name, content) => files.push({ name, content: typeof content === "string" ? content : JSON.stringify(content, null, 2) });
+  add("oaa-upgrade-package.json", JSON.stringify(doc, null, 2));
+  add("README.txt", [
+    `Architect upgrade plan package — ${plan.name}`,
+    `Route: ${plan.path.path.join(" -> ")} (${plan.path.graphSources[0]?.channel}, ${plan.arch})`,
+    `Graph: ${plan.path.graphSources.map((g) => `${g.channel} from ${g.origin} at ${g.fetchedAt} (sha256 ${g.bodySha256})`).join("; ")}`,
+    "",
+    "This package does NOT contain the mirrored content. Each stage's archives move with the existing",
+    "verified transfer (oaa-transfer/ with SHA256SUMS) prepared in the Upgrade or Mirroring workflow.",
+    "Copy those directories as they are (they can be hundreds of GB); receive them on the disconnected",
+    "side with Mirroring > Receive transfer, then import oaa-upgrade-package.json in Upgrade > Import plan.",
+    "",
+    "Integrity: SHA256SUMS and contentSha256 show these files were not changed after they were written.",
+    "They do not prove who wrote them; the package is not signed. Recommendations are 'as of' the graph time above.",
+    "",
+    "Contents: instructions/ (OSUS, CLI, web), stages/ (validated ImageSetConfigurations), templates/,",
+    "readiness.json, tools/ACQUIRE_TOOLS.md. No credentials, cluster IDs or kubeconfigs are included.",
+    ""
+  ].join("\n"));
+  if (inputs.instructions?.ok) for (const m of ["osus", "cli", "web"]) add(`instructions/${m}.md`, instructionsMarkdown(inputs.instructions, m));
+  for (const st of inputs.stages) if (st.imagesetConfig) add(`stages/stage-${st.id.slice(1)}-${st.release}/imageset-config.yaml`, st.imagesetConfig);
+  for (const f of buildUpgradeArtifacts(plan).files.filter((x) => x.label === "TEMPLATE")) add(`templates/${f.name}`, f.content);
+  add("readiness.json", exportableReadiness(inputs.readiness));
+  const t = inputs.tools;
+  add("tools/ACQUIRE_TOOLS.md", [
+    "# Client tools for the disconnected side", "", t.reason, "",
+    ...(t.oc ? ["## oc", "", t.oc.policy, "", `Directory: ${t.oc.directory}`, "", `Files: ${t.oc.files.join(", ")}`, "", "Verify:", "", "```", t.oc.verify, "```", ""] : []),
+    "## oc-mirror", "", t.ocMirror.policy, "", `Directory: ${t.ocMirror.directory}${t.ocMirror.exact ? " (the exact versioned directory of the build the stages ran)" : ""}`, "",
+    ...(t.ocMirror.recorded ? [`Recorded build: ${t.ocMirror.recorded.version || "unknown"}; binary SHA-256 ${t.ocMirror.recorded.binarySha256 || "unknown"}${t.ocMirror.recorded.tarballSha256 ? `; tarball SHA-256 ${t.ocMirror.recorded.tarballSha256}` : ""}.`, ""] : []),
+    "Verify:", "", "```", t.ocMirror.verify, "```", "", t.fips, ""
+  ].join("\n"));
+  const sums = files.map((f) => `${crypto.createHash("sha256").update(f.content).digest("hex")}  ${f.name}`).join("\n") + "\n";
+  const archive = new ZipArchive({ zlib: { level: 9 } });
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", `attachment; filename="oaa-upgrade-${plan.id}.zip"`);
+  archive.on("error", () => { try { res.destroy(); } catch { /* closed */ } });
+  archive.pipe(res);
+  for (const f of files) archive.append(f.content, { name: `oaa-upgrade-${plan.id}/${f.name}` });
+  archive.append(sums, { name: `oaa-upgrade-${plan.id}/SHA256SUMS` });
+  archive.finalize();
+});
+
+/** GET …/package.json — the machine-readable part alone (for tests and scripted transfer). */
+app.get("/api/upgrade/plans/:id/package.json", (req, res) => {
+  const plan = readUpgradeSlice().plans.find((p) => p.id === req.params.id);
+  if (!plan) return res.status(404).json({ error: "No such upgrade plan.", code: "PLAN_NOT_FOUND" });
+  if (!plan.path) return res.status(409).json({ error: "Compute the update route first.", code: "PATH_REQUIRED" });
+  res.json(buildPackageDocument({ plan, ...upgradePackageInputs(plan), architect: { version: readAppVersion(), gitSha: (process.env.APP_GIT_SHA || "unknown").trim() } }));
+});
+
+/**
+ * POST /api/upgrade/import — the disconnected side imports oaa-upgrade-package.json.
+ * Verified before anything is written; creates a read-only "received" plan and
+ * imports its graph snapshots (labelled as snapshots, never as live data).
+ */
+app.post("/api/upgrade/import", validateBody(upgradeImportSchema), (req, res) => {
+  const text = req.body.text;
+  try {
+    const doc = verifyPackageDocument(text);
+    const slice = readUpgradeSlice();
+    if (slice.plans.length >= 20) return res.status(409).json({ error: "At most 20 upgrade plans can be kept. Delete one first.", code: "PLAN_LIMIT" });
+    for (const snap of doc.content.snapshots || []) importUpgradeGraph({ channel: snap.channel, arch: snap.arch, text: snap.rawText, origin: "snapshot", capturedAt: snap.fetchedAt, sourceUrl: snap.sourceUrl || undefined });
+    const src = doc.content.plan;
+    const id = `u-${crypto.randomBytes(9).toString("base64url")}`;
+    const plan = {
+      ...src,
+      id,
+      kind: "received",
+      name: `${String(src.name || "Upgrade plan").slice(0, 100)} (received)`,
+      graphSource: "imported",
+      inventory: null,
+      readiness: { attestations: {} },
+      conditionalReview: src.conditionalReview || { enabled: false, acknowledgedRisks: [] },
+      stages: (doc.content.stages || []).map((st) => ({ id: st.id, release: st.release, minor: st.minor, profileId: null, originProfileId: st.originProfileId, configSha256: st.configSha256 })),
+      origin: { planId: String(src.id || "").slice(0, 40), packageSha256: doc.contentSha256, importedAt: new Date().toISOString() },
+      createdAt: new Date().toISOString()
+    };
+    writeUpgradeSlice({ ...slice, plans: [...slice.plans, plan], activePlanId: id });
+    res.status(201).json({ plan: upgradeApi.describePlan(readUpgradeSlice().plans.find((x) => x.id === id)), integrity: doc.integrity });
+  } catch (err) {
+    if (err instanceof PackageError) return res.status(err.status).json({ error: err.message, code: err.code });
+    if (err?.code && err?.status) return res.status(err.status).json({ error: err.message, code: err.code });
+    res.status(422).json({ error: "The package could not be imported.", code: "PACKAGE_INVALID" });
+  }
+});
 
 const upgradeApi = registerUpgradeRoutes(app, {
   validateBody,
