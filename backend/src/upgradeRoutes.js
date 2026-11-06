@@ -87,7 +87,7 @@ export const defaultPlanningChannel = (plan) => {
 };
 
 export function registerUpgradeRoutes(app, deps) {
-  const { validateBody, readUpgradeSlice, writeUpgradeSlice, isHighSide, describePlanExtras = () => ({}), onPlanDeleted = () => ({ ok: true }) } = deps;
+  const { validateBody, readUpgradeSlice, writeUpgradeSlice, isHighSide, describePlanExtras = () => ({}), onPlanDeleted = () => ({ ok: true, report: {} }), materializeStages = null, previewDeletion = () => ({}) } = deps;
 
   const loadPlan = (req, res) => {
     const id = planIdParam(req, res);
@@ -178,6 +178,27 @@ export function registerUpgradeRoutes(app, deps) {
     const plans = slice.plans.filter((p) => p.id !== plan.id);
     writeUpgradeSlice({ ...slice, plans, activePlanId: slice.activePlanId === plan.id ? null : slice.activePlanId });
     res.json({ ok: true, deletedPlanId: plan.id, ...outcome.report });
+  });
+
+  /** What deleting this plan would touch (for the layered confirmation, RFC §18.4). Changes nothing. */
+  app.get("/api/upgrade/plans/:id/deletion-preview", (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    res.json(previewDeletion(loaded.plan));
+  });
+
+  /** Create or reuse one Upgrade-owned Mirroring profile per required release. */
+  app.post("/api/upgrade/plans/:id/stages", (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    const { slice, plan } = loaded;
+    if (plan.kind === "received") return res.status(409).json({ error: "A received plan's stages come from its transfers.", code: "PLAN_READ_ONLY" });
+    if (!plan.path) return res.status(409).json({ error: "Compute the update route first.", code: "PATH_REQUIRED" });
+    if (!materializeStages) return res.status(501).json({ error: "Stages are not available.", code: "NOT_AVAILABLE" });
+    const outcome = materializeStages(plan);
+    if (!outcome.ok) return res.status(outcome.status).json(outcome.json);
+    const saved = savePlan(slice, { ...plan, stages: outcome.stages, stagesStale: false });
+    res.json({ plan: describePlan(saved), ...outcome.report });
   });
 
   app.get("/api/upgrade/graph", (req, res) => {

@@ -232,6 +232,8 @@ export const ocMirrorPreflightSchema = z.object({
 
 export const ocMirrorRunSchema = z.object({
   mode: z.enum(["mirrorToDisk", "diskToMirror", "mirrorToMirror"]).default("mirrorToDisk"),
+  // v2.3.0: check a mirror-to-mirror / disk-to-mirror result against the destination afterwards.
+  verifyDestination: z.boolean().optional(),
   // Mirroring: a full transfer (everything, not only what changed) — rebaselines the disconnected side.
   fullBaseline: z.boolean().optional(),
   archivePath: z.string().optional(), // Required for disk modes but not mirrorToMirror

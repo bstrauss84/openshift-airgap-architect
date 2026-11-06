@@ -78,6 +78,8 @@ import { trackTempArtifact, untrackTempArtifact, releaseAllTempArtifacts, listTe
 import { SERVER_OWNED_SLICES, stripServerOwnedSlices, withServerOwnedSlices, workflowOfJobMetadata, planInstallReset } from "./workflowSlices.js";
 import { normalizeUpgradeSlice, emptyUpgradeSlice, unknownUpgradeSchema } from "./upgradeState.js";
 import { registerUpgradeRoutes } from "./upgradeRoutes.js";
+import { stageSpecs, stageContentStatus, PROFILE_ARCH } from "./upgradeStages.js";
+import { readCachedGraph as readCachedGraphForUpgrade } from "./updateGraph.js";
 import { createShutdownHandler } from "./shutdown.js";
 import { activeProcesses } from "./processRegistry.js";
 import { isTerminalJobStatus } from "./jobStatus.js";
@@ -3739,6 +3741,16 @@ const mirroringProfileRunning = (profileId) =>
     return meta.workflow === "mirroring" && meta.profileId === profileId;
   });
 
+/** v2.3.0: the refusal for an action an Upgrade plan owns. */
+const ownedProfileRefusal = (profile, action) => {
+  const plan = readUpgradeSlice().plans.find((p) => p.id === profile.ownedBy?.planId);
+  return {
+    error: `This profile is stage ${profile.ownedBy?.stageId?.slice(1) || "?"} of the Upgrade plan "${plan?.name || profile.ownedBy?.planId}". Its release is set by the plan, so you cannot ${action} it here. Open the plan in the Upgrade workflow instead.`,
+    code: "PROFILE_OWNED_BY_UPGRADE",
+    planId: profile.ownedBy?.planId || null
+  };
+};
+
 /** Loads the addressed profile or sends 404; returns { slice, profile } or null. */
 const loadMirroringProfile = (req, res) => {
   const id = req.params.id;
@@ -3883,6 +3895,9 @@ app.post("/api/mirroring/profiles/:id", validateBody(mirroringProfileWriteSchema
   if (profile.kind === "received" && ["content", "platform", "operators", "additionalImages", "options"].some((k) => req.body?.[k] !== undefined)) {
     return res.status(409).json({ error: "This profile was received from a low-side transfer; its content is the transfer's and cannot be edited. Change the low-side profile and send a new transfer.", code: "RECEIVED_PROFILE_READ_ONLY" });
   }
+  // v2.3.0: an Upgrade stage's release and content groups belong to its plan;
+  // its operator, image and run choices stay editable (they are the stage's).
+  if (profile.ownedBy && ["content", "platform"].some((k) => req.body?.[k] !== undefined)) return res.status(409).json(ownedProfileRefusal(profile, "change the release or content groups of"));
   const written = applyMirroringProfileWrite(profile, req.body || {});
   const derived = deriveCatalogMinor(profile, written, { incomingCatalogMinor: req.body?.operators?.catalogMinor });
   if (derived.error) return res.status(derived.error.status).json({ error: derived.error.message, code: derived.error.code });
@@ -3926,6 +3941,7 @@ app.post("/api/mirroring/profiles/:id/unlock", validateBody(mirroringEmptySchema
   const loaded = loadMirroringProfile(req, res);
   if (!loaded) return;
   const { slice, profile } = loaded;
+  if (profile.ownedBy) return res.status(409).json(ownedProfileRefusal(profile, "unlock the release of"));
   if (mirroringProfileRunning(profile.id)) {
     return res.status(409).json({ error: "This profile has an oc-mirror run in progress." });
   }
@@ -4214,6 +4230,7 @@ app.delete("/api/mirroring/profiles/:id", (req, res) => {
   if (mirroringProfileRunning(profile.id)) {
     return res.status(409).json({ error: "This profile has an oc-mirror run in progress. Stop it before deleting the profile." });
   }
+  if (profile.ownedBy) return res.status(409).json(ownedProfileRefusal(profile, "delete"));
   // Removes the profile record only. Archives, workspace and cache on disk are
   // operator data and are never deleted by this route.
   delete slice.profiles[profile.id];
@@ -4744,7 +4761,10 @@ app.post("/api/mirroring/profiles/:id/run", validateBody(ocMirrorRunSchema), asy
   if (profileIsolationProblems(profile).length) {
     return res.status(409).json({ error: profileIsolationProblems(profile).join(" "), code: "PROFILE_NOT_ISOLATED" });
   }
-  if (body.mode === "diskToMirror") return runReceivedTransfer(req, res, profile, body);
+  if (body.mode === "diskToMirror") {
+    const stagedForVerify = body._received ? receivedDir(storeOf(profile), profile.id, body._received.planId) : null;
+    return runReceivedTransfer(req, res, profile, body, body.verifyDestination === true && stagedForVerify ? { verifyAfter: verifyByDryRun(stagedForVerify) } : {});
+  }
   const generated = generateMirroringConfig(res, profile);
   if (!generated) return;
   const verification = catalogVerificationSummary(profile);
@@ -4762,9 +4782,13 @@ app.post("/api/mirroring/profiles/:id/run", validateBody(ocMirrorRunSchema), asy
     body: runServiceBody(body),
     workflow: "mirroring",
     profileId: profile.id,
+    owner: profile.ownedBy || null,
     storage: storageView(profile),
     storageBaseExpected: profile.storageBase ?? null,
     ...(body.mode === "mirrorToDisk" ? m2dArchiveHooks(profile, paths.archivePath, body) : {}),
+    // v2.3.0: on request, a mirror-to-mirror result is checked against the
+    // destination (oc-mirror's own dry-run mapping, then a manifest fetch per image).
+    ...(body.verifyDestination === true && body.mode === "mirrorToMirror" ? { verifyAfter: verifyByDryRun(paths.workspacePath) } : {}),
     defaults: {
       archivePath: paths.archivePath,
       workspacePath: paths.workspacePath,
@@ -5602,11 +5626,137 @@ app.use("/api/upgrade", (req, res, next) => {
   }
   next();
 });
+/** Jobs of one Mirroring profile, with metadata (for stage status). */
+const profileJobs = (profile) => (profile?.history || []).map((id) => {
+  const job = getJob(id);
+  return job ? { id, type: job.type, status: job.status, meta: getJobMetadata(id) || {} } : null;
+}).filter(Boolean);
+
+/**
+ * Create or reuse the Upgrade-owned stage profiles for a solved plan
+ * (upgradeStages.js). Existing stage profiles whose release still matches are
+ * reused unchanged; a stage profile whose release left the route is released
+ * (kept, with its history, as an ordinary profile) rather than rewritten.
+ */
+const materializeUpgradeStages = (plan) => {
+  const specs = stageSpecs(plan);
+  if (!specs.length) return { ok: false, status: 409, json: { error: "Compute the update route first.", code: "PATH_REQUIRED" } };
+  const profileArch = PROFILE_ARCH[plan.arch];
+  if (!profileArch) return { ok: false, status: 409, json: { error: `Mirroring stages for ${plan.arch} release payloads are not generated by this version of Architect; the route itself is still valid for planning.`, code: "STAGE_ARCH_UNSUPPORTED" } };
+  // Each stage mirrors from stable-<minor> (the Mirroring generator's channel). A
+  // release that is not (yet) in that channel's graph cannot be staged honestly.
+  const missingFromStable = [];
+  for (const spec of specs) {
+    const stable = readCachedGraphForUpgrade(plan.graphSource, `stable-${spec.minor}`, plan.arch);
+    if (stable && !stable.normalized.nodes[spec.release]) missingFromStable.push(spec.release);
+    spec.channelCheck = stable ? "present" : "not-checked";
+  }
+  if (missingFromStable.length) {
+    return { ok: false, status: 409, json: { error: `${missingFromStable.join(", ")} ${missingFromStable.length === 1 ? "is" : "are"} not in the stable channel yet (only fast). Mirroring stages pin releases from stable-<minor>, so choose a route through stable releases or wait for promotion.`, code: "STAGE_RELEASE_NOT_IN_STABLE", releases: missingFromStable } };
+  }
+  const slice = readMirroringSlice();
+  for (const job of runningOcMirrorJobs()) {
+    const owner = getJobMetadata(job.id)?.owner;
+    if (owner?.planId === plan.id) return { ok: false, status: 409, json: { error: "A stage of this plan is running. Wait for it to finish before changing the stages.", code: "STAGE_RUNNING" } };
+  }
+  const owned = Object.values(slice.profiles).filter((p) => p.ownedBy?.planId === plan.id);
+  const byRelease = new Map(owned.map((p) => [p.platform.release.patchVersion, p]));
+  const toCreate = specs.filter((s) => !byRelease.has(s.release));
+  if (Object.keys(slice.profiles).length + toCreate.length > MAX_PROFILES) {
+    return { ok: false, status: 409, json: { error: `This plan needs ${toCreate.length} more Mirroring profile(s), but at most ${MAX_PROFILES} profiles are supported. Delete unused profiles first.`, code: "PROFILE_LIMIT" } };
+  }
+  const stages = [];
+  const created = [];
+  for (const spec of specs) {
+    let profile = byRelease.get(spec.release);
+    if (profile) {
+      profile = normalizeProfile({ ...profile, ownedBy: { workflow: "upgrade", planId: plan.id, stageId: spec.id }, platform: { ...profile.platform, graph: spec.graph } }, profile.id);
+    } else {
+      const id = newProfileId();
+      const draft = normalizeProfile({
+        name: `${plan.name} · stage ${spec.id.slice(1)} · ${spec.release}`.slice(0, 120),
+        content: { platform: true, operators: false, additionalImages: false },
+        platform: { release: { channel: spec.minor, patchVersion: spec.release }, architecture: profileArch, graph: spec.graph },
+        operators: { catalogMinor: spec.minor, catalogMinorSource: "platform", selected: [] },
+        execution: { mode: "mirrorToDisk" },
+        storageBase: newProfileStorageBase(mirrorStorage),
+        ownedBy: { workflow: "upgrade", planId: plan.id, stageId: spec.id }
+      }, id);
+      const locked = buildLockedVersionSelection(draft.platform);
+      if (locked.error) return { ok: false, status: 422, json: { error: locked.error.message, code: locked.error.code } };
+      profile = normalizeProfile({ ...draft, platform: { ...draft.platform, release: locked.release, version: { ...locked.version, selectedChannel: `stable-${spec.minor}` } } }, id);
+      if (findUnsupportedProfileVersion(profile)) return { ok: false, status: 422, json: { error: `OpenShift ${spec.minor} is not supported.`, code: "UNSUPPORTED_VERSION" } };
+      created.push(id);
+    }
+    slice.profiles[profile.id] = profile;
+    stages.push({ id: spec.id, release: spec.release, minor: spec.minor, profileId: profile.id, channelCheck: spec.channelCheck });
+  }
+  const released = [];
+  for (const p of owned) {
+    if (specs.some((s) => s.release === p.platform.release.patchVersion)) continue;
+    const { ownedBy: _o, ...rest } = p;
+    slice.profiles[p.id] = normalizeProfile({ ...rest, formerOwner: { planName: plan.name, reason: "route-changed", releasedAt: Date.now() } }, p.id);
+    released.push(p.id);
+  }
+  writeMirroringSlice(slice);
+  return { ok: true, stages, report: { created, reused: stages.filter((s) => !created.includes(s.profileId)).map((s) => s.profileId), released } };
+};
+
+const upgradeStageViews = (plan) => {
+  const profiles = readMirroringSlice().profiles;
+  return plan.stages.map((stage) => {
+    const profile = profiles[stage.profileId] || null;
+    const owned = profile?.ownedBy?.planId === plan.id;
+    return {
+      ...stage,
+      profileName: profile?.name || null,
+      owned,
+      operatorsSelected: profile ? profile.operators.selected.length : 0,
+      content: stageContentStatus({ profile: owned ? profile : null, jobs: owned ? profileJobs(profile) : [] })
+    };
+  });
+};
+
+/** Deleting a plan: the plan record always; stage profile records only on explicit request; disk data never. */
+const releaseUpgradePlanProfiles = (plan, { removeStageProfiles }) => {
+  const slice = readMirroringSlice();
+  const owned = Object.values(slice.profiles).filter((p) => p.ownedBy?.planId === plan.id);
+  for (const job of runningOcMirrorJobs()) {
+    if (owned.some((p) => getJobMetadata(job.id)?.profileId === p.id)) return { ok: false, status: 409, json: { error: "A stage of this plan is running. Stop it before deleting the plan.", code: "STAGE_RUNNING" } };
+  }
+  if (owned.some((p) => transferJobRunning(p.id))) return { ok: false, status: 409, json: { error: "A transfer for a stage of this plan is running.", code: "STAGE_RUNNING" } };
+  const report = { removedStageProfiles: [], releasedStageProfiles: [], retainedPaths: [] };
+  for (const p of owned) {
+    report.retainedPaths.push(profilePaths(storeOf(p), p.id));
+    if (removeStageProfiles) {
+      delete slice.profiles[p.id];
+      if (slice.activeProfileId === p.id) slice.activeProfileId = null;
+      report.removedStageProfiles.push(p.id);
+    } else {
+      const { ownedBy: _o, ...rest } = p;
+      slice.profiles[p.id] = normalizeProfile({ ...rest, formerOwner: { planName: plan.name, reason: "plan-deleted", releasedAt: Date.now() } }, p.id);
+      report.releasedStageProfiles.push(p.id);
+    }
+  }
+  writeMirroringSlice(slice);
+  return { ok: true, report };
+};
+
 const upgradeApi = registerUpgradeRoutes(app, {
   validateBody,
   readUpgradeSlice,
   writeUpgradeSlice,
-  isHighSide: isHighSideRuntime
+  isHighSide: isHighSideRuntime,
+  materializeStages: materializeUpgradeStages,
+  describePlanExtras: (plan) => ({ stageViews: upgradeStageViews(plan) }),
+  onPlanDeleted: releaseUpgradePlanProfiles,
+  previewDeletion: (plan) => {
+    const owned = Object.values(readMirroringSlice().profiles).filter((p) => p.ownedBy?.planId === plan.id);
+    return {
+      planRecord: { id: plan.id, name: plan.name },
+      stageProfiles: owned.map((p) => ({ id: p.id, name: p.name, running: mirroringProfileRunning(p.id) || Boolean(transferJobRunning(p.id)), retainedPaths: profilePaths(storeOf(p), p.id) }))
+    };
+  }
 });
 
 /* DOC-203. Documentation links are per OpenShift minor, so they exist only once

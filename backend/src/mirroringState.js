@@ -449,9 +449,21 @@ export const normalizeProfile = (raw, id) => {
     // Server-owned: the Mirroring storage root this profile was created under
     // (null = DATA_DIR/oc-mirror). Never taken from a client write; checked
     // against the server's accepted roots each time it is used.
-    storageBase: typeof r.storageBase === "string" && r.storageBase.length <= 1024 && r.storageBase ? r.storageBase : null
+    storageBase: typeof r.storageBase === "string" && r.storageBase.length <= 1024 && r.storageBase ? r.storageBase : null,
+    // v2.3.0: a stage profile of an Upgrade plan (server-owned; never taken from a client write).
+    ...(normalizeOwner(r.ownedBy) ? { ownedBy: normalizeOwner(r.ownedBy) } : {}),
+    ...(normalizeFormerOwner(r.formerOwner) ? { formerOwner: normalizeFormerOwner(r.formerOwner) } : {})
   };
 };
+
+/** `{ workflow: "upgrade", planId, stageId }` or null. */
+export const normalizeOwner = (o) => (o && o.workflow === "upgrade" && typeof o.planId === "string" && /^u-[A-Za-z0-9_-]{8,32}$/.test(o.planId) && typeof o.stageId === "string" && /^s[0-9]{1,2}$/.test(o.stageId)
+  ? { workflow: "upgrade", planId: o.planId, stageId: o.stageId }
+  : null);
+/** Set when an Upgrade plan released this profile (plan deleted, or route changed). */
+const normalizeFormerOwner = (o) => (o && typeof o.planName === "string" && Number.isFinite(o.releasedAt)
+  ? { planName: o.planName.slice(0, 120), reason: ["plan-deleted", "route-changed"].includes(o.reason) ? o.reason : "plan-deleted", releasedAt: o.releasedAt }
+  : null);
 
 /** Whitelisted, size-bounded copy of a stored or incoming slice. */
 export const normalizeMirroringSlice = (raw) => {
