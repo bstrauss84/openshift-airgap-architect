@@ -1177,11 +1177,11 @@ metadata:
     }
   };
   const handleInstallClick = async () => {
-    // If no progress (fresh start), clear state like Start Over does
-    if (!hasProgress) {
-      const nextState = await startOver({ cancelRunningOcMirror: false });
-      if (nextState) setState(nextState);
-    }
+    // v2.3.0 §18 (F-SO-3): opening Install is navigation only. It used to call
+    // Start Over when no step had been visited, which reset the server's
+    // Install state and swept temp files merely because a card was clicked.
+    // Clearing Install is now only ever the explicit, confirmed
+    // "Start new Install…".
     setShowLanding(false);
     // Returning from Home resumes the exact step; otherwise the existing
     // "continue at the first incomplete step" behaviour applies.

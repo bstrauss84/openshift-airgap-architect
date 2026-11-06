@@ -344,9 +344,13 @@ test("resolveOcMirrorArtifactsBaseDir uses archive for m2d/d2m and workspace for
   assert.strictEqual(empty, "");
 });
 
-test("POST /api/start-over cancels running oc-mirror jobs", async () => {
+test("POST /api/start-over cancels running Install oc-mirror jobs, never an untagged one (v2.3.0 §18.3)", async () => {
   const runningJobId = createJob("oc-mirror-run", "Running run");
   updateJob(runningJobId, { status: "running", progress: 1, message: "oc-mirror running." });
+  updateJobMetadata(runningJobId, { workflow: "install" });
+  // A running job without a recognised workflow tag is never assumed to be Install's.
+  const untaggedJobId = createJob("oc-mirror-run", "Untagged run");
+  updateJob(untaggedJobId, { status: "running", progress: 1, message: "oc-mirror running." });
   const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/start-over`, {
@@ -357,7 +361,9 @@ test("POST /api/start-over cancels running oc-mirror jobs", async () => {
     assert.strictEqual(res.status, 200);
     const job = getJob(runningJobId);
     assert.strictEqual(job.status, "cancelled");
-    assert.match(job.message || "", /Start Over/i);
+    assert.match(job.message || "", /Start new Install/i);
+    assert.strictEqual(getJob(untaggedJobId).status, "running");
+    updateJob(untaggedJobId, { status: "failed", progress: 100, message: "test cleanup" });
   } finally {
     await closeTestServer(server);
   }

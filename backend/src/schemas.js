@@ -329,6 +329,9 @@ export const operatorConfirmSchema = z.object({}).passthrough();
 
 export const startOverSchema = z.object({
   cancelRunningOcMirror: z.boolean().optional(),
+  // v2.3.0 §18.3: the scoped name, and the preview the user confirmed.
+  cancelInstallRuns: z.boolean().optional(),
+  previewToken: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 }).passthrough();
 
 // ===================================================================

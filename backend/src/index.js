@@ -74,7 +74,8 @@ import { getMinorVersion } from "../../shared/versionUtils.js";
 // They remain exported from exportIntegrity.js for its own unit tests and for
 // the eventual DOC-127 validator UI.
 import { createIntegrityTracker, MANIFEST_FILENAME } from "./exportIntegrity.js";
-import { trackTempArtifact, untrackTempArtifact, releaseAllTempArtifacts } from "./tempArtifacts.js";
+import { trackTempArtifact, untrackTempArtifact, releaseAllTempArtifacts, listTempArtifacts } from "./tempArtifacts.js";
+import { SERVER_OWNED_SLICES, stripServerOwnedSlices, withServerOwnedSlices, workflowOfJobMetadata, planInstallReset } from "./workflowSlices.js";
 import { createShutdownHandler } from "./shutdown.js";
 import { activeProcesses } from "./processRegistry.js";
 import { isTerminalJobStatus } from "./jobStatus.js";
@@ -870,7 +871,8 @@ const sanitizeStateForExport = (state, options = {}) => {
   // The Mirroring slice is owned by the /api/mirroring routes and is not part
   // of an Install run: GET /api/state, the run export and the runtime-package
   // payload all describe the Install workflow only (v2.2.0 M1).
-  if (next && "mirroring" in next) delete next.mirroring;
+  // v2.3.0: the same holds for every server-owned slice (workflowSlices.js).
+  for (const key of SERVER_OWNED_SLICES) if (next && key in next) delete next[key];
   if (next?.blueprint && "blueprintPullSecretEphemeral" in next.blueprint) {
     delete next.blueprint.blueprintPullSecretEphemeral;
   }
@@ -1349,7 +1351,8 @@ app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
   // on a debounce, so accepting `mirroring` here would let a stale browser copy
   // overwrite profiles written through /api/mirroring. The current slice is
   // kept by the merge below.
-  if ("mirroring" in patch) delete patch.mirroring;
+  // v2.3.0: every server-owned slice (Mirroring, Upgrade), from one list.
+  for (const key of SERVER_OWNED_SLICES) delete patch[key];
 
   // CRITICAL VALIDATION: Prevent state corruption where release is confirmed without channel
   // This validation MUST run BEFORE normalization to catch explicit null confirmed channel
@@ -1551,19 +1554,51 @@ const protectedTempPaths = (jobs) => {
   return out;
 };
 
+/** What "Start new Install" would do now (RFC §18.3): shared by the preview and the reset. */
+const currentInstallResetPlan = (cancelInstallRuns) => planInstallReset({
+  jobs: listJobs(),
+  metaOf: (id) => getJobMetadata(id),
+  state: ensureState(),
+  cancelInstallRuns
+});
+const installResetPreviewBody = (plan) => ({
+  token: plan.token,
+  cancel: plan.cancel,
+  keepInstall: plan.keepInstall,
+  unaffected: plan.unaffected,
+  unclassified: plan.unclassified,
+  installRunsRunning: plan.installRunsRunning,
+  preserved: plan.preserved
+});
+
+/**
+ * GET /api/start-over/preview — the exact scope of "Start new Install" right
+ * now, for the confirmation dialog. Changes nothing.
+ */
+app.get("/api/start-over/preview", (req, res) => {
+  const cancelInstallRuns = String(req.query.cancelInstallRuns ?? "true") !== "false";
+  res.json(installResetPreviewBody(currentInstallResetPlan(cancelInstallRuns)));
+});
+
 app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
-  const cancelRunningOcMirror = req.body?.cancelRunningOcMirror !== false;
-  // Install Start Over is scoped to the Install workflow (v2.2.0 M1): it never
-  // cancels a Mirroring job, never deletes that job's temp files and never
-  // resets the Mirroring slice.
-  const mirroringRuns = runningOcMirrorJobs().filter((job) => isMirroringJob(job.id));
-  if (cancelRunningOcMirror) {
-    const installRuns = runningOcMirrorJobs().filter((job) => !isMirroringJob(job.id));
-    for (const job of installRuns) {
-      cancelOcMirrorJob(job, "Cancelled by Start Over.");
-    }
+  // `cancelRunningOcMirror` is the pre-v2.3.0 name of `cancelInstallRuns`.
+  const cancelInstallRuns = (req.body?.cancelInstallRuns ?? req.body?.cancelRunningOcMirror) !== false;
+  // Install Start Over is scoped to the Install workflow (v2.2.0 M1; v2.3.0
+  // §18.3): it cancels only jobs positively tagged as Install's, never a
+  // Mirroring or Upgrade job and never a job it cannot classify; it never
+  // touches a server-owned slice; it never deletes a temp file still in use.
+  const plan = currentInstallResetPlan(cancelInstallRuns);
+  if (typeof req.body?.previewToken === "string" && req.body.previewToken !== plan.token) {
+    return res.status(409).json({
+      error: "What Start new Install would affect changed after the confirmation was shown (for example, a run started or finished). Nothing was reset; review it again.",
+      code: "RESET_SCOPE_CHANGED",
+      preview: installResetPreviewBody(plan)
+    });
   }
-  const preservedMirroring = ensureState().mirroring;
+  const cancelIds = new Set(plan.cancel.map((j) => j.id));
+  for (const job of runningOcMirrorJobs()) {
+    if (cancelIds.has(job.id)) cancelOcMirrorJob(job, "Cancelled by Start new Install.");
+  }
   const next = defaultState();
   next.reviewFlags = {
     methodology: false,
@@ -1577,15 +1612,20 @@ app.post("/api/start-over", validateBody(startOverSchema), (req, res) => {
     activeStepId: "blueprint",
     visitedSteps: {}
   };
-  setState(preservedMirroring ? { ...next, mirroring: preservedMirroring } : next);
-  const keepPaths = protectedTempPaths(mirroringRuns);
+  setState(withServerOwnedSlices(next, ensureState()));
+  // Temp files: keep everything a live owner still holds (the tracked-artifact
+  // registry) and every file of a job that is still running (any workflow).
+  const keepPaths = new Set([
+    ...protectedTempPaths(runningOcMirrorJobs().filter((job) => !cancelIds.has(job.id))),
+    ...listTempArtifacts().map((a) => { try { return fs.realpathSync(a.path); } catch { return null; } }).filter(Boolean)
+  ]);
   const tmpDir = path.join(process.env.DATA_DIR || "/data", "tmp");
   if (fs.existsSync(tmpDir)) {
     fs.readdirSync(tmpDir).forEach((file) => {
       const fullPath = path.join(tmpDir, file);
       try {
         const realPath = fs.realpathSync(fullPath); // Resolve symlinks
-        if (keepPaths.includes(realPath)) return;
+        if (keepPaths.has(realPath)) return;
         // Same boundary fix: `${tmpDir}evil/x` is not inside tmpDir. This
         // check matters more here than elsewhere because the path has
         // already been symlink-resolved, so a pass deletes the TARGET.
@@ -1787,10 +1827,10 @@ app.post("/api/run/import", validateBody(runImportSchema), (req, res) => {
   // An Install run import replaces the Install workflow only (v2.2.0 M1). A
   // bundle cannot carry Mirroring profiles in, and importing one does not
   // erase the profiles already here.
-  delete sanitized.mirroring;
-  const currentMirroring = ensureState().mirroring;
-  setState(currentMirroring ? { ...sanitized, mirroring: currentMirroring } : sanitized);
-  res.json({ ok: true, state: sanitized, migrated: stateMigrationResult.wasV1 || stateMigrationResult.wasV2 });
+  // v2.3.0: neither carries any server-owned slice in nor drops the ones here.
+  const importedInstall = stripServerOwnedSlices(sanitized);
+  setState(withServerOwnedSlices(importedInstall, ensureState()));
+  res.json({ ok: true, state: importedInstall, migrated: stateMigrationResult.wasV1 || stateMigrationResult.wasV2 });
 });
 
 app.post("/api/run/duplicate", validateBody(runDuplicateSchema), (req, res) => {
@@ -2979,7 +3019,7 @@ async function retryWithPerImageSignatureDisable(originalJobId, signatureFailure
       retryReason: "automatic signature error retry",
       ...(runCtx.planRecord ? { plan: runCtx.planRecord } : {}),
       // A retry belongs to the same workflow (and profile) as the run it retries.
-      ...(runCtx.workflow === "mirroring" ? { workflow: "mirroring", profileId: runCtx.profileId || null } : {})
+      ...(runCtx.workflow === "mirroring" ? { workflow: "mirroring", profileId: runCtx.profileId || null, ...(runCtx.owner ? { owner: runCtx.owner } : {}) } : { workflow: "install" })
     });
 
     // Same command, except signatures are handled per repository through
@@ -3440,7 +3480,7 @@ async function startOcMirrorRun(ctx) {
       // reason to store a raw body here.
       requestBody: sanitizeCredentialFields(body),
       ...(plan ? { plan: plan.record } : {}),
-      ...(isMirroring ? { workflow: "mirroring", profileId, tool: await describeOcMirrorTool(resolved).catch(() => null), ...(storage ? { storage } : {}) } : {})
+      ...(isMirroring ? { workflow: "mirroring", profileId, tool: await describeOcMirrorTool(resolved).catch(() => null), ...(storage ? { storage } : {}), ...(ctx.owner ? { owner: ctx.owner } : {}) } : { workflow: "install" })
     };
     updateJobMetadata(jobId, meta);
 
@@ -3448,7 +3488,7 @@ async function startOcMirrorRun(ctx) {
     const runCtx = {
       mode, dryRun, archivePath, workspacePath, cachePath, registryUrl, advanced,
       signatureOptions, removeSignatures, configSourceType, configPathForRecord,
-      workflow, profileId, planRecord: plan ? plan.record : null, resources, envOverrides, beforeSpawn, afterSuccess
+      workflow, profileId, owner: ctx.owner || null, planRecord: plan ? plan.record : null, resources, envOverrides, beforeSpawn, afterSuccess
     };
 
     const args = buildOcMirrorArgs(
