@@ -133,6 +133,11 @@ Recorded here under CLAUDE.md rule 11 (no invented IDs; highest allocated `DOC-`
     provenance attestation created; GitHub Release v2.2.0 published 2026-11-05 with the 16 release assets and
     independently re-verified. Still open: customer acceptance (item 26) and the final post-publication R9
     archive (item 25).
+    *Administrative closeout (2026-11-06):* the final post-publication R9 archive is done and independently verified
+    (item 25). The v2.2.0 release is administratively closed: tag `v2.2.0` (`a09b05b2` → `0b8303f2`) verifies against
+    the published allowed-signers asset, the GitHub Release is still published with the 16 assets whose digests match
+    `SHA256SUMS`, and `main`/`develop` agree on both remotes, with CI and Versioned Copy Guard green on `4433726`.
+    Closing the release does not close any backlog item. Customer acceptance (item 26) and items 21–24 stay open.
 
 ### v2.2.0 release-run findings (2026-11-05), unnumbered — awaiting owner ID allocation
 
@@ -161,6 +166,15 @@ is **PROD-046**). Status `active` unless stated. None of these is closed by the 
 25. **R9 off-host evidence archival.** 2026-11-05: the retained v2.1.0, v2.1.1 and v2.1.2 evidence sets and an
     interim v2.2.0 set are archived encrypted off-host and were verified by a restore against each archive's own file
     manifest. Remaining: the final v2.2.0 archive after publication. Relates to PROD-044.
+    *Final v2.2.0 archive (2026-11-06):* archive run `20261106T143001Z` holds the post-publication evidence:
+    certification run, signed signoff and attestation, the 16 published assets, release journal, r3 logs,
+    public-download verification and post-release records. It has 126 files and 1 symlink, is encrypted, and is stored
+    off-host next to the unchanged interim set. The archive was decrypted from the off-host copy and checked against
+    its own file manifest. A separate read-only check found: the encrypted file on the NAS matches its `SHA256SUMS`;
+    the restored archive matches `PLAINTEXT_SHA256SUMS`; the file list is exact; every restored file is identical to its
+    live source (the only difference is the intended relative symlink rewrite); and the restored assets' `SHA256SUMS`
+    matches the published release digests. No v2.2.0 R9 work remains. This item stays open because R9 recurs for every
+    release (PROD-044). Not established: that the listed sources are every record ever produced.
 26. **Customer RHEL 9 / Podman 4.9.4 / FIPS acceptance not performed.** Item 1 and DOC-116 are lab-validated only
     (Fedora, Podman 5.8.7); the `compatibility` axis RHEL cell (DOC-080) and the proxy / custom-CA `connectivity`
     profiles (PROD-043) are unexercised. v2.2.0 release notes list this under *Known limitations*.
