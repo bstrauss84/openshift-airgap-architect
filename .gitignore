@@ -56,6 +56,9 @@ data/cache/
 # tracked data, not runtime scratch: backend/test/imageset-config-schema.test.js reads it.
 !/data/oc-mirror-v2/
 !/data/oc-mirror-v2/**
+# v2.3.0 Upgrade workflow: version-matched documentation matrix (canonical, tracked).
+!/data/upgrade-docs/
+!/data/upgrade-docs/**
 # Architecture-support matrix (D3 / DOC-156). Canonical tracked data:
 # scripts/validate-arch-support.js and its test read it, and it is referenced by
 # docs/minor-release/4.22/TRANCHE_2_ASSET_AUTHORING_4.22.md. Without this

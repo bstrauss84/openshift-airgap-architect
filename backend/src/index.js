@@ -5896,6 +5896,80 @@ const startUpgradeSequence = (plan, input) => {
   return { ok: true, json: { jobId } };
 };
 
+/**
+ * Evidence a stage's completed runs left on disk (v2.3.0 P5/P6): the
+ * cluster-resources directory oc-mirror wrote for the latest successful
+ * mirror-to-mirror or disk-to-mirror run, and whether it holds the release
+ * signature ConfigMap. Nothing is assumed: no run, no evidence.
+ */
+const CLUSTER_RESOURCE_FILE = /^(idms|itms|cs|cc|catalogSource|clusterCatalog|imageDigestMirrorSet|imageTagMirrorSet)[-A-Za-z0-9_.]*\.ya?ml$|^updateService\.yaml$|^signature-configmap\.(json|yaml)$/;
+const upgradeStageEvidence = (plan) => {
+  const profiles = readMirroringSlice().profiles;
+  const clusterResources = {};
+  const signatureEvidence = {};
+  let registry = "";
+  for (const stage of plan.stages) {
+    const profile = profiles[stage.profileId];
+    if (!profile || profile.ownedBy?.planId !== plan.id) continue;
+    const runs = profileJobs(profile).filter((j) => j.type === "oc-mirror-run" && !j.meta.dryRun && ["mirrorToMirror", "diskToMirror"].includes(j.meta.mode) && ["completed", "completed_with_warnings"].includes(j.status));
+    const last = runs[runs.length - 1];
+    if (!registry && profile.execution?.registryUrl) registry = profile.execution.registryUrl;
+    if (!last) { signatureEvidence[stage.id] = null; continue; }
+    if (last.meta.registryUrl) registry = last.meta.registryUrl;
+    const base = last.meta.mode === "mirrorToMirror" ? last.meta.workspaceDir : last.meta.archiveDir;
+    if (!base) continue;
+    const dir = path.join(base, "working-dir", "cluster-resources");
+    clusterResources[stage.id] = dir;
+    const sig = ["signature-configmap.json", "signature-configmap.yaml"].map((f) => path.join(dir, f)).find((f) => fs.existsSync(f));
+    signatureEvidence[stage.id] = { exists: Boolean(sig), path: sig || null };
+  }
+  return { clusterResources, signatureEvidence, registry };
+};
+
+/** Artifacts with their honest label: VALIDATED (generated and schema-checked), TEMPLATE (documented shape to fill in), PRODUCED_BY_RUN (written by a completed oc-mirror run). */
+const buildUpgradeArtifacts = (plan) => {
+  const profiles = readMirroringSlice().profiles;
+  const files = [];
+  for (const stage of plan.stages) {
+    const profile = profiles[stage.profileId];
+    if (!profile || profile.ownedBy?.planId !== plan.id) continue;
+    try {
+      const pr = projectProfileForGeneration(profile);
+      const generated = buildCheckedImageSetConfig(pr.state, pr.options);
+      files.push({ name: `stage-${stage.id.slice(1)}-${stage.release}-imageset-config.yaml`, label: "VALIDATED", stageId: stage.id, description: `Stage ${stage.id.slice(1)}: one pinned release (${stage.release}) from stable-${stage.minor}${profile.content.operators ? `, operators from the ${profile.operators.catalogMinor} catalog` : ""}. Checked against the oc-mirror v2 schema.`, content: generated });
+    } catch (err) {
+      files.push({ name: `stage-${stage.id.slice(1)}-${stage.release}-imageset-config.yaml`, label: "NOT_READY", stageId: stage.id, description: String(err?.message || err).slice(0, 500), content: "" });
+    }
+  }
+  const reg = (upgradeStageEvidence(plan).registry || "<mirror-registry>/<path>").replace(/^[a-z]+:\/\//i, "").replace(/\/+$/, "");
+  files.push({ name: "osus-operator.yaml", label: "TEMPLATE", description: "Namespace, OperatorGroup and Subscription for the OpenShift Update Service Operator (documented shape). In a disconnected cluster set `source` to the CatalogSource oc-mirror created for the mirrored redhat-operator-index; Architect never approves InstallPlans.", content: [
+    "apiVersion: v1", "kind: Namespace", "metadata:", "  name: openshift-update-service", "  annotations:", "    openshift.io/node-selector: \"\"", "  labels:", "    openshift.io/cluster-monitoring: \"true\"",
+    "---", "apiVersion: operators.coreos.com/v1", "kind: OperatorGroup", "metadata:", "  name: update-service-operator-group", "  namespace: openshift-update-service", "spec:", "  targetNamespaces:", "  - openshift-update-service",
+    "---", "apiVersion: operators.coreos.com/v1alpha1", "kind: Subscription", "metadata:", "  name: update-service-subscription", "  namespace: openshift-update-service", "spec:", "  channel: v1", "  installPlanApproval: Manual", "  name: cincinnati-operator", "  source: <mirrored-redhat-operator-catalogsource>", "  sourceNamespace: openshift-marketplace", ""
+  ].join("\n") });
+  files.push({ name: "updateservice.yaml", label: "TEMPLATE", description: "UpdateService resource. Prefer the updateService.yaml oc-mirror wrote for stage 1 (PRODUCED_BY_RUN below, once that run exists). The route name derived from metadata.name must stay within 63 characters.", content: [
+    "apiVersion: updateservice.operator.openshift.io/v1", "kind: UpdateService", "metadata:", "  name: service", "  namespace: openshift-update-service", "spec:", "  replicas: 2", `  releases: ${reg}/openshift/release-images`, `  graphDataImage: ${reg}/openshift/graph-image:latest`, ""
+  ].join("\n") });
+  files.push({ name: "registry-ca-configmap.yaml", label: "TEMPLATE", description: "Trust for the mirror registry under the key the update service reads (updateservice-registry). Paste your registry's CA certificate; Architect does not store it.", content: [
+    "apiVersion: v1", "kind: ConfigMap", "metadata:", "  name: registry-config", "  namespace: openshift-config", "data:", "  updateservice-registry: |", "    -----BEGIN CERTIFICATE-----", "    <your registry CA>", "    -----END CERTIFICATE-----", ""
+  ].join("\n") });
+  files.push({ name: "clusterversion-upstream.patch.yaml", label: "TEMPLATE", description: "Merge patch pointing the Cluster Version Operator at your update service (apply with oc patch clusterversion version --type merge --patch-file …).", content: ["spec:", "  upstream: <policyEngineURI>/api/upgrades_info/v1/graph", ""].join("\n") });
+  const evidence = upgradeStageEvidence(plan);
+  for (const [stageId, dir] of Object.entries(evidence.clusterResources)) {
+    let names = [];
+    try { names = fs.readdirSync(dir).filter((f) => CLUSTER_RESOURCE_FILE.test(f)); } catch { names = []; }
+    for (const f of names.slice(0, 20)) {
+      try {
+        const full = path.join(dir, f);
+        const st = fs.lstatSync(full);
+        if (!st.isFile() || st.size > 2 * 1024 * 1024) continue;
+        files.push({ name: `stage-${stageId.slice(1)}-${f}`, label: "PRODUCED_BY_RUN", stageId, description: `Written by oc-mirror for stage ${stageId.slice(1)} in ${dir}.`, content: fs.readFileSync(full, "utf8") });
+      } catch { /* unreadable: skipped */ }
+    }
+  }
+  return { files };
+};
+
 const upgradeApi = registerUpgradeRoutes(app, {
   validateBody,
   readUpgradeSlice,
@@ -5906,6 +5980,8 @@ const upgradeApi = registerUpgradeRoutes(app, {
   onPlanDeleted: releaseUpgradePlanProfiles,
   previewSequence: previewUpgradeSequence,
   startSequence: startUpgradeSequence,
+  stageEvidence: upgradeStageEvidence,
+  buildArtifacts: buildUpgradeArtifacts,
   sequenceRunning: (planId) => { const id = runningUpgradeSequences.get(planId); return id && !isTerminalJobStatus(getJob(id)?.status) ? id : null; },
   previewDeletion: (plan) => {
     const owned = Object.values(readMirroringSlice().profiles).filter((p) => p.ownedBy?.planId === plan.id);

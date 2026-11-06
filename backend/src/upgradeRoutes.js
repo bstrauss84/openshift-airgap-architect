@@ -18,6 +18,9 @@ import {
 } from "./updateGraph.js";
 import { solvePath, classifyTargets, validateRoute, buildHops, channelPrefix, PLANNING_CHANNEL_RE, GRAPH_ARCHES, gaVersion } from "../../shared/upgradePath.js";
 import { getMinorVersion } from "../../shared/versionUtils.js";
+import { evaluateReadiness, ATTESTABLE } from "./upgradeReadiness.js";
+import { projectInventory, InventoryError, INVENTORY_KINDS, INVENTORY_COMMANDS } from "./upgradeInventory.js";
+import { buildInstructions } from "./upgradeInstructions.js";
 
 const planIdParam = (req, res) => {
   if (!isValidPlanId(req.params.id)) { res.status(400).json({ error: "Invalid plan id.", code: "PLAN_ID_INVALID" }); return null; }
@@ -57,6 +60,9 @@ export const upgradeGraphImportSchema = z.object({
 export const upgradeSolveSchema = z.object({
   route: z.array(versionField).min(2).max(17).optional()
 }).strict();
+export const upgradeInventorySchema = z.object({ kind: z.enum(INVENTORY_KINDS), text: z.string().min(2).max(20 * 1024 * 1024) }).strict();
+export const upgradeAttestSchema = z.object({ checkId: z.string().max(48), attested: z.boolean(), note: z.string().max(500).optional() }).strict();
+export const upgradeClusterProgressSchema = z.object({ stageId: z.string().regex(/^s[0-9]{1,2}$/), state: z.enum(["none", "attested"]) }).strict();
 export const upgradeActiveSchema = z.object({ planId: z.string().max(40).nullable() }).strict();
 const secretText = z.string().min(2).max(65536);
 export const upgradeSequenceSchema = z.object({
@@ -99,7 +105,7 @@ export const defaultPlanningChannel = (plan) => {
 };
 
 export function registerUpgradeRoutes(app, deps) {
-  const { validateBody, readUpgradeSlice, writeUpgradeSlice, isHighSide, describePlanExtras = () => ({}), onPlanDeleted = () => ({ ok: true, report: {} }), materializeStages = null, previewDeletion = () => ({}), previewSequence = null, startSequence = null, sequenceRunning = () => null } = deps;
+  const { validateBody, readUpgradeSlice, writeUpgradeSlice, isHighSide, describePlanExtras = () => ({}), onPlanDeleted = () => ({ ok: true, report: {} }), materializeStages = null, previewDeletion = () => ({}), previewSequence = null, startSequence = null, sequenceRunning = () => null, stageEvidence = () => ({ clusterResources: {}, signatureEvidence: {} }), buildArtifacts = null } = deps;
 
   const loadPlan = (req, res) => {
     const id = planIdParam(req, res);
@@ -233,6 +239,86 @@ export function registerUpgradeRoutes(app, deps) {
     if (!req.body.previewToken) return res.status(400).json({ error: "Review the sequence first; starting it needs the reviewed scope.", code: "SEQUENCE_NOT_REVIEWED" });
     const out = startSequence(loaded.plan, req.body);
     res.status(out.ok ? 202 : out.status).json(out.json);
+  });
+
+  const readinessFor = (plan) => {
+    const described = describePlan(plan);
+    const ev = stageEvidence(plan);
+    return { described, evidence: ev, readiness: evaluateReadiness(plan, { pathStatus: described.pathStatus, stageViews: described.stageViews || [], signatureEvidence: ev.signatureEvidence }) };
+  };
+
+  /** Readiness checklist (evidence-based states; never asserts cluster readiness without evidence). */
+  app.get("/api/upgrade/plans/:id/readiness", (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    const { readiness } = readinessFor(loaded.plan);
+    res.json({ ...readiness, attestable: ATTESTABLE, inventoryCommands: INVENTORY_COMMANDS });
+  });
+
+  /** Read-only cluster export import (projected; kubeconfigs and Secrets refused; cluster ID dropped). */
+  app.post("/api/upgrade/plans/:id/inventory", validateBody(upgradeInventorySchema), (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    const { slice, plan } = loaded;
+    try {
+      const part = projectInventory(req.body.kind, req.body.text);
+      const inventory = { ...(plan.inventory || {}), ...part, importedAt: new Date().toISOString() };
+      delete inventory.operatorsKind;
+      const saved = savePlan(slice, { ...plan, inventory });
+      res.json({ inventory: saved.inventory });
+    } catch (err) {
+      if (err instanceof InventoryError) return res.status(err.status).json({ error: err.message, code: err.code });
+      res.status(422).json({ error: "The document could not be read.", code: "INVENTORY_INVALID" });
+    }
+  });
+
+  app.delete("/api/upgrade/plans/:id/inventory", (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    savePlan(loaded.slice, { ...loaded.plan, inventory: null });
+    res.json({ ok: true });
+  });
+
+  /** Administrator statements for checks Architect cannot observe (recorded as judgment). */
+  app.post("/api/upgrade/plans/:id/attest", validateBody(upgradeAttestSchema), (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    const { slice, plan } = loaded;
+    if (!ATTESTABLE[req.body.checkId]) return res.status(400).json({ error: "That check is decided by evidence, not by a statement.", code: "NOT_ATTESTABLE" });
+    const attestations = { ...(plan.readiness?.attestations || {}) };
+    if (req.body.attested) attestations[req.body.checkId] = { at: new Date().toISOString(), note: req.body.note || "" };
+    else delete attestations[req.body.checkId];
+    savePlan(slice, { ...plan, readiness: { attestations } });
+    res.json(readinessFor(readUpgradeSlice().plans.find((p) => p.id === plan.id)).readiness);
+  });
+
+  /** The administrator's own record of cluster progress per stage (never inferred from mirroring). */
+  app.post("/api/upgrade/plans/:id/cluster-progress", validateBody(upgradeClusterProgressSchema), (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    const { slice, plan } = loaded;
+    if (!plan.stages.some((s) => s.id === req.body.stageId)) return res.status(404).json({ error: "No such stage.", code: "STAGE_NOT_FOUND" });
+    const stages = plan.stages.map((s) => (s.id === req.body.stageId ? { ...s, clusterUpdated: req.body.state, clusterUpdatedAt: req.body.state === "none" ? null : new Date().toISOString() } : s));
+    res.json(describePlan(savePlan(slice, { ...plan, stages })));
+  });
+
+  /** OSUS / CLI / web instructions for the solved route. */
+  app.get("/api/upgrade/plans/:id/instructions", (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    const { readiness, evidence } = readinessFor(loaded.plan);
+    const registry = typeof req.query.registry === "string" && /^[A-Za-z0-9.\-:/_]{1,512}$/.test(req.query.registry) ? req.query.registry : evidence.registry || "";
+    const out = buildInstructions(loaded.plan, { readiness, registry, clusterResources: evidence.clusterResources });
+    if (!out.ok) return res.status(409).json({ error: out.message, code: out.code });
+    res.json(out);
+  });
+
+  /** Artifacts: validated stage ImageSetConfigurations, documented templates, and files completed runs produced. */
+  app.get("/api/upgrade/plans/:id/artifacts", (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    if (!buildArtifacts) return res.status(501).json({ error: "Not available.", code: "NOT_AVAILABLE" });
+    res.json(buildArtifacts(loaded.plan));
   });
 
   app.get("/api/upgrade/graph", (req, res) => {

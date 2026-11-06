@@ -1,0 +1,42 @@
+{
+  "_schema": "oaa.upgrade.docs/v1",
+  "_note": "Version-matched Red Hat documentation used by the Upgrade workflow. A step that updates the cluster INTO minor X cites the minor-X documentation. docs.redhat.com refuses automated requests (HTTP 403), so these links could not be fetched by tooling: 'verification' records how each was established, and humanVerified stays false until a person opens it and records the date. Never cite 5.0 documentation for 4.20-4.22.",
+  "base": "https://docs.redhat.com/en/documentation/openshift_container_platform",
+  "supportedMinors": ["4.20", "4.21", "4.22"],
+  "topics": {
+    "understanding-updates": { "title": "Understanding OpenShift updates", "path": "html/updating_clusters/understanding-openshift-updates-1" },
+    "conditional-updates": { "title": "Conditional updates", "path": "html/updating_clusters/understanding-openshift-updates-1", "anchor": "conditional-updates-overview_understanding-update-channels-releases" },
+    "preparing": { "title": "Preparing to update a cluster", "path": "html/updating_clusters/preparing-to-update-a-cluster" },
+    "performing": { "title": "Performing a cluster update", "path": "html/updating_clusters/performing-a-cluster-update" },
+    "control-plane-only": { "title": "Performing a Control Plane Only update", "path": "html/updating_clusters/performing-a-cluster-update", "anchor": "control-plane-only-update" },
+    "disconnected-update": { "title": "Updating a cluster in a disconnected environment", "path": "html/disconnected_environments/updating-a-cluster-in-a-disconnected-environment" },
+    "disconnected-osus": { "title": "Updating a cluster in a disconnected environment using the OpenShift Update Service", "path": "html/disconnected_environments/updating-a-cluster-in-a-disconnected-environment", "anchor": "updating-disconnected-cluster-osus" },
+    "disconnected-no-osus": { "title": "Updating a cluster in a disconnected environment without the OpenShift Update Service", "path": "html/disconnected_environments/updating-a-cluster-in-a-disconnected-environment", "anchor": "updating-disconnected-cluster" },
+    "oc-mirror-v2": { "title": "Mirroring images for a disconnected installation by using the oc-mirror plugin v2", "path": "html/disconnected_environments/about-installing-oc-mirror-v2" },
+    "operators-admin": { "title": "Operators: administrator tasks (updating installed Operators)", "path": "html/operators/administrator-tasks" },
+    "olm-restricted": { "title": "Using Operator Lifecycle Manager in disconnected environments", "path": "html/disconnected_environments/olm-restricted-networks" }
+  },
+  "verification": {
+    "4.20": {
+      "understanding-updates": "search-result", "conditional-updates": "topic-map", "preparing": "topic-map", "performing": "search-result",
+      "control-plane-only": "search-result", "disconnected-update": "search-result", "disconnected-osus": "topic-map", "disconnected-no-osus": "topic-map",
+      "oc-mirror-v2": "repository-docs-index", "operators-admin": "topic-map", "olm-restricted": "repository-docs-index"
+    },
+    "4.21": {
+      "understanding-updates": "topic-map", "conditional-updates": "topic-map", "preparing": "topic-map", "performing": "search-result",
+      "control-plane-only": "search-result", "disconnected-update": "topic-map", "disconnected-osus": "topic-map", "disconnected-no-osus": "topic-map",
+      "oc-mirror-v2": "repository-docs-index", "operators-admin": "topic-map", "olm-restricted": "repository-docs-index"
+    },
+    "4.22": {
+      "understanding-updates": "topic-map", "conditional-updates": "topic-map", "preparing": "search-result", "performing": "topic-map",
+      "control-plane-only": "topic-map", "disconnected-update": "search-result", "disconnected-osus": "topic-map", "disconnected-no-osus": "topic-map",
+      "oc-mirror-v2": "search-result", "operators-admin": "topic-map", "olm-restricted": "repository-docs-index"
+    }
+  },
+  "verificationMeaning": {
+    "search-result": "The exact URL appeared in search-engine results on 2026-11-06.",
+    "repository-docs-index": "Already used by Architect's verified docs index (data/docs-index).",
+    "topic-map": "Page id confirmed in the openshift-docs enterprise-<minor> topic map and module sources; the rendered URL was not fetched."
+  },
+  "humanVerified": {}
+}
