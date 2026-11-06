@@ -71,6 +71,10 @@ Scope items:
   - Residuals stay open: user redistribution of built images or bundles, the v2.2.2 companions, and any future prebuilt images.
 - **Still open:** R9 off-host archive of the v2.2.1 evidence (PROD-044), customer acceptance (item 26), F21, the vendor CVEs,
   N3/N4 owner questions, N7, the companions (v2.2.2), and the r4 toolkit review.
+- *Administrative closeout (2026-11-06):* the final v2.2.1 R9 archive is done and independently verified (item 25). The
+  v2.2.1 release is administratively closed: live closeout record `docs/releases/closeout/v2.2.1.json` (head `9c8f35b`, tag
+  signature verified, 16 assets matching `SHA256SUMS`, CI green on `main` and `develop`). Closing the release closes no
+  backlog item; everything listed under *Still open* except R9 remains open.
 
 Findings (unnumbered):
 
@@ -323,6 +327,17 @@ is **PROD-046**). Status `active` unless stated. None of these is closed by the 
     live source (the only difference is the intended relative symlink rewrite); and the restored assets' `SHA256SUMS`
     matches the published release digests. No v2.2.0 R9 work remains. This item stays open because R9 recurs for every
     release (PROD-044). Not established: that the listed sources are every record ever produced.
+    *Final v2.2.1 archive (2026-11-06):* archive run `20261106T184241Z`, stored next to the unchanged earlier sets. It holds
+    227 files and 1 symlink: the three certification runs of `15bd706`, the signed signoff and attestation, the 16 published
+    assets, advisory records, the container reproduction and corrected-container proof, the N5 assessment, the build-method
+    matrix, the journal, r3 logs and the public-download verification. It was decrypted from the off-host copy and checked
+    against its own file manifest. A separate read-only check found:
+    - the encrypted file on the NAS matches `SHA256SUMS`, and the restored archive matches `PLAINTEXT_SHA256SUMS`;
+    - the file list is exact, and the restored files are identical to their live sources (only the intended relative symlink
+      rewrite differs);
+    - the restored assets' `SHA256SUMS` equals the published one;
+    - both earlier archive folders still verify.
+    No v2.2.1 R9 work remains.
 26. **Customer RHEL 9 / Podman 4.9.4 / FIPS acceptance not performed.** Item 1 and DOC-116 are lab-validated only
     (Fedora, Podman 5.8.7); the `compatibility` axis RHEL cell (DOC-080) and the proxy / custom-CA `connectivity`
     profiles (PROD-043) are unexercised. v2.2.0 release notes list this under *Known limitations*.
