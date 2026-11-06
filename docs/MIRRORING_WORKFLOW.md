@@ -173,7 +173,8 @@ release directory, that versioned directory (never `latest`) and its `sha256sum.
 
 Architect v2.2.0 does **not** put oc-mirror or oc into a transfer; carry the tools yourself. Red Hat documents
 only that the oc-mirror binary must match the RHEL version in use; there is no separate FIPS oc-mirror, and
-Architect makes no FIPS claim for it. Optional verified tool companions are planned for v2.2.1.
+Architect makes no FIPS claim for it. Optional verified tool companions were implemented for v2.2.1 but moved to a
+later release, pending a review of binary-level license notices; v2.2.1 does not carry tools either.
 
 ### A9. Deployment notes and what is not yet proven
 
@@ -185,6 +186,11 @@ Architect makes no FIPS claim for it. Optional verified tool companions are plan
   demonstrated:** OpenShift platform (release) content into a real disconnected registry, real Red Hat
   operator content mirrored end to end, Quay or other production registries as the destination, a customer
   RHEL 9 / Podman 4.9.4 / FIPS host. Customer acceptance is pending; this guide is not a support statement.
+- **v2.2.0 container known issue, corrected in v2.2.1:** in the v2.2.0 backend image every Mirroring run fails with
+  `EACCES` on `/usr/local/bin/oc-mirror`. The non-root backend user could execute the binary but not read it, and
+  the run plan hashes it. v2.2.1 installs the bundled tools owned by root with mode 0755. Certification now checks
+  the final image as the application user: read, hash and execute oc-mirror and oc, and the backend's own
+  resolve-and-hash path.
 
 ---
 

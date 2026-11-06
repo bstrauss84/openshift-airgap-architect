@@ -76,7 +76,7 @@ Both prompt-supplied values match the committed record exactly.
 |---|---|
 | channel | `https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest` |
 | channel release name | **4.22.17** |
-| artifact | `oc-mirror.rhel9.tar.gz` |
+| artifact | `oc-mirror.rhel9.tar.gz` (this acquisition record only; the backend image installs the generic `oc-mirror.tar.gz` — FQ-TC-3, noted 2026-11-06) |
 | tarball SHA256 | `2a2e3a3be56a5a44fca7c1e9249e7ed32a9dbf04c67225281c232b1cc31afe42` (verified before use) |
 | binary SHA256 | `e03f81341d1186a03504a1be8f356265b974004782f07a35123e9cf6e35808d8` |
 | component version | `4.22.0-202609301304.p2.g3f66eda.assembly.stream.el9-3f66eda` |

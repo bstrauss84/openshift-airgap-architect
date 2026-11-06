@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - Unreleased
+
+> Detailed notes: [docs/releases/v2.2.1.md](docs/releases/v2.2.1.md)
+>
+> A PATCH release on top of 2.2.0 that corrects the 2.2.0 known issue. OpenShift support is unchanged (4.20, 4.21,
+> 4.22), and so are dependencies and base images. Rebuild the images with `podman compose up --build -d` /
+> `docker compose up --build -d`.
+>
+> **Certification.** No certification result is stated here. The 2.2.0 verdict and risk acceptance do not carry over.
+
+### Fixed
+
+- **Mirroring runs failed in the backend container (2.2.0 known issue).** `oc-mirror` was installed as `0751` owned by
+  uid 984. The non-root backend user could execute it but not read it, so each run's plan failed with `EACCES`. The
+  image now installs `oc` and `oc-mirror` owned by root with mode `0755`; downloads, checksums and binaries are
+  unchanged.
+- The backend test scripts run on Node 22 as well as Node 20 (they passed a bare directory to `node --test`).
+
+### Added
+
+- A certification gate on the final backend image, run as the application user: read, hash and execute `oc-mirror`
+  and `oc`, and the backend's own resolve-and-hash path.
+- `scripts/release/verify-release-closeout.mjs`: live release-closeout verification. Release documents can record a
+  release as closed only with its passing record (`docs/releases/closeout/`).
+
+### Changed
+
+- The certification `tests` axis runs the suites without the candidate image-name variables.
+
 ## [2.2.0] - 2026-11-05
 
 > Detailed notes: [docs/releases/v2.2.0.md](docs/releases/v2.2.0.md)
