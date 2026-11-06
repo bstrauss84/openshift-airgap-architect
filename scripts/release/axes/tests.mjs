@@ -23,6 +23,28 @@ import { run, record, tail } from "../lib/exec.mjs";
 
 const ID = "tests";
 
+/**
+ * Variables the image axes read from the operator's environment (lib/images.mjs:
+ * the candidate image names under certification) that must NOT reach the
+ * candidate's own suites. `backend` `npm test` defaults them with `${VAR:-…}`,
+ * so an inherited value replaces the test-owned image names and the
+ * test-isolation boundary (backend/test/test-isolation-owner-images.test.js)
+ * fails on the certification host only. The suites run with their own
+ * defaults, exactly as a developer and CI run them (backlog item 21).
+ */
+export const SUITE_ENV_SCRUB = Object.freeze([
+  "RUNTIME_PACKAGE_BACKEND_IMAGE",
+  "RUNTIME_PACKAGE_FRONTEND_IMAGE",
+  "AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE",
+]);
+
+/** The environment a suite runs with: the harness's own, minus the image-axis inputs. */
+export function suiteEnv(env = process.env) {
+  const out = { ...env };
+  for (const k of SUITE_ENV_SCRUB) delete out[k];
+  return out;
+}
+
 /** Parse the trailing counters of a node:test TAP run. */
 function tapCounts(output) {
   const grab = (label) => {
@@ -69,7 +91,8 @@ export default {
   reuse: REUSE.NEVER,
   inputs: ["backend", "frontend", "shared", "scripts", "data", "schema", "package.json", "package-lock.json"],
 
-  async run({ repoRoot, store }) {
+  // runImpl: test seam only; production always uses lib/exec.mjs run().
+  async run({ repoRoot, store, runImpl = null }) {
     const results = [];
 
     for (const suite of SUITES) {
@@ -82,7 +105,7 @@ export default {
         continue;
       }
       const [cmd, ...args] = suite.argv;
-      const res = run(cmd, args, { cwd: path.join(repoRoot, suite.cwd), timeoutMs: 30 * 60_000 });
+      const res = (runImpl ?? run)(cmd, args, { cwd: path.join(repoRoot, suite.cwd), env: suiteEnv(process.env), timeoutMs: 30 * 60_000 });
       const output = `${res.stdout}${res.stderr}`;
       store.writeArtifact(ID, `${suite.name}.log`, output);
       results.push({

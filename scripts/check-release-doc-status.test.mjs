@@ -65,3 +65,58 @@ test("both phases require the release notes and a CHANGELOG section", () => {
     assert.match(r.errors.join("\n"), /no "## \[9\.8\.0\]" section/);
   }
 });
+
+// --- Closure claims need a passing closeout record (scripts/release/verify-release-closeout.mjs) ---
+import { checkCloseoutClaims, closeoutRecordProblems } from "./check-release-doc-status.mjs";
+import { fileURLToPath } from "node:url";
+
+const H = "a".repeat(40);
+const RECORD = {
+  schema: "oaa.release.closeout/v1", version: "9.8.0", ok: true, head: H,
+  tag: { name: "v9.8.0", object: "b".repeat(40), commit: "c".repeat(40), signature: "verified" },
+  remotes: [{ name: "origin", main: H, develop: H, tag: "b".repeat(40) }],
+  ci: ["main", "develop"].flatMap((branch) => ["CI", "Versioned Copy Guard"].map((workflow) => ({ branch, workflow, state: "SUCCESS" }))),
+  release: { draft: false, prerelease: false, assets: 16 }, docs: { ok: true }
+};
+const withRecord = (root, rec) => { mkdirSync(join(root, "docs/releases/closeout"), { recursive: true }); writeFileSync(join(root, "docs/releases/closeout/v9.8.0.json"), JSON.stringify(rec)); return root; };
+const claim = (root, text) => { writeFileSync(join(root, "docs/BACKLOG_STATUS.md"), text); return root; };
+
+test("a document recording a release as closed fails both phases without a closeout record", () => {
+  const root = claim(fixture(POST), "*Closeout:* the v9.8.0 release is administratively closed.\n");
+  for (const phase of ["pre", "post"]) {
+    const r = checkReleaseDocStatus(root, { phase, tagDate: "2026-11-05" });
+    assert.equal(r.ok, false, phase);
+    assert.match(r.errors.join("\n"), /BACKLOG_STATUS\.md:1 records v9\.8\.0 as closed, but docs\/releases\/closeout\/v9\.8\.0\.json is missing/);
+  }
+});
+
+test("a passing record satisfies the claim; every gap in a record is named", () => {
+  const root = claim(fixture(POST), "v9.8.0 closeout complete.\n");
+  withRecord(root, RECORD);
+  assert.deepEqual(checkCloseoutClaims(root, { git: false }).errors, []);
+  const broken = {
+    "the verification did not pass": { ...RECORD, ok: false },
+    "not synchronized on every remote": { ...RECORD, remotes: [{ ...RECORD.remotes[0], develop: "d".repeat(40) }] },
+    "Versioned Copy Guard on develop is not recorded as successful": { ...RECORD, ci: RECORD.ci.filter((c) => !(c.branch === "develop" && c.workflow === "Versioned Copy Guard")) },
+    "not recorded as published": { ...RECORD, release: { ...RECORD.release, draft: true } },
+    "documentation check is not recorded as passed": { ...RECORD, docs: { ok: false } },
+    "records version 9.7.0": { ...RECORD, version: "9.7.0" },
+    "tag signature is not recorded as verified": { ...RECORD, tag: { ...RECORD.tag, signature: "not checked" } }
+  };
+  for (const [needle, rec] of Object.entries(broken)) {
+    withRecord(root, rec);
+    assert.match(closeoutRecordProblems(root, "9.8.0", { git: false }).join("\n"), new RegExp(needle), needle);
+  }
+});
+
+test("wording that is not a closure claim about a version is not one", () => {
+  const root = claim(fixture(POST), "A release cannot be recorded as closed without the record.\nv9.8.0: three findings closed.\n");
+  assert.deepEqual(checkCloseoutClaims(root, { git: false }), { claimed: [], errors: [] });
+});
+
+test("this repository: every closure claim has a passing record", () => {
+  const repo = join(fileURLToPath(import.meta.url), "..", "..");
+  const r = checkCloseoutClaims(repo, { git: false });
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.claimed.includes("2.2.0"), "the v2.2.0 closeout is recorded");
+});

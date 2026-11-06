@@ -507,6 +507,59 @@ describe("repository metadata parsing", () => {
   });
 });
 
+describe("tests axis: the candidate's suites never inherit the image axes' inputs (backlog item 21)", async () => {
+  const { default: testsAxis, suiteEnv, SUITE_ENV_SCRUB } = await import("./axes/tests.mjs");
+  const { run } = await import("./lib/exec.mjs");
+  const os = await import("node:os");
+  const CANDIDATE = {
+    RUNTIME_PACKAGE_BACKEND_IMAGE: "localhost/oaa-v221-rc-backend:20261106",
+    RUNTIME_PACKAGE_FRONTEND_IMAGE: "localhost/oaa-v221-rc-frontend:20261106",
+    AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE: "auto",
+  };
+  const withEnv = async (vars, fn) => {
+    const saved = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
+    Object.assign(process.env, vars);
+    try { return await fn(); } finally {
+      for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    }
+  };
+
+  test("suiteEnv drops exactly the image-axis variables and keeps everything else", () => {
+    const env = suiteEnv({ ...CANDIDATE, PATH: "/bin", HOME: "/h", DATA_DIR: "/d" });
+    for (const k of SUITE_ENV_SCRUB) assert.equal(k in env, false, k);
+    assert.deepEqual(env, { PATH: "/bin", HOME: "/h", DATA_DIR: "/d" });
+  });
+
+  test("the axis hands every suite the scrubbed environment even when the operator exported candidate names", async () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "oaa-tests-axis-"));
+    for (const d of ["node_modules", "backend/node_modules", "frontend/node_modules"]) fs.mkdirSync(path.join(repo, d), { recursive: true });
+    const seen = [];
+    const store = { writeArtifact: (_id, name) => name };
+    await withEnv(CANDIDATE, () => testsAxis.run({ repoRoot: repo, store, runImpl: (cmd, args, opts) => { seen.push(opts.env); return { status: 0, stdout: "# tests 1\n# pass 1\n# fail 0\n", stderr: "" }; } }));
+    assert.equal(seen.length, 3);
+    for (const env of seen) for (const k of SUITE_ENV_SCRUB) assert.equal(env[k], undefined, k);
+    fs.rmSync(repo, { recursive: true, force: true });
+  });
+
+  test("with the real backend test script, the scrubbed run resolves the test-owned names; the inherited run (defective baseline) does not", async () => {
+    const real = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "backend", "package.json"), "utf8")).scripts.test;
+    const cut = real.indexOf(" node --test");
+    assert.ok(cut > 0, "the backend test script still sets its variables before `node --test`");
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "oaa-tests-axis-real-"));
+    fs.writeFileSync(path.join(repo, "package.json"), JSON.stringify({ name: "probe", private: true, scripts: {
+      test: `${real.slice(0, cut)} node -e "for (const k of ${JSON.stringify(SUITE_ENV_SCRUB).replace(/"/g, "'")}) console.log(k + '=' + process.env[k])"`,
+    } }));
+    const parse = (out) => Object.fromEntries(out.split("\n").filter((l) => /^[A-Z_]+=/.test(l)).map((l) => l.split("=")));
+    const scrubbed = await withEnv(CANDIDATE, () => parse(run("npm", ["test", "--silent"], { cwd: repo, env: suiteEnv(process.env) }).stdout));
+    assert.equal(scrubbed.RUNTIME_PACKAGE_BACKEND_IMAGE, "localhost/oaa-test-owned-backend:never-built");
+    assert.equal(scrubbed.RUNTIME_PACKAGE_FRONTEND_IMAGE, "localhost/oaa-test-owned-frontend:never-built");
+    assert.equal(scrubbed.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE, "none");
+    const inherited = await withEnv(CANDIDATE, () => parse(run("npm", ["test", "--silent"], { cwd: repo, env: process.env }).stdout));
+    assert.equal(inherited.RUNTIME_PACKAGE_BACKEND_IMAGE, CANDIDATE.RUNTIME_PACKAGE_BACKEND_IMAGE, "the pre-fix behaviour leaked the candidate name");
+    fs.rmSync(repo, { recursive: true, force: true });
+  });
+});
+
 describe("containers axis: the application user must be able to use the baked tools (v2.2.1)", async () => {
   const { PROBES, probeUser } = await import("./axes/containers.mjs");
   test("backend app-user probes exist for oc-mirror, oc and the backend's own hashing path", () => {

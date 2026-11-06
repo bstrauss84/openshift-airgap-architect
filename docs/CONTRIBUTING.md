@@ -59,6 +59,15 @@ Release documentation follows a fixed lifecycle, checked by `scripts/check-relea
    "At a glance". `node scripts/check-release-doc-status.mjs --phase post --tag-date <YYYY-MM-DD>` must pass.
 3. **Closeout:** that commit is on `main` and `develop` on every remote, with CI green, before the release is
    recorded as closed. The backlog reconciliation updates ship in the same post-release commit.
+   With that commit checked out (clean), run
+   `node scripts/release/verify-release-closeout.mjs --allowed-signers <release allowed-signers file> --write`.
+   It checks live: the post-release documentation check, the tag on every remote (and its signature), `main` and
+   `develop` equal to that commit on every remote, CI and Versioned Copy Guard green for it on both branches, and
+   the GitHub Release published with every asset digest matching its `SHA256SUMS`. Only when everything passes does
+   it write `docs/releases/closeout/v<version>.json`; a remote that is not the public repository is recorded
+   without its name. Commit that record together with the statement that the release is closed.
+   `check-release-doc-status.mjs` (both phases, and the tooling tests in CI) fails on any document that records a
+   release as closed without a passing record.
 
 ## Data and frontend copies
 
