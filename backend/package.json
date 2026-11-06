@@ -13,9 +13,9 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node src/index.js",
-    "test:exact-binary": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test-exact} AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE=none node --test --test-concurrency=1 test-integration/",
-    "test": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test} AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE=${AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE:-none} RUNTIME_PACKAGE_BACKEND_IMAGE=${RUNTIME_PACKAGE_BACKEND_IMAGE:-localhost/oaa-test-owned-backend:never-built} RUNTIME_PACKAGE_FRONTEND_IMAGE=${RUNTIME_PACKAGE_FRONTEND_IMAGE:-localhost/oaa-test-owned-frontend:never-built} node --test --test-concurrency=1 test/",
-    "test:parallel-diagnostic": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test} node --test test/"
+    "test:exact-binary": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test-exact} AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE=none node --test --test-concurrency=1 test-integration/*.test.js",
+    "test": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test} AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE=${AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE:-none} RUNTIME_PACKAGE_BACKEND_IMAGE=${RUNTIME_PACKAGE_BACKEND_IMAGE:-localhost/oaa-test-owned-backend:never-built} RUNTIME_PACKAGE_FRONTEND_IMAGE=${RUNTIME_PACKAGE_FRONTEND_IMAGE:-localhost/oaa-test-owned-frontend:never-built} node --test --test-concurrency=1 test/*.test.js",
+    "test:parallel-diagnostic": "NODE_ENV=test DATA_DIR=${DATA_DIR:-/tmp/airgap-backend-test} node --test test/*.test.js"
   },
   "dependencies": {
     "archiver": "^8.0.0",
