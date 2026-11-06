@@ -76,6 +76,8 @@ import { getMinorVersion } from "../../shared/versionUtils.js";
 import { createIntegrityTracker, MANIFEST_FILENAME } from "./exportIntegrity.js";
 import { trackTempArtifact, untrackTempArtifact, releaseAllTempArtifacts, listTempArtifacts } from "./tempArtifacts.js";
 import { SERVER_OWNED_SLICES, stripServerOwnedSlices, withServerOwnedSlices, workflowOfJobMetadata, planInstallReset } from "./workflowSlices.js";
+import { normalizeUpgradeSlice, emptyUpgradeSlice, unknownUpgradeSchema } from "./upgradeState.js";
+import { registerUpgradeRoutes } from "./upgradeRoutes.js";
 import { createShutdownHandler } from "./shutdown.js";
 import { activeProcesses } from "./processRegistry.js";
 import { isTerminalJobStatus } from "./jobStatus.js";
@@ -5585,6 +5587,28 @@ app.post("/api/mirroring/start-over", (req, res) => {
   });
 });
 
+// ===================================================================
+// v2.3.0 Upgrade workflow — server-owned `upgrade` slice (RFC §8)
+// ===================================================================
+const readUpgradeSlice = () => normalizeUpgradeSlice(ensureState().upgrade);
+const writeUpgradeSlice = (slice) => {
+  setState({ ...ensureState(), upgrade: normalizeUpgradeSlice(slice) });
+};
+// A slice written by a newer Architect blocks the Upgrade workflow only;
+// it is never normalized away (which would erase it) and Install/Mirroring keep working.
+app.use("/api/upgrade", (req, res, next) => {
+  if (unknownUpgradeSchema(ensureState().upgrade)) {
+    return res.status(409).json({ error: "Upgrade data on this server was written by a newer version of Architect. Upgrade Architect to use it; it has not been changed.", code: "UPGRADE_SCHEMA_UNKNOWN" });
+  }
+  next();
+});
+const upgradeApi = registerUpgradeRoutes(app, {
+  validateBody,
+  readUpgradeSlice,
+  writeUpgradeSlice,
+  isHighSide: isHighSideRuntime
+});
+
 /* DOC-203. Documentation links are per OpenShift minor, so they exist only once
    a SUPPORTED minor is selected. These two endpoints used to fall back to "4.0",
    a release that never existed, which built docs.redhat.com URLs for it and
@@ -7032,6 +7056,10 @@ const __testHooks = process.env.NODE_ENV === "test"
       }
       writeMirroringSlice(emptyMirroringSlice());
       return describeMirroringSlice(readMirroringSlice());
+    },
+    resetUpgradeSlice: () => {
+      writeUpgradeSlice(emptyUpgradeSlice());
+      return readUpgradeSlice();
     }
   })
   : undefined;
