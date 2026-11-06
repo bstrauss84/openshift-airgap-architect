@@ -674,6 +674,41 @@ Executes oc-mirror to create a mirror archive.
 
 ---
 
+## Upgrade workflow (v2.3.0)
+
+Full contract: [`docs/UPGRADE_WORKFLOW.md`](UPGRADE_WORKFLOW.md) (Part B). All routes use the standard access control;
+bodies are strict (unknown fields are refused). Nothing here contacts a cluster.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/upgrade` | Plans (with route status, stage views, graph freshness), supported minors, high-side flag |
+| POST | `/api/upgrade/plans` | Create a plan `{ name? }` |
+| POST | `/api/upgrade/plans/:id` | Update selections (`arch`, `currentChannel`, `current`, `target`, `channelPolicy`, `strategy`, `channelStrategy`, `graphSource`, `conditionalReview`, …); unsupported minors → 422 `UNSUPPORTED_VERSION`; a selection change clears the route |
+| DELETE | `/api/upgrade/plans/:id?removeStageProfiles=true\|false` | Delete the plan record; stage profile records only when asked; refused while a stage or sequence runs |
+| GET | `/api/upgrade/plans/:id/deletion-preview` | What deletion would touch (no change) |
+| POST | `/api/upgrade/active` | Remember the open plan `{ planId }` |
+| GET | `/api/upgrade/graph?channel&arch&source=public\|imported` | Cached normalized graph + provenance |
+| POST | `/api/upgrade/graph/refresh` | Fetch from `api.openshift.com` `{ channel, arch }` (409 `GRAPH_OFFLINE_SIDE` on the high side) |
+| POST | `/api/upgrade/graph/import` | Import a graph `{ channel, arch, origin: customer-osus\|snapshot, text, capturedAt?, sourceUrl? }` |
+| GET | `/api/upgrade/plans/:id/targets?channel` | Reachable targets: recommended / conditional-only / unreachable |
+| POST | `/api/upgrade/plans/:id/solve` | Compute (or validate a chosen `{ route }`) and persist the route |
+| POST | `/api/upgrade/plans/:id/stages` | Create/reuse one Upgrade-owned Mirroring profile per required release |
+| POST | `/api/upgrade/plans/:id/sequence/preview` | Exact sequence scope + token (no secrets) |
+| POST | `/api/upgrade/plans/:id/sequence` | Start a reviewed sequence (token required; credentials held in memory for the sequence only) |
+| GET | `/api/upgrade/plans/:id/readiness` | Checks (VERIFIED/BLOCKED/WARNING/ATTESTED/NOT_CHECKED), CPO eligibility |
+| POST/DELETE | `/api/upgrade/plans/:id/inventory` | Import (projected) / remove read-only cluster exports `{ kind, text }` |
+| POST | `/api/upgrade/plans/:id/attest` | Administrator statement for an attestable check `{ checkId, attested, note? }` |
+| POST | `/api/upgrade/plans/:id/cluster-progress` | The administrator's record that the cluster reached a stage `{ stageId, state }` |
+| GET | `/api/upgrade/plans/:id/instructions?registry` | OSUS / CLI / web steps |
+| GET | `/api/upgrade/plans/:id/artifacts` | VALIDATED / TEMPLATE / PRODUCED_BY_RUN files |
+| GET | `/api/upgrade/plans/:id/package.zip` · `package.json` | Plan package (no archives, no credentials) |
+| POST | `/api/upgrade/import` | Verified import of `oaa-upgrade-package.json` `{ text }` → read-only received plan |
+
+Related (v2.3.0): `GET /api/start-over/preview?cancelInstallRuns=true|false` returns the exact scope of "New Install";
+`POST /api/start-over` accepts `{ cancelInstallRuns, previewToken }` (409 `RESET_SCOPE_CHANGED` when the scope changed).
+`POST /api/mirroring/start-over` answers 410 Gone. Mirroring run/preflight bodies accept `destinationAuth` and
+`verifyDestination`; a run the preflight would block on destination credentials or trust → 409 `PREFLIGHT_BLOCKED`.
+
 ## Asset Generation
 
 Generates OpenShift installation assets (install-config.yaml, agent-config.yaml, etc.).
