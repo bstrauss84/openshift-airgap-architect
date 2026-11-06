@@ -65,8 +65,9 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
     if (!ch) return null;
     try {
       const r = await fetchGraph(ch, plan.arch, source);
-      setGraphs((g) => ({ ...g, [key(ch)]: r }));
-      return r;
+      const value = r && r.loaded !== false ? r : null;
+      setGraphs((g) => ({ ...g, [key(ch)]: value }));
+      return value;
     } catch {
       setGraphs((g) => ({ ...g, [key(ch)]: null }));
       return null;

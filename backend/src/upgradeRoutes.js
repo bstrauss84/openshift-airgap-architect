@@ -328,8 +328,9 @@ export function registerUpgradeRoutes(app, deps) {
     const source = req.query.source === "imported" ? "imported" : "public";
     try { assertGraphRequest(channel, arch); } catch (err) { return res.status(err.status).json({ error: err.message, code: err.code }); }
     const entry = readCachedGraph(source, channel, arch);
-    if (!entry) return res.status(404).json({ error: source === "public" ? "This graph has not been loaded yet. Refresh it from the update service." : "No imported graph for this channel and architecture.", code: "GRAPH_NOT_LOADED" });
-    res.json({ graph: describeGraphEntry(entry), normalized: entry.normalized });
+    // "Not loaded yet" is a normal state of the selection flow, not an error (200, loaded: false).
+    if (!entry) return res.json({ loaded: false, code: "GRAPH_NOT_LOADED", message: source === "public" ? "This graph has not been loaded yet. Refresh it from the update service." : "No imported graph for this channel and architecture.", graph: null, normalized: null });
+    res.json({ loaded: true, graph: describeGraphEntry(entry), normalized: entry.normalized });
   });
 
   app.post("/api/upgrade/graph/refresh", validateBody(upgradeGraphRefreshSchema), async (req, res) => {

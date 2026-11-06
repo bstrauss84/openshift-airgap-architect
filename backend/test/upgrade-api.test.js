@@ -114,6 +114,11 @@ describe("plans and solving", () => {
     const r = await api("POST", `/api/upgrade/plans/${p.id}/solve`, {});
     assert.equal(r.status, 409);
     assert.equal(r.json.code, "GRAPH_NOT_LOADED");
+    // Reading a graph that is not loaded yet is a normal state (no error status, no console noise).
+    const g = await api("GET", "/api/upgrade/graph?channel=stable-4.22&arch=s390x&source=imported");
+    assert.equal(g.status, 200);
+    assert.equal(g.json.loaded, false);
+    assert.equal(g.json.normalized, null);
   });
 
   test("the plan limit and plan ids are enforced", async () => {
