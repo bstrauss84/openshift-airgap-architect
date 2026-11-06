@@ -108,6 +108,25 @@ Findings (unnumbered):
   failed once in certification run `20261106T160416Z` ("16 MiB held -18.4 MiB, 64 MiB held 0.1 MiB": garbage collection timing)
   while other lab work loaded the host. It passed in every other run, in CI and in local runs. A heap-delta assertion is not robust
   under load; the owner should decide how to stabilize it.
+- **N8 — frontend build with the wrong build context (owner report 2026-11-06; documented).**
+  - **Report:** `COPY --chown=1001:0 frontend/package.json …` failed with
+    `checking on sources under "/workspace/source/frontend": copier: stat: "/frontend/package.json"`.
+  - **Cause:** the image was built with `frontend/` as the build context. Both Containerfiles need the repository root,
+    because they copy `frontend/`, `backend/`, `shared/` and `data/`. Reproduced locally with
+    `podman build -f frontend/Dockerfile frontend/`. This is not caused or fixed by the v2.2.1 container change; it
+    behaves the same in every release.
+  - **Correction (docs):** README Troubleshooting and `manifests/README.md` now state the required context and that
+    the legacy `*/Dockerfile` files must not be used.
+  - **Build-method matrix for v2.2.1** (2026-11-06, run on the exact `v2.2.1` source in isolated Podman storage):
+    - `podman compose up --build -d` (podman-compose): PASS;
+    - `scripts/deploy/oaa-deploy.sh all`: PASS;
+    - certification `podman build`: PASS;
+    - local npm (backend from source with Red Hat's oc-mirror download, vite, `npm run build`): PASS.
+  - Each method's backend ran a real mirror to disk, Prepare transfer and Install generation. Each container-built
+    backend passed the application-user probes. `docker compose`: not tested (Docker is not installed on the
+    maintainer host).
+  - The matrix is now a release requirement (CONTRIBUTING, *Build methods tested for every release*). Automating it
+    as a script is v2.2.2 work. Owner instruction: OpenShift in-cluster builds are excluded from the matrix.
 - **N6 — Node.js 24 trial (F21):** a backend build on `ubi9/nodejs-24` fails while compiling `better-sqlite3` 9.6.0
   (V8 headers require C++20). Migrating needs a `better-sqlite3` major upgrade. Not attempted in this patch.
 

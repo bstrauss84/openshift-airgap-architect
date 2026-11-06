@@ -69,6 +69,26 @@ Release documentation follows a fixed lifecycle, checked by `scripts/check-relea
    `check-release-doc-status.mjs` (both phases, and the tooling tests in CI) fails on any document that records a
    release as closed without a passing record.
 
+### Build methods tested for every release
+
+Every release candidate is built and run with **every supported build method**, not only the certification
+build, and the results are recorded with the release evidence. The minimum matrix, run from the exact
+candidate source in isolated container storage, with its own project names and ports (never the
+maintainer's running app or its images):
+
+| Method | Build | Must show |
+|---|---|---|
+| `podman compose up --build -d` | both images | backend and frontend answer HTTP; `/api/build-info` shows the candidate version |
+| `scripts/deploy/oaa-deploy.sh all` | both images | "Deployment started and verified" |
+| `podman build -f <role>/Containerfile .` (certification, `scripts/release/buildImages.mjs`) | both images | the `containers` axis passes, including the application-user probes |
+| local npm (`npm ci` in root, backend, frontend; `node src/index.js`; `vite`; `npm run build`) | — | backend and UI answer HTTP; the frontend build succeeds |
+
+For each method's backend, a real mirror to disk of a small public image, Prepare transfer and Install
+generation must succeed. For each container-built backend, the application-user probes (read, hash and execute
+`oc-mirror` and `oc`; backend resolve-and-hash) must pass. `docker compose` is tested where Docker is
+available; otherwise it is recorded as not tested. OpenShift / Kubernetes in-cluster builds are not part of
+this matrix.
+
 ## Data and frontend copies
 
 **Canonical** parameter catalogs and docs index live at repo root in `data/params/` and `data/docs-index/`. The frontend keeps **copies** under **`frontend/src/data/`** only (`data/catalogs/` and `data/docs-index/`) so the app works in Docker and standalone builds. Do not add copies in other locations. See **`docs/DATA_AND_FRONTEND_COPIES.md`** for the full convention and sync rules.

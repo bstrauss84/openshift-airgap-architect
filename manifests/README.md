@@ -41,6 +41,13 @@ Kubernetes or OpenShift cluster using [Kustomize](https://kustomize.io/).
 
 ## Quick Start (Kubernetes)
 
+**Build context:** both images are built from the **repository root**, with
+`-f backend/Containerfile` or `-f frontend/Containerfile`. A build whose context is the
+`frontend/` or `backend/` folder fails at the first `COPY` with
+`copier: stat: "/frontend/package.json": no such file or directory`. In a build service or
+pipeline, leave the context directory at the repository root and set only the
+Dockerfile path. Do not use the legacy `frontend/Dockerfile` / `backend/Dockerfile`.
+
 ```bash
 # 1. Build container images (from project root)
 podman build -t localhost/openshift-airgap-architect-backend:latest \
