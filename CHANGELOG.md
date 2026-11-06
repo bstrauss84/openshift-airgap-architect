@@ -5,7 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — v2.3.0 candidate (not released)
+## [2.3.0] - Unreleased *(not yet released — set the date when the release is tagged; it must match the tag)*
+
+> Detailed notes: [docs/releases/v2.3.0.md](docs/releases/v2.3.0.md)
 
 ### Added
 - **Upgrade workflow** (landing page → Upgrade): plan a supported disconnected update of OpenShift 4.20/4.21/4.22 from the
