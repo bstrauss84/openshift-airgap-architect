@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > Detailed notes: [docs/releases/v2.2.0.md](docs/releases/v2.2.0.md)
 >
+> **Known issue (added 2026-11-06):** Mirroring runs fail in the backend container with `EACCES` on
+> `/usr/local/bin/oc-mirror` (the non-root backend user can execute it but not read it). Install and scans are not
+> affected. The correction is planned for 2.2.1; see the release notes.
+>
 > A MINOR feature release on top of 2.1.2: it adds **Mirroring**, a second workflow beside Install that plans and
 > runs oc-mirror v2 without an install. OpenShift support is unchanged (4.20, 4.21, 4.22; later versions are
 > refused). Plain `podman compose up --build -d` / `docker compose up --build -d` is still the supported way to build

@@ -37,6 +37,12 @@ where to download it.
 
 ### New in v2.2.0 — Mirroring
 
+> **Known issue (2026-11-06): Mirroring runs fail in the v2.2.0 backend container.** The image installs `oc-mirror`
+> so that the non-root backend user can execute it but not read it. Every Mirroring run then stops with
+> `EACCES: permission denied, open '/usr/local/bin/oc-mirror'` before oc-mirror starts. Install and operator scans
+> are not affected. Do not rely on v2.2.0 for Mirroring runs. The correction is planned for v2.2.1. Details: the
+> [v2.2.0 release notes](docs/releases/v2.2.0.md#post-publication-known-issue-2026-11-06).
+
 v2.2.0 is a minor feature release, not another patch: it adds a second workflow beside
 Install. **Mirroring** plans and runs oc-mirror v2 without an install:
 
