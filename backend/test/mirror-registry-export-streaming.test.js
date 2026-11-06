@@ -299,12 +299,22 @@ describe("mirror-registry sized member — registration cost is independent of s
     const small = writeFixture(path.join(scratch, "mr-scale-16.tar.gz"), 16);
     const large = writeFixture(path.join(scratch, "mr-scale-64.tar.gz"), 64);
 
-    const a = await buildDiscarding((t) =>
-      t.streamFile(small, { name: "tools/small.tar.gz" })
-    );
-    const b = await buildDiscarding((t) =>
-      t.streamFile(large, { name: "tools/large.tar.gz" })
-    );
+    // N7 (v2.2.1 backlog): a single arrayBuffers delta is noisy when other
+    // test files run concurrently — unrelated allocations land inside the
+    // window. A real size-dependent cost is present in EVERY sample, so the
+    // minimum of a few samples keeps the assertion's meaning and drops the
+    // noise. (The CONTROL test still proves the measurement sees a real
+    // 64 MiB retention.)
+    const sampleMin = async (file, name) => {
+      let best = null;
+      for (let i = 0; i < 3; i++) {
+        const r = await buildDiscarding((t) => t.streamFile(file, { name }));
+        if (!best || r.heldAtRegistration < best.heldAtRegistration) best = r;
+      }
+      return best;
+    };
+    const a = await sampleMin(small, "tools/small.tar.gz");
+    const b = await sampleMin(large, "tools/large.tar.gz");
 
     assert.ok(a.heldAtRegistration < 4 * MIB);
     assert.ok(b.heldAtRegistration < 4 * MIB);
