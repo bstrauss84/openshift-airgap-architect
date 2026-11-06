@@ -45,7 +45,7 @@ import { bindImageToCandidate } from "../provenance/candidateBinding.mjs";
 const ID = "containers";
 
 /** `sh -c` probes returning exit 0 for the expected state. */
-const PROBES = {
+export const PROBES = {
   frontend: [
     {
       name: "no Node.js runtime in the final image",
@@ -76,8 +76,35 @@ const PROBES = {
       name: "devDependencies are absent from the shipped tree",
       argv: ["/bin/sh", "-c", "! test -d /app/node_modules/vitest && ! test -d /app/node_modules/supertest"],
     },
+    // v2.2.1: the v2.2.0 image passed "is baked in" (root can test -x) while the
+    // application user could execute oc-mirror but not READ it (0751, uid 984),
+    // so every Mirroring run failed with EACCES when the plan hashed the binary.
+    // These run as the entrypoint's drop target, not as root.
+    ...["oc-mirror", "oc"].map((tool) => ({
+      name: `the application user can read, hash and execute ${tool}`,
+      asAppUser: true,
+      argv: ["/bin/sh", "-c", `f=/usr/local/bin/${tool}; test -f "$f" && test -r "$f" && test -x "$f" && sha256sum "$f" >/dev/null && ` +
+        (tool === "oc-mirror" ? `"$f" --v2 version >/dev/null 2>&1` : `"$f" version --client >/dev/null 2>&1`)],
+    })),
+    {
+      name: "the backend, as the application user, resolves and hashes its oc-mirror",
+      asAppUser: true,
+      // The exact code path a Mirroring run takes to describe its tool in the plan.
+      argv: ["/bin/sh", "-c", "cd /app && node --input-type=module -e \"try { const r = await import('/app/src/ocMirrorRuntime.js'); const m = await import('/app/src/mirroringPlan.js'); const p = r.peekOcMirrorBinary(); if (!p || p.error) throw new Error('no oc-mirror resolved'); const t = await m.describeOcMirrorTool(p); if (!/^[0-9a-f]{64}$/.test(t.sha256)) throw new Error('no sha256'); console.log(t.source, t.sha256); } catch (e) { console.error('FAILED: ' + e.message); process.exit(1); }\""],
+    },
   ],
 };
+
+/**
+ * `--user` for a probe: app-user probes run as the entrypoint's privilege-drop
+ * target (uid:0). Without a resolved target the probe cannot be run honestly,
+ * so it is reported failed rather than run as root.
+ */
+export function probeUser(probe, dropTargetUid) {
+  if (!probe.asAppUser) return { user: null };
+  if (!Number.isInteger(dropTargetUid) || dropTargetUid === 0) return { error: "the application user could not be resolved (or is root)" };
+  return { user: `${dropTargetUid}:0` };
+}
 
 /** Privilege-drop helpers a shell script can hand off to. */
 const DROP_TOOLS = "(runuser|gosu|su-exec|setpriv|chroot --userspec)";
@@ -291,12 +318,18 @@ export default {
 
       const assertions = configAssertions(img, ep.stdout, dropTargetUid);
       for (const probe of PROBES[img.role] ?? []) {
-        const res = runInImage(engine, img.id, probe.argv);
+        const who = probeUser(probe, dropTargetUid);
+        if (who.error) {
+          assertions.push({ name: probe.name, ok: false, observed: who.error, executed: false });
+          continue;
+        }
+        const res = runInImage(engine, img.id, probe.argv, { user: who.user });
         assertions.push({
           name: probe.name,
           ok: res.status === 0,
           observed: res.status === 0 ? "as expected" : `exit ${res.status}: ${(res.stderr || res.stdout).trim().slice(0, 200)}`,
           executed: true,
+          ...(who.user ? { user: who.user } : {}),
         });
       }
       report.push({

@@ -168,11 +168,11 @@ RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
     echo "Downloading oc ${_oc_ver} (${_dir}) from: ${_oc_url}" && \
     fetch "${_oc_url}" -o /tmp/oc.tgz && \
     echo "${_oc_check}  /tmp/oc.tgz" | sha256sum --check --strict && \
-    tar -xzf /tmp/oc.tgz -C /usr/local/bin oc && chmod +x /usr/local/bin/oc && rm -f /tmp/oc.tgz && \
+    tar --no-same-owner -xzf /tmp/oc.tgz -C /usr/local/bin oc && chmod 0755 /usr/local/bin/oc && rm -f /tmp/oc.tgz && \
     echo "Downloading oc-mirror ${_mirror_ver} (${_dir}) from: ${_mirror_url}" && \
     fetch "${_mirror_url}" -o /tmp/oc-mirror.tgz && \
     echo "${_mirror_check}  /tmp/oc-mirror.tgz" | sha256sum --check --strict && \
-    tar -xzf /tmp/oc-mirror.tgz -C /usr/local/bin oc-mirror && chmod +x /usr/local/bin/oc-mirror && rm -f /tmp/oc-mirror.tgz && \
+    tar --no-same-owner -xzf /tmp/oc-mirror.tgz -C /usr/local/bin oc-mirror && chmod 0755 /usr/local/bin/oc-mirror && rm -f /tmp/oc-mirror.tgz && \
     mkdir -p /app && { \
       echo "OC_RESOLVED_VERSION=${_oc_ver}"; \
       echo "OC_RESOLVED_SHA256=${_oc_check}"; \
@@ -282,6 +282,12 @@ RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
 # channel's own sha256sum.txt) happened in the builder and is NOT weakened here:
 # a COPY of a file the builder refused to produce cannot happen, because the
 # builder's RUN would have failed the build first.
+# Owned by root, mode 0755 (set in the builder with tar --no-same-owner + chmod 0755).
+# Red Hat's oc-mirror tarball stores the binary as 0640 owned by uid 984; kept as
+# extracted, `chmod +x` made it 0751 and the app user (1001) could execute but not
+# READ it, so hashing it for the execution plan failed with EACCES and every
+# Mirroring run in the container stopped before oc-mirror started (found in
+# v2.2.1 regression QA against the v2.2.0 image).
 COPY --from=builder /usr/local/bin/oc /usr/local/bin/oc-mirror /usr/local/bin/
 COPY --from=builder /app/tools-provenance.env /app/tools-provenance.env
 

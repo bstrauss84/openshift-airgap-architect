@@ -506,3 +506,21 @@ describe("repository metadata parsing", () => {
     assert.equal(repoSlug(null), null);
   });
 });
+
+describe("containers axis: the application user must be able to use the baked tools (v2.2.1)", async () => {
+  const { PROBES, probeUser } = await import("./axes/containers.mjs");
+  test("backend app-user probes exist for oc-mirror, oc and the backend's own hashing path", () => {
+    const names = PROBES.backend.filter((p) => p.asAppUser).map((p) => p.name);
+    assert.ok(names.some((n) => /read, hash and execute oc-mirror/.test(n)));
+    assert.ok(names.some((n) => /read, hash and execute oc$/.test(n)));
+    assert.ok(names.some((n) => /resolves and hashes its oc-mirror/.test(n)));
+    for (const p of PROBES.backend.filter((x) => x.asAppUser)) assert.match(p.argv.join(" "), /sha256|describeOcMirrorTool/);
+  });
+  test("app-user probes run as the drop target with gid 0, and are never silently run as root", () => {
+    const probe = { asAppUser: true };
+    assert.deepEqual(probeUser(probe, 1001), { user: "1001:0" });
+    assert.ok(probeUser(probe, null).error);
+    assert.ok(probeUser(probe, 0).error, "root is not the application user");
+    assert.deepEqual(probeUser({}, 1001), { user: null });
+  });
+});

@@ -102,8 +102,11 @@ export function resolveShippingImages(images = DEFAULT_IMAGES) {
 }
 
 /** Run a command inside an image, addressed by ID. Used for filesystem assertions. */
-export function runInImage(engine, imageId, argv, { timeoutMs = 120_000 } = {}) {
-  return run(engine, ["run", "--rm", "--network=none", "--entrypoint", argv[0], imageId, ...argv.slice(1)], {
+export function runInImage(engine, imageId, argv, { timeoutMs = 120_000, user = null } = {}) {
+  // `user`: run as that uid[:gid] instead of the image's default (root for the
+  // backend, whose entrypoint drops privilege) — for properties the APPLICATION
+  // user must have, which a root probe cannot prove.
+  return run(engine, ["run", "--rm", "--network=none", ...(user ? ["--user", user] : []), "--entrypoint", argv[0], imageId, ...argv.slice(1)], {
     timeoutMs,
   });
 }

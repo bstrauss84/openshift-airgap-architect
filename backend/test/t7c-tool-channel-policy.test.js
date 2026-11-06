@@ -216,3 +216,19 @@ describe("T7C — build-time fetches let curl finish and honour its exit status"
     assert.equal(/-\s*eq\s*23|==\s*23/.test(TOOL_BLOCK), false, "exit 23 special-cased");
   });
 });
+
+describe("v2.2.1: the baked tools are readable by the app user", () => {
+  // Red Hat's oc-mirror tarball stores the binary as 0640, uid 984. Extracted as
+  // root with the archive's owner kept, `chmod +x` gave 0751: uid 1001 could run
+  // it but not read it, and hashing it for the execution plan failed (EACCES),
+  // so every Mirroring run in the v2.2.0 container stopped before oc-mirror.
+  for (const tool of ["oc", "oc-mirror"]) {
+    it(`${tool} is extracted without the archive's owner and made 0755`, () => {
+      const line = DIRECTIVES.split("\n").find((l) => new RegExp(`tar .*-C /usr/local/bin ${tool}\\b`).test(l));
+      assert.ok(line, `no extraction line for ${tool}`);
+      assert.match(line, /tar --no-same-owner /, `${tool}: extract with --no-same-owner`);
+      assert.match(line, new RegExp(`chmod 0755 /usr/local/bin/${tool}\\b`), `${tool}: mode 0755, not just +x`);
+      assert.doesNotMatch(line, /chmod \+x/, `${tool}: +x keeps the tarball's unreadable 0640 base`);
+    });
+  }
+});
