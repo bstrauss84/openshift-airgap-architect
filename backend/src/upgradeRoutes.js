@@ -58,6 +58,18 @@ export const upgradeSolveSchema = z.object({
   route: z.array(versionField).min(2).max(17).optional()
 }).strict();
 export const upgradeActiveSchema = z.object({ planId: z.string().max(40).nullable() }).strict();
+const secretText = z.string().min(2).max(65536);
+export const upgradeSequenceSchema = z.object({
+  mode: z.enum(["mirrorToDisk", "mirrorToMirror"]),
+  stageIds: z.array(z.string().regex(/^s[0-9]{1,2}$/)).max(8).optional(),
+  registryUrl: z.string().max(2048).optional(),
+  rhAuthSource: z.enum(["inline", "mounted"]).optional(),
+  rhPullSecret: secretText.optional(),
+  mirrorPullSecret: secretText.optional(),
+  destinationAuth: z.enum(["credentials", "anonymous"]).optional(),
+  advanced: z.record(z.string().max(64), z.unknown()).optional(),
+  previewToken: z.string().regex(/^[a-f0-9]{64}$/).optional()
+}).strict();
 
 const unsupported = (res, minor) => {
   const e = buildUnsupportedVersionError(minor);
@@ -87,7 +99,7 @@ export const defaultPlanningChannel = (plan) => {
 };
 
 export function registerUpgradeRoutes(app, deps) {
-  const { validateBody, readUpgradeSlice, writeUpgradeSlice, isHighSide, describePlanExtras = () => ({}), onPlanDeleted = () => ({ ok: true, report: {} }), materializeStages = null, previewDeletion = () => ({}) } = deps;
+  const { validateBody, readUpgradeSlice, writeUpgradeSlice, isHighSide, describePlanExtras = () => ({}), onPlanDeleted = () => ({ ok: true, report: {} }), materializeStages = null, previewDeletion = () => ({}), previewSequence = null, startSequence = null, sequenceRunning = () => null } = deps;
 
   const loadPlan = (req, res) => {
     const id = planIdParam(req, res);
@@ -173,6 +185,8 @@ export function registerUpgradeRoutes(app, deps) {
     if (!loaded) return;
     const { slice, plan } = loaded;
     const removeStageProfiles = req.query.removeStageProfiles === "true";
+    const seq = sequenceRunning(plan.id);
+    if (seq) return res.status(409).json({ error: "A stage sequence of this plan is running. Stop it before deleting the plan.", code: "STAGE_RUNNING", jobId: seq });
     const outcome = onPlanDeleted(plan, { removeStageProfiles });
     if (!outcome.ok) return res.status(outcome.status || 409).json(outcome.json);
     const plans = slice.plans.filter((p) => p.id !== plan.id);
@@ -199,6 +213,26 @@ export function registerUpgradeRoutes(app, deps) {
     if (!outcome.ok) return res.status(outcome.status).json(outcome.json);
     const saved = savePlan(slice, { ...plan, stages: outcome.stages, stagesStale: false });
     res.json({ plan: describePlan(saved), ...outcome.report });
+  });
+
+  /** The exact scope of a stage sequence, for review before it is started (no secrets in or out). */
+  app.post("/api/upgrade/plans/:id/sequence/preview", validateBody(upgradeSequenceSchema), (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    if (!previewSequence) return res.status(501).json({ error: "Not available.", code: "NOT_AVAILABLE" });
+    const { rhPullSecret: _a, mirrorPullSecret: _b, ...scope } = req.body;
+    const out = previewSequence(loaded.plan, scope);
+    res.status(out.ok ? 200 : out.status).json(out.json);
+  });
+
+  /** Start a reviewed sequence (explicit confirmation token required). */
+  app.post("/api/upgrade/plans/:id/sequence", validateBody(upgradeSequenceSchema), (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    if (!startSequence) return res.status(501).json({ error: "Not available.", code: "NOT_AVAILABLE" });
+    if (!req.body.previewToken) return res.status(400).json({ error: "Review the sequence first; starting it needs the reviewed scope.", code: "SEQUENCE_NOT_REVIEWED" });
+    const out = startSequence(loaded.plan, req.body);
+    res.status(out.ok ? 202 : out.status).json(out.json);
   });
 
   app.get("/api/upgrade/graph", (req, res) => {

@@ -4619,7 +4619,7 @@ const mirroringPreflightItems = (profile, body, generated) => {
   return items;
 };
 
-app.post("/api/mirroring/profiles/:id/preflight", validateBody(ocMirrorPreflightSchema), async (req, res) => {
+const mirroringPreflightHandler = async (req, res) => {
   const loaded = loadMirroringProfile(req, res);
   if (!loaded) return;
   const { profile } = loaded;
@@ -4658,7 +4658,8 @@ app.post("/api/mirroring/profiles/:id/preflight", validateBody(ocMirrorPreflight
     result.json.catalogVerification = catalogVerificationSummary(profile);
   }
   res.status(result.status).json(result.json);
-});
+};
+app.post("/api/mirroring/profiles/:id/preflight", validateBody(ocMirrorPreflightSchema), mirroringPreflightHandler);
 
 /**
  * Mirror to disk (E13 protection and transfer cycles):
@@ -4750,7 +4751,7 @@ const appendMirroringHistory = (profileId, jobId, { last = true } = {}) => {
   writeMirroringSlice(slice);
 };
 
-app.post("/api/mirroring/profiles/:id/run", validateBody(ocMirrorRunSchema), async (req, res) => {
+const mirroringRunHandler = async (req, res) => {
   const loaded = loadMirroringProfile(req, res);
   if (!loaded) return;
   const { profile } = loaded;
@@ -4811,7 +4812,8 @@ app.post("/api/mirroring/profiles/:id/run", validateBody(ocMirrorRunSchema), asy
   });
   if (result.status === 200 && result.json.jobId) appendMirroringHistory(profile.id, result.json.jobId);
   res.status(result.status).json(result.json);
-});
+};
+app.post("/api/mirroring/profiles/:id/run", validateBody(ocMirrorRunSchema), mirroringRunHandler);
 
 /** When a received plan was created on the connected side (its verified, staged plan.json). */
 const receivedPlanCreatedAt = (profile, record) => {
@@ -5742,6 +5744,158 @@ const releaseUpgradePlanProfiles = (plan, { removeStageProfiles }) => {
   return { ok: true, report };
 };
 
+/**
+ * v2.3.0 P4 — a reviewed sequence of stage runs (RFC §8.5).
+ *
+ * Each stage runs through the SAME handlers as a manual Mirroring run: the
+ * profile preflight first (refused if it blocks), then the run route, which
+ * applies the server-side run contract (N4), the one-run-at-a-time guard, the
+ * immutable plan and every Mirroring rule. The sequence stops at the first
+ * blocked preflight, refused start, failed/cancelled run or (mirror to
+ * mirror) a destination check that is not fully verified — nothing continues
+ * silently. Credentials live only in this closure for the sequence's
+ * duration and are never written to job metadata. Stop (Operations, or
+ * POST /api/jobs/:id/stop) stops the current run and the rest.
+ * Mirroring a stage never marks the cluster as updated.
+ */
+const runningUpgradeSequences = new Map();
+const captureResponse = () => ({ statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } });
+const callMirroringHandler = async (handler, profileId, body) => {
+  const res = captureResponse();
+  await handler({ params: { id: profileId }, body }, res);
+  return { status: res.statusCode, json: res.body };
+};
+const SEQUENCE_MODES = ["mirrorToDisk", "mirrorToMirror"];
+const sequenceScope = (plan, input) => {
+  const ids = Array.isArray(input.stageIds) && input.stageIds.length ? input.stageIds : plan.stages.map((s) => s.id);
+  const stages = plan.stages.filter((s) => ids.includes(s.id));
+  return { stages, unknown: ids.filter((id) => !plan.stages.some((s) => s.id === id)) };
+};
+const sequenceToken = (plan, input, stages) => crypto.createHash("sha256").update(JSON.stringify({ plan: plan.id, mode: input.mode, registryUrl: input.registryUrl || null, stages: stages.map((s) => [s.id, s.profileId, s.release]) })).digest("hex");
+const previewUpgradeSequence = (plan, input) => {
+  if (!SEQUENCE_MODES.includes(input.mode)) return { ok: false, status: 400, json: { error: "A stage sequence runs mirror to disk or mirror to mirror. Disk to mirror runs one received transfer at a time.", code: "SEQUENCE_MODE_INVALID" } };
+  const { stages, unknown } = sequenceScope(plan, input);
+  if (unknown.length || !stages.length) return { ok: false, status: 400, json: { error: "Choose stages of this plan.", code: "SEQUENCE_STAGES_INVALID" } };
+  const profiles = readMirroringSlice().profiles;
+  const rows = stages.map((s) => {
+    const p = profiles[s.profileId];
+    if (!p || p.ownedBy?.planId !== plan.id) return { stageId: s.id, release: s.release, problem: "The stage profile is missing or no longer belongs to this plan. Prepare the stages again." };
+    const paths = profilePaths(storeOf(p), p.id);
+    return {
+      stageId: s.id, release: s.release, minor: s.minor, profileId: p.id, profileName: p.name,
+      operators: p.content.operators ? p.operators.selected.length : 0,
+      catalogMinor: p.content.operators ? p.operators.catalogMinor : null,
+      destination: input.mode === "mirrorToMirror" ? input.registryUrl || null : paths.archivePath,
+      workspace: paths.workspacePath,
+      cache: paths.cachePath
+    };
+  });
+  return { ok: true, json: { mode: input.mode, stages: rows, token: sequenceToken(plan, input, stages), stopsOnFirstFailure: true, preflightPerStage: true, clusterUnaffected: true } };
+};
+/** Stop one stage run exactly as POST /api/jobs/:id/stop does (recorded as cancelled, not failed). */
+const stopStageRun = (runId) => {
+  const proc = activeProcesses.get(runId);
+  if (!proc) return;
+  proc.kill("SIGTERM");
+  activeProcesses.delete(runId);
+  updateJobUnlessTerminal(runId, { status: "cancelled", message: "Stopped with the stage sequence.", progress: 0 });
+};
+const waitForTerminal = async (jobId, shouldStop) => {
+  for (;;) {
+    const job = getJob(jobId);
+    if (job && isTerminalJobStatus(job.status)) return job;
+    if (shouldStop()) stopStageRun(jobId);
+    await new Promise((r) => setTimeout(r, process.env.NODE_ENV === "test" ? 50 : 1000));
+  }
+};
+const startUpgradeSequence = (plan, input) => {
+  const preview = previewUpgradeSequence(plan, input);
+  if (!preview.ok) return preview;
+  if (input.previewToken !== preview.json.token) return { ok: false, status: 409, json: { error: "The stages, mode or destination changed after the sequence was reviewed. Review it again.", code: "SEQUENCE_SCOPE_CHANGED", preview: preview.json } };
+  if (preview.json.stages.some((r) => r.problem)) return { ok: false, status: 409, json: { error: preview.json.stages.find((r) => r.problem).problem, code: "SEQUENCE_STAGE_INVALID" } };
+  const existing = runningUpgradeSequences.get(plan.id);
+  if (existing && !isTerminalJobStatus(getJob(existing)?.status)) return { ok: false, status: 409, json: { error: "A sequence for this plan is already running.", code: "SEQUENCE_RUNNING", jobId: existing } };
+  const jobId = createJob("upgrade-sequence", `Stage sequence for ${plan.name}`);
+  const stagesMeta = preview.json.stages.map((r) => ({ stageId: r.stageId, release: r.release, profileId: r.profileId, state: "pending", jobId: null, detail: null }));
+  updateJobMetadata(jobId, { workflow: "upgrade", owner: { workflow: "upgrade", planId: plan.id }, mode: input.mode, registryUrl: input.mode === "mirrorToMirror" ? input.registryUrl || null : null, stages: stagesMeta });
+  runningUpgradeSequences.set(plan.id, jobId);
+  // Secrets: this closure only.
+  let credentials = {
+    rhAuthSource: input.rhAuthSource, rhPullSecret: input.rhPullSecret,
+    mirrorPullSecret: input.mirrorPullSecret, destinationAuth: input.destinationAuth
+  };
+  let stopRequested = false;
+  let currentRunId = null;
+  activeProcesses.set(jobId, { kill: () => { stopRequested = true; if (currentRunId) stopStageRun(currentRunId); } });
+  updateJob(jobId, { status: "running", progress: 0, message: `Stage 1 of ${stagesMeta.length}: preflight…` });
+  const setStage = (i, patch) => { stagesMeta[i] = { ...stagesMeta[i], ...patch }; updateJobMetadata(jobId, { stages: stagesMeta }); };
+  const finish = (status, message) => { updateJobUnlessTerminal(jobId, { status, message, progress: 100 }); };
+  (async () => {
+    try {
+      for (let i = 0; i < stagesMeta.length; i += 1) {
+        const st = stagesMeta[i];
+        if (stopRequested) { setStage(i, { state: "not-run", detail: "Stopped before this stage." }); continue; }
+        const body = {
+          mode: input.mode,
+          ...(credentials.rhAuthSource ? { rhAuthSource: credentials.rhAuthSource } : {}),
+          ...(credentials.rhPullSecret ? { rhPullSecret: credentials.rhPullSecret } : {}),
+          ...(input.mode === "mirrorToMirror" ? {
+            registryUrl: input.registryUrl, mirrorAuthSource: "inline", verifyDestination: true,
+            ...(credentials.destinationAuth === "anonymous" ? { destinationAuth: "anonymous" } : credentials.mirrorPullSecret ? { mirrorPullSecret: credentials.mirrorPullSecret } : {})
+          } : {}),
+          ...(input.advanced ? { advanced: input.advanced } : {})
+        };
+        updateJob(jobId, { message: `Stage ${i + 1} of ${stagesMeta.length} (${st.release}): preflight…`, progress: Math.round((i / stagesMeta.length) * 100) });
+        let pre;
+        try { pre = await callMirroringHandler(mirroringPreflightHandler, st.profileId, ocMirrorPreflightSchema.parse(body)); } catch (err) { pre = { status: 400, json: { error: String(err?.message || err) } }; }
+        if (pre.status !== 200 || !pre.json?.ok) {
+          setStage(i, { state: "preflight-blocked", detail: (pre.json?.blockers || [pre.json?.error || "Preflight failed."]).join(" ").slice(0, 2000) });
+          for (let k = i + 1; k < stagesMeta.length; k += 1) setStage(k, { state: "not-run", detail: "An earlier stage did not complete." });
+          return finish("failed", `Stopped: the preflight for stage ${i + 1} (${st.release}) is blocked.`);
+        }
+        // A Stop that arrived during the preflight prevents this stage's run.
+        if (stopRequested) {
+          for (let k = i; k < stagesMeta.length; k += 1) setStage(k, { state: "not-run", detail: "Stopped before this stage." });
+          return finish("cancelled", "Stopped by user.");
+        }
+        let run;
+        try { run = await callMirroringHandler(mirroringRunHandler, st.profileId, ocMirrorRunSchema.parse(body)); } catch (err) { run = { status: 400, json: { error: String(err?.message || err) } }; }
+        if (run.status !== 200 || !run.json?.jobId) {
+          setStage(i, { state: "refused", detail: String(run.json?.error || "The run was refused.").slice(0, 2000) });
+          for (let k = i + 1; k < stagesMeta.length; k += 1) setStage(k, { state: "not-run", detail: "An earlier stage did not complete." });
+          return finish("failed", `Stopped: stage ${i + 1} (${st.release}) could not start: ${run.json?.error || run.status}`);
+        }
+        currentRunId = run.json.jobId;
+        setStage(i, { state: "running", jobId: currentRunId });
+        updateJob(jobId, { message: `Stage ${i + 1} of ${stagesMeta.length} (${st.release}): running (job ${currentRunId})…` });
+        const done = await waitForTerminal(currentRunId, () => stopRequested);
+        currentRunId = null;
+        const verification = getJobMetadata(done.id)?.verification || null;
+        const succeeded = ["completed", "completed_with_warnings"].includes(done.status);
+        if (!succeeded) {
+          setStage(i, { state: done.status === "cancelled" ? "stopped" : "failed", detail: String(done.message || "").slice(0, 2000) });
+          for (let k = i + 1; k < stagesMeta.length; k += 1) setStage(k, { state: "not-run", detail: "An earlier stage did not complete." });
+          return finish(stopRequested ? "cancelled" : "failed", `Stopped at stage ${i + 1} (${st.release}): ${done.status}.`);
+        }
+        if (input.mode === "mirrorToMirror" && verification?.state !== "fully-verified") {
+          setStage(i, { state: "registry-unverified", detail: `The run finished, but the destination check is ${verification?.state || "missing"}, so the content is not confirmed in the registry.` });
+          for (let k = i + 1; k < stagesMeta.length; k += 1) setStage(k, { state: "not-run", detail: "An earlier stage is not verified in the registry." });
+          return finish("failed", `Stopped: stage ${i + 1} (${st.release}) is not verified in the destination registry.`);
+        }
+        setStage(i, { state: input.mode === "mirrorToMirror" ? "registry-verified" : "mirrored-to-disk", detail: done.status === "completed_with_warnings" ? "Completed with warnings; see the stage run." : null });
+      }
+      finish(stopRequested ? "cancelled" : "completed", stopRequested ? "Stopped by user." : `All ${stagesMeta.length} stage(s) completed. The cluster itself has not been updated.`);
+    } catch (err) {
+      finish("failed", `The sequence stopped unexpectedly: ${String(err?.message || err).slice(0, 500)}`);
+    } finally {
+      credentials = null;
+      activeProcesses.delete(jobId);
+      runningUpgradeSequences.delete(plan.id);
+    }
+  })();
+  return { ok: true, json: { jobId } };
+};
+
 const upgradeApi = registerUpgradeRoutes(app, {
   validateBody,
   readUpgradeSlice,
@@ -5750,6 +5904,9 @@ const upgradeApi = registerUpgradeRoutes(app, {
   materializeStages: materializeUpgradeStages,
   describePlanExtras: (plan) => ({ stageViews: upgradeStageViews(plan) }),
   onPlanDeleted: releaseUpgradePlanProfiles,
+  previewSequence: previewUpgradeSequence,
+  startSequence: startUpgradeSequence,
+  sequenceRunning: (planId) => { const id = runningUpgradeSequences.get(planId); return id && !isTerminalJobStatus(getJob(id)?.status) ? id : null; },
   previewDeletion: (plan) => {
     const owned = Object.values(readMirroringSlice().profiles).filter((p) => p.ownedBy?.planId === plan.id);
     return {
