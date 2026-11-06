@@ -12,7 +12,8 @@ reload), M5 (live catalog verification, structured preflight, mirror to disk wit
 immutable plan) and M6 (transfer manifest, verified receive on the disconnected side, disk to
 mirror from the received plan, mirror to mirror, profile isolation) and M7 (verified catalog
 fetch, catalog identity and offline readiness, real-binary disconnected integration, enterprise
-deployment) implemented and released in v2.2.0.
+deployment) implemented and released in v2.2.0. v2.2.1 (2026-11-06) fixes Mirroring in the backend container (the
+v2.2.0 image could not read its own oc-mirror; see A9).
 
 **How this file is organised.** Part A is the user guide: what Mirroring is and how to run each of
 its three workflows. Sections 1–5 are the design contract and implementation record that Part A
@@ -186,7 +187,7 @@ later release, pending a review of binary-level license notices; v2.2.1 does not
   demonstrated:** OpenShift platform (release) content into a real disconnected registry, real Red Hat
   operator content mirrored end to end, Quay or other production registries as the destination, a customer
   RHEL 9 / Podman 4.9.4 / FIPS host. Customer acceptance is pending; this guide is not a support statement.
-- **v2.2.0 container known issue, corrected in v2.2.1:** in the v2.2.0 backend image every Mirroring run fails with
+- **v2.2.0 container known issue, fixed in v2.2.1 (released 2026-11-06):** in the v2.2.0 backend image every Mirroring run fails with
   `EACCES` on `/usr/local/bin/oc-mirror`. The non-root backend user could execute the binary but not read it, and
   the run plan hashes it. v2.2.1 installs the bundled tools owned by root with mode 0755. Certification now checks
   the final image as the application user: read, hash and execute oc-mirror and oc, and the backend's own

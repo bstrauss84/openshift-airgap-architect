@@ -48,6 +48,30 @@ Scope items:
   - Record for v2.2.0: `docs/releases/closeout/v2.2.0.json`.
 - **F. Regression QA:** see P0 above and N3.
 
+*Post-release reconciliation (2026-11-06), no item closed:*
+- **Published.** v2.2.1 was published 2026-11-06: SSH-signed tag `v2.2.1` (`54071794` → `15bd706`) and a GitHub Release with 16
+  assets, independently re-verified. `main` and `develop` are at `15bd706` on both remotes, as is `release/v2.2.1`. The pre-promotion
+  `main` is kept as `archive/v2.2.0-main-pre-v2.2.1` (`f0fa293`).
+- **Certification of record:** run `20261106T161100Z-062148386d6e` (candidate `15bd706`, clean, full scope), raw verdict RED:
+  11 PASS / 2 FAIL / 2 INCOMPLETE.
+  - FAIL: `image-vulnerabilities` (backend 1 CRITICAL / 122 HIGH, frontend 39 HIGH, row-for-row as in v2.2.0) and `artifacts`
+    (mutable tags).
+  - INCOMPLETE: `compatibility` (DOC-080) and `connectivity` (PROD-043).
+  - `tests` and `containers` now PASS, the latter including the application-user probes.
+  - Two earlier runs of the same candidate are kept as evidence, not as the record: `20261106T155501Z` (scanner DB unseeded) and
+    `20261106T160416Z` (test flake N7).
+- **Owner dispositions (2026-11-06, v2.2.1 only, nothing inherited):** all seven accepted (scope packet and owner signoff
+  published as release assets). This is risk acceptance, not technical success, and not legal clearance.
+- **P0 / N1:** released in v2.2.1. Status stays `done_pending_verification` until owner or customer acceptance.
+- **N5 correction and assessment:**
+  - `go version -m` on oc-mirror 4.22.19 lists **209** distinct Go modules (the "~445" above double-counted a `strings` dump).
+  - The focused assessment before publication found that v2.2.1 distributes no Red Hat binary: the source archive has no ELF or
+    tarball, the other assets are metadata, and local builds download oc/oc-mirror from Red Hat. So no non-waivable notice
+    obligation is incurred by this release (engineering assessment, not legal advice).
+  - Residuals stay open: user redistribution of built images or bundles, the v2.2.2 companions, and any future prebuilt images.
+- **Still open:** R9 off-host archive of the v2.2.1 evidence (PROD-044), customer acceptance (item 26), F21, the vendor CVEs,
+  N3/N4 owner questions, N7, the companions (v2.2.2), and the r4 toolkit review.
+
 Findings (unnumbered):
 
 - **N2 — backend `npm test` and Node 22 (fixed in v2.2.1).** The two numbers reported earlier came from different
@@ -79,6 +103,11 @@ Findings (unnumbered):
   - The companions' `NOTICE.txt` (Apache 2.0 only) is therefore not sufficient. That is why companions are deferred.
   - The same question applies, **pre-existing**, to the oc / oc-mirror binaries already shipped in Architect's backend
     image and in the Install bundle's `tools/`.
+- **N7 — timing- and memory-sensitive backend test (recorded 2026-11-06, `active`).**
+  `backend/test/mirror-registry-export-streaming.test.js` ("scaling: quadrupling the tarball does not change registration cost")
+  failed once in certification run `20261106T160416Z` ("16 MiB held -18.4 MiB, 64 MiB held 0.1 MiB": garbage collection timing)
+  while other lab work loaded the host. It passed in every other run, in CI and in local runs. A heap-delta assertion is not robust
+  under load; the owner should decide how to stabilize it.
 - **N6 — Node.js 24 trial (F21):** a backend build on `ubi9/nodejs-24` fails while compiling `better-sqlite3` 9.6.0
   (V8 headers require C++20). Migrating needs a `better-sqlite3` major upgrade. Not attempted in this patch.
 

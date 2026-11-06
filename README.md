@@ -37,11 +37,12 @@ where to download it.
 
 ### New in v2.2.0 — Mirroring
 
-> **Known issue (2026-11-06): Mirroring runs fail in the v2.2.0 backend container.** The image installs `oc-mirror`
-> so that the non-root backend user can execute it but not read it. Every Mirroring run then stops with
-> `EACCES: permission denied, open '/usr/local/bin/oc-mirror'` before oc-mirror starts. Install and operator scans
-> are not affected. Do not rely on v2.2.0 for Mirroring runs. The correction is planned for v2.2.1. Details: the
-> [v2.2.0 release notes](docs/releases/v2.2.0.md#post-publication-known-issue-2026-11-06).
+> **Fixed in v2.2.1 (released 2026-11-06): Mirroring runs failed in the v2.2.0 backend container.** The v2.2.0 image
+> installs `oc-mirror` so that the non-root backend user can execute it but not read it, so every Mirroring run stops
+> with `EACCES: permission denied, open '/usr/local/bin/oc-mirror'`. **Use v2.2.1 and rebuild your images**
+> (`podman compose up --build -d`). Install and operator scans were not affected. Details: the
+> [v2.2.1 release notes](docs/releases/v2.2.1.md) and the
+> [v2.2.0 known issue](docs/releases/v2.2.0.md#post-publication-known-issue-2026-11-06).
 
 v2.2.0 is a minor feature release, not another patch: it adds a second workflow beside
 Install. **Mirroring** plans and runs oc-mirror v2 without an install:
@@ -84,6 +85,7 @@ afterwards with Tools → Import Run. Credentials are deliberately excluded and 
 re-entered. Mirroring profiles are kept on the server, not in an exported run.
 
 - [Changelog](CHANGELOG.md) — everything, newest first
+- [v2.2.1 release notes](docs/releases/v2.2.1.md) — patch: fixes Mirroring in the backend container (v2.2.0 known issue)
 - [v2.2.0 release notes](docs/releases/v2.2.0.md) — minor: the Mirroring workflow
 - [v2.1.2 release notes](docs/releases/v2.1.2.md) — patch: export credential fixes and maintenance
 - [v2.1.1 release notes](docs/releases/v2.1.1.md) — patch: update notifications and build identity
@@ -720,8 +722,9 @@ Quick start:
    **Receive transfer…** and **Disk to mirror** on the disconnected side.
 
 On receipt, the disconnected side compares its own oc-mirror with the build that made the archives (same bytes
-or a different build; never blocking, and not a FIPS or suitability statement). v2.2.0 does not carry oc-mirror
-or oc inside a transfer.
+or a different build; never blocking, and not a FIPS or suitability statement). Architect does not carry oc-mirror
+or oc inside a transfer (optional verified tool tarballs are planned for a later release). Use v2.2.1 or later for
+Mirroring in containers: v2.2.0's backend image cannot run Mirroring (`EACCES` on the bundled oc-mirror).
 
 Full guide, including credentials, storage, integrity checks, transfer order and current limits:
 [docs/MIRRORING_WORKFLOW.md — Part A](docs/MIRRORING_WORKFLOW.md#part-a--user-guide).
@@ -1499,6 +1502,7 @@ Notes: `credentialsMode` and `publish` apply to cloud (AWS/Azure). For vSphere, 
 | Where to look | What it covers |
 |---|---|
 | [CHANGELOG.md](CHANGELOG.md) | Every release, newest first — features, fixes and breaking changes |
+| [v2.2.1 release notes](docs/releases/v2.2.1.md) | Patch: Mirroring runs work in the backend container again (v2.2.0 known issue: `EACCES` on the bundled oc-mirror); certification checks the final image as its application user; release-closeout verification |
 | [v2.2.0 release notes](docs/releases/v2.2.0.md) | Minor: the Mirroring workflow — oc-mirror profiles, three workflows, verified connected → disconnected transfer, Operations |
 | [v2.1.2 release notes](docs/releases/v2.1.2.md) | Patch: per-file Download and runtime-package credential-exposure fixes, export switches that work, IPv6 rendezvousIP, Field Guide VIP guidance |
 | [v2.1.1 release notes](docs/releases/v2.1.1.md) | Patch: restored update notifications, truthful build identity, corrected repository URL |
@@ -1524,6 +1528,7 @@ There is no registry to pull from.
 
 ### At a glance
 
+- **v2.2.1** — Patch release: fixes the v2.2.0 known issue — every Mirroring run failed in the backend container with `EACCES` on the bundled oc-mirror (installed 0751, unreadable by the non-root backend user); now root-owned 0755. Adds a certification check of the final image as its application user and live release-closeout verification. Rebuild your images to get the fix.
 - **v2.2.0** — Minor release: adds the Mirroring workflow — independent oc-mirror v2 profiles for the OpenShift release, operators and additional images; mirror to disk, a verified connected → disconnected transfer, disk to mirror, and mirror to mirror; Operations history. Lab-tested with the real oc-mirror against synthetic registries; customer acceptance pending at release.
 - **v2.1.2** — Patch release: fixes two export paths that could include excluded credentials (per-file YAML Download; the hidden runtime package), makes the Proxy values and SSH public key switches work, and corrects IPv6-only rendezvousIP, Field Guide VIP checks, documentation links and the post-import notice. Securely delete and rotate credentials in affected files from earlier versions.
 - **v2.1.1** — Patch release: restores update notifications (based on published releases, no Git revision required), reports build identity truthfully, and corrects the repository URL in generated files. Existing v2.1.0 installations may not detect it automatically.

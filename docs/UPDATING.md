@@ -39,6 +39,13 @@ update — follow [docs/BACKUP_RESTORE.md](BACKUP_RESTORE.md).
 > instance is working. Imports from v1.x and v2.x into the current schema are
 > migrated and are covered by tests.
 
+## Updating from v2.2.0 to v2.2.1
+
+v2.2.1 fixes Mirroring in the backend container (v2.2.0 known issue: every Mirroring run failed with `EACCES` on the
+bundled `oc-mirror`). The fix is in the image, so **rebuild** after updating the source:
+`podman compose up --build -d` (or `docker compose up --build -d`). Mirroring profiles and data are kept. Details:
+[v2.2.1 release notes](releases/v2.2.1.md).
+
 ## Where the build SHA comes from
 
 The build SHA is optional provenance. It is passed **in from the host at build
