@@ -12,7 +12,8 @@ Version Operator performs every update.
 
 Status: implemented on `feat/v2.3.0-upgrade` (not released). This document is
 the implementation-reconciled RFC (owner-approved rev 2, 2026-11-06) plus the
-user guide. Owner UX acceptance is pending.
+user guide, updated for the owner-approved UX redesign (2026-11-07). Owner UX
+acceptance is pending.
 
 - [Part A — User guide](#part-a--user-guide)
 - [Part B — Design and contracts](#part-b--design-and-contracts)
@@ -22,167 +23,192 @@ user guide. Owner UX acceptance is pending.
 
 ## Part A — User guide
 
-### A1. Plans
+### A0. Plans and steps
 
 A **plan** is one cluster update. Choose **Upgrade** on the landing page, then
 **New Upgrade plan**. Plans are independent: creating, changing or deleting one
-never changes another plan, a Mirroring profile or the Install workflow.
+never changes another plan, a Mirroring profile or the Install workflow. The
+plan header has **Rename** and **Delete plan…**.
 
-Tabs: **Path**, **Operators**, **Content & runs**, **Instructions**,
-**Readiness**, **Review & export**. The tab row stays visible under the header
-while you scroll (the same mechanism as Mirroring); choosing another tab brings
-you to the top of it, and switching keeps everything you typed. **Home** (in
-Tools) is navigation only.
+Six numbered steps, each answering one question; a glyph shows where each stands
+(✓ done · ● needs attention · ◐ in progress · ○ not started):
 
-### A2. Path — choose the route
+1. **Route** — where am I going, and by which updates?
+2. **Content** — what will be mirrored for each release?
+3. **Readiness** — can I mirror, and can I update the cluster?
+4. **Mirror & transfer** — get the content into the disconnected registry.
+5. **Update the cluster** — how an administrator carries out each update.
+6. **Handoff** — what is done, what is left, and the download.
 
-1. **Architecture** — x86_64, aarch64, s390x, ppc64le or multi.
-2. **Channel policy** — **Stable** (guided default), **EUS** (even minors;
-   enables a Control Plane Only update from 4.20 to 4.22), or **Fast**
-   (advanced; supported releases with less time in the field).
-3. **Graph source** — the public update graph (fetched by Architect from
-   `api.openshift.com` only), or an **imported graph**: a snapshot from a plan
-   package, or the JSON your own OSUS returns. Architect never fetches from an
-   address you type; the Import panel shows the read-only `curl` command to run
-   where your OSUS is reachable.
-4. **Current channel** and **current release** — each disabled field says what
-   it needs first. Only supported minors are offered.
-5. **Target release** — only releases reachable through **recommended**
-   updates. Releases reachable only through *conditional* updates appear only
-   while **Review conditional updates** (Advanced) is on.
-6. **Compute the update route.**
+The step row and a compact **route strip** (route, content in the registry,
+cluster updates recorded) stay visible while you scroll. Choosing a step brings
+you to its top; going back keeps everything you chose. **Home** (in Tools) is
+navigation only.
 
-The route shows every step, the channel the cluster must be on for it, its
-release digest and errata. Its header says **Recommended route** only for a
-graph fetched within the last day; otherwise **as of** the graph's time. The
-graph's origin, time and SHA-256 are shown; the checksum describes this copy
-only — the graph is not signed, so its authenticity is not verified.
+### A1. Route
 
-Among equally short recommended routes, the one with the highest release at
-each step is shown **by convention**. That is not a safety ranking; the other
-routes are listed and you may choose any of them (each is validated).
+**Cluster today**: architecture, current channel, current release. **Update to**:
+target release (only releases reachable through **recommended** updates;
+conditional-only ones appear only while **Review conditional updates** is on, in
+Advanced) and channel policy (**Stable**, guided default; **EUS**, which enables a
+Control Plane Only update from 4.20 to 4.22; **Fast**, advanced). Each disabled
+field says what it needs first. Then **Compute the update route**.
 
-The **Channel graph** (collapsed) draws only the planned route and the selected
-release's updates, one lane per minor; it has keyboard zoom/pan (+, −, 0, arrow
-keys on releases) and an **Accessible table**.
+The **route rail** shows each release, tinted by its minor (the minor is also
+written out), the kind of each update and the channel the cluster must be on for
+it. An **EUS** badge appears only when the update graph lists that release in an
+EUS channel — never because a minor is even. Select an update for its digest,
+errata and any risks. Provenance is one line (host, channel, age) with
+**Details** (checksum: integrity of this copy only; the graph is not signed). The
+default among equally short routes is the highest release at each step, by
+convention, not a safety ranking; other routes can be chosen.
 
-### A2b. Operators — presets and intent
+**Graph source**: the public update graph (fetched only from
+`api.openshift.com`) by default. **Change source or import a graph…** opens (and
+closes) the panel with the read-only `curl` command for your own OSUS and the
+import form; Architect never fetches an address you type.
 
-**Presets from earlier ImageSetConfigurations (optional).** Load up to 10 files
-(1 MiB each). oc-mirror v2 files are checked against the v2 schema; v1
-(`v1alpha2`) files are read for platform channels, operator packages and
-additional images only. For each file you see whether it was read and what was
-ignored. Found operators show their channel (choose one when files disagree),
-the file(s) they came from and any conflict; conflicting ones start unticked.
-Release hints are only hints — using one as the current release asks first
-when it would replace your choice. A configuration file says what was *asked*
-to be mirrored, not what is installed, mirrored or in your registry, so every
-accepted item stays **imported preset — unverified**.
+**Explore older releases** (collapsed; exploration only): enter any release from
+4.1 and a release to explore up to (for example 4.12.30 → 4.18.10, or
+4.19.10 → 4.22.22). The route uses only real recommended updates from each
+step's own `stable-4.N` graph, "as Red Hat's update graph lists it today".
+Releases before the planning range are marked **outside planning range**, with
+links to that minor's documentation; nothing — no stage, configuration, command
+or run — is generated for them. When a route reaches 4.20 or later, **Plan the
+supported part** fills Cluster today and Update to from its first supported
+release. When no route can be shown, the exact reason and a next step are shown
+(for example, a release Red Hat no longer lists).
 
-**Operators in this plan** lists each operator's **category** — previously
-mirrored or selected (from files), currently installed, new (requested), or
-installed and kept without an update — and its **confidence**: imported preset,
-imported cluster export, confirmed by you, or entered by you. An imported preset
-never replaces an entry confirmed by you or by a cluster export unless you say
-so. **Add the selected operators to every stage** adds each operator from that
-stage's own catalog minor; selections already in a stage are not changed. The
-Mirroring operator browser and Live catalog check then apply per stage.
+### A2. Content
 
-### A3. Content & runs — what must be in the disconnected registry
+Every release the cluster passes through must be in your registry before its
+update. **Prepare N stage(s)** creates one **stage** per release (a Mirroring
+profile owned by the plan, one pinned release, that minor's operator catalog).
 
-Every release the cluster is updated to (not the one it runs) must be in your
-registry before that update. **Prepare stages** creates one **stage** per
-release; each stage is a Mirroring profile owned by the plan, with exactly one
-pinned release (`stable-<minor>`, min = max) and that minor's operator catalog.
+- **Stage chips** choose which stage is shown below.
+- **Operators across the route** — one row per operator, one column per stage
+  (its channel, or —), with its **category** (previously mirrored or selected,
+  currently installed, new request, kept) and how that is known (imported preset
+  — unverified, imported cluster export, confirmed by you, chosen here).
+  **Confirm installed** turns a preset into your statement. **Copy stage N's
+  operators to later stages** adds the same packages to each later stage from
+  its own minor's catalog; existing selections are never changed.
+- The stage card embeds Mirroring's own operator experience: catalog scan,
+  **Quick Picks**, browse and search, selected operators, version constraints,
+  the **Live catalog check**, and **Additional images**. The Red Hat pull
+  secret is the plan's (entered once; see A4).
+- **Preview this stage's ImageSetConfiguration** / **Download it** — available
+  at any time.
+- **Import previous configuration…** (a compact dialog) loads earlier
+  ImageSetConfiguration files (up to 10; oc-mirror v2 checked against the
+  schema; v1 read for platform channels, operator packages and images only). Each
+  file, operator, conflict and release hint is shown with the file(s) it came
+  from; accepting adds the ticked operators to every stage (optional) and records
+  them as **imported preset — unverified**. A file is never proof of what is
+  installed or mirrored; using a release hint as the current release asks first.
 
-For each stage:
-- **Add operators to this stage** uses the same operator browser as Mirroring
-  (the catalog follows the stage minor).
-- The **run panel** is Mirroring's own: preflight, mirror to disk, mirror to
-  mirror, disk to mirror, transfers, storage, logs, Stop and history. Upgrade
-  runs ask for the post-run **destination check**, so "in the registry" is
-  evidence, not assumption.
-- **I have updated the cluster to …** records your statement; mirroring never
-  marks the cluster as updated.
-- A **progress line** shows the stage's steps (planned, mirrored to disk,
-  transfer prepared, received, in the registry, registry verified, cluster
-  updated) from recorded evidence only — no percentages; steps a
-  mirror-to-mirror stage does not need show as "not needed".
+### A3. Readiness
 
-**Run every stage in order** previews the exact scope, then runs the stages one
-after another through the same preflight and run as a single Mirroring run. It
-stops at the first blocked preflight, failed run, or (mirror to mirror) a
-destination that is not fully verified; later stages are not run. **Stop the
-sequence** stops the current stage and the rest. The Red Hat pull secret is used
-from this browser session (Use it here / Replace / Forget) and is held in server
-memory only while the sequence runs.
+Two questions, kept apart:
 
-Large archives never go through the browser: they stay in each stage's storage
-directory and move with Mirroring's verified transfer (`mirror_*.tar`,
-`SHA256SUMS`, `oaa-transfer/`). On the disconnected side, **Receive a stage
-transfer** verifies every file and links it to its stage.
+- **Before mirroring** — stages prepared, mirror registry set, the plan's Red
+  Hat pull secret and registry credentials entered (this tab only), the route
+  and graph checks. Each row says where to fix it (**Go to …**). Each job still
+  runs its own preflight right before it starts.
+- **Before updating the cluster** — content in the registry per stage, release
+  signatures, cluster health from imported evidence, operator compatibility and
+  administrator statements.
 
-In the Mirroring workflow, stage profiles are marked "Upgrade stage"; their
-release, unlock and delete are refused there (manage them from the plan).
+States: **✓ Verified** (evidence), **✎ Your statement** (attested; never shown
+as verified), **⚠ Warning**, **✕ Blocked** (evidence of a problem), **○ To do**
+(work still to do in Architect, such as a stage not yet in the registry) and
+**? Not checked** (no evidence yet — missing optional evidence is not a
+failure). Evidence checks have **Import cluster evidence**, which opens the
+import with the right kind and its read-only command (`oc get clusterversion
+version -o json`, `oc get subscriptions.operators.coreos.com -A -o json`, `oc
+get csv -A -o json`, `oc get mcp -o json`). Only names, versions, channels,
+phases and conditions are kept; cluster ID, upstream URL, annotations and
+anything credential-like are discarded; kubeconfigs and Secrets are refused.
 
-### A4. Instructions
+### A4. Mirror & transfer
 
-Three methods, each per step of the route:
-- **OpenShift Update Service (recommended)** — one-time setup (registry trust
-  under the key `updateservice-registry`, the operator, graph data, the
-  UpdateService, pointing ClusterVersion's `upstream` at it), then per step:
-  apply the stage's cluster resources, set the channel, check the cluster's own
-  recommendation (`oc adm upgrade recommend --version …`, read-only), update
-  (`oc adm upgrade --to=…`), watch.
-- **CLI without OSUS** — apply each stage's release signature ConfigMap, pause
-  MachineHealthChecks, then `oc adm upgrade --allow-explicit-upgrade
-  --to-image <registry>/openshift/release-images@sha256:…` with the digest from
-  the update graph.
-- **Web console** — Administration → Cluster Settings, through the update
-  service (it cannot update to an explicit image).
+**How content gets to the disconnected side** is entered once for the plan:
 
-Every step links the documentation of the minor it updates **into** (never 5.0
-documentation). Steps list the readiness checks still open ("run only after …").
-A conditional update gets **no executable update command**. Control Plane Only
-pause/unpause steps are **withheld** until their prerequisites are verified or
-attested. Never generated: `--force`, `--allow-upgrade-with-warnings`,
+- **Method** — **Mirror to disk** (connected side; archives, then a transfer),
+  **Mirror to mirror** (reaches both sides; straight into your registry), or
+  **Disk to mirror** (disconnected side; loads received transfers).
+- **Mirror registry** — `host[:port]/path`, used by every stage (a stage may be
+  given its own registry in its details), the update instructions and the OSUS
+  templates. A value with a scheme, `@`, user name, password, token, query or
+  spaces is refused; credentials are never part of it.
+- **Write catalogs under a plan-specific tag** (mirror to mirror / disk to
+  mirror) — oc-mirror replaces a catalog tag's content with each stage's
+  selection; a plan-specific tag leaves the tags existing clusters use untouched.
+- **Credentials** (this browser tab only, never saved): the plan's Red Hat pull
+  secret and registry credentials (or anonymous access). They are used for this
+  plan's catalog scans, catalog checks and runs — never another plan or a
+  Mirroring profile — and are gone after a reload.
+
+**Stages** lists each stage's content and progress (content only: mirrored to
+disk → transfer prepared → received → in the registry → verified; steps a
+mirror-to-mirror stage does not need show "not needed").
+
+- **Mirror this stage…** — one oc-mirror job for that stage.
+- **Mirror all N stages to disk… / to the registry…** — N jobs, one after
+  another, each after its own server preflight, stopping at the first failure.
+
+Both open the same confirmation: **Jobs that will run**, **Where the output
+goes** (one archive folder per stage, or the registry), **Credentials used**,
+**If a job fails**, and **What will not happen** (the cluster is not updated or
+contacted; content placed in a registry is not activated in any cluster). For
+mirror to mirror, every catalog tag that already exists in the registry, or that
+could not be checked, is listed and needs its own acknowledgement; the server
+checks again at start.
+
+**Details** shows the stage's run panel (Mirroring's own preflight, options,
+log, prepare transfer, received transfers, destination check), with the method,
+registry and credentials taken from the plan. **Open in Mirroring ↗** opens the
+full Mirroring workspace at that stage; **← Back to Upgrade plan "…" · stage N**
+returns to the same plan, step and stage. **Receive a stage transfer…** verifies
+a carried transfer and links it to its stage. Large archives never go through
+the browser.
+
+### A5. Update the cluster
+
+**These are instructions for an administrator to run. Architect never connects
+to, changes or updates your cluster.** Choose **OpenShift Update Service
+(recommended)**, **CLI without OSUS** or **Web console**. The mirror registry in
+the commands is the plan's (shown, with **Change**); nothing is asked again.
+
+Steps are grouped: before the first update (including one-time OSUS setup), then
+one card per update. Each update card keeps three things apart: **content for
+that release** (evidence from runs and checks), **cluster evidence** (only an
+imported ClusterVersion), and **I have completed this update** (your statement;
+never inferred from mirroring). Every step cites the documentation of the minor
+it updates into. Conditional updates get no executable update command; Control
+Plane Only steps are withheld until their prerequisites are verified or attested.
+Never generated: `--force`, `--allow-upgrade-with-warnings`,
 `--allow-not-recommended`, `oc adm upgrade accept`.
 
-### A5. Readiness
+**Download these instructions** (all, or one update's steps) is available at any
+time — you do not have to finish an update to get the files to carry it out.
 
-Every check is **✓ Verified**, **✕ Blocked**, **⚠ Warning**, **✎ Attested** or
-**? Not checked**. Only evidence verifies: an imported read-only cluster export,
-a verified registry check, the graph itself. **Attested** is your statement
-(for example an etcd backup) and is never shown as verified. Without cluster
-evidence, cluster readiness is **not verified**.
+### A6. Handoff
 
-**Import cluster evidence** (optional): run `oc get clusterversion version -o
-json`, `oc get subscriptions.operators.coreos.com -A -o json`, `oc get csv -A -o
-json` or `oc get mcp -o json` where the cluster is reachable and paste the
-output. Only names, versions, channels, phases and conditions are kept; the
-cluster ID, upstream URL, annotations and anything credential-like are
-discarded; kubeconfigs and Secrets are refused.
+A summary: route, content in the registry, operators, readiness, cluster updates
+recorded (your statements) and **Still to do** (each with **Go**). **Download the
+handoff package (.zip)** — available at any time: the plan, re-verifiable graph
+snapshots, validated stage configurations, instructions, readiness, templates,
+`tools/ACQUIRE_TOOLS.md` and `SHA256SUMS`; never archives, credentials,
+imported evidence or attestation notes. **Individual files** (collapsed) lists
+each file with its label — **validated configuration**, **template — fill in**
+or **produced by a completed run** — and Preview / Download. On the disconnected
+side, **Import plan…** checks every checksum before importing (read-only; the
+checksums show integrity, not authorship).
 
-### A6. Review & export
-
-The review lists the route, channels, strategy, graph sources and their age,
-stages and their evidence, and the **artifacts**, each labelled:
-**validated configuration** (stage ImageSetConfigurations), **template — fill
-in** (OSUS operator, UpdateService, registry CA ConfigMap, ClusterVersion
-upstream patch), or **produced by a completed run** (files oc-mirror wrote into
-`working-dir/cluster-resources`; never fabricated).
-
-**Download the plan package (.zip)**: the plan, re-verifiable graph snapshots,
-validated stage configurations, instructions (Markdown), readiness, templates,
-`tools/ACQUIRE_TOOLS.md` and `SHA256SUMS`. It never contains archives,
-credentials, imported evidence or attestation notes. On the disconnected side,
-**Import plan…** with `oaa-upgrade-package.json`: every checksum is checked
-before anything is imported, and the plan is imported read-only. The checksums
-show integrity, not who made the package (it is not signed).
-
-**Delete plan…** asks separately whether its stage profile records go too
-(default: kept as ordinary Mirroring profiles). Mirrored data on disk is never
-deleted; the dialog lists the directories.
+**Delete plan…** (plan header) asks separately whether its stage profile records
+go too (default: kept as ordinary Mirroring profiles). Mirrored data on disk is
+never deleted.
 
 ### A7. Client tools
 
@@ -200,9 +226,21 @@ unchanged.
 ### B1. Supported versions
 
 Exactly 4.20, 4.21 and 4.22 (`backend/src/versionPolicy.js`). Channels and
-releases of other minors are refused with 422 `UNSUPPORTED_VERSION`; graph nodes
-of other minors are dropped and counted. No route is invented from an
-unsupported release.
+releases of other minors are refused with 422 `UNSUPPORTED_VERSION` for
+planning; graph nodes of other minors are dropped and counted. No route is
+invented from an unsupported release.
+
+**Exploration tier (owner decision D-1, display only).** `POST
+/api/upgrade/explore` routes between releases from 4.1 up to the newest supported
+minor. It reads `stable-4.N` graphs from the same host into a separate `explore`
+cache that planning never reads (`readCachedGraph` refuses that source; planning
+still answers 422 for `stable-4.12`). `exploreRoute` (shared) merges the per-step
+graphs so an edge into minor N comes only from `stable-4.N`, then runs the
+unchanged solver. Nothing is synthesized, no plan changes, and nothing is
+generated for releases outside the supported range; targets above the newest
+supported minor are refused (422). Reason codes: `SOURCE_OUT_OF_RANGE`,
+`TARGET_UNSUPPORTED`, `TARGET_NOT_NEWER`, `SOURCE_NOT_IN_GRAPHS` (with a next
+step), `TARGET_NOT_IN_GRAPHS`, `NO_RECOMMENDED_PATH`, `GRAPH_UNAVAILABLE`.
 
 ### B2. Graph retrieval (`backend/src/updateGraph.js`)
 
@@ -270,11 +308,27 @@ then a manifest fetch per image).
 
 ### B6. Sequences
 
-Preview → token → start. Each stage: profile preflight handler, then the
-Mirroring run handler (unchanged code paths). Stop on first failure; Stop via
-the job; credentials in the sequence closure only; plan deletion refused while
-it runs. Restart of the server marks a running sequence as interrupted (stale
-job); resume by running the remaining stages.
+Preview → token → start, for one stage (`stageIds: ["s2"]`, "Mirror this
+stage…") or several ("Mirror all…"); one code path and one confirmation. Each
+stage: profile preflight handler, then the Mirroring run handler (unchanged code
+paths). Stop on first failure; Stop via the job; credentials in the sequence
+closure only; plan deletion refused while it runs. Restart of the server marks a
+running sequence as interrupted (stale job); resume by running the remaining
+stages.
+
+Mirror to mirror: the destination is the reviewed registry, else the stage's own,
+else the plan's. The preview lists what each stage writes (`writes.releases`:
+version-specific release tags; `writes.catalogs`: the catalog repository and tag
+— the source tag, or the plan-specific `targetTag`). Verified on the exact
+oc-mirror 4.22.0 binary against an isolated registry: a filtered catalog is
+pushed to the source tag and **replaces** that tag's content (an image whiteout
+of `/configs` plus the new packages), while `targetTag` writes a separate tag and
+leaves the original untouched. Therefore `POST …/sequence/destination-check`
+(read-only manifest GETs with the request's destination credentials) reports
+each catalog tag as existing, absent or unknown, and starting needs every
+existing-or-unknown tag in `acknowledgedOverwrites` (checked again at start; 409
+`CATALOG_OVERWRITE_NOT_ACKNOWLEDGED`). Architect never applies CatalogSource,
+IDMS or ITMS resources.
 
 ### B7. Server-side run contract (N4 and source credentials)
 
@@ -289,6 +343,21 @@ a given secret must be valid; disk to mirror needs no source credential. Anonymo
 destination access is an explicit `destinationAuth: "anonymous"` (the server
 supplies the OKD placeholder). Missing credentials or a blocked trust store →
 409 `PREFLIGHT_BLOCKED` before anything is spawned.
+
+### B7a. Plan mirror settings and registry references
+
+`plan.mirror = { registryUrl, method, catalogTag }` (`POST …/:id/mirror`). The
+registry reference is validated and normalized by `shared/registryReference.js`
+(`host[:port][/path]`, lowercase host; refused without echo: schemes, `@` or
+userinfo, query, fragment, whitespace, control characters, token-like path parts,
+over-long values). The same validator now guards every registry reference the
+server accepts (run and preflight bodies, Mirroring destinations, the sequence,
+instruction overrides). A new registry propagates to every stage that followed
+the previous one; a stage given its own keeps it. `catalogTag: "plan"` sets each
+stage's `operators.catalogTargetTag` (`v4.NN-oaa-<plan>`), emitted as
+`targetTag` in its ImageSetConfiguration. Credentials are never part of these
+settings; the browser keeps one memory-only credential context per plan
+(`upgrade-plan:<id>`; source and destination).
 
 ### B7b. Presets and operator intent (`backend/src/upgradePresets.js`)
 
@@ -343,7 +412,14 @@ last stage.
 …/:id/cluster-progress` · `GET …/:id/instructions` · `GET …/:id/artifacts` ·
 `GET …/:id/package.zip|package.json` · `POST /api/upgrade/import` · `POST
 …/:id/presets/analyze` · `POST …/:id/operator-intent` · `POST
-…/:id/operator-intent/apply-to-stages` · `GET /api/start-over/preview`.
+…/:id/operator-intent/apply-to-stages` · `POST …/:id/mirror` · `POST
+…/:id/stages/:stageId/copy-operators` · `POST …/:id/sequence/destination-check`
+· `POST /api/upgrade/explore` · `GET /api/start-over/preview`.
+
+Readiness checks carry `group` (`route` / `content` / `cluster`) and `action`
+(`{kind: "import", inventoryKind}` or `{kind: "step", step}`); `PENDING` marks a
+to-do in Architect (it gates the instructions like `BLOCKED` but is not evidence
+of a problem).
 
 ---
 
@@ -361,8 +437,19 @@ last stage.
 - Exact-binary: the B4 table; and a stage dry run through the Upgrade API on an
   isolated QA backend (live graph → 4.20.14 → 4.20.44 → 4.21.42 → 4.22.22; stage
   2 mapping = one release payload + 190 components).
-- UI: Playwright against the isolated QA environment, light/dark, 768/375 px,
-  keyboard tabs, Home.
+- UI: Playwright against the isolated QA environment, light/dark, 1366/390/375
+  px: no sideways overflow on any step, labels next to their controls, the
+  graph-source panel toggling, every Route select opening at 10/50/90 % of its
+  width, the confirmation dialog contents, Open in Mirroring and back.
+- UX correction defects reproduced before their fixes: F1 (a stage's operator
+  selection saved into another stage; `upgrade-f1-stage-operator-isolation`),
+  and the release dropdown that seemed to open only from its arrow (Chrome 157:
+  the Target select was disabled during a `/targets` round trip and its options
+  were then replaced, closing a just-opened popup; now computed in the same
+  render).
+- Exploration: live against `api.openshift.com` (2026-11-07): 4.14.10 → 4.14.58
+  → 4.15.59 → 4.16.55; 4.19.10 → 4.19.55 → 4.20.46 → 4.21.42 → 4.22.22 (first
+  supported 4.20.46); 4.23 → 422.
 
 ### C2. Not verified here
 
@@ -386,4 +473,9 @@ last stage.
 - `multi` architecture plans are planning-only (no stage generation).
 - A sequence runs mirror to disk or mirror to mirror; disk to mirror runs per
   received stage.
+- Exploration shows today's recommendations only; it cannot reconstruct what was
+  recommended in the past, and documentation links for older minors await human
+  confirmation.
+- The catalog-tag check needs the destination reachable from this server; an
+  unreachable destination is "could not be checked" and must be acknowledged.
 - The plan package is integrity-checked, not signed.

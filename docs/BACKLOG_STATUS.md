@@ -44,6 +44,18 @@ RFC rev 2 and final authorization (2026-11-06); contract and user guide in `docs
   ImageSetConfigurations as optional, editable, unverified presets (v2 validated, v1 field-by-field) and operator
   intent (category + confidence + provenance); evidence-only stage progress tracker. Tests:
   `backend/test/upgrade-presets.test.js`, `frontend/tests/upgrade-ui.test.jsx`, `frontend/tests/landing-cta.test.jsx`.
+- **Owner UX redesign (approved 2026-11-07 with refinements 1–7; `done_pending_verification`, owner UX acceptance
+  pending):** six steps (Route, Content, Readiness, Mirror & transfer, Update the cluster, Handoff); one plan registry
+  validated by `shared/registryReference.js` (also guarding every registry reference the server accepts) and one
+  memory-only credential context per plan (D-2); Mirroring's operator UI embedded per stage; copy to later stages;
+  single-stage and multi-stage runs through one reviewed confirmation; mirror-to-mirror catalog-tag protection
+  (exact-binary assessment: a filtered catalog replaces its tag; `targetTag` does not) with per-tag acknowledgement or a
+  plan-specific tag; readiness `group`/`action`/`PENDING`; Open in Mirroring / Back to Upgrade plan; administrator-run
+  instructions grouped by update; Handoff summary; historical exploration 4.1 → 4.22 (D-1, display only; separate cache;
+  CLAUDE.md scope note). Defects fixed with fail-first evidence: F1 (cross-stage operator save), the release dropdown
+  click area (reproduced in Chrome 157), F2–F4. Tests: `frontend/tests/upgrade-f1-stage-operator-isolation.test.jsx`,
+  `upgrade-ux-redesign.test.jsx`, `upgrade-ui.test.jsx`, `backend/test/upgrade-ux-plan-mirror.test.js`,
+  `upgrade-explore.test.js`.
 - **Findings queue (unnumbered; not fixed in this tranche):**
   - (a) **fixed in the correction pass:** the run contract now enforces the source (Red Hat) pull-secret rule
     (fail-first `backend/test/source-credential-run-contract.test.js`, 3/5 on aee6a32).
@@ -52,6 +64,12 @@ RFC rev 2 and final authorization (2026-11-06); contract and user guide in `docs
   - (c) documentation URLs in `data/upgrade-docs/upgrade-docs.json` await human verification (docs.redhat.com
     returns 403 to tooling).
   - (d) stage profiles do not share caches across releases (profile isolation); disk use grows per stage.
+  - (e) the full Mirroring workspace shows "Unlock release" / "Update" for an Upgrade-owned stage profile; the server
+    refuses them (409), so they can only fail. Pre-existing; not changed in the UX redesign.
+  - (f) a residual ~50 ms window remains in which opening Target release while a just-changed current release is still
+    being saved can replace its list; the original multi-hundred-millisecond window is removed.
+  - (g) the catalog-tag existence check needs the destination registry reachable from this server; otherwise each tag
+    is "could not be checked" and must be acknowledged.
 
 ## v2.2.1 corrective patch (opened 2026-11-06), unnumbered — awaiting owner ID allocation
 

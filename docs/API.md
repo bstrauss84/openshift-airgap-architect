@@ -690,27 +690,31 @@ bodies are strict (unknown fields are refused). Nothing here contacts a cluster.
 | GET | `/api/upgrade/graph?channel&arch&source=public\|imported` | Cached normalized graph + provenance |
 | POST | `/api/upgrade/graph/refresh` | Fetch from `api.openshift.com` `{ channel, arch }` (409 `GRAPH_OFFLINE_SIDE` on the high side) |
 | POST | `/api/upgrade/graph/import` | Import a graph `{ channel, arch, origin: customer-osus\|snapshot, text, capturedAt?, sourceUrl? }` |
-| GET | `/api/upgrade/plans/:id/targets?channel` | Reachable targets: recommended / conditional-only / unreachable |
+| GET | `/api/upgrade/plans/:id/targets?channel` | Reachable targets: recommended / conditional-only / unreachable (the UI computes the same with the shared solver from the loaded graph) |
 | POST | `/api/upgrade/plans/:id/solve` | Compute (or validate a chosen `{ route }`) and persist the route |
 | POST | `/api/upgrade/plans/:id/stages` | Create/reuse one Upgrade-owned Mirroring profile per required release |
-| POST | `/api/upgrade/plans/:id/sequence/preview` | Exact sequence scope + token (no secrets) |
-| POST | `/api/upgrade/plans/:id/sequence` | Start a reviewed sequence (token required; credentials held in memory for the sequence only) |
-| GET | `/api/upgrade/plans/:id/readiness` | Checks (VERIFIED/BLOCKED/WARNING/ATTESTED/NOT_CHECKED), CPO eligibility |
+| POST | `/api/upgrade/plans/:id/sequence/preview` | Exact scope for one stage (`stageIds`) or several + token (no secrets); mirror to mirror lists what each stage writes (`writes.releases`, `writes.catalogs`) |
+| POST | `/api/upgrade/plans/:id/sequence` | Start a reviewed sequence (token required; credentials held in memory for the sequence only); mirror to mirror needs every existing-or-unchecked catalog tag in `acknowledgedOverwrites` (409 `CATALOG_OVERWRITE_NOT_ACKNOWLEDGED`) |
+| GET | `/api/upgrade/plans/:id/readiness` | Checks (VERIFIED/BLOCKED/WARNING/ATTESTED/NOT_CHECKED/PENDING) with `group` and `action`, CPO eligibility |
 | POST/DELETE | `/api/upgrade/plans/:id/inventory` | Import (projected) / remove read-only cluster exports `{ kind, text }` |
 | POST | `/api/upgrade/plans/:id/attest` | Administrator statement for an attestable check `{ checkId, attested, note? }` |
 | POST | `/api/upgrade/plans/:id/cluster-progress` | The administrator's record that the cluster reached a stage `{ stageId, state }` |
-| GET | `/api/upgrade/plans/:id/instructions?registry` | OSUS / CLI / web steps |
+| GET | `/api/upgrade/plans/:id/instructions?registry` | OSUS / CLI / web steps; the registry is the plan's (an explicit `registry` is validated like any registry reference) |
 | GET | `/api/upgrade/plans/:id/artifacts` | VALIDATED / TEMPLATE / PRODUCED_BY_RUN files |
 | GET | `/api/upgrade/plans/:id/package.zip` · `package.json` | Plan package (no archives, no credentials) |
 | POST | `/api/upgrade/import` | Verified import of `oaa-upgrade-package.json` `{ text }` → read-only received plan |
 | POST | `/api/upgrade/plans/:id/presets/analyze` | Analyze up to 10 earlier ImageSetConfigurations `{ files: [{ name, text }] }` as unverified presets (nothing stored) |
 | POST | `/api/upgrade/plans/:id/operator-intent` | Merge/remove operator intent `{ entries?, images?, remove?, replaceConfirmed? }` (presets never replace confirmed entries without consent) |
 | POST | `/api/upgrade/plans/:id/operator-intent/apply-to-stages` | Add selected operators to every stage at its catalog minor `{ keys, includeImages? }` |
+| POST | `/api/upgrade/plans/:id/mirror` | Plan mirroring settings `{ registryUrl?, method?, catalogTag?: source\|plan }`; the registry reference is validated and normalized (`host[:port][/path]`; schemes, `@`/userinfo, queries, spaces and token-like parts refused without echo → 400 `REGISTRY_REFERENCE_INVALID`); propagated to stages that follow the plan |
+| POST | `/api/upgrade/plans/:id/stages/:stageId/copy-operators` | Copy a stage's operators to later stages (or `{ toStageIds }`), each from its own minor's catalog; existing selections never changed |
+| POST | `/api/upgrade/plans/:id/sequence/destination-check` | Mirror to mirror: which catalog tags would be replaced (`exists`: true / false / `"unknown"`), using the request's destination credentials for read-only manifest GETs |
+| POST | `/api/upgrade/explore` | Exploration only (4.1 → newest supported minor) `{ arch, source, target }`: route from real edges of each step's `stable-4.N` graph; never changes a plan; targets above the newest supported minor → 422 |
 
 Related (v2.3.0): `GET /api/start-over/preview?cancelInstallRuns=true|false` returns the exact scope of "New Install";
 `POST /api/start-over` accepts `{ cancelInstallRuns, previewToken }` (409 `RESET_SCOPE_CHANGED` when the scope changed).
 `POST /api/mirroring/start-over` answers 410 Gone. Mirroring run/preflight bodies accept `destinationAuth` and
-`verifyDestination`; a run the preflight would block on destination credentials, source (Red Hat) credentials for Red Hat content, or
+`verifyDestination`; every `registryUrl` (run, preflight, profile destination) must be a clean `host[:port][/path]` reference; a run the preflight would block on destination credentials, source (Red Hat) credentials for Red Hat content, or
 trust → 409 `PREFLIGHT_BLOCKED`.
 
 ## Asset Generation

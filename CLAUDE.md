@@ -27,6 +27,27 @@ Target-version rejection must remain enforced independently of tool versions, at
 
 Never relax a target-version guard because a tool binary came from a newer stream.
 
+### Historical exploration is not support (v2.3.0, owner decision D-1)
+
+The Upgrade workflow may **explore** routes between historical releases, source **and** target,
+from **4.1** up to the newest supported minor (`POST /api/upgrade/explore`, "Explore older
+releases"). Exploration is display only:
+
+- It uses only real recommended edges, each from the graph of the channel the cluster is on for
+  that hop (`stable-<destination minor>`), fetched from the same allowlisted host
+  (`api.openshift.com`). It never synthesizes an edge or reconstructs past recommendations; it is
+  labelled "as Red Hat's update graph lists it today".
+- Its graphs live in a separate `explore` cache that planning, stages, ImageSetConfigurations,
+  instructions, readiness and packages never read. Planning endpoints still refuse unsupported
+  channels (for example `stable-4.12` → 422).
+- It produces **no** stages, configurations, commands, runs or package content for releases outside
+  the supported range. A route that reaches the supported range may hand its first supported
+  release to normal planning ("Plan the supported part").
+- Targets above the newest supported minor stay refused (422 `UNSUPPORTED_VERSION`), exactly as at
+  every other boundary.
+
+The support boundary above is unchanged by this tier.
+
 ---
 
 ## Version State Invariants

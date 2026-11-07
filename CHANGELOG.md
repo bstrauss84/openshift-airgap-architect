@@ -22,6 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fields) as optional, editable presets with per-file provenance, always labelled unverified; operator intent
   (previously mirrored / installed / requested / kept) with its confidence; add accepted operators to every stage.
 - Per-stage progress steps from recorded evidence (no percentages; reduced motion respected).
+- **Upgrade redesign (owner UX review):** six steps — Route, Content, Readiness, Mirror & transfer, Update the cluster,
+  Handoff — with a sticky route strip; Mirroring's own operator experience embedded per stage; one plan registry and
+  one memory-only credential context per plan (entered once); "Mirror this stage…" / "Mirror all N stages…" through one
+  reviewed confirmation; "Open in Mirroring" with "Back to Upgrade plan"; readiness split into before mirroring /
+  before updating the cluster, each check with its next action; administrator-run instructions grouped by update;
+  downloads available before any update. "Import previous configuration…" replaces the Operators tab.
+- **Explore older releases** (Upgrade › Route): routes between releases from 4.1 to the newest supported minor from real
+  edges of each step's stable channel, exploration only — nothing is generated for unsupported releases.
+- Mirror to mirror protects existing catalog tags: oc-mirror replaces a catalog tag's content (verified on the exact
+  binary), so each existing or unchecked tag needs its own acknowledgement, or the plan writes catalogs under a
+  plan-specific `targetTag`.
 
 ### Changed
 - **Landing page:** no global Start Over; each card shows what exists and offers only its own actions (Install:
@@ -39,6 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Runs also enforce the preflight's **source (Red Hat) pull-secret** rule on the server for Red Hat content; disk to
   mirror needs none.
 - **N7:** the export-streaming scaling test is robust to concurrent allocations.
+- A stage's operator selection could be saved into another stage's profile after switching stages (F1).
+- Upgrade release dropdowns could look as if only their arrow opened them (the Target list was disabled during a
+  round trip and then replaced, closing a just-opened popup); reachable targets are now computed immediately.
+- Registry references are validated wherever they enter the server: a scheme, `@`/user name, password, token, query or
+  spaces is refused, so a credential can never be stored or printed as part of one.
+- Upgrade checkboxes sit beside their labels; Upgrade labels sit next to their controls; long select values are not
+  truncated; no sideways scrolling at 390/375 px.
 
 ### Documentation
 - README: the v2.0.0 repository-root build context for existing Tekton/OpenShift Builds pipelines.
