@@ -55,6 +55,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   round trip and then replaced, closing a just-opened popup); reachable targets are now computed immediately.
 - Registry references are validated wherever they enter the server: a scheme, `@`/user name, password, token, query or
   spaces is refused, so a credential can never be stored or printed as part of one.
+- The Upgrade YAML drawer showed "No ImageSet configuration available yet" although every stage had a validated
+  configuration (stage-named files were passed to a drawer mode that reads only `imageset-config.yaml`). It now
+  previews the selected stage live — the same file as its download and the Handoff package.
+- The Upgrade operator matrix no longer shows "New: requested for installation" for operators nobody classified (a
+  hardcoded fallback), and no longer shows a selected or copied channel as if it were catalog data: each stage cell
+  shows that stage's catalog evidence. Bulk classification with Undo and coordinated catalog scans across the route
+  were added.
 - Upgrade checkboxes sit beside their labels; Upgrade labels sit next to their controls; long select values are not
   truncated; no sideways scrolling at 390/375 px.
 

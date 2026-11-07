@@ -98,7 +98,39 @@ profile owned by the plan, one pinned release, that minor's operator catalog).
   the **Live catalog check**, and **Additional images**. The Red Hat pull
   secret is the plan's (entered once; see A4).
 - **Preview this stage's ImageSetConfiguration** / **Download it** — available
-  at any time.
+  at any time. **Show YAML** (header) opens the live preview of one stage, chosen
+  in the drawer and following the stage shown on Content; it updates by itself
+  when the stage's operators, images or plan settings change, and is the same
+  validated file as the stage's download and the Handoff package (one generator,
+  `POST /api/mirroring/profiles/:id/preview`). A stage that cannot generate yet
+  says why; nothing is downloadable then.
+- **Category is never assumed.** An operator without a recorded classification
+  is **Not classified yet**; under its name the matrix says why it is in the
+  stage (added by you, Quick Pick, copied from stage N, from an imported
+  configuration, from the plan's operator list). **Bulk edit:** tick operators
+  (or **Select shown** — the selection never includes rows the filter hides),
+  choose a category and **Set for N selected**; categories already set are kept
+  unless **Also replace categories already set** is on; the result says how many
+  changed and offers **Undo**. Imported files, Quick Picks and catalog scans are
+  never proof of what is installed; "Currently installed" chosen by you is your
+  statement, distinct from an imported cluster export.
+- **Each stage cell shows evidence from that stage's own catalog:** ✓ verified
+  (Live catalog check, or the scanned catalog's default channel), ? channel not
+  checked (the package is in the scanned catalog, but a scan records only the
+  default channel — run the stage's Live catalog check), ○ not scanned (the
+  channel is your selection only), … scanning, ! scan failed, ⚠ no version in the
+  range, ✕ not in the catalog / channel missing. None of these is compatibility
+  with your running cluster.
+- **Catalogs for this route** lists each distinct catalog minor once (all stages
+  of a minor share one scan of the Red Hat, Certified and Community catalogs),
+  why it is needed and whether it is cached. **Scan N catalog sets not yet
+  scanned** runs them one minor at a time with the plan's Red Hat pull secret;
+  **Stop** cancels the running jobs; a failure does not stop the next minor; each
+  minor can be (re)scanned alone; the matrix updates as each finishes. Nothing is
+  scanned without an explicit action; **Scan new stage catalogs automatically** is
+  an opt-in for this plan in this browser session. Copying operators to later
+  stages reports what each target catalog's scan says about the copied channel
+  and never replaces it.
 - **Import previous configuration…** (a compact dialog) loads earlier
   ImageSetConfiguration files (up to 10; oc-mirror v2 checked against the
   schema; v1 read for platform channels, operator packages and images only). Each

@@ -56,6 +56,16 @@ RFC rev 2 and final authorization (2026-11-06); contract and user guide in `docs
   click area (reproduced in Chrome 157), F2–F4. Tests: `frontend/tests/upgrade-f1-stage-operator-isolation.test.jsx`,
   `upgrade-ux-redesign.test.jsx`, `upgrade-ui.test.jsx`, `backend/test/upgrade-ux-plan-mirror.test.js`,
   `upgrade-explore.test.js`.
+- **Owner QA corrections (2026-11-07, `done_pending_verification`; full walkthrough still pending):** live,
+  stage-selectable YAML preview through Mirroring's preview hook/route (root cause: stage-named files given to an
+  imageset-mode drawer that reads only `imageset-config.yaml`); operator category no longer defaults to
+  "requested" (root cause: hardcoded fallback) — "Not classified yet" plus provenance; per-stage catalog evidence in
+  every cell (root cause: selected/copied channels shown as data); bulk classification with filter, preservation and
+  Undo; "Catalogs for this route" coordinated scanning on the existing scan route (dedup by minor, explicit start,
+  opt-in auto, one minor at a time, timeouts, Stop, failure isolation, per-minor rescan); copy reports target-catalog
+  evidence. Tests: `frontend/tests/upgrade-yaml-preview.test.jsx`, `upgrade-operator-matrix.test.jsx`,
+  `backend/test/upgrade-ux-plan-mirror.test.js` (preview = artifact = package parity; copy evidence). Live Red Hat
+  catalog scanning remains unverified (no authorized pull secret).
 - **Findings queue (unnumbered; not fixed in this tranche):**
   - (a) **fixed in the correction pass:** the run contract now enforces the source (Red Hat) pull-secret rule
     (fail-first `backend/test/source-credential-run-contract.test.js`, 3/5 on aee6a32).
@@ -70,6 +80,11 @@ RFC rev 2 and final authorization (2026-11-06); contract and user guide in `docs
     being saved can replace its list; the original multi-hundred-millisecond window is removed.
   - (g) the catalog-tag existence check needs the destination registry reachable from this server; otherwise each tag
     is "could not be checked" and must be acknowledged.
+  - (h) a catalog scan records only each package's default channel (oc-mirror `list operators`), so a non-default
+    channel stays "not checked" until the stage's Live catalog check runs; checking every selected channel across all
+    stages in one action is not implemented.
+  - (i) coordinated scans and a stage card's own scan of the same minor are not deduplicated against each other
+    (both use the same cache afterwards).
 
 ## v2.2.1 corrective patch (opened 2026-11-06), unnumbered — awaiting owner ID allocation
 
