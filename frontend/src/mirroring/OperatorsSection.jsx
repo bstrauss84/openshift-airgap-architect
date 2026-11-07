@@ -155,9 +155,25 @@ const OperatorsSection = ({ profile, onProfileChanged, onProfilesChanged = null,
       save(body);
     }, SAVE_DEBOUNCE_MS);
   };
-  useEffect(() => () => {
-    clearTimeout(timerRef.current);
-    if (dirtyRef.current) updateProfile(profile.id, { operators: { selected: dirtyRef.current } }).catch(() => {});
+  // Bound to the profile the pending edit was made on: when this section is unmounted or handed a
+  // different profile, the pending edit is flushed to its OWN profile (the closure's id), and the
+  // local selection is reset from the new profile, so one profile's selection can never be saved
+  // into another (v2.3.0 F1: Upgrade shows several stage profiles in one place).
+  const shownProfileIdRef = useRef(profile.id);
+  useEffect(() => {
+    if (shownProfileIdRef.current !== profile.id) {
+      shownProfileIdRef.current = profile.id;
+      lastServerMinorRef.current = profile.operators.catalogMinor;
+      selectedRef.current = profile.operators.selected;
+      setSelected(profile.operators.selected);
+      setLocalMinor(profile.operators.catalogMinor);
+    }
+    return () => {
+      clearTimeout(timerRef.current);
+      const pending = dirtyRef.current;
+      dirtyRef.current = null;
+      if (pending) updateProfile(profile.id, { operators: { selected: pending } }).catch(() => {});
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.id]);
 

@@ -274,7 +274,7 @@ export default function ContentTab({ plan, highSide, onPlanChanged, onShowOperat
                 </div>
               ) : null}
               {!received && profile.content?.operators ? (
-                <OperatorsSection profile={profile} onProfileChanged={replaceProfile} onProfilesChanged={loadProfiles} onShowOperation={onShowOperation} />
+                <OperatorsSection key={`operators-${profile.id}`} profile={profile} onProfileChanged={replaceProfile} onProfilesChanged={loadProfiles} onShowOperation={onShowOperation} />
               ) : null}
               <MirroringRunPanel key={profile.id} profile={profile} onProfileChanged={replaceProfile} onProfilesChanged={() => { loadProfiles(); onPlanChanged(null); }} onShowOperation={onShowOperation} requestDestinationCheck />
             </>
