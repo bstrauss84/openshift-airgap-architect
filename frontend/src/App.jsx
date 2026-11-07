@@ -1964,6 +1964,7 @@ const WorkflowRouter = () => {
             setShowLanding(true);
             setWorkflow("install");
           }}
+          onReturnToUpgrade={() => setWorkflow("upgrade")}
         />
       </React.Suspense>
     );

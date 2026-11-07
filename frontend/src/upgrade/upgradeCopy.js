@@ -182,3 +182,25 @@ A file says what was asked to be mirrored. It is not evidence of what is install
 
 **Format:**
 oc-mirror v2 (v2alpha1) files are fully checked; v1 (v1alpha2) files are read for platform channels, operator packages and additional images only. Up to 10 files, 1 MiB each.`;
+
+export const EXPLORE_SOURCE_HINT = `The exact release the cluster runs, from 4.1 on.
+
+**Why it matters:**
+The route starts here. It is found only in Red Hat's update graph as it is today.
+
+**Format:**
+x.y.z, for example 4.12.30. Read it with: oc get clusterversion version -o jsonpath='{.status.desired.version}'
+
+**Caveats:**
+A release Red Hat no longer lists in any channel cannot be explored; Architect says so and suggests a next step.`;
+
+export const EXPLORE_TARGET_HINT = (newest) => `The release to explore up to.
+
+**Why it matters:**
+An older target (for example 4.18) lets you inspect the route without choosing a supported release.
+
+**Format:**
+x.y.z, up to ${newest}. Newer minors are not supported by this version of Architect.
+
+**Caveats:**
+Exploration shows the route only. Configurations, commands and mirroring are prepared only within the planning range.`;

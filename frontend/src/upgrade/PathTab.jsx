@@ -16,10 +16,14 @@ import Banner from "../components/Banner.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import Switch from "../components/Switch.jsx";
+import OptionRow from "../components/OptionRow.jsx";
 import UpgradeTimeline, { HopDetail } from "./UpgradeTimeline.jsx";
 import UpgradeGraphView from "./UpgradeGraphView.jsx";
+import ExploreHistory from "./ExploreHistory.jsx";
+import { getMinorVersion } from "../../../shared/versionUtils.js";
 import { ARCH_HINT, POLICY_HINT, SOURCE_HINT, CURRENT_CHANNEL_HINT, CURRENT_RELEASE_HINT, TARGET_HINT, CHANNEL_STRATEGY_HINT, IMPORT_CHANNEL_HINT, IMPORT_ORIGIN_HINT, JSON_INPUT_HINT } from "./upgradeCopy.js";
-import { fetchGraph, refreshGraph, importGraph, fetchTargets, updatePlan, solvePlan } from "./upgradeApi.js";
+import { fetchGraph, refreshGraph, importGraph, updatePlan, solvePlan } from "./upgradeApi.js";
+import { classifyTargets } from "../../../shared/upgradePath.js";
 
 const ARCHES = [["amd64", "x86_64"], ["arm64", "aarch64 (arm64)"], ["s390x", "s390x"], ["ppc64le", "ppc64le"], ["multi", "multi (heterogeneous)"]];
 const ago = (iso) => {
@@ -29,12 +33,25 @@ const ago = (iso) => {
   return m < 60 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
 };
 
-export function Freshness({ graph, label = "Graph" }) {
+export function Freshness({ graph, label = "Graph", compact = false }) {
+  const [open, setOpen] = useState(false);
   if (!graph) return null;
+  const host = graph.origin === "public-api" ? "api.openshift.com" : graph.origin === "customer-osus" ? "your OpenShift Update Service (imported by you)" : "an imported snapshot";
   const origin = graph.origin === "public-api" ? "fetched by Architect from api.openshift.com" : graph.origin === "customer-osus" ? "imported by you from your OpenShift Update Service (not fetched by Architect)" : "imported snapshot (not fetched by Architect)";
+  const when = `${new Date(graph.fetchedAt).toISOString().replace(".000Z", "Z")}`;
+  const details = <span className="subtle">{graph.channel} · {graph.arch} · {origin} · {graph.source === "public" ? "fetched" : graph.capturedAtKnown ? "captured" : "imported"} {when}. SHA-256 {graph.bodySha256.slice(0, 16)}… — integrity of this copy only; the graph is not signed, so its authenticity is not verified.</span>;
+  if (compact) {
+    return (
+      <div className="upgrade-freshness compact" data-stale={graph.stale ? "true" : "false"} role="note">
+        <span><strong>{label}:</strong> {host} · {graph.channel} · {ago(graph.fetchedAt)}{graph.stale ? " — “as of” this time; confirm before each update" : ""}</span>
+        <Button variant="secondary" className="mini" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? "Hide details" : "Details"}</Button>
+        {open ? <p>{details}</p> : null}
+      </div>
+    );
+  }
   return (
     <p className="upgrade-freshness" data-stale={graph.stale ? "true" : "false"} role="note">
-      <strong>{label}:</strong> {graph.channel} · {graph.arch} · {origin} · {graph.source === "public" ? "fetched" : graph.capturedAtKnown ? "captured" : "imported"} {new Date(graph.fetchedAt).toISOString().replace(".000Z", "Z")} ({ago(graph.fetchedAt)})
+      <strong>{label}:</strong> {graph.channel} · {graph.arch} · {origin} · {graph.source === "public" ? "fetched" : graph.capturedAtKnown ? "captured" : "imported"} {when} ({ago(graph.fetchedAt)})
       {graph.stale ? " — recommendations are “as of” this time; confirm before each update." : ""}
       <br /><span className="subtle">SHA-256 {graph.bodySha256.slice(0, 16)}… — integrity of this copy only; the graph is not signed, so its authenticity is not verified.</span>
     </p>
@@ -43,7 +60,6 @@ export function Freshness({ graph, label = "Graph" }) {
 
 export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged }) {
   const [graphs, setGraphs] = useState({});
-  const [targets, setTargets] = useState(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
@@ -81,13 +97,18 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
   const currentGraph = plan.currentChannel ? graphs[key(plan.currentChannel)] : null;
   const targetGraph = graphs[key(newest)];
 
-  useEffect(() => {
-    let cancelled = false;
-    setTargets(null);
-    if (!plan.current || !targetGraph) return undefined;
-    fetchTargets(plan.id, newest).then((r) => { if (!cancelled) setTargets(r.targets); }).catch(() => { if (!cancelled) setTargets([]); });
-    return () => { cancelled = true; };
-  }, [plan.id, plan.current, newest, targetGraph]);
+  // Reachable targets, computed from the graph already loaded here with the shared, pure solver
+  // function the server uses (the server stays authoritative when the route is computed).
+  // v2.3.0 UX fix (reproduced in Chrome 157): fetching them after every change left the Target
+  // select DISABLED for the round trip and then REPLACED its options, which closes a popup the
+  // user had just opened — so the first click looked ignored and only a second one (often on the
+  // arrow) worked. Computing them in the same render removes that window.
+  const targets = useMemo(() => {
+    const g = targetGraph?.normalized;
+    if (!plan.current || !g) return null;
+    if (!g.nodes?.[plan.current]) return [];
+    return classifyTargets(g, plan.current, { supportedMinors });
+  }, [plan.current, targetGraph, supportedMinors]);
 
   const save = async (patch) => {
     setError("");
@@ -159,8 +180,8 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
       {readOnly ? <Banner variant="info">This plan was received from the connected side and is read-only. Its route and graph are the snapshot it was planned with (“as of” that time).</Banner> : null}
       {error ? <Banner variant="error">{error}</Banner> : null}
       <section className="card" aria-labelledby={`upgrade-select-${plan.id}`}>
-        <h3 id={`upgrade-select-${plan.id}`}>Current and target release</h3>
-        <div className="field-grid">
+        <h3 id={`upgrade-select-${plan.id}`}>Cluster today</h3>
+        <div className="field-grid upgrade-fields">
           <div className="field-control-stack">
             <FieldLabelWithInfo label="Architecture" hint={ARCH_HINT}>
               <select id={`upgrade-arch-${plan.id}`} className="control-enum" value={plan.arch} disabled={readOnly} onChange={(e) => save({ arch: e.target.value })}>
@@ -169,29 +190,6 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
             </FieldLabelWithInfo>
             <div className="field-control-support" />
           </div>
-          <div className="field-control-stack">
-            <FieldLabelWithInfo label="Channel policy" hint={POLICY_HINT}>
-              <select id={`upgrade-policy-${plan.id}`} className="control-enum" value={prefix} disabled={readOnly} onChange={(e) => save({ channelPolicy: e.target.value, currentChannel: null, current: null, target: null, strategy: "standard" })}>
-                <option value="stable">Stable (guided default)</option>
-                <option value="eus">EUS (even minors)</option>
-                <option value="fast">Fast (advanced)</option>
-              </select>
-            </FieldLabelWithInfo>
-            <div className="field-control-support">
-              {prefix === "fast" ? <span className="field-helper"><span className="upgrade-badge" data-state="WARNING">⚠ fast</span> Fast-channel releases are supported, but newer to the field than stable; mirroring stages pin stable releases, so a fast-only release cannot be staged until it reaches stable.</span> : null}
-            </div>
-          </div>
-          <div className="field-control-stack">
-            <FieldLabelWithInfo label="Graph source" hint={SOURCE_HINT}>
-              <select id={`upgrade-source-${plan.id}`} className="control-enum" value={source} disabled={readOnly} onChange={(e) => save({ graphSource: e.target.value })}>
-                {!highSide ? <option value="public">Public update graph (api.openshift.com)</option> : null}
-                <option value="imported">Imported graph (snapshot or your OSUS)</option>
-              </select>
-            </FieldLabelWithInfo>
-            <div className="field-control-support" />
-          </div>
-        </div>
-        <div className="field-grid">
           <div className="field-control-stack">
             <FieldLabelWithInfo label="Current channel" hint={CURRENT_CHANNEL_HINT}>
               <select id={`upgrade-current-channel-${plan.id}`} className="control-enum" value={plan.currentChannel || ""} disabled={readOnly} onChange={(e) => save({ currentChannel: e.target.value || null, current: null, target: null })}>
@@ -220,10 +218,13 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
               {currentGraph?.graph?.counts?.excludedUnsupported ? <span className="field-helper">{currentGraph.graph.counts.excludedUnsupported} release(s) of unsupported minors in this channel are not offered.</span> : null}
             </div>
           </div>
+        </div>
+        <h3 className="upgrade-subhead">Update to</h3>
+        <div className="field-grid upgrade-fields">
           <div className="field-control-stack">
             <FieldLabelWithInfo label="Target release" hint={TARGET_HINT(newest)}>
               <select id={`upgrade-target-${plan.id}`} className="control-enum" value={plan.target || ""} disabled={readOnly || !plan.current || !targets} onChange={(e) => save({ target: e.target.value || null })}>
-                <option value="">{!plan.current ? "Select the current release first" : !targetGraph ? `Load the ${newest} graph first` : !targets ? "Checking reachable releases…" : "Select the target release"}</option>
+                <option value="">{!plan.current ? "Select the current release first" : !targetGraph ? `Load the ${newest} graph first` : !targets?.length ? "No newer release in this graph" : "Select the target release"}</option>
                 <optgroup label="Recommended">
                   {recommendedTargets.map((t) => <option key={t.version} value={t.version}>{t.version} ({t.hops} update{t.hops === 1 ? "" : "s"})</option>)}
                 </optgroup>
@@ -244,17 +245,26 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
               {targets && unreachable.length ? <span className="field-helper">{unreachable.length} newer release(s) are not reachable from {plan.current} in this graph.</span> : null}
             </div>
           </div>
-        </div>
-        {cpoEligible ? (
           <div className="field-control-stack">
-            <label className="switch-row">
-              <Switch id={`upgrade-cpo-${plan.id}`} checked={plan.strategy === "cpo"} disabled={readOnly} onChange={(on) => save({ strategy: on ? "cpo" : "standard" })} aria-label="Control Plane Only update" />
-              <span>Control Plane Only update (4.20 → 4.22 through 4.21; worker pools stay paused until the end). Its steps are generated only once its documented prerequisites are verified or attested on the Readiness tab.</span>
-            </label>
+            <FieldLabelWithInfo label="Channel policy" hint={POLICY_HINT}>
+              <select id={`upgrade-policy-${plan.id}`} className="control-enum" value={prefix} disabled={readOnly} onChange={(e) => save({ channelPolicy: e.target.value, currentChannel: null, current: null, target: null, strategy: "standard" })}>
+                <option value="stable">Stable (guided default)</option>
+                <option value="eus">EUS (even minors)</option>
+                <option value="fast">Fast (advanced)</option>
+              </select>
+            </FieldLabelWithInfo>
+            <div className="field-control-support">
+              {prefix === "fast" ? <span className="field-helper"><span className="upgrade-badge" data-state="WARNING">⚠ fast</span> Fast-channel releases are supported, but newer to the field than stable; mirroring stages pin stable releases, so a fast-only release cannot be staged until it reaches stable.</span> : null}
+            </div>
           </div>
-        ) : null}
-        <CollapsibleSection title="Advanced" subtitle="Channel strategy and conditional updates" wrapInCard={false}>
-          <div className="field-grid">
+        </div>
+        <CollapsibleSection title="Advanced" subtitle={cpoEligible ? "Control Plane Only, channel strategy, conditional updates" : "Channel strategy and conditional updates"} wrapInCard={false}>
+          {cpoEligible ? (
+            <OptionRow title="Control Plane Only update" description="4.20 → 4.22 through 4.21 on eus-4.22; worker pools stay paused until the end. Its steps are generated only once the documented prerequisites are verified or attested on the Readiness step.">
+              <Switch id={`upgrade-cpo-${plan.id}`} checked={plan.strategy === "cpo"} disabled={readOnly} onChange={(on) => save({ strategy: on ? "cpo" : "standard" })} aria-label="Control Plane Only update" />
+            </OptionRow>
+          ) : null}
+          <div className="field-grid upgrade-fields">
             <div className="field-control-stack">
               <FieldLabelWithInfo label="Channel strategy" hint={CHANNEL_STRATEGY_HINT}>
                 <select id={`upgrade-chstrategy-${plan.id}`} className="control-enum" value={plan.channelStrategy} disabled={readOnly || prefix === "eus"} onChange={(e) => save({ channelStrategy: e.target.value })}>
@@ -265,20 +275,31 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
               <div className="field-control-support">{prefix === "eus" ? <span className="field-helper">EUS routes stay on the EUS target channel.</span> : null}</div>
             </div>
           </div>
-          <label className="switch-row">
+          <OptionRow title="Review conditional updates" description="Updates the graph lists with known risks. Architect shows the risks and records your judgment; it never generates a command to apply a conditional update.">
             <Switch id={`upgrade-cond-${plan.id}`} checked={Boolean(plan.conditionalReview?.enabled)} disabled={readOnly} onChange={(on) => save({ conditionalReview: { enabled: on, acknowledgedRisks: [] } })} aria-label="Review conditional updates" />
-            <span>Review conditional updates — updates the graph lists with known risks. Architect shows the risks and records your judgment; it never generates a command to apply a conditional update.</span>
-          </label>
+          </OptionRow>
         </CollapsibleSection>
         <div className="actions">
           <Button variant="primary" disabled={readOnly || !plan.current || !plan.target || busy === "solve"} onClick={() => solve()}>{busy === "solve" ? "Computing…" : plan.path ? "Compute the route again" : "Compute the update route"}</Button>
-          <Button variant="secondary" onClick={() => { setImportChannel(plan.currentChannel || newest); setImportOpen(true); }} disabled={readOnly}>Import graph…</Button>
         </div>
-      </section>
-
-      {importOpen ? (
-        <section className="card" aria-labelledby={`upgrade-import-${plan.id}`}>
-          <h3 id={`upgrade-import-${plan.id}`}>Import an update graph</h3>
+        <div className="upgrade-graph-source" role="group" aria-label="Graph source">
+          <span className="subtle">Graph source: <strong>{source === "public" ? "Public update graph (api.openshift.com)" : "Imported graph (snapshot or your OSUS)"}</strong></span>
+          <Button variant="secondary" className="mini" aria-expanded={importOpen} aria-controls={`upgrade-import-panel-${plan.id}`} disabled={readOnly} onClick={() => { if (!importOpen) setImportChannel(plan.currentChannel || newest); setImportOpen((o) => !o); }}>{importOpen ? "Close graph source options" : "Change source or import a graph…"}</Button>
+        </div>
+        {importOpen ? (
+          <div className="upgrade-import-panel" id={`upgrade-import-panel-${plan.id}`}>
+            <div className="field-grid upgrade-fields">
+          <div className="field-control-stack">
+            <FieldLabelWithInfo label="Graph source" hint={SOURCE_HINT}>
+              <select id={`upgrade-source-${plan.id}`} value={source} disabled={readOnly} onChange={(e) => save({ graphSource: e.target.value })}>
+                {!highSide ? <option value="public">Public update graph (api.openshift.com)</option> : null}
+                <option value="imported">Imported graph (snapshot or your OSUS)</option>
+              </select>
+            </FieldLabelWithInfo>
+            <div className="field-control-support" />
+          </div>
+            </div>
+            <h4>Import an update graph</h4>
           <p className="subtle">Architect never contacts your OpenShift Update Service. Where it is reachable, run this read-only command and paste or upload graph.json:</p>
           <div className="upgrade-command"><pre>{OSUS_CURL}</pre></div>
           <div className="field-grid">
@@ -292,7 +313,7 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
             </div>
             <div className="field-control-stack">
               <FieldLabelWithInfo label="Origin" hint={IMPORT_ORIGIN_HINT}>
-                <select id={`upgrade-import-origin-${plan.id}`} className="control-enum" value={importOrigin} onChange={(e) => setImportOrigin(e.target.value)}>
+                <select id={`upgrade-import-origin-${plan.id}`} value={importOrigin} onChange={(e) => setImportOrigin(e.target.value)}>
                   <option value="customer-osus">From my OpenShift Update Service</option>
                   <option value="snapshot">A saved snapshot</option>
                 </select>
@@ -303,10 +324,11 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
           <JsonDocumentInput id={`upgrade-import-text-${plan.id}`} label="Graph JSON" value={importText} onChange={setImportText} />
           <div className="actions">
             <Button variant="primary" disabled={!importText.trim() || busy === "import"} onClick={doImport}>{busy === "import" ? "Importing…" : "Import"}</Button>
-            <Button variant="secondary" onClick={() => setImportOpen(false)}>Cancel</Button>
+            <Button variant="secondary" onClick={() => setImportOpen(false)}>Close</Button>
           </div>
-        </section>
-      ) : null}
+          </div>
+        ) : null}
+      </section>
 
       {plan.path ? (
         <section className="card" aria-labelledby={`upgrade-route-${plan.id}`}>
@@ -314,12 +336,12 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
             {plan.pathStatus === "current" ? "Recommended route" : plan.pathStatus === "graph-changed" ? "Route (the graph has changed since — compute it again)" : "Recommended route (as of its graph)"}
           </h3>
           {plan.path.conditional ? <Banner variant="warning">This route uses conditional updates. See the risks below and on the Readiness tab.</Banner> : null}
-          <UpgradeTimeline path={plan.path} selectedIndex={selectedHop} onSelect={setSelectedHop} />
+          <UpgradeTimeline path={plan.path} selectedIndex={selectedHop} onSelect={setSelectedHop} nodeInfo={plan.planningChannel ? graphs[key(plan.planningChannel)]?.normalized?.nodes : null} />
           {selectedHop != null ? <HopDetail hop={plan.path.hops[selectedHop]} index={selectedHop} /> : null}
-          {plan.graph ? <Freshness graph={plan.graph} label="Planning graph" /> : null}
+          {plan.graph ? <Freshness graph={plan.graph} label="Graph" compact /> : null}
           {plan.path.reasons?.length ? <ul>{plan.path.reasons.map((r) => <li key={r.code + r.message}>{r.message}</li>)}</ul> : null}
           <p className="subtle">
-            {plan.path.selectedBy === "user" ? "You chose this route." : "Among equally short recommended routes, the one with the highest release at each step is shown by convention. That is not a safety ranking; you may choose another."}
+            {plan.path.selectedBy === "user" ? "You chose this route." : "Shown by convention: the highest release at each step among equally short recommended routes — not a safety ranking."}
           </p>
           {result?.alternatives?.length ? (
             <CollapsibleSection title={`Other equally short routes (${result.alternativesTotal})`} wrapInCard={false}>
@@ -340,7 +362,7 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
               <ul className="upgrade-check-list">
                 {conditionalRisks.map((r) => (
                   <li key={r.name} className="upgrade-check">
-                    <label className="switch-row">
+                    <label className="toggle-row">
                       <input type="checkbox" checked={acked.has(r.name)} disabled={readOnly} onChange={(e) => {
                         const names = new Set(acked);
                         if (e.target.checked) names.add(r.name); else names.delete(r.name);
@@ -355,6 +377,13 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
           ) : null}
         </section>
       ) : null}
+
+      <ExploreHistory
+        plan={plan}
+        supportedMinors={supportedMinors}
+        highSide={highSide}
+        onPlanSupportedPart={(from, to) => save({ channelPolicy: "stable", currentChannel: `stable-${getMinorVersion(from)}`, current: from, target: to, strategy: "standard" })}
+      />
 
       {plan.planningChannel && graphs[key(plan.planningChannel)]?.normalized ? (
         <CollapsibleSection title="Channel graph" subtitle={`${plan.planningChannel} · releases in the supported minors`}>

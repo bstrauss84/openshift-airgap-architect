@@ -38,6 +38,7 @@ import {
   deleteProfile,
   setActiveProfile
 } from "./mirroringApi.js";
+import { readUpgradeReturn } from "../upgrade/upgradeReturn.js";
 
 // Which view is open (and which operation), kept for this browser tab only so a
 // reload returns to the same place. No profile data or credential is stored.
@@ -66,7 +67,9 @@ const profileMeta = (profile) => {
   return parts.join(" — ");
 };
 
-const MirroringShell = ({ onExit }) => {
+const MirroringShell = ({ onExit, onReturnToUpgrade = null }) => {
+  // v2.3.0: opened from an Upgrade plan's stage — offer the way straight back (never via Home).
+  const [upgradeReturn] = useState(() => (onReturnToUpgrade ? readUpgradeReturn() : null));
   const [theme, setTheme] = useThemePreference();
   const [status, setStatus] = useState("loading");
   const [loadError, setLoadError] = useState("");
@@ -253,6 +256,11 @@ const MirroringShell = ({ onExit }) => {
             <div className="step">
               <div className="step-header" ref={stepHeaderRef}>
                 <div className="step-header-main">
+                  {upgradeReturn ? (
+                    <Button variant="primary" className="mirroring-back-to-upgrade" onClick={onReturnToUpgrade}>
+                      ← Back to Upgrade plan “{upgradeReturn.planName || "plan"}”{upgradeReturn.stageId ? ` · stage ${upgradeReturn.stageId.slice(1)}` : ""}
+                    </Button>
+                  ) : null}
                   <h2>Mirroring</h2>
                   <p className="subtle">
                     Plan oc-mirror v2 content in independent profiles. Each profile has its own content, OpenShift

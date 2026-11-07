@@ -37,3 +37,11 @@ export const analyzePresets = (id, files) => post(`/api/upgrade/plans/${id}/pres
 export const saveOperatorIntent = (id, body) => post(`/api/upgrade/plans/${id}/operator-intent`, body);
 export const applyIntentToStages = (id, keys, includeImages) => post(`/api/upgrade/plans/${id}/operator-intent/apply-to-stages`, { keys, includeImages: Boolean(includeImages) });
 export const packageZipUrl = (id) => `${API_BASE}/api/upgrade/plans/${id}/package.zip`;
+// v2.3.0 UX correction.
+export const saveMirrorSettings = (id, body) => post(`/api/upgrade/plans/${id}/mirror`, body);
+export const destinationCheck = (id, body) => post(`/api/upgrade/plans/${id}/sequence/destination-check`, body);
+export const copyStageOperators = (id, stageId, toStageIds) => post(`/api/upgrade/plans/${id}/stages/${stageId}/copy-operators`, toStageIds ? { toStageIds } : {});
+/** A stage profile's validated ImageSetConfiguration (the Mirroring preview route; read-only). */
+export const fetchStageConfig = (profileId) => post(`/api/mirroring/profiles/${encodeURIComponent(profileId)}/preview`, {});
+/** Exploration only (D-1): a route across older minors from the public graph; never changes a plan. */
+export const exploreRoute = (body) => post("/api/upgrade/explore", body);

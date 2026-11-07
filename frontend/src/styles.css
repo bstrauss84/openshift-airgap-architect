@@ -48,6 +48,12 @@ body {
   --state-warning: #b45309;
   --state-attested: #6d28d9;
   --accent-path: #2563eb;
+  /* v2.3.0 UX: subtle per-minor tints on the route rail (the minor is always written out too). */
+  --minor-tint-0: #eff6ff; --minor-edge-0: #93c5fd;
+  --minor-tint-1: #f0fdf4; --minor-edge-1: #86efac;
+  --minor-tint-2: #faf5ff; --minor-edge-2: #d8b4fe;
+  --minor-tint-3: #fff7ed; --minor-edge-3: #fdba74;
+  --state-pending: #1d4ed8;
 }
 
 body[data-theme="dark"] {
@@ -68,6 +74,11 @@ body[data-theme="dark"] {
   --state-warning: #fbbf24;
   --state-attested: #c4b5fd;
   --accent-path: #60a5fa;
+  --minor-tint-0: #172554; --minor-edge-0: #3b82f6;
+  --minor-tint-1: #052e16; --minor-edge-1: #22c55e;
+  --minor-tint-2: #2e1065; --minor-edge-2: #a855f7;
+  --minor-tint-3: #431407; --minor-edge-3: #f97316;
+  --state-pending: #93c5fd;
 }
 
 /* Dark mode: links and visited links readable; avoid low-contrast purple default (#27) */
@@ -8161,3 +8172,128 @@ body[data-theme="dark"] .mirroring-tabs { background: #0b1120; }
 @media (prefers-reduced-motion: reduce) {
   .upgrade-stage-progress-step[data-state="active"] .upgrade-stage-progress-dot { animation: none; }
 }
+
+
+/* ------------------------------------------------------------------------------------------------
+ * v2.3.0 Upgrade UX correction. Scoped to .upgrade-shell; theme variables only (light/dark).
+ * ---------------------------------------------------------------------------------------------- */
+/* Labels hug their controls (the 2.5rem label row is for long wrapping forms; Install's release card
+   and Mirroring reset it the same way). */
+.upgrade-shell .field-grid .field-with-info-row > span.field-title-line { min-height: 0; }
+.upgrade-shell .field-grid { row-gap: 1.25rem; }
+.upgrade-shell .field-control-support:empty { display: none; }
+/* Checkbox rows: the box sits beside its label, never stretched (global label/input rules). */
+.upgrade-shell .toggle-row,
+.upgrade-shell .switch-row { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; font-size: 0.95rem; }
+.upgrade-shell .toggle-row input[type="checkbox"],
+.upgrade-shell .switch-row input[type="checkbox"] { width: auto; flex: 0 0 auto; padding: 0; margin: 3px 0 0; background: none; border: none; box-shadow: none; }
+.upgrade-shell .upgrade-attest { margin-top: 8px; }
+.upgrade-subhead { margin-top: 1.25rem; }
+.upgrade-badge[data-state="PENDING"] { border-color: var(--state-pending); color: var(--state-pending); }
+
+/* Steps, route strip and plan header. */
+.upgrade-plan-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 12px; padding-bottom: 12px; }
+.upgrade-plan-header h3 { margin: 0; }
+.upgrade-plan-header-actions, .upgrade-rename { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.upgrade-rename input { min-width: 16rem; }
+.upgrade-step-tab { display: inline-flex; align-items: center; gap: 6px; }
+.upgrade-step-num { display: inline-flex; align-items: center; justify-content: center; width: 1.4rem; height: 1.4rem; border-radius: 999px; border: 1px solid var(--border-color); font-size: 0.75rem; font-weight: 700; }
+.upgrade-step-tab.active .upgrade-step-num { border-color: var(--accent-path); color: var(--accent-path); }
+.upgrade-step-glyph { font-size: 0.8rem; color: var(--text-subtle); }
+.upgrade-step-tab[data-state="done"] .upgrade-step-glyph { color: var(--state-verified); }
+.upgrade-step-tab[data-state="attention"] .upgrade-step-glyph { color: var(--state-warning); }
+.upgrade-step-tab[data-state="progress"] .upgrade-step-glyph { color: var(--accent-path); }
+.upgrade-route-strip { position: sticky; top: calc(var(--mirroring-header-h, 0px) + var(--upgrade-tabs-h, 46px)); z-index: 4; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; margin: -8px 0 12px; padding: 6px 2px; font-size: 0.85rem; background: #f5f6f8; }
+body[data-theme="dark"] .upgrade-route-strip { background: #0b1120; }
+.upgrade-route-strip-path { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Route: graph source toggle, import panel, release rail. */
+.upgrade-graph-source { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color); }
+.upgrade-import-panel { margin-top: 12px; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg-subtle); }
+.upgrade-import-panel h4 { margin: 12px 0 4px; }
+.upgrade-rail { display: flex; flex-wrap: wrap; row-gap: 10px; align-items: stretch; gap: 0; list-style: none; padding: 0; margin: 8px 0 12px; }
+.upgrade-rail .upgrade-timeline-item { display: flex; align-items: stretch; }
+.upgrade-rail-node { display: flex; flex-direction: column; gap: 4px; min-width: 8rem; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border-color); text-align: left; }
+.upgrade-shell .upgrade-rail .upgrade-rail-node[data-tint="m0"] { background: var(--minor-tint-0); border-color: var(--minor-edge-0); }
+.upgrade-shell .upgrade-rail .upgrade-rail-node[data-tint="m1"] { background: var(--minor-tint-1); border-color: var(--minor-edge-1); }
+.upgrade-shell .upgrade-rail .upgrade-rail-node[data-tint="m2"] { background: var(--minor-tint-2); border-color: var(--minor-edge-2); }
+.upgrade-shell .upgrade-rail .upgrade-rail-node[data-tint="m3"] { background: var(--minor-tint-3); border-color: var(--minor-edge-3); }
+.upgrade-shell .upgrade-rail .upgrade-rail-node.selected { outline: 2px solid var(--accent-path); outline-offset: 2px; box-shadow: none; }
+.upgrade-rail-node-body { display: flex; flex-direction: column; gap: 2px; }
+.upgrade-rail-node .upgrade-timeline-version { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.upgrade-rail-badges { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 0.75rem; color: var(--text-subtle); }
+.upgrade-eus-badge { font-size: 0.7rem; padding: 0 6px; }
+.upgrade-rail-link { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; min-width: 5.5rem; padding: 0 6px; font-size: 0.72rem; color: var(--text-subtle); text-align: center; }
+.upgrade-rail-link-line { display: block; width: 100%; height: 0; border-top: 2px solid var(--accent-path); position: relative; }
+.upgrade-rail-link-line::after { content: ""; position: absolute; right: -2px; top: -6px; border: 5px solid transparent; border-left: 7px solid var(--accent-path); }
+.upgrade-rail-link-line[data-conditional="true"] { border-top-style: dashed; border-top-color: var(--state-warning); }
+.upgrade-freshness.compact { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 0.85rem; }
+.upgrade-freshness.compact p { flex-basis: 100%; margin: 0; }
+@media (max-width: 768px) {
+  .upgrade-rail { flex-direction: column; }
+  .upgrade-rail .upgrade-timeline-item { flex-direction: column; }
+  .upgrade-rail-link { min-width: 0; min-height: 2.6rem; flex-direction: row; justify-content: flex-start; padding: 2px 0 2px 1.2rem; }
+  .upgrade-rail-link-line { width: 0; height: 1.2rem; border-top: none; border-left: 2px solid var(--accent-path); order: -1; }
+  .upgrade-rail-link-line[data-conditional="true"] { border-left-style: dashed; border-left-color: var(--state-warning); }
+  .upgrade-rail-link-line::after { display: none; }
+  .upgrade-rail-node { width: 100%; box-sizing: border-box; }
+}
+
+/* Content: stage chips and the operator matrix. */
+.upgrade-stage-chips-row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin-top: 8px; }
+.upgrade-stage-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.upgrade-stage-chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--card-bg); color: inherit; font: inherit; cursor: pointer; }
+.upgrade-stage-chip.selected { border-color: var(--accent-path); box-shadow: inset 0 0 0 1px var(--accent-path); font-weight: 600; }
+.upgrade-stage-chip:focus-visible { outline: 2px solid var(--accent-path); outline-offset: 2px; }
+.upgrade-table-scroll { overflow-x: auto; }
+.upgrade-operator-matrix td, .upgrade-operator-matrix th { vertical-align: middle; }
+.upgrade-matrix-category { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.upgrade-matrix-category select { width: auto; max-width: 18rem; }
+
+/* Mirror & transfer. */
+.upgrade-method-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.upgrade-method-card { display: flex; flex-direction: column; gap: 4px; text-align: left; }
+.upgrade-stage-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.upgrade-stage-row { border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; }
+.upgrade-stage-row.open { border-color: var(--accent-path); }
+.upgrade-stage-row-main { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.upgrade-stage-row-title { display: flex; flex-direction: column; min-width: 12rem; flex: 1 1 14rem; }
+.upgrade-stage-row-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.upgrade-stage-progress.compact { margin: 8px 0 0; font-size: 0.82rem; }
+.upgrade-job-status { margin-top: 12px; }
+.mirroring-managed-note { margin: 0 0 12px; }
+.upgrade-jobs-dialog h4 { margin: 14px 0 4px; font-size: 0.95rem; }
+.upgrade-jobs-list { margin: 0; padding-left: 1.4rem; }
+.upgrade-paths code, .upgrade-jobs-dialog code { overflow-wrap: anywhere; }
+.upgrade-overwrite { margin-top: 8px; padding: 8px 12px; border-left: 3px solid var(--state-warning); background: var(--card-bg-subtle); }
+
+/* Readiness. */
+.upgrade-check-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.upgrade-check-actions { display: inline-flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.upgrade-check-detail { margin: 6px 0 0; }
+
+/* Update the cluster and Handoff. */
+.upgrade-admin-note { margin: 8px 0 12px; padding: 10px 12px; border-left: 3px solid var(--accent-path); background: var(--card-bg-subtle); }
+.upgrade-update-states { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 4px 0 12px; font-size: 0.9rem; }
+.upgrade-update-states dt { color: var(--text-subtle); }
+.upgrade-update-states dd { margin: 0; }
+.upgrade-handoff-route { font-size: 1.05rem; font-weight: 700; margin: 4px 0 12px; }
+.upgrade-summary-tiles { list-style: none; padding: 0; margin: 0 0 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 10px; }
+.upgrade-summary-tiles li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg-subtle); }
+.upgrade-tile-label { font-size: 0.78rem; color: var(--text-subtle); }
+.upgrade-tile-value { font-weight: 600; }
+.upgrade-todo ul { margin: 4px 0 12px; }
+.upgrade-handoff-download { margin-top: 8px; }
+.upgrade-file-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.upgrade-file-list li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.upgrade-file-actions { display: inline-flex; gap: 6px; }
+.upgrade-file-desc { flex-basis: 100%; font-size: 0.85rem; }
+
+/* Mirroring: the way back to the Upgrade plan a stage came from. */
+.mirroring-back-to-upgrade { margin-bottom: 8px; }
+
+/* Exploration (D-1): releases before the planning range — dashed, untinted, labelled in words. */
+.upgrade-shell .upgrade-rail .upgrade-rail-node[data-explore="true"] { background: var(--card-bg); border-style: dashed; border-color: var(--text-subtle); }
+.upgrade-rail-outside { font-size: 0.72rem; font-style: italic; color: var(--text-subtle); }
+.upgrade-explore-label { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; font-size: 0.9rem; }
+.upgrade-explore-missing ul { margin: 6px 0; }

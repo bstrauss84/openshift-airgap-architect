@@ -1,5 +1,9 @@
 /**
- * OpenShift Airgap Architect - Upgrade › Operators (v2.3.0 correction pass).
+ * OpenShift Airgap Architect - Upgrade › "Import previous configuration" (v2.3.0 UX correction).
+ *
+ * Rendered inside a modal on the Content step (it no longer owns a whole tab). The normal operator
+ * experience is Mirroring's own (Quick Picks, scan, browse, constraints) per stage; this importer
+ * only SUGGESTS operators, images and release hints from earlier ImageSetConfiguration files.
  *
  * Two clearly separated things:
  *  1. Optional PRESETS from earlier ImageSetConfiguration files: what someone
@@ -16,7 +20,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic).
  */
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import Button from "../components/Button.jsx";
 import Banner from "../components/Banner.jsx";
 import Modal from "../components/Modal.jsx";
@@ -36,7 +40,7 @@ export const CONFIDENCE_LABEL = {
   "user-confirmed": "confirmed by you",
   "user-entered": "entered by you"
 };
-const SOURCE_TO_KIND = { "redhat-operators": "redhat", "certified-operators": "certified", "community-operators": "community" };
+export const SOURCE_TO_KIND = { "redhat-operators": "redhat", "certified-operators": "certified", "community-operators": "community" };
 const MAX_FILE_BYTES = 1024 * 1024;
 
 /** File contents as text (FileReader works everywhere File.text() may not). */
@@ -48,7 +52,7 @@ const readText = (file) => new Promise((resolve, reject) => {
 });
 const sourcesText = (sources) => (sources?.length ? sources.map((s) => s.file).join(", ") : "—");
 
-export default function OperatorsTab({ plan, onPlanChanged }) {
+export default function PresetImporter({ plan, onPlanChanged, onClose = null }) {
   const readOnly = plan.kind === "received";
   const [analysis, setAnalysis] = useState(null);
   const [choices, setChoices] = useState({});
@@ -56,8 +60,7 @@ export default function OperatorsTab({ plan, onPlanChanged }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [selectedIntent, setSelectedIntent] = useState({});
-  const [includeImages, setIncludeImages] = useState(false);
+  const [addToStages, setAddToStages] = useState(true);
   const [releaseHint, setReleaseHint] = useState(null);
 
   const readFiles = async (fileList) => {
@@ -85,49 +88,23 @@ export default function OperatorsTab({ plan, onPlanChanged }) {
     setBusy("accept");
     setError("");
     try {
-      const entries = analysis.operators.filter((o) => choices[o.key]?.accept).map((o) => ({
+      const accepted = analysis.operators.filter((o) => choices[o.key]?.accept);
+      const entries = accepted.map((o) => ({
         name: o.name, catalogKind: o.catalogKind, channel: choices[o.key].channel || null,
         category: choices[o.key].category, confidence: "imported-preset", sources: o.sources
       }));
       const images = analysis.images.filter((i) => imageChoices[i.name]).map((i) => ({ name: i.name, sources: i.sources }));
       const r = await saveOperatorIntent(plan.id, { entries, images });
-      onPlanChanged(r.plan);
-      setNotice(`${entries.length} operator(s) and ${images.length} image(s) added to the plan as unverified presets.${r.skipped.length ? ` Kept ${r.skipped.length} entry(ies) you or a cluster export had already confirmed: ${r.skipped.map((s) => s.key.split("|")[1]).join(", ")}.` : ""}`);
+      let latest = r.plan;
+      let stageNote = "";
+      if (addToStages && plan.stages.length && (entries.length || images.length)) {
+        const applied = await applyIntentToStages(plan.id, entries.map((e) => `${e.catalogKind}|${e.name}`), images.length > 0);
+        latest = applied.plan;
+        stageNote = ` Added to ${applied.report.filter((x) => x.added?.length || x.imagesAdded?.length).length} stage(s), each from its own catalog; existing selections were not changed.`;
+      }
+      onPlanChanged(latest);
+      setNotice(`${entries.length} operator(s) and ${images.length} image(s) recorded as unverified presets.${stageNote}${r.skipped.length ? ` Kept ${r.skipped.length} entry(ies) you or a cluster export had already confirmed: ${r.skipped.map((x) => x.key.split("|")[1]).join(", ")}.` : ""}`);
       setAnalysis(null);
-    } catch (err) {
-      setError(String(err.message || err));
-    } finally {
-      setBusy("");
-    }
-  };
-
-  const fromInventory = useMemo(() => (plan.inventory?.operators || [])
-    .filter((o) => o.name && SOURCE_TO_KIND[o.source])
-    .map((o) => ({ name: o.name, catalogKind: SOURCE_TO_KIND[o.source], channel: o.channel || null, category: "installed", confidence: "cluster-export", sources: [{ file: `cluster export ${plan.inventory.importedAt || ""}`.trim() }] })), [plan.inventory]);
-
-  const save = async (body, message) => {
-    setBusy("save");
-    setError("");
-    try {
-      const r = await saveOperatorIntent(plan.id, body);
-      onPlanChanged(r.plan);
-      if (message) setNotice(message);
-    } catch (err) {
-      setError(String(err.message || err));
-    } finally {
-      setBusy("");
-    }
-  };
-  const updateEntry = (e, patch) => save({ entries: [{ name: e.name, catalogKind: e.catalogKind, channel: e.channel, category: e.category, confidence: e.confidence, sources: e.sources, ...patch }], replaceConfirmed: true });
-
-  const apply = async () => {
-    setBusy("apply");
-    setError("");
-    try {
-      const keys = Object.keys(selectedIntent).filter((k) => selectedIntent[k]);
-      const r = await applyIntentToStages(plan.id, keys, includeImages);
-      onPlanChanged(r.plan);
-      setNotice(r.report.map((x) => `Stage ${x.stageId.slice(1)}: ${x.added?.length || 0} added${x.kept?.length ? `, ${x.kept.length} already selected (unchanged)` : ""}${x.imagesAdded?.length ? `, ${x.imagesAdded.length} image(s)` : ""}`).join("; ") + ". Check the channels with the Live catalog check in each stage (Content & runs).");
     } catch (err) {
       setError(String(err.message || err));
     } finally {
@@ -144,9 +121,7 @@ export default function OperatorsTab({ plan, onPlanChanged }) {
     <div className="upgrade-operators">
       {error ? <Banner variant="error">{error}</Banner> : null}
       {notice ? <Banner variant="info">{notice}</Banner> : null}
-
-      <section className="card" aria-labelledby={`upgrade-presets-${plan.id}`}>
-        <h3 id={`upgrade-presets-${plan.id}`}>Presets from earlier ImageSetConfigurations (optional)</h3>
+      <div className="upgrade-presets" aria-labelledby={`upgrade-presets-${plan.id}`}>
         <p className="subtle">
           Load one or more ImageSetConfiguration files you used before. They suggest operators, images and release hints you can
           review and edit. A configuration file says what was <em>asked</em> to be mirrored — not what is installed in the cluster,
@@ -244,64 +219,26 @@ export default function OperatorsTab({ plan, onPlanChanged }) {
                 <h4>Additional images found</h4>
                 <ul>
                   {analysis.images.map((i) => (
-                    <li key={i.name}><label className="switch-row"><input type="checkbox" checked={Boolean(imageChoices[i.name])} onChange={(e) => setImageChoices((all) => ({ ...all, [i.name]: e.target.checked }))} /> <code>{i.name}</code> <span className="subtle">from {sourcesText(i.sources)}</span></label></li>
+                    <li key={i.name}><label className="toggle-row"><input type="checkbox" checked={Boolean(imageChoices[i.name])} onChange={(e) => setImageChoices((all) => ({ ...all, [i.name]: e.target.checked }))} /> <code>{i.name}</code> <span className="subtle">from {sourcesText(i.sources)}</span></label></li>
                   ))}
                 </ul>
               </>
             ) : null}
 
+            {plan.stages.length ? (
+              <label className="toggle-row">
+                <input type="checkbox" checked={addToStages} onChange={(e) => setAddToStages(e.target.checked)} />
+                <span>Also add the ticked operators to every stage (each from its own minor&apos;s catalog; nothing already selected is changed)</span>
+              </label>
+            ) : <p className="subtle">Prepare the stages to add these operators to them; until then they are recorded in the plan only.</p>}
             <div className="actions">
-              <Button variant="primary" disabled={readOnly || busy === "accept"} onClick={acceptPresets}>Add the ticked items to the plan</Button>
+              <Button variant="primary" disabled={readOnly || busy === "accept"} onClick={acceptPresets}>Add the ticked items</Button>
               <Button variant="secondary" onClick={() => setAnalysis(null)}>Discard this import</Button>
             </div>
           </div>
         ) : null}
-      </section>
-
-      <section className="card" aria-labelledby={`upgrade-intent-${plan.id}`}>
-        <h3 id={`upgrade-intent-${plan.id}`}>Operators in this plan</h3>
-        <p className="subtle">Each operator&apos;s category says what you intend; its confidence says how that is known. Imported presets never become “installed” on their own — confirm them, or import a cluster export on the Readiness tab.</p>
-        {fromInventory.length && !readOnly ? (
-          <div className="actions">
-            <Button variant="secondary" disabled={Boolean(busy)} onClick={() => save({ entries: fromInventory }, `${fromInventory.length} installed operator(s) from the imported cluster export added.`)}>Add the {fromInventory.length} installed operator(s) from the imported cluster export</Button>
-          </div>
-        ) : null}
-        {plan.operatorIntent?.length ? (
-          <>
-            <table className="upgrade-graph-table">
-              <thead><tr><th scope="col">Select</th><th scope="col">Operator</th><th scope="col">Channel</th><th scope="col">Category</th><th scope="col">Confidence</th><th scope="col">From</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
-              <tbody>
-                {plan.operatorIntent.map((e) => (
-                  <tr key={e.key}>
-                    <td><input type="checkbox" aria-label={`Select ${e.name}`} checked={Boolean(selectedIntent[e.key])} onChange={(ev) => setSelectedIntent((all) => ({ ...all, [e.key]: ev.target.checked }))} /></td>
-                    <th scope="row">{e.name}<span className="subtle"> ({e.catalogKind})</span></th>
-                    <td>{e.channel || "catalog default"}</td>
-                    <td>
-                      <select aria-label={`${e.name} category`} value={e.category} disabled={readOnly} onChange={(ev) => updateEntry(e, { category: ev.target.value })}>
-                        {Object.entries(CATEGORY_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                      </select>
-                    </td>
-                    <td><span className="upgrade-badge" data-state={e.confidence === "imported-preset" ? "NOT_CHECKED" : e.confidence === "cluster-export" ? "VERIFIED" : "ATTESTED"}>{CONFIDENCE_LABEL[e.confidence]}</span></td>
-                    <td>{sourcesText(e.sources)}</td>
-                    <td>
-                      {!readOnly && e.confidence === "imported-preset" ? <Button variant="secondary" onClick={() => updateEntry(e, { confidence: "user-confirmed", category: e.category === "preset-mirrored" ? "installed" : e.category })}>Confirm installed</Button> : null}
-                      {!readOnly ? <Button variant="secondary" onClick={() => save({ remove: [e.key] })}>Remove</Button> : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <label className="switch-row">
-              <input type="checkbox" checked={includeImages} onChange={(e) => setIncludeImages(e.target.checked)} disabled={!plan.presetImages?.length} />
-              <span>Also add the plan&apos;s {plan.presetImages?.length || 0} preset image(s) to the last stage</span>
-            </label>
-            <div className="actions">
-              <Button variant="primary" disabled={readOnly || !plan.stages.length || !Object.values(selectedIntent).some(Boolean) || busy === "apply"} onClick={apply}>Add the selected operators to every stage</Button>
-            </div>
-            {!plan.stages.length ? <p className="subtle">Prepare the stages (Content & runs) first.</p> : <p className="subtle">Each stage gets the operator from its own catalog minor; selections already in a stage are not changed. Browse, adjust and check them in Content & runs with the Mirroring operator tools.</p>}
-          </>
-        ) : <p className="subtle">No operators yet. Import presets above, add installed operators from a cluster export, or choose operators per stage in Content & runs.</p>}
-      </section>
+      </div>
+      {onClose ? <div className="actions"><Button variant="secondary" onClick={onClose}>Close</Button></div> : null}
 
       <Modal isOpen={Boolean(releaseHint)} onClose={() => setReleaseHint(null)} ariaLabelledBy={`upgrade-hint-${plan.id}`}>
         <h3 id={`upgrade-hint-${plan.id}`}>Replace the current release?</h3>

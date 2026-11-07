@@ -1,22 +1,26 @@
 /**
- * OpenShift Airgap Architect - Upgrade › Review & export (v2.3.0, RFC §9.2-9.3).
+ * OpenShift Airgap Architect - Upgrade › 6 Handoff (v2.3.0 UX correction).
  *
- * One page with the route, its graph source and age, stages and their
- * evidence, readiness, artifacts (labelled VALIDATED / TEMPLATE / PRODUCED BY
- * RUN — oc-mirror output is never fabricated) and the plan package.
+ * A short summary and the download, available at ANY time — the files needed to carry out the
+ * updates never wait for an update to be done. Shows the route, where content preparation,
+ * operators and readiness stand, what is still to do (each with a link to the step that does
+ * it), the main handoff package, and — collapsed — the individual files with their provenance
+ * labels (validated configuration / template / produced by a completed run). Mirrored archives
+ * never travel through the browser; plan deletion lives in the plan header, not here.
  *
  * Developed with AI assistance from Claude (Anthropic).
  */
 import React, { useEffect, useState } from "react";
 import Button from "../components/Button.jsx";
 import Banner from "../components/Banner.jsx";
-import { Freshness } from "./PathTab.jsx";
-import { CONTENT_STATE_TEXT } from "./ContentTab.jsx";
+import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import { fetchArtifacts, fetchReadiness, packageZipUrl } from "./upgradeApi.js";
+import { downloadText } from "./ContentTab.jsx";
 
 export const LABEL_TEXT = { VALIDATED: "validated configuration", TEMPLATE: "template — fill in", PRODUCED_BY_RUN: "produced by a completed run", NOT_READY: "not ready" };
+const labelState = (l) => (l === "VALIDATED" || l === "PRODUCED_BY_RUN" ? "VERIFIED" : l === "NOT_READY" ? "BLOCKED" : "NOT_CHECKED");
 
-export default function ReviewTab({ plan, onPreviewArtifacts, onDelete }) {
+export default function ReviewTab({ plan, onPreviewArtifacts, onGoToStep = null }) {
   const [artifacts, setArtifacts] = useState(null);
   const [readiness, setReadiness] = useState(null);
   const [error, setError] = useState("");
@@ -27,45 +31,66 @@ export default function ReviewTab({ plan, onPreviewArtifacts, onDelete }) {
       .catch((err) => { if (!cancelled) setError(String(err.message || err)); });
     return () => { cancelled = true; };
   }, [plan.id, plan.updatedAt]);
+
+  const views = plan.stageViews || [];
+  const inRegistry = views.filter((v) => v.content?.state === "registry-verified").length;
+  const updated = views.filter((v) => v.clusterUpdated === "attested").length;
+  const operators = views.reduce((n, v) => n + (v.operatorsSelected || 0), 0);
+  const s = readiness?.summary;
+  const todo = [
+    !plan.path ? { text: "Compute the update route", step: "route" } : null,
+    plan.path && (!plan.stages.length || plan.stagesStale) ? { text: "Prepare the stages", step: "content" } : null,
+    views.length && inRegistry < views.length ? { text: `Get ${views.length - inRegistry} stage(s) into the registry`, step: "mirror" } : null,
+    !plan.mirror?.registryUrl ? { text: "Set the mirror registry (the commands use it)", step: "mirror" } : null,
+    s?.blocked ? { text: `Resolve ${s.blocked} blocked readiness check(s)`, step: "readiness" } : null,
+    s?.notChecked ? { text: `Review ${s.notChecked} readiness check(s) with no evidence yet`, step: "readiness" } : null
+  ].filter(Boolean);
+
   return (
     <div className="upgrade-review">
       {error ? <Banner variant="error">{error}</Banner> : null}
-      <section className="card" aria-labelledby={`upgrade-review-${plan.id}`}>
-        <h3 id={`upgrade-review-${plan.id}`}>Review</h3>
-        <dl className="modal-summary">
-          <dt>Route</dt><dd>{plan.path ? plan.path.path.join(" → ") : "not computed"}</dd>
-          <dt>Architecture</dt><dd>{plan.arch}</dd>
-          <dt>Channels</dt><dd>{plan.path ? [...new Set(plan.path.hops.map((h) => h.channel))].join(", ") : "—"} ({plan.channelStrategy === "single" ? "single target channel" : "per minor"})</dd>
-          <dt>Strategy</dt><dd>{plan.strategy === "cpo" ? "Control Plane Only (4.20 → 4.22)" : "Standard"}{plan.channelPolicy === "fast" ? " · fast channel" : ""}</dd>
-          <dt>Update method</dt><dd>OSUS (recommended), CLI or web console — see Instructions</dd>
-          <dt>Readiness</dt><dd>{readiness ? `${readiness.summary.state}; cluster readiness ${readiness.summary.clusterReadiness}` : "…"}</dd>
-        </dl>
-        {plan.graph ? <Freshness graph={plan.graph} label="Planning graph" /> : null}
-        {plan.path?.graphSources?.length ? (
-          <ul className="subtle">{plan.path.graphSources.map((g) => <li key={g.channel}>{g.channel}: {g.origin} at {g.fetchedAt} (SHA-256 {g.bodySha256?.slice(0, 16)}…)</li>)}</ul>
-        ) : null}
-        <h4>Stages</h4>
-        {plan.stageViews?.length ? (
-          <ul>{plan.stageViews.map((s) => <li key={s.id}>Stage {s.id.slice(1)} ({s.release}): {(CONTENT_STATE_TEXT[s.content?.state] || [null, s.content?.state])[1]}; cluster {s.clusterUpdated === "attested" ? "updated (your statement)" : "not recorded as updated"}</li>)}</ul>
-        ) : <p className="subtle">No stages prepared.</p>}
-      </section>
-      <section className="card" aria-labelledby={`upgrade-artifacts-${plan.id}`}>
-        <h3 id={`upgrade-artifacts-${plan.id}`}>Artifacts</h3>
-        <p className="subtle">Configuration and resources for this plan. Files oc-mirror writes (ImageDigestMirrorSet, CatalogSource, signature ConfigMap, UpdateService) appear only after a stage&apos;s run produced them.</p>
-        {artifacts ? (
-          <ul>{artifacts.map((f) => <li key={f.name}><code>{f.name}</code> — <span className="upgrade-badge" data-state={f.label === "VALIDATED" || f.label === "PRODUCED_BY_RUN" ? "VERIFIED" : f.label === "NOT_READY" ? "BLOCKED" : "NOT_CHECKED"}>{LABEL_TEXT[f.label] || f.label}</span> {f.description}</li>)}</ul>
-        ) : <div className="loading" role="status">Loading artifacts…</div>}
-        <div className="actions">
-          <Button variant="secondary" disabled={!artifacts?.some((f) => f.content)} onClick={() => onPreviewArtifacts(artifacts)}>Preview in the YAML drawer</Button>
-          {plan.path ? <a className="ghost" href={packageZipUrl(plan.id)} download>Download the plan package (.zip)</a> : null}
+      <section className="card" aria-labelledby={`upgrade-handoff-${plan.id}`}>
+        <h3 id={`upgrade-handoff-${plan.id}`}>Handoff</h3>
+        <p className="upgrade-handoff-route">{plan.path ? plan.path.path.join(" → ") : "No route yet"} <span className="subtle">· {plan.channelPolicy} · {plan.arch}{plan.strategy === "cpo" ? " · Control Plane Only" : ""}</span></p>
+        <ul className="upgrade-summary-tiles">
+          <li><span className="upgrade-tile-label">Content in the registry</span><span className="upgrade-tile-value">{views.length ? `${inRegistry} of ${views.length} stages` : "no stages"}</span></li>
+          <li><span className="upgrade-tile-label">Operators</span><span className="upgrade-tile-value">{operators ? `${operators} across ${views.length} stages` : "none chosen"}</span></li>
+          <li><span className="upgrade-tile-label">Readiness</span><span className="upgrade-tile-value">{s ? [s.blocked ? `${s.blocked} blocked` : null, s.pending ? `${s.pending} to do` : null, s.attested ? `${s.attested} your statements` : null, s.notChecked ? `${s.notChecked} not checked` : null].filter(Boolean).join(", ") || "all verified or attested" : "…"}</span></li>
+          <li><span className="upgrade-tile-label">Cluster updates (your statements)</span><span className="upgrade-tile-value">{plan.path ? `${updated} of ${plan.path.hops.length}` : "—"}</span></li>
+        </ul>
+        {todo.length ? (
+          <div className="upgrade-todo">
+            <h4>Still to do</h4>
+            <ul>
+              {todo.map((t) => <li key={t.text}>{t.text}{onGoToStep ? <> <Button variant="secondary" className="mini" onClick={() => onGoToStep(t.step)}>Go</Button></> : null}</li>)}
+            </ul>
+          </div>
+        ) : <p className="subtle">Nothing left to prepare in Architect. The updates themselves are run by an administrator (Update the cluster).</p>}
+        <div className="upgrade-handoff-download">
+          <Button variant="primary" disabled={!plan.path} onClick={() => { const a = document.createElement("a"); a.href = packageZipUrl(plan.id); a.download = ""; document.body.appendChild(a); a.click(); a.remove(); }}>Download the handoff package (.zip)</Button>
+          <p className="subtle">Download it now — everything needed to carry out the updates: the plan, route and graph snapshots, validated stage configurations, OSUS / CLI / web console instructions, readiness and templates, with SHA256SUMS. Never mirrored archives or credentials. The checksums show the files were not changed after Architect wrote them; they do not prove who wrote them (the package is not signed). On the disconnected side, use “Import plan…” with <code>oaa-upgrade-package.json</code>.</p>
         </div>
-        <p className="subtle">The package holds the plan, its graph snapshots, validated stage configurations, instructions, readiness, templates and tool guidance — never mirrored archives or credentials. Its SHA256SUMS show the files were not changed after Architect wrote them; they do not prove who wrote them (the package is not signed). On the disconnected side, import <code>oaa-upgrade-package.json</code> with “Import plan…”.</p>
       </section>
-      <section className="card">
-        <h3>Delete this plan</h3>
-        <p className="subtle">You choose separately whether its stage profiles go too. Mirrored data on disk is never deleted.</p>
-        <Button variant="destructive" onClick={onDelete}>Delete plan…</Button>
-      </section>
+      <CollapsibleSection title="Individual files" subtitle={artifacts ? `${artifacts.length} file(s)` : "Loading…"} defaultCollapsed>
+        {artifacts ? (
+          <>
+            <ul className="upgrade-file-list">
+              {artifacts.map((f) => (
+                <li key={f.name}>
+                  <code>{f.name}</code> <span className="upgrade-badge" data-state={labelState(f.label)}>{LABEL_TEXT[f.label] || f.label}</span>
+                  <span className="upgrade-file-actions">
+                    {f.content ? <Button variant="secondary" className="mini" onClick={() => onPreviewArtifacts([f])}>Preview</Button> : null}
+                    {f.content ? <Button variant="secondary" className="mini" onClick={() => downloadText(f.name, f.content)}>Download</Button> : null}
+                  </span>
+                  <span className="subtle upgrade-file-desc">{f.description}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="actions"><Button variant="secondary" disabled={!artifacts.some((f) => f.content)} onClick={() => onPreviewArtifacts(artifacts)}>Preview all in the YAML drawer</Button></div>
+            <p className="subtle">Files oc-mirror writes (ImageDigestMirrorSet, CatalogSource, signature ConfigMap, UpdateService) appear only after a stage&apos;s run produced them; Architect never invents them.</p>
+          </>
+        ) : <div className="loading" role="status">Loading files…</div>}
+      </CollapsibleSection>
     </div>
   );
 }

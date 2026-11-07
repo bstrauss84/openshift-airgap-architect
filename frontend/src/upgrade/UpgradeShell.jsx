@@ -1,18 +1,18 @@
 /**
- * OpenShift Airgap Architect - Upgrade workspace (v2.3.0, RFC §5).
+ * OpenShift Airgap Architect - Upgrade workspace (v2.3.0; UX correction).
  *
- * A standalone workflow beside Install and Mirroring, with the Mirroring
- * workspace's shell: header (YAML and Tools), a plan list, and one plan's
- * tabs — Path, Content & runs, Instructions, Readiness, Review & export.
- * Panels stay mounted when switching tabs. Home is navigation only. New plans
- * never touch existing ones; deleting a plan asks separately about its stage
- * profiles and never deletes mirrored data.
+ * A standalone workflow beside Install and Mirroring, with the Mirroring workspace's shell
+ * (header, Tools, YAML drawer, a plan list) and six steps that each answer one question:
+ *   1 Route · 2 Content · 3 Readiness · 4 Mirror & transfer · 5 Update the cluster · 6 Handoff
+ * A compact route strip stays visible under the steps (route, content and cluster progress).
+ * Steps stay mounted where they hold work in progress, so going back never loses selections.
+ * Each plan has ONE memory-only credential context (D-2), shared by its steps and nothing else.
  *
- * Planning only: nothing here contacts a cluster or triggers an update.
+ * Planning and preparation only: nothing here contacts a cluster or triggers an update.
  *
  * Developed with AI assistance from Claude (Anthropic).
  */
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Button from "../components/Button.jsx";
 import Banner from "../components/Banner.jsx";
 import Modal from "../components/Modal.jsx";
@@ -22,17 +22,56 @@ import YamlDrawer from "../components/YamlDrawer.jsx";
 import { useThemePreference } from "../hooks/useThemePreference.js";
 import PathTab, { JsonDocumentInput } from "./PathTab.jsx";
 import ContentTab from "./ContentTab.jsx";
+import MirrorTab from "./MirrorTab.jsx";
 import InstructionsTab from "./InstructionsTab.jsx";
 import ReadinessTab from "./ReadinessTab.jsx";
 import ReviewTab from "./ReviewTab.jsx";
-import OperatorsTab from "./OperatorsTab.jsx";
-// Same sticky-tab mechanism as Mirroring (owner C): measured header height + reveal on deliberate tab change.
+// Same sticky-tab mechanism as Mirroring: measured header height + reveal on deliberate tab change.
 import { revealTabStart } from "../mirroring/ProfileWorkspace.jsx";
-import { fetchUpgrade, createPlan, setActivePlan, deletionPreview, deletePlan, importPackage } from "./upgradeApi.js";
+import { setActiveProfile } from "../mirroring/mirroringApi.js";
+import { planCredentialKey, forgetSourceCredential, forgetDestinationCredential } from "../mirroring/sourceCredentialSession.js";
+import { fetchUpgrade, createPlan, setActivePlan, deletionPreview, deletePlan, importPackage, updatePlan } from "./upgradeApi.js";
+import { readUpgradeReturn, clearUpgradeReturn, rememberUpgradeReturn } from "./upgradeReturn.js";
 
-const TAB_KEY = "oaa.upgrade.tab.v1";
-const TABS = [["path", "Path"], ["operators", "Operators"], ["content", "Content & runs"], ["instructions", "Instructions"], ["readiness", "Readiness"], ["review", "Review & export"]];
-const readTab = () => { try { const t = sessionStorage.getItem(TAB_KEY); return TABS.some(([k]) => k === t) ? t : "path"; } catch { return "path"; } };
+const TAB_KEY = "oaa.upgrade.step.v2";
+export const STEPS = [
+  ["route", "Route"],
+  ["content", "Content"],
+  ["readiness", "Readiness"],
+  ["mirror", "Mirror & transfer"],
+  ["update", "Update the cluster"],
+  ["handoff", "Handoff"]
+];
+const readTab = () => { try { const t = sessionStorage.getItem(TAB_KEY); return STEPS.some(([k]) => k === t) ? t : "route"; } catch { return "route"; } };
+
+/** Where each step stands, from the plan (no network): ✓ done · ● needs attention · ○ not started. */
+export const stepState = (plan, key) => {
+  if (!plan) return "todo";
+  const views = plan.stageViews || [];
+  switch (key) {
+    case "route": return plan.path ? (plan.pathStatus === "graph-changed" || plan.pathStatus === "graph-missing" ? "attention" : "done") : "todo";
+    case "content": return plan.stagesStale ? "attention" : plan.stages.length ? "done" : "todo";
+    case "mirror": return !views.length ? "todo" : views.every((v) => v.content?.state === "registry-verified") ? "done" : views.some((v) => v.content?.state === "profile-missing" || v.content?.state === "in-registry-unverified") ? "attention" : views.some((v) => v.content?.state && v.content.state !== "planned") ? "progress" : "todo";
+    case "update": return !plan.path ? "todo" : views.length && views.every((v) => v.clusterUpdated === "attested") ? "done" : views.some((v) => v.clusterUpdated === "attested") ? "progress" : "todo";
+    default: return "none";
+  }
+};
+const GLYPH = { done: ["✓", "done"], attention: ["●", "needs attention"], progress: ["◐", "in progress"], todo: ["○", "not started"], none: ["", ""] };
+
+function RouteStrip({ plan }) {
+  if (!plan?.path) return <p className="upgrade-route-strip subtle">No route yet · choose the cluster&apos;s release and a target on Route.</p>;
+  const views = plan.stageViews || [];
+  const inRegistry = views.filter((v) => v.content?.state === "registry-verified").length;
+  const updated = views.filter((v) => v.clusterUpdated === "attested").length;
+  return (
+    <p className="upgrade-route-strip" aria-label="Plan summary">
+      <span className="upgrade-route-strip-path">{plan.path.path.join(" → ")}</span>
+      <span className="subtle">{plan.channelPolicy} · {plan.arch}</span>
+      <span className="subtle">Content {views.length ? `${inRegistry}/${views.length} in registry` : "not prepared"}</span>
+      <span className="subtle">Cluster {updated}/{plan.path.hops.length} updates recorded</span>
+    </p>
+  );
+}
 
 export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
   const [theme, setTheme] = useThemePreference();
@@ -41,6 +80,7 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
   const [slice, setSlice] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [tab, setTab] = useState(readTab);
+  const [focusStage, setFocusStage] = useState(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [yamlFiles, setYamlFiles] = useState(null);
   const [actionError, setActionError] = useState("");
@@ -50,13 +90,12 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
   const [deleteInfo, setDeleteInfo] = useState(null);
   const [removeStages, setRemoveStages] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [renaming, setRenaming] = useState(null);
   const tabRefs = useRef({});
-  // Sticky tabs: the tab row sticks under the sticky step header, whose measured height is
-  // --mirroring-header-h (exactly as in Mirroring). A deliberate tab change brings the new panel's start
-  // into view; programmatic changes do not move the page.
   const shellRef = useRef(null);
   const stepHeaderRef = useRef(null);
   const tabAnchorRef = useRef(null);
+  const tabsRef = useRef(null);
   const [revealRequest, setRevealRequest] = useState(0);
   useEffect(() => {
     const header = stepHeaderRef.current;
@@ -69,13 +108,40 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
     ro.observe(header);
     return () => ro.disconnect();
   }, [status]);
+  // The route strip sticks right under the sticky step row: measure that row too.
+  useEffect(() => {
+    const tabs = tabsRef.current;
+    const shell = shellRef.current;
+    if (!tabs || !shell) return undefined;
+    const apply = () => shell.style.setProperty("--upgrade-tabs-h", `${Math.ceil(tabs.getBoundingClientRect().height)}px`);
+    apply();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(apply);
+    ro.observe(tabs);
+    return () => ro.disconnect();
+  }, [status, activeId]);
   useLayoutEffect(() => { if (revealRequest) revealTabStart(tabAnchorRef.current); }, [revealRequest]);
+
+  const showTab = (t) => {
+    setTab(t);
+    try { sessionStorage.setItem(TAB_KEY, t); } catch { /* not persisted */ }
+  };
+  const activateTab = (t) => { showTab(t); setRevealRequest((n) => n + 1); };
 
   const load = useCallback(async () => {
     try {
       const s = await fetchUpgrade();
       setSlice(s);
-      setActiveId((cur) => (s.plans.some((p) => p.id === cur) ? cur : s.activePlanId || s.plans[0]?.id || null));
+      // Coming back from a stage opened in Mirroring: the same plan, step and stage.
+      const back = readUpgradeReturn();
+      if (back && s.plans.some((p) => p.id === back.planId)) {
+        clearUpgradeReturn();
+        setActiveId(back.planId);
+        showTab(back.step || "mirror");
+        setFocusStage(back.stageId || null);
+      } else {
+        setActiveId((cur) => (s.plans.some((p) => p.id === cur) ? cur : s.activePlanId || s.plans[0]?.id || null));
+      }
       setStatus("ready");
     } catch (err) {
       setLoadError(err.payload?.code === "UPGRADE_SCHEMA_UNKNOWN" ? err.message : `Could not load Upgrade plans: ${String(err.message || err)}`);
@@ -85,6 +151,7 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
   useEffect(() => { load(); }, [load]);
 
   const plan = slice?.plans.find((p) => p.id === activeId) || null;
+  const credentialKey = plan ? planCredentialKey(plan.id) : null;
   const onPlanChanged = (next) => {
     if (!next) { load(); return; }
     setSlice((s) => (s ? { ...s, plans: s.plans.map((p) => (p.id === next.id ? next : p)) } : s));
@@ -92,6 +159,7 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
   const selectPlan = async (id) => {
     setActiveId(id);
     setYamlFiles(null);
+    setFocusStage(null);
     try { await setActivePlan(id); } catch { /* navigation hint only */ }
   };
   const newPlan = async () => {
@@ -100,22 +168,17 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
       const p = await createPlan();
       await load();
       setActiveId(p.id);
-      showTab("path");
+      activateTab("route");
     } catch (err) { setActionError(String(err.message || err)); }
   };
-  const showTab = (t) => {
-    setTab(t);
-    try { sessionStorage.setItem(TAB_KEY, t); } catch { /* not persisted */ }
-  };
-  const activateTab = (t) => { showTab(t); setRevealRequest((n) => n + 1); };
   const onTabKey = (e, i) => {
-    const n = TABS.length;
+    const n = STEPS.length;
     let j = null;
     if (e.key === "ArrowRight") j = (i + 1) % n;
     if (e.key === "ArrowLeft") j = (i + n - 1) % n;
     if (e.key === "Home") j = 0;
     if (e.key === "End") j = n - 1;
-    if (j != null) { e.preventDefault(); activateTab(TABS[j][0]); tabRefs.current[TABS[j][0]]?.focus(); }
+    if (j != null) { e.preventDefault(); activateTab(STEPS[j][0]); tabRefs.current[STEPS[j][0]]?.focus(); }
   };
   const openDelete = async (p) => {
     setPendingDelete(p);
@@ -127,6 +190,8 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
     setDeleting(true);
     try {
       await deletePlan(pendingDelete.id, { removeStageProfiles: removeStages });
+      forgetSourceCredential(planCredentialKey(pendingDelete.id));
+      forgetDestinationCredential(planCredentialKey(pendingDelete.id));
       setPendingDelete(null);
       setActiveId(null);
       await load();
@@ -146,6 +211,20 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
       setActiveId(r.plan.id);
     } catch (err) { setActionError(String(err.message || err)); }
   };
+  const saveName = async () => {
+    const name = renaming.trim();
+    setRenaming(null);
+    if (!name || name === plan.name) return;
+    try { onPlanChanged(await updatePlan(plan.id, { name })); } catch (err) { setActionError(String(err.message || err)); }
+  };
+  /** Open a stage (or one of its operations) in the full Mirroring workspace, with a way straight back. */
+  const openInMirroring = useCallback(async (view, { jobId = null } = {}) => {
+    if (!onOpenMirroring || !plan) return;
+    try { if (view?.linkedProfileId) await setActiveProfile(view.linkedProfileId); } catch { /* Mirroring still opens */ }
+    rememberUpgradeReturn({ planId: plan.id, planName: plan.name, stageId: view?.id || null, step: tab }, { jobId });
+    onOpenMirroring();
+  }, [onOpenMirroring, plan, tab]);
+  const showOperation = useMemo(() => (onOpenMirroring ? (jobId) => openInMirroring(null, { jobId }) : null), [onOpenMirroring, openInMirroring]);
 
   const stageProfiles = deleteInfo?.stageProfiles || [];
   const running = stageProfiles.some((p) => p.running);
@@ -167,7 +246,7 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
                 <div className="step-header" ref={stepHeaderRef}>
                   <div className="step-header-main">
                     <h2>Upgrade</h2>
-                    <p className="subtle">Plan a supported disconnected update of an OpenShift {slice?.supportedMinors?.join(" / ") || "4.20 / 4.21 / 4.22"} cluster: the route from the update graph, the content to mirror per release, and the OSUS, CLI or web console steps. Architect never connects to or changes the cluster.</p>
+                    <p className="subtle">Plan, prepare and hand off a disconnected OpenShift {slice?.supportedMinors?.join(" / ") || "4.20 / 4.21 / 4.22"} update. Architect never connects to or changes the cluster.</p>
                   </div>
                 </div>
                 <div className="step-body">
@@ -202,7 +281,6 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
                         <div className="actions">
                           <Button variant={slice.plans.length ? "secondary" : "primary"} onClick={newPlan}>New Upgrade plan</Button>
                           <Button variant="secondary" onClick={() => setImportOpen(true)}>Import plan…</Button>
-                          {onOpenMirroring ? <Button variant="secondary" onClick={onOpenMirroring}>Open Mirroring</Button> : null}
                         </div>
                       </section>
                       <div>
@@ -210,20 +288,46 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
                           <section className="card"><h3>Select or create a plan</h3><p className="subtle">Plans are independent: creating one never changes another, and Install and Mirroring are not affected.</p></section>
                         ) : (
                           <>
+                            <section className="card upgrade-plan-header" aria-labelledby={`upgrade-plan-title-${plan.id}`}>
+                              {renaming !== null ? (
+                                <div className="upgrade-rename">
+                                  <label htmlFor={`upgrade-rename-${plan.id}`} className="sr-only">Plan name</label>
+                                  <input id={`upgrade-rename-${plan.id}`} type="text" value={renaming} maxLength={120} autoFocus onChange={(e) => setRenaming(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setRenaming(null); }} />
+                                  <Button variant="primary" className="mini" onClick={saveName}>Save</Button>
+                                  <Button variant="secondary" className="mini" onClick={() => setRenaming(null)}>Cancel</Button>
+                                </div>
+                              ) : (
+                                <h3 id={`upgrade-plan-title-${plan.id}`}>{plan.name}{plan.kind === "received" ? <span className="subtle"> · received (read-only)</span> : null}</h3>
+                              )}
+                              <div className="upgrade-plan-header-actions">
+                                {plan.kind !== "received" && renaming === null ? <Button variant="secondary" className="mini" onClick={() => setRenaming(plan.name)}>Rename</Button> : null}
+                                <Button variant="destructive" className="mini" onClick={() => openDelete(plan)}>Delete plan…</Button>
+                              </div>
+                            </section>
                             <div ref={tabAnchorRef} className="mirroring-tabs-anchor" aria-hidden="true" />
-                            <div className="mirroring-tabs" role="tablist" aria-label={`${plan.name}: sections`}>
-                              {TABS.map(([k, label], i) => (
-                                <button key={k} ref={(el) => { tabRefs.current[k] = el; }} type="button" role="tab" id={`upgrade-tab-${k}`} aria-selected={tab === k} aria-controls={`upgrade-tabpanel-${k}`} tabIndex={tab === k ? 0 : -1} className={`mirroring-tab${tab === k ? " active" : ""}`} onClick={() => activateTab(k)} onKeyDown={(e) => onTabKey(e, i)}>{label}</button>
-                              ))}
+                            <div ref={tabsRef} className="mirroring-tabs upgrade-steps-nav" role="tablist" aria-label={`${plan.name}: steps`}>
+                              {STEPS.map(([k, label], i) => {
+                                const st = stepState(plan, k);
+                                const [glyph, glyphText] = GLYPH[st];
+                                return (
+                                  <button key={k} ref={(el) => { tabRefs.current[k] = el; }} type="button" role="tab" id={`upgrade-tab-${k}`} aria-selected={tab === k} aria-controls={`upgrade-tabpanel-${k}`} tabIndex={tab === k ? 0 : -1} className={`mirroring-tab upgrade-step-tab${tab === k ? " active" : ""}`} data-state={st} onClick={() => activateTab(k)} onKeyDown={(e) => onTabKey(e, i)}>
+                                    <span className="upgrade-step-num" aria-hidden="true">{i + 1}</span>
+                                    <span>{label}</span>
+                                    {glyph ? <span className="upgrade-step-glyph" aria-hidden="true">{glyph}</span> : null}
+                                    {glyphText ? <span className="sr-only">, {glyphText}</span> : null}
+                                  </button>
+                                );
+                              })}
                             </div>
-                            {TABS.map(([k]) => (
+                            <RouteStrip plan={plan} />
+                            {STEPS.map(([k]) => (
                               <div key={k} role="tabpanel" id={`upgrade-tabpanel-${k}`} aria-labelledby={`upgrade-tab-${k}`} hidden={tab !== k} className="mirroring-tabpanel">
-                                {k === "path" ? <PathTab key={plan.id} plan={plan} supportedMinors={slice.supportedMinors} highSide={slice.highSide} onPlanChanged={onPlanChanged} /> : null}
-                                {k === "operators" ? <OperatorsTab key={plan.id} plan={plan} onPlanChanged={onPlanChanged} /> : null}
-                                {k === "content" ? <ContentTab key={plan.id} plan={plan} highSide={slice.highSide} onPlanChanged={onPlanChanged} /> : null}
-                                {k === "instructions" && tab === k ? <InstructionsTab key={plan.id} plan={plan} /> : null}
-                                {k === "readiness" && tab === k ? <ReadinessTab key={plan.id} plan={plan} onPlanChanged={onPlanChanged} /> : null}
-                                {k === "review" && tab === k ? <ReviewTab key={plan.id} plan={plan} onPreviewArtifacts={(files) => setYamlFiles(files)} onDelete={() => openDelete(plan)} /> : null}
+                                {k === "route" ? <PathTab key={plan.id} plan={plan} supportedMinors={slice.supportedMinors} highSide={slice.highSide} onPlanChanged={onPlanChanged} /> : null}
+                                {k === "content" ? <ContentTab key={plan.id} plan={plan} onPlanChanged={onPlanChanged} onShowOperation={showOperation} credentialKey={credentialKey} onPreviewFiles={(files) => setYamlFiles(files)} onGoToStep={activateTab} /> : null}
+                                {k === "readiness" && tab === k ? <ReadinessTab key={plan.id} plan={plan} onPlanChanged={onPlanChanged} credentialKey={credentialKey} onGoToStep={activateTab} /> : null}
+                                {k === "mirror" ? <MirrorTab key={plan.id} plan={plan} highSide={slice.highSide} onPlanChanged={onPlanChanged} credentialKey={credentialKey} onShowOperation={showOperation} onOpenStageInMirroring={onOpenMirroring ? (view) => openInMirroring(view) : null} initialStageId={focusStage} onGoToStep={activateTab} /> : null}
+                                {k === "update" && tab === k ? <InstructionsTab key={plan.id} plan={plan} onPlanChanged={onPlanChanged} onGoToStep={activateTab} /> : null}
+                                {k === "handoff" && tab === k ? <ReviewTab key={plan.id} plan={plan} onPreviewArtifacts={(files) => setYamlFiles(files)} onGoToStep={activateTab} /> : null}
                               </div>
                             ))}
                           </>
@@ -240,9 +344,9 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
                 onClose={() => setYamlFiles(null)}
                 mode="imageset"
                 sourceLabel={`Upgrade plan: ${plan?.name || ""}`}
-                emptyMessage="No artifacts yet."
+                emptyMessage="No files yet."
                 previewFiles={Object.fromEntries(yamlFiles.filter((f) => f.content).map((f) => [f.name, f.content]))}
-                statusNote="Labels are on the Review tab: validated configuration, template (fill in), or produced by a completed run."
+                statusNote="Labels are on the Handoff step: validated configuration, template (fill in), or produced by a completed run."
                 resetSizing={false}
                 fetchExportFile={async (name) => yamlFiles.find((f) => f.name === name)?.content || ""}
               />
@@ -281,7 +385,7 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
         onConfirm={confirmDelete}
       >
         {stageProfiles.length ? (
-          <label className="switch-row">
+          <label className="toggle-row">
             <input type="checkbox" checked={removeStages} onChange={(e) => setRemoveStages(e.target.checked)} />
             <span>Also remove the {stageProfiles.length} stage profile record(s) from Mirroring (mirrored data on disk is still kept)</span>
           </label>
