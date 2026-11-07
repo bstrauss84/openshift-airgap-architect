@@ -213,3 +213,42 @@ describe("mirror to mirror: catalog tags are never replaced silently", () => {
     assert.equal((await stageProfiles(plan))[0].operators.catalogTargetTag, null);
   });
 });
+
+describe("copying a stage's operators to later stages", () => {
+  test("each later stage gets the packages from its own minor's catalog; existing selections and the source are untouched", async () => {
+    const plan = await stagedPlan();
+    const [p1, p2] = await stageProfiles(plan);
+    // Stage 1 selects two operators; stage 2 already has one of them with its own channel.
+    assert.equal((await api("POST", `/api/mirroring/profiles/${p1.id}`, { content: { platform: true, operators: true, additionalImages: false }, operators: { selected: [
+      { id: "registry.redhat.io/redhat/redhat-operator-index:v4.20::kiali-ossm", name: "kiali-ossm", catalog: "redhat", catalogImage: "registry.redhat.io/redhat/redhat-operator-index:v4.20", defaultChannel: "stable" },
+      { id: "registry.redhat.io/redhat/redhat-operator-index:v4.20::web-terminal", name: "web-terminal", catalog: "redhat", catalogImage: "registry.redhat.io/redhat/redhat-operator-index:v4.20", defaultChannel: "fast" }
+    ] } })).status, 200);
+    assert.equal((await api("POST", `/api/mirroring/profiles/${p2.id}`, { content: { platform: true, operators: true, additionalImages: false }, operators: { selected: [
+      { id: "registry.redhat.io/redhat/redhat-operator-index:v4.21::web-terminal", name: "web-terminal", catalog: "redhat", catalogImage: "registry.redhat.io/redhat/redhat-operator-index:v4.21", defaultChannel: "candidate" }
+    ] } })).status, 200);
+    const r = await api("POST", `/api/upgrade/plans/${plan.id}/stages/s1/copy-operators`, {});
+    assert.equal(r.status, 200, r.text);
+    assert.deepEqual(r.json.report.map((x) => [x.stageId, x.added, x.kept]), [["s2", ["kiali-ossm"], ["web-terminal"]], ["s3", ["kiali-ossm", "web-terminal"], []]]);
+    const [a, b, c] = await stageProfiles(plan);
+    assert.deepEqual(a.operators.selected.map((o) => o.catalogImage), ["registry.redhat.io/redhat/redhat-operator-index:v4.20", "registry.redhat.io/redhat/redhat-operator-index:v4.20"], "source unchanged");
+    assert.equal(b.operators.selected.find((o) => o.name === "web-terminal").defaultChannel, "candidate", "an existing selection is never changed");
+    assert.ok(b.operators.selected.every((o) => o.catalogImage.endsWith(":v4.21")));
+    assert.ok(c.operators.selected.every((o) => o.catalogImage.endsWith(":v4.22")));
+  });
+});
+
+describe("readiness: every check says what to do next", () => {
+  test("missing evidence names the import; stages not yet mirrored are a to-do, not a block", async () => {
+    const plan = await stagedPlan();
+    const r = (await api("GET", `/api/upgrade/plans/${plan.id}/readiness`)).json;
+    const by = Object.fromEntries(r.checks.map((c) => [c.id, c]));
+    assert.deepEqual(by["mcp-health"].action, { kind: "import", inventoryKind: "mcp" });
+    assert.deepEqual(by["cvo-health"].action, { kind: "import", inventoryKind: "clusterversion" });
+    assert.equal(by["content-s1"].state, "PENDING");
+    assert.deepEqual(by["content-s1"].action, { kind: "step", step: "mirror" });
+    assert.equal(by["content-s1"].group, "content");
+    assert.equal(by["etcd-backup"].group, "cluster");
+    assert.equal(r.summary.pending, 3);
+    assert.equal(r.summary.blocked, 0, "nothing here is evidence of a problem");
+  });
+});

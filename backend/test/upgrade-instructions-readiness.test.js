@@ -179,7 +179,7 @@ describe("readiness and inventory", () => {
     for (const id of ["cvo-health", "cvo-upgradeable", "mcp-health", "etcd-backup"]) assert.equal(r.checks.find((c) => c.id === id).state, "NOT_CHECKED", id);
     assert.equal(r.checks.find((c) => c.id === "route").state, "VERIFIED");
     assert.equal(r.checks.find((c) => c.id === "graph-freshness").state, "WARNING", "a snapshot is 'as of', not current");
-    assert.ok(r.checks.filter((c) => c.id.startsWith("content-")).every((c) => c.state === "BLOCKED"), "nothing is in the registry yet");
+    assert.ok(r.checks.filter((c) => c.id.startsWith("content-")).every((c) => c.state === "PENDING" && c.action?.step === "mirror"), "nothing is in the registry yet: a to-do, not a failure");
   });
 
   test("ClusterVersion import: projected, cluster ID dropped; Upgradeable=False blocks a minor route; version mismatch blocks", async () => {

@@ -66,7 +66,7 @@ export function buildInstructions(plan, { readiness, registry = "", clusterResou
   const reg = registryPath(registry) || "<mirror-registry>/<path>";
   const target = plan.target;
   const targetMinor = getMinorVersion(target);
-  const open = (readiness?.checks || []).filter((c) => c.state === "BLOCKED" || c.state === "NOT_CHECKED");
+  const open = (readiness?.checks || []).filter((c) => c.state === "BLOCKED" || c.state === "NOT_CHECKED" || c.state === "PENDING");
   const openIds = open.map((c) => c.id);
   const cpoRequested = plan.strategy === "cpo";
   const cpoAllowed = cpoRequested && readiness?.cpo?.eligible === true;
@@ -74,7 +74,11 @@ export function buildInstructions(plan, { readiness, registry = "", clusterResou
     state: readiness?.summary?.state || "incomplete",
     message: readiness?.summary?.state === "ready-to-proceed"
       ? "Every readiness check is verified or attested. Follow the steps in order."
-      : `This procedure is conditional: ${open.length} readiness check(s) are blocked or not checked (${openIds.slice(0, 8).join(", ")}${openIds.length > 8 ? ", …" : ""}). Each step lists what must be confirmed before you run it.`,
+      : `Before you run these steps: ${[
+        open.filter((c) => c.state === "BLOCKED").length ? `${open.filter((c) => c.state === "BLOCKED").length} blocked` : null,
+        open.filter((c) => c.state === "PENDING").length ? `${open.filter((c) => c.state === "PENDING").length} still to do in Architect` : null,
+        open.filter((c) => c.state === "NOT_CHECKED").length ? `${open.filter((c) => c.state === "NOT_CHECKED").length} not checked yet` : null
+      ].filter(Boolean).join(", ")} on the Readiness step. Each step lists what must be confirmed before you run it.`,
     clusterReadiness: readiness?.summary?.clusterReadiness || "not verified (no cluster evidence)"
   };
   const stageFor = (release) => plan.stages.find((s) => s.release === release) || null;

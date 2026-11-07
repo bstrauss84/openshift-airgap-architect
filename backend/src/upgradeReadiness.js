@@ -16,7 +16,21 @@
  */
 import { getMinorVersion } from "../../shared/versionUtils.js";
 
-export const STATES = Object.freeze(["VERIFIED", "BLOCKED", "WARNING", "ATTESTED", "NOT_CHECKED"]);
+export const STATES = Object.freeze(["VERIFIED", "BLOCKED", "WARNING", "ATTESTED", "NOT_CHECKED", "PENDING"]);
+/**
+ * v2.3.0 UX: PENDING = work still to do in Architect (for example a stage not yet in the registry).
+ * It gates the update instructions like BLOCKED, but it is not evidence of a problem and is shown
+ * as a to-do with the step that does it. Every check also names its group and its next action.
+ */
+const GROUP = (id) => (/^(route|graph-freshness|current-channel)$/.test(id) ? "route" : /^(content|signatures)/.test(id) ? "content" : "cluster");
+const INVENTORY_FOR = { "cvo-health": "clusterversion", "cvo-upgradeable": "clusterversion", "current-version": "clusterversion", "mcp-health": "mcp", "cpo-topology": "mcp", "operator-compat": "csv" };
+const actionFor = (id, state) => {
+  if (state === "VERIFIED") return null;
+  if (INVENTORY_FOR[id] && state !== "ATTESTED") return { kind: "import", inventoryKind: INVENTORY_FOR[id] };
+  if (/^(content|signatures)/.test(id)) return { kind: "step", step: "mirror" };
+  if (/^(route|graph-freshness|current-channel)$/.test(id)) return { kind: "step", step: "route" };
+  return null;
+};
 
 /** Checks an administrator may attest (things Architect cannot observe). */
 export const ATTESTABLE = Object.freeze({
@@ -29,7 +43,7 @@ export const ATTESTABLE = Object.freeze({
   "operator-compat": "Every installed operator was confirmed to support each OpenShift minor on this route before that minor's update."
 });
 
-const check = (id, state, title, detail, extra = {}) => ({ id, state, title, detail, ...extra });
+const check = (id, state, title, detail, extra = {}) => ({ id, state, title, detail, group: GROUP(id), action: actionFor(id, state), ...extra });
 const attestedOr = (plan, id, title, notChecked) => {
   const a = plan.readiness?.attestations?.[id];
   return a?.at
@@ -143,7 +157,8 @@ export function evaluateReadiness(plan, { pathStatus = "none", stageViews = [], 
     const title = `Stage ${s.id.slice(1)} content (${s.release})`;
     if (st === "registry-verified") checks.push(check(`content-${s.id}`, "VERIFIED", title, "Mirrored into the destination registry and every mapped image confirmed present there."));
     else if (st === "in-registry-unverified") checks.push(check(`content-${s.id}`, "WARNING", title, "Mirrored into the registry, but not confirmed by a destination check. Run it again with the destination check, or verify manually."));
-    else checks.push(check(`content-${s.id}`, "BLOCKED", title, st === "mirrored-to-disk" || st === "transfer-prepared" ? "Mirrored to disk; not yet loaded into the disconnected registry." : "Not mirrored yet."));
+    else if (st === "profile-missing") checks.push(check(`content-${s.id}`, "BLOCKED", title, "This stage has no Mirroring profile. Prepare the stages again (or receive this stage's transfer)."));
+    else checks.push(check(`content-${s.id}`, "PENDING", title, st === "mirrored-to-disk" || st === "transfer-prepared" ? "To do: mirrored to disk; not yet loaded into the disconnected registry." : st === "transfer-received" ? "To do: received; load it into the registry with disk to mirror." : "To do: not mirrored yet."));
     if (sig && sig.exists === false) checks.push(check(`signatures-${s.id}`, "BLOCKED", `Stage ${s.id.slice(1)} release signatures`, "The run produced no signature-configmap in cluster-resources (oc-mirror only warns when it cannot). Without it, the cluster cannot verify the release."));
     else if (sig && sig.exists) checks.push(check(`signatures-${s.id}`, "VERIFIED", `Stage ${s.id.slice(1)} release signatures`, `signature-configmap found at ${sig.path}.`));
   }
@@ -169,12 +184,14 @@ export function evaluateReadiness(plan, { pathStatus = "none", stageViews = [], 
   }
 
   const blocked = checks.filter((c) => c.state === "BLOCKED");
+  const pending = checks.filter((c) => c.state === "PENDING");
   const notChecked = checks.filter((c) => c.state === "NOT_CHECKED");
   return {
     checks,
     summary: {
-      state: blocked.length ? "blocked" : notChecked.length ? "incomplete" : "ready-to-proceed",
+      state: blocked.length ? "blocked" : pending.length || notChecked.length ? "incomplete" : "ready-to-proceed",
       blocked: blocked.length,
+      pending: pending.length,
       notChecked: notChecked.length,
       warnings: checks.filter((c) => c.state === "WARNING").length,
       attested: checks.filter((c) => c.state === "ATTESTED").length,

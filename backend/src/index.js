@@ -6244,6 +6244,47 @@ const applyUpgradeMirrorToStages = (plan, previous, next) => {
   return { ok: true, report };
 };
 
+/**
+ * Copy one stage's operator selection to later stages (v2.3.0 UX), version-aware: each target
+ * gets the same packages from ITS OWN minor's catalog (redhat-operator-index:v4.NN), as
+ * selections to be resolved by that stage's catalog scan / Live catalog check. A selection
+ * the target already has is never changed or removed; the source stage is never modified.
+ */
+const copyUpgradeStageOperators = (plan, fromStageId, toStageIds) => {
+  const slice = readMirroringSlice();
+  const from = plan.stages.find((s) => s.id === fromStageId);
+  const src = from && slice.profiles[from.profileId];
+  if (!src || src.ownedBy?.planId !== plan.id) return { ok: false, status: 404, json: { error: "No such stage in this plan.", code: "STAGE_NOT_FOUND" } };
+  const fromIndex = plan.stages.indexOf(from);
+  const targets = plan.stages.filter((s, i) => (toStageIds?.length ? toStageIds.includes(s.id) : i > fromIndex) && s.id !== fromStageId);
+  const report = [];
+  for (const t of targets) {
+    const p = slice.profiles[t.profileId];
+    if (!p || p.ownedBy?.planId !== plan.id) { report.push({ stageId: t.id, skipped: "no stage profile" }); continue; }
+    if (mirroringProfileRunning(p.id)) return { ok: false, status: 409, json: { error: `Stage ${t.id.slice(1)} is running; try again when it has finished.`, code: "STAGE_RUNNING" } };
+  }
+  for (const t of targets) {
+    const p = slice.profiles[t.profileId];
+    if (!p || p.ownedBy?.planId !== plan.id) continue;
+    const selected = [...p.operators.selected];
+    const added = [];
+    const kept = [];
+    for (const op of src.operators.selected) {
+      if (typeof op.catalogImage !== "string" || !/:v\d+\.\d+$/.test(op.catalogImage)) continue;
+      const catalogImage = op.catalogImage.replace(/:v\d+\.\d+$/, `:v${t.minor}`);
+      if (selected.some((o) => o.name === op.name && o.catalogImage === catalogImage)) { kept.push(op.name); continue; }
+      selected.push({ id: `${catalogImage}::${op.name}`, name: op.name, catalog: op.catalog, catalogImage, defaultChannel: op.defaultChannel || null, sources: [`upgrade:copied-from-${fromStageId}`] });
+      added.push(op.name);
+    }
+    if (added.length) {
+      slice.profiles[p.id] = normalizeProfile({ ...p, content: { ...p.content, operators: true }, operators: { ...p.operators, catalogMinor: t.minor, catalogMinorSource: "platform", selected }, updatedAt: Date.now() }, p.id);
+    }
+    report.push({ stageId: t.id, added, kept });
+  }
+  writeMirroringSlice(slice);
+  return { ok: true, report };
+};
+
 const upgradeApi = registerUpgradeRoutes(app, {
   validateBody,
   readUpgradeSlice,
@@ -6259,6 +6300,7 @@ const upgradeApi = registerUpgradeRoutes(app, {
   buildArtifacts: buildUpgradeArtifacts,
   applyIntentToStages: applyUpgradeIntentToStages,
   applyMirrorToStages: applyUpgradeMirrorToStages,
+  copyStageOperators: copyUpgradeStageOperators,
   sequenceRunning: (planId) => { const id = runningUpgradeSequences.get(planId); return id && !isTerminalJobStatus(getJob(id)?.status) ? id : null; },
   previewDeletion: (plan) => {
     const owned = Object.values(readMirroringSlice().profiles).filter((p) => p.ownedBy?.planId === plan.id);

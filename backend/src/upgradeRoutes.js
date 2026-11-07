@@ -90,6 +90,7 @@ export const upgradeMirrorSettingsSchema = z.object({
   method: z.enum(MIRROR_METHODS).optional(),
   catalogTag: z.enum(CATALOG_TAG_MODES).optional()
 }).strict();
+export const upgradeCopyOperatorsSchema = z.object({ toStageIds: z.array(z.string().regex(/^s\d{1,2}$/)).max(8).optional() }).strict();
 export const upgradeActiveSchema = z.object({ planId: z.string().max(40).nullable() }).strict();
 const secretText = z.string().min(2).max(65536);
 export const upgradeSequenceSchema = z.object({
@@ -134,7 +135,7 @@ export const defaultPlanningChannel = (plan) => {
 };
 
 export function registerUpgradeRoutes(app, deps) {
-  const { validateBody, readUpgradeSlice, writeUpgradeSlice, isHighSide, describePlanExtras = () => ({}), onPlanDeleted = () => ({ ok: true, report: {} }), materializeStages = null, previewDeletion = () => ({}), previewSequence = null, startSequence = null, sequenceRunning = () => null, stageEvidence = () => ({ clusterResources: {}, signatureEvidence: {} }), buildArtifacts = null, applyIntentToStages = null, applyMirrorToStages = null, checkSequenceDestination = null } = deps;
+  const { validateBody, readUpgradeSlice, writeUpgradeSlice, isHighSide, describePlanExtras = () => ({}), onPlanDeleted = () => ({ ok: true, report: {} }), materializeStages = null, previewDeletion = () => ({}), previewSequence = null, startSequence = null, sequenceRunning = () => null, stageEvidence = () => ({ clusterResources: {}, signatureEvidence: {} }), buildArtifacts = null, applyIntentToStages = null, applyMirrorToStages = null, checkSequenceDestination = null, copyStageOperators = null } = deps;
 
   const loadPlan = (req, res) => {
     const id = planIdParam(req, res);
@@ -215,6 +216,18 @@ export function registerUpgradeRoutes(app, deps) {
     }
     const saved = savePlan(slice, { ...plan, mirror: next });
     res.json({ plan: describePlan(saved), report });
+  });
+
+  /** Copy a stage's operators to later stages, each from its own minor's catalog (never changes existing selections). */
+  app.post("/api/upgrade/plans/:id/stages/:stageId/copy-operators", validateBody(upgradeCopyOperatorsSchema), (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    if (loaded.plan.kind === "received") return res.status(409).json({ error: "A received plan is read-only.", code: "PLAN_READ_ONLY" });
+    if (!/^s\d{1,2}$/.test(req.params.stageId)) return res.status(400).json({ error: "Invalid stage id.", code: "STAGE_ID_INVALID" });
+    if (!copyStageOperators) return res.status(501).json({ error: "Not available.", code: "NOT_AVAILABLE" });
+    const out = copyStageOperators(loaded.plan, req.params.stageId, req.body.toStageIds);
+    if (!out.ok) return res.status(out.status).json(out.json);
+    res.json({ plan: describePlan(readUpgradeSlice().plans.find((p) => p.id === loaded.plan.id)), report: out.report });
   });
 
   app.post("/api/upgrade/plans/:id", validateBody(upgradePlanUpdateSchema), (req, res) => {
