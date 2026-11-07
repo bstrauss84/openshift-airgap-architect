@@ -22,6 +22,9 @@ import { evaluateReadiness, ATTESTABLE } from "./upgradeReadiness.js";
 import { projectInventory, InventoryError, INVENTORY_KINDS, INVENTORY_COMMANDS } from "./upgradeInventory.js";
 import { buildInstructions } from "./upgradeInstructions.js";
 import { analyzePresetFiles, OPERATOR_CATEGORIES } from "./upgradePresets.js";
+import { normalizeRegistryReference } from "../../shared/registryReference.js";
+import { registryReferenceField } from "./schemas.js";
+import { MIRROR_METHODS, CATALOG_TAG_MODES } from "./upgradeState.js";
 
 const planIdParam = (req, res) => {
   if (!isValidPlanId(req.params.id)) { res.status(400).json({ error: "Invalid plan id.", code: "PLAN_ID_INVALID" }); return null; }
@@ -81,12 +84,20 @@ export const upgradeIntentSchema = z.object({
   replaceConfirmed: z.boolean().optional()
 }).strict();
 export const upgradeIntentApplySchema = z.object({ keys: z.array(z.string().max(300)).max(300), includeImages: z.boolean().optional() }).strict();
+/** Plan-level mirroring settings (v2.3.0 UX): one registry reference and method reused by every stage, the instructions and templates. Never credentials. */
+export const upgradeMirrorSettingsSchema = z.object({
+  registryUrl: z.string().max(2048).nullable().optional(),
+  method: z.enum(MIRROR_METHODS).optional(),
+  catalogTag: z.enum(CATALOG_TAG_MODES).optional()
+}).strict();
 export const upgradeActiveSchema = z.object({ planId: z.string().max(40).nullable() }).strict();
 const secretText = z.string().min(2).max(65536);
 export const upgradeSequenceSchema = z.object({
   mode: z.enum(["mirrorToDisk", "mirrorToMirror"]),
   stageIds: z.array(z.string().regex(/^s[0-9]{1,2}$/)).max(8).optional(),
-  registryUrl: z.string().max(2048).optional(),
+  registryUrl: registryReferenceField.optional(),
+  // Catalog tags the user saw would be replaced and accepted, by exact destination reference.
+  acknowledgedOverwrites: z.array(z.string().max(600)).max(100).optional(),
   rhAuthSource: z.enum(["inline", "mounted"]).optional(),
   rhPullSecret: secretText.optional(),
   mirrorPullSecret: secretText.optional(),
@@ -123,7 +134,7 @@ export const defaultPlanningChannel = (plan) => {
 };
 
 export function registerUpgradeRoutes(app, deps) {
-  const { validateBody, readUpgradeSlice, writeUpgradeSlice, isHighSide, describePlanExtras = () => ({}), onPlanDeleted = () => ({ ok: true, report: {} }), materializeStages = null, previewDeletion = () => ({}), previewSequence = null, startSequence = null, sequenceRunning = () => null, stageEvidence = () => ({ clusterResources: {}, signatureEvidence: {} }), buildArtifacts = null, applyIntentToStages = null } = deps;
+  const { validateBody, readUpgradeSlice, writeUpgradeSlice, isHighSide, describePlanExtras = () => ({}), onPlanDeleted = () => ({ ok: true, report: {} }), materializeStages = null, previewDeletion = () => ({}), previewSequence = null, startSequence = null, sequenceRunning = () => null, stageEvidence = () => ({ clusterResources: {}, signatureEvidence: {} }), buildArtifacts = null, applyIntentToStages = null, applyMirrorToStages = null, checkSequenceDestination = null } = deps;
 
   const loadPlan = (req, res) => {
     const id = planIdParam(req, res);
@@ -174,6 +185,36 @@ export function registerUpgradeRoutes(app, deps) {
     if (planId !== null && !slice.plans.some((p) => p.id === planId)) return res.status(404).json({ error: "No such upgrade plan.", code: "PLAN_NOT_FOUND" });
     writeUpgradeSlice({ ...slice, activePlanId: planId });
     res.json({ activePlanId: planId });
+  });
+
+  /**
+   * Plan mirroring settings: the registry reference and method entered once and reused by every
+   * stage (unless a stage was deliberately given its own), the sequence, instructions and templates.
+   * The reference is validated and normalized here; it can never carry a credential.
+   */
+  app.post("/api/upgrade/plans/:id/mirror", validateBody(upgradeMirrorSettingsSchema), (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    const { slice, plan } = loaded;
+    const next = { ...plan.mirror };
+    if ("registryUrl" in req.body) {
+      if (req.body.registryUrl === null || !req.body.registryUrl.trim()) next.registryUrl = null;
+      else {
+        const r = normalizeRegistryReference(req.body.registryUrl);
+        if (!r.ok) return res.status(400).json({ error: r.reason, code: r.code });
+        next.registryUrl = r.value;
+      }
+    }
+    if (req.body.method) next.method = req.body.method;
+    if (req.body.catalogTag) next.catalogTag = req.body.catalogTag;
+    let report = [];
+    if ((next.registryUrl !== plan.mirror.registryUrl || next.catalogTag !== plan.mirror.catalogTag) && applyMirrorToStages) {
+      const applied = applyMirrorToStages(plan, plan.mirror, next);
+      if (!applied.ok) return res.status(applied.status).json(applied.json);
+      report = applied.report;
+    }
+    const saved = savePlan(slice, { ...plan, mirror: next });
+    res.json({ plan: describePlan(saved), report });
   });
 
   app.post("/api/upgrade/plans/:id", validateBody(upgradePlanUpdateSchema), (req, res) => {
@@ -250,12 +291,25 @@ export function registerUpgradeRoutes(app, deps) {
   });
 
   /** Start a reviewed sequence (explicit confirmation token required). */
-  app.post("/api/upgrade/plans/:id/sequence", validateBody(upgradeSequenceSchema), (req, res) => {
+  /**
+   * Read-only destination check before a mirror-to-mirror operation: which catalog tags would be
+   * replaced. Uses destination credentials for this request only (temporary auth file removed after).
+   */
+  app.post("/api/upgrade/plans/:id/sequence/destination-check", validateBody(upgradeSequenceSchema), async (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    if (!checkSequenceDestination) return res.status(501).json({ error: "Not available.", code: "NOT_AVAILABLE" });
+    const { rhPullSecret: _a, ...scope } = req.body;
+    const out = await checkSequenceDestination(loaded.plan, scope, { mirrorPullSecret: req.body.mirrorPullSecret, destinationAuth: req.body.destinationAuth });
+    res.status(out.ok ? 200 : out.status).json(out.json);
+  });
+
+  app.post("/api/upgrade/plans/:id/sequence", validateBody(upgradeSequenceSchema), async (req, res) => {
     const loaded = loadPlan(req, res);
     if (!loaded) return;
     if (!startSequence) return res.status(501).json({ error: "Not available.", code: "NOT_AVAILABLE" });
     if (!req.body.previewToken) return res.status(400).json({ error: "Review the sequence first; starting it needs the reviewed scope.", code: "SEQUENCE_NOT_REVIEWED" });
-    const out = startSequence(loaded.plan, req.body);
+    const out = await startSequence(loaded.plan, req.body);
     res.status(out.ok ? 202 : out.status).json(out.json);
   });
 
@@ -325,7 +379,13 @@ export function registerUpgradeRoutes(app, deps) {
     const loaded = loadPlan(req, res);
     if (!loaded) return;
     const { readiness, evidence } = readinessFor(loaded.plan);
-    const registry = typeof req.query.registry === "string" && /^[A-Za-z0-9.\-:/_]{1,512}$/.test(req.query.registry) ? req.query.registry : evidence.registry || "";
+    // The plan's registry is the single source; an explicit ?registry= (validated, never echoed) or run evidence may stand in.
+    let registry = loaded.plan.mirror?.registryUrl || evidence.registry || "";
+    if (typeof req.query.registry === "string" && req.query.registry.trim()) {
+      const r = normalizeRegistryReference(req.query.registry);
+      if (!r.ok) return res.status(400).json({ error: r.reason, code: r.code });
+      registry = r.value;
+    }
     const out = buildInstructions(loaded.plan, { readiness, registry, clusterResources: evidence.clusterResources });
     if (!out.ok) return res.status(409).json({ error: out.message, code: out.code });
     res.json(out);

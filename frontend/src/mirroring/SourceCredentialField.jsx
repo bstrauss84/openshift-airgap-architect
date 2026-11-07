@@ -23,7 +23,7 @@ import SecretInput from "../components/SecretInput.jsx";
 import OptionRow from "../components/OptionRow.jsx";
 import Switch from "../components/Switch.jsx";
 import { registriesIn } from "../shared/registryAuth.js";
-import { useSourceCredential, SITE_LABEL } from "./sourceCredentialSession.js";
+import { useSourceCredential, SITE_LABEL, isPlanContext } from "./sourceCredentialSession.js";
 
 export const RED_HAT_PULL_SECRET_URL = "https://console.redhat.com/openshift/install/pull-secret";
 
@@ -43,9 +43,9 @@ export default function SourceCredentialField({ profileId, site, idPrefix, label
       <div className="mirroring-source-cred" role="group" aria-label={label} id={`${idPrefix}-source-credential`}>
         <p className="note subtle mirroring-source-cred-status" role="status">
           {entry.mounted
-            ? <><strong>Using the pull secret mounted into the container</strong> for this profile in this browser session.</>
-            : <><strong>{label} entered for this profile</strong> (registries: {covers(entry.secret)}){entry.enteredFor !== site ? `, entered for ${SITE_LABEL[entry.enteredFor] || "another step"}` : ""}.</>}
-          {" "}Kept in this page only — never saved, gone after a reload — and used for this profile&apos;s scans, catalog checks and runs where you accept it.
+            ? <><strong>Using the pull secret mounted into the container</strong> for this {isPlanContext(profileId) ? "plan" : "profile"} in this browser session.</>
+            : <><strong>{label} entered for this {isPlanContext(profileId) ? "plan" : "profile"}</strong> (registries: {covers(entry.secret)}){entry.enteredFor !== site ? `, entered for ${SITE_LABEL[entry.enteredFor] || "another step"}` : ""}.</>}
+          {" "}Kept in this page only — never saved, gone after a reload — and {isPlanContext(profileId) ? "used for this Upgrade plan's catalog scans, catalog checks and runs (no other plan or Mirroring profile)" : "used for this profile's scans, catalog checks and runs where you accept it"}.
         </p>
         <div className="actions mirroring-source-cred-actions">
           <Button variant="secondary" className="mini" onClick={() => setReplacing(true)}>Replace</Button>

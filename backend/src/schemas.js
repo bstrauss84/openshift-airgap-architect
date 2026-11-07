@@ -13,6 +13,13 @@ import { z } from "zod";
 import logger, { generateErrorId } from "./logger.js";
 import { OC_MIRROR_CLI_LIMITS } from "../../shared/ocMirrorCliLimits.js";
 import { GO_DURATION_RE, SINCE_DATE_RE, RUN_LOG_LEVELS } from "./mirroringState.js";
+import { isValidRegistryReference } from "../../shared/registryReference.js";
+
+/** v2.3.0 (owner refinement 5): a registry reference is host[:port]/path — never a credential carrier. Empty is allowed (not chosen yet). */
+export const registryReferenceField = z.string().max(2048).refine(
+  (v) => v.trim() === "" || isValidRegistryReference(v),
+  "Use host[:port]/path (an optional docker:// prefix is fine). A registry reference cannot contain a scheme, \"@\", user names, passwords, tokens, query strings or spaces; registry credentials are entered separately."
+);
 
 // ===================================================================
 // ERROR WORDING — stable across the Zod 3 → 4 migration (F20)
@@ -198,7 +205,7 @@ export const ocMirrorPreflightSchema = z.object({
   archivePath: z.string().optional(),
   workspacePath: z.string().optional(),
   cachePath: z.string().optional(),
-  registryUrl: z.string().max(2048).optional(),
+  registryUrl: registryReferenceField.optional(),
   configSourceType: z.enum(["generated", "uploaded"]).default("generated"),
   configPath: z.string().optional(),
   rhAuthSource: z.enum(["inline", "mounted"]).optional(),
@@ -240,7 +247,7 @@ export const ocMirrorRunSchema = z.object({
   archivePath: z.string().optional(), // Required for disk modes but not mirrorToMirror
   workspacePath: z.string().optional(),
   cachePath: z.string().optional(),
-  registryUrl: z.string().max(2048).optional(),
+  registryUrl: registryReferenceField.optional(),
   configSourceType: z.enum(["generated", "uploaded"]).default("generated"),
   configPath: z.string().optional(),
   rhAuthSource: z.enum(["inline", "mounted"]).optional(),
@@ -534,7 +541,7 @@ export const mirroringProfileWriteSchema = z.object({
   }).strict().optional(),
   execution: z.object({
     mode: z.enum(["mirrorToDisk", "diskToMirror", "mirrorToMirror"]).optional(),
-    registryUrl: z.string().max(2048).optional(),
+    registryUrl: registryReferenceField.optional(),
     // M5: oc-mirror options kept with the profile for its runs; null clears one.
     options: z.object({
       parallelImages: z.number().int().min(OC_MIRROR_CLI_LIMITS.parallelImages.min).max(OC_MIRROR_CLI_LIMITS.parallelImages.max).nullable().optional(),
@@ -610,7 +617,7 @@ export const mirroringRetrySchema = z.object({
   mirrorPullSecret: pullSecretSchema.optional(),
   // v2.3.0 N4: the explicit anonymous-destination choice (the server supplies the OKD placeholder).
   destinationAuth: z.enum(["credentials", "anonymous"]).optional(),
-  registryUrl: z.string().max(2048).optional(),
+  registryUrl: registryReferenceField.optional(),
   isolateNetwork: z.boolean().optional()
 }).strict();
 

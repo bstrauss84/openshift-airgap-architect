@@ -9,6 +9,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic).
  */
+import { normalizeRegistryReference } from "../../shared/registryReference.js";
 import crypto from "node:crypto";
 import { PLANNING_CHANNEL_RE, GRAPH_ARCHES, gaVersion } from "../../shared/upgradePath.js";
 
@@ -17,6 +18,11 @@ export const MAX_PLANS = 20;
 export const MAX_STAGES = 8;
 export const UPDATE_METHODS = Object.freeze(["osus", "cli", "web"]);
 export const STRATEGIES = Object.freeze(["standard", "cpo"]);
+/** How a plan's stages are mirrored by default (v2.3.0 UX: entered once, per plan). */
+export const MIRROR_METHODS = Object.freeze(["mirrorToDisk", "mirrorToMirror", "diskToMirror"]);
+export const CATALOG_TAG_MODES = Object.freeze(["source", "plan"]);
+/** The plan-specific catalog tag for a stage minor: deterministic, lowercase, OCI-valid. */
+export const planCatalogTag = (planId, minor) => `v${minor}-oaa-${String(planId).slice(2).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12)}`;
 export const CHANNEL_STRATEGIES = Object.freeze(["per-minor", "single"]);
 
 const PLAN_ID_RE = /^u-[A-Za-z0-9_-]{8,32}$/;
@@ -143,6 +149,15 @@ export const normalizePlan = (p) => {
     channelStrategy: oneOf(p?.channelStrategy, CHANNEL_STRATEGIES, "per-minor"),
     method: oneOf(p?.method, UPDATE_METHODS, "osus"),
     graphSource: oneOf(p?.graphSource, ["public", "imported"], "public"),
+    // One registry reference and mirroring method for the whole plan (v2.3.0 UX). A stored value that
+    // is not a clean host[:port]/path (never credentials) is dropped rather than kept.
+    mirror: {
+      registryUrl: typeof p?.mirror?.registryUrl === "string" && normalizeRegistryReference(p.mirror.registryUrl).ok ? normalizeRegistryReference(p.mirror.registryUrl).value : null,
+      method: oneOf(p?.mirror?.method, MIRROR_METHODS, p?.kind === "received" ? "diskToMirror" : "mirrorToDisk"),
+      // "source": catalogs keep their source tag (oc-mirror replaces whatever that tag held in the registry);
+      // "plan": each stage writes its catalog under a plan-specific tag, leaving existing consumers untouched.
+      catalogTag: oneOf(p?.mirror?.catalogTag, CATALOG_TAG_MODES, "source")
+    },
     conditionalReview: {
       enabled: Boolean(p?.conditionalReview?.enabled),
       // Administrator judgment, recorded as such: never proof of cluster-specific safety.

@@ -109,7 +109,9 @@ const useNarrow = (query = "(max-width: 900px)") => {
   return narrow;
 };
 
-const OperatorsSection = ({ profile, onProfileChanged, onProfilesChanged = null, onShowOperations = null, onShowOperation = null }) => {
+const OperatorsSection = ({ profile, onProfileChanged, onProfilesChanged = null, onShowOperations = null, onShowOperation = null, credentialKey = null }) => {
+  // v2.3.0 D-2: an Upgrade plan passes its one credential context; Mirroring keeps the profile's own.
+  const credKey = credentialKey || profile.id;
   const followsPlatform = profile.content.platform === true;
   const platformMinor = followsPlatform
     ? getOpenShiftMinorFromSources(profile.platform.release, profile.platform.version)
@@ -123,7 +125,7 @@ const OperatorsSection = ({ profile, onProfileChanged, onProfilesChanged = null,
   const catalogMinor = followsPlatform ? profile.operators.catalogMinor : localMinor;
   // The profile's Red Hat source credential for this session (R-UX02): explicit
   // here, reusable for the catalog check and runs only where accepted.
-  const scanCred = useSourceCredential(profile.id, "scan");
+  const scanCred = useSourceCredential(credKey, "scan");
   const [saveError, setSaveError] = useState("");
   const [pendingMinor, setPendingMinor] = useState(null);
   const [reconciling, setReconciling] = useState(false);
@@ -416,7 +418,7 @@ const OperatorsSection = ({ profile, onProfileChanged, onProfilesChanged = null,
                 : `No scanned catalogs for OpenShift ${catalogMinor} yet. A scan reads the three catalog index images from Red Hat registries and takes several minutes. On a machine without internet access, scan on a connected machine instead.`}
           </p>
           <SourceCredentialField
-            profileId={profile.id}
+            profileId={credKey}
             site="scan"
             idPrefix={`mirroring-scan-${profile.id}`}
             label="Red Hat pull secret for this scan"
@@ -500,6 +502,7 @@ const OperatorsSection = ({ profile, onProfileChanged, onProfilesChanged = null,
         </div>
         <div className="mirroring-operator-selected" hidden={narrow && pane !== "selected"}>
           <SelectedOperatorsPanel
+            credentialKey={credKey}
             id={`mirroring-selected-${profile.id}`}
             profile={profile}
             selected={selected}

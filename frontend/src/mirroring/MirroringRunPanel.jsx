@@ -46,7 +46,7 @@ import {
 } from "./mirroringApi.js";
 import SourceCredentialField from "./SourceCredentialField.jsx";
 import DestinationCredentialsField from "./DestinationCredentialsField.jsx";
-import { useSourceCredential } from "./sourceCredentialSession.js";
+import { useSourceCredential, useDestinationCredential } from "./sourceCredentialSession.js";
 import { WorkflowChooser, ReceiveTransferForm, modeAvailability, AirGapSteps, airGapProgress } from "./HighSideControls.jsx";
 import {
   ARCHIVE_SIZE_HINT,
@@ -169,7 +169,15 @@ const formatTime = (ms) => (ms ? new Date(ms).toLocaleString() : "—");
 /** Last lines of a job's output, as plain text (oc-mirror colours its log with ANSI codes). */
 const tail = (output, lines = 40) => String(output || "").replace(/\x1b\[[0-9;]*m/g, "").split("\n").slice(-lines).join("\n");
 
-export default function MirroringRunPanel({ profile, onProfileChanged, onProfilesChanged, onShowOperation = null, requestDestinationCheck = false }) {
+const MODE_TEXT = { mirrorToDisk: "mirror to disk", mirrorToMirror: "mirror to mirror", diskToMirror: "disk to mirror" };
+
+/**
+ * `managed` (v2.3.0 Upgrade, opt-in): { method, credentialKey, settingsHint } — the method, the
+ * Red Hat pull secret, the destination credentials and the default registry come from the Upgrade
+ * plan, entered once there. Preflight, options, run, log, transfer and receive are unchanged.
+ * Mirroring passes nothing and behaves exactly as before.
+ */
+export default function MirroringRunPanel({ profile, onProfileChanged, onProfilesChanged, onShowOperation = null, requestDestinationCheck = false, managed = null }) {
   const idPrefix = `mirroring-run-${profile.id}`;
   const [attempted, setAttempted] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -177,7 +185,8 @@ export default function MirroringRunPanel({ profile, onProfileChanged, onProfile
   // Credentials: in memory for this page only, never written to the profile.
   // The Red Hat source credential is the profile's session credential (R-UX02).
   const [mountedAvailable, setMountedAvailable] = useState(false);
-  const sourceCred = useSourceCredential(profile.id, "run");
+  const sourceCred = useSourceCredential(managed?.credentialKey || profile.id, "run");
+  const destCred = useDestinationCredential(managed?.credentialKey || null);
 
   const [dryRun, setDryRun] = useState(false);
   // One run that contains everything (a new baseline), instead of only what changed.
@@ -195,16 +204,24 @@ export default function MirroringRunPanel({ profile, onProfileChanged, onProfile
   const availability = modeAvailability(profile);
   const initialMode = profile.kind === "received" ? "diskToMirror"
     : (!availability[profile.execution?.mode] && profile.execution?.mode) || "mirrorToDisk";
-  const [mode, setMode] = useState(initialMode);
+  const [ownMode, setMode] = useState(initialMode);
+  // Managed: the plan's method, unless this stage cannot use it yet (e.g. disk to mirror before a transfer arrived).
+  const managedModeUnavailable = Boolean(managed && availability[managed.method]);
+  const mode = managed && !managedModeUnavailable ? managed.method : ownMode;
   const [registryUrl, setRegistryUrl] = useState(profile.execution?.registryUrl || "");
+  // Managed: the plan propagates its registry into the stage; follow it when it changes.
+  useEffect(() => { if (managed) setRegistryUrl(profile.execution?.registryUrl || ""); }, [managed ? profile.execution?.registryUrl : null]); // eslint-disable-line react-hooks/exhaustive-deps
   const [registryTouched, setRegistryTouched] = useState(false);
-  const [mirrorSecret, setMirrorSecret] = useState("");
+  const [overrideRegistry, setOverrideRegistry] = useState(false);
+  const [ownMirrorSecret, setMirrorSecret] = useState("");
   // Anonymous destination: the OKD placeholder for the destination host (as Install offers).
-  const [mirrorAnonymous, setMirrorAnonymous] = useState(false);
+  const [ownMirrorAnonymous, setMirrorAnonymous] = useState(false);
+  const mirrorSecret = managed ? destCred.secret : ownMirrorSecret;
+  const mirrorAnonymous = managed ? destCred.anonymous : ownMirrorAnonymous;
   const [receivedPlanId, setReceivedPlanId] = useState(profile.received?.at(-1)?.planId || "");
   const [isolateNetwork, setIsolateNetwork] = useState(true);
   const [transferJobId, setTransferJobId] = useState(null);
-  useEffect(() => { if (availability[mode]) setMode(initialMode); }, [profile.kind, profile.received?.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (availability[ownMode]) setMode(initialMode); }, [profile.kind, profile.received?.length]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setReceivedPlanId((cur) => (profile.received?.some((r) => r.planId === cur) ? cur : profile.received?.at(-1)?.planId || "")); }, [profile.received]);
   const needsRegistry = mode !== "mirrorToDisk";
   const registryError = needsRegistry
@@ -377,6 +394,14 @@ export default function MirroringRunPanel({ profile, onProfileChanged, onProfile
 
   return (
     <>
+      {managed ? (
+        <p className="note subtle mirroring-managed-note" role="status">
+          {managedModeUnavailable
+            ? <>The plan&apos;s method is not available for this stage yet: {availability[managed.method]} This stage uses {MODE_TEXT[mode] || mode} until then.</>
+            : <>{managed.settingsHint || "Method, credentials and registry come from the plan."}</>}
+        </p>
+      ) : null}
+      {!managed ? (
       <section className="card" aria-labelledby={`${idPrefix}-workflow-heading`}>
         <h3 id={`${idPrefix}-workflow-heading`}>Choose the mirroring workflow</h3>
         <p className="subtle mirroring-card-subtitle">What this run does. The credentials, options and transfer steps below follow your choice.</p>
@@ -394,16 +419,33 @@ export default function MirroringRunPanel({ profile, onProfileChanged, onProfile
           ) : null}
         </div>
       </section>
+      ) : null}
 
+      {managed && needsRegistry ? (
+        <section className="card" aria-labelledby={`${idPrefix}-destination-heading`}>
+          <h3 id={`${idPrefix}-destination-heading`}>Destination for this stage</h3>
+          <div className="card-body">
+            {!overrideRegistry ? (
+              <p className="subtle" role="status">
+                {registryUrl ? <>Pushes to <code>{registryUrl}</code>.</> : <>No destination registry yet: set the plan&apos;s mirror registry.</>}{" "}
+                <Button variant="secondary" className="mini" onClick={() => setOverrideRegistry(true)} disabled={running}>Use a different registry for this stage…</Button>
+              </p>
+            ) : null}
+            <p className="subtle">Registry credentials: {destCred.ready ? (destCred.anonymous ? "anonymous access, chosen for this plan." : "entered for this plan.") : "not entered — enter them in the plan's mirroring settings."}</p>
+          </div>
+        </section>
+      ) : null}
+
+      {!managed || overrideRegistry ? (
       <section className="card" aria-labelledby={`${idPrefix}-credentials-heading`}>
-        <h3 id={`${idPrefix}-credentials-heading`}>{needsRegistry ? "Credentials and destination for this run" : "Credentials for this run"}</h3>
+        <h3 id={`${idPrefix}-credentials-heading`}>{managed ? "A different registry for this stage" : needsRegistry ? "Credentials and destination for this run" : "Credentials for this run"}</h3>
         <p className="subtle mirroring-card-subtitle">Used for the catalog check, preflight and run on this page only. Never saved in the profile, its plans or its history.</p>
         <div className="card-body">
-          <p className="note mirroring-needs" role="status" aria-live="polite">{workflowNeeds}</p>
-          {mode === "diskToMirror" ? (
+          {!managed ? <p className="note mirroring-needs" role="status" aria-live="polite">{workflowNeeds}</p> : <p className="subtle">This stage only: it no longer follows the plan&apos;s registry. Credentials still come from the plan.</p>}
+          {!managed && mode === "diskToMirror" ? (
             <p className="note subtle">Disk to mirror pulls nothing from the source registries, so no Red Hat pull secret is needed. Provide the destination registry&apos;s credentials below.</p>
           ) : null}
-          {mode !== "diskToMirror" ? (
+          {!managed && mode !== "diskToMirror" ? (
             <SourceCredentialField
               profileId={profile.id}
               site="run"
@@ -440,7 +482,7 @@ export default function MirroringRunPanel({ profile, onProfileChanged, onProfile
               </div>
             </div>
           ) : null}
-          {needsRegistry ? (
+          {!managed && needsRegistry ? (
             <DestinationCredentialsField
               idPrefix={idPrefix}
               registryUrl={registryUrl}
@@ -455,6 +497,7 @@ export default function MirroringRunPanel({ profile, onProfileChanged, onProfile
           ) : null}
         </div>
       </section>
+      ) : null}
 
       <section className="card" aria-labelledby={`${idPrefix}-options-heading`}>
         <h3 id={`${idPrefix}-options-heading`}>Storage and run options</h3>

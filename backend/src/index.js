@@ -76,7 +76,7 @@ import { getMinorVersion } from "../../shared/versionUtils.js";
 import { createIntegrityTracker, MANIFEST_FILENAME } from "./exportIntegrity.js";
 import { trackTempArtifact, untrackTempArtifact, releaseAllTempArtifacts, listTempArtifacts } from "./tempArtifacts.js";
 import { SERVER_OWNED_SLICES, stripServerOwnedSlices, withServerOwnedSlices, workflowOfJobMetadata, planInstallReset } from "./workflowSlices.js";
-import { normalizeUpgradeSlice, emptyUpgradeSlice, unknownUpgradeSchema } from "./upgradeState.js";
+import { normalizeUpgradeSlice, emptyUpgradeSlice, unknownUpgradeSchema, planCatalogTag } from "./upgradeState.js";
 import { registerUpgradeRoutes, upgradeImportSchema } from "./upgradeRoutes.js";
 import { stageSpecs, stageContentStatus, PROFILE_ARCH, stageProfileFor } from "./upgradeStages.js";
 import { buildPackageDocument, verifyPackageDocument, PackageError, toolAcquisition, instructionsMarkdown, exportableReadiness } from "./upgradePackage.js";
@@ -115,7 +115,7 @@ import { readHistory, cycleRecord, cycleDecision, destinationKey } from "./mirro
 import { protectBeforeRun, keepRunArchives } from "./mirroringArchives.js";
 import { workspaceRegistriesDir, snapshotRegistriesD, restoreRegistriesD, restorePending, pendingSnapshot, parseSignatureErrors } from "./registriesDScope.js";
 import { classifyRecovery } from "./mirroringRecovery.js";
-import { verifyArchiveSet, parseMapping, verifyDestination } from "./mirroringVerify.js";
+import { verifyArchiveSet, parseMapping, verifyDestination, probeManifests } from "./mirroringVerify.js";
 import { openVerifiedCatalog } from "./verifiedCatalog.js";
 import { parseRegistryAuth, combineRegistryAuths, authFileDocument, RegistryAuthError } from "./registryAuth.js";
 import { operationOf, linkOperations, sanitizedLog, contentSummaryOf, runOutcome, readRunErrorFile, snapshotErrorFiles } from "./mirroringOperations.js";
@@ -5696,8 +5696,8 @@ const materializeUpgradeStages = (plan) => {
         name: `${plan.name} · stage ${spec.id.slice(1)} · ${spec.release}`.slice(0, 120),
         content: { platform: true, operators: false, additionalImages: false },
         platform: { release: { channel: spec.minor, patchVersion: spec.release }, architecture: profileArch, graph: spec.graph },
-        operators: { catalogMinor: spec.minor, catalogMinorSource: "platform", selected: [] },
-        execution: { mode: "mirrorToDisk" },
+        operators: { catalogMinor: spec.minor, catalogMinorSource: "platform", selected: [], catalogTargetTag: plan.mirror?.catalogTag === "plan" ? planCatalogTag(plan.id, spec.minor) : null },
+        execution: { mode: plan.mirror?.method === "mirrorToMirror" ? "mirrorToMirror" : "mirrorToDisk", registryUrl: plan.mirror?.registryUrl || "" },
         storageBase: newProfileStorageBase(mirrorStorage),
         ownedBy: { workflow: "upgrade", planId: plan.id, stageId: spec.id }
       }, id);
@@ -5789,7 +5789,56 @@ const sequenceScope = (plan, input) => {
   const stages = plan.stages.filter((s) => ids.includes(s.id));
   return { stages, unknown: ids.filter((id) => !plan.stages.some((s) => s.id === id)) };
 };
-const sequenceToken = (plan, input, stages) => crypto.createHash("sha256").update(JSON.stringify({ plan: plan.id, mode: input.mode, registryUrl: input.registryUrl || null, stages: stages.map((s) => [s.id, s.profileId, s.release]) })).digest("hex");
+const sequenceToken = (plan, input, rows) => crypto.createHash("sha256").update(JSON.stringify({ plan: plan.id, mode: input.mode, registryUrl: input.registryUrl || null, stages: rows.map((r) => [r.stageId, r.profileId || null, r.release, r.destination || null, r.operators ?? null]) })).digest("hex");
+/**
+ * What one mirror-to-mirror stage writes into the destination (v2.3.0, owner refinement 4).
+ * Release images use version-specific tags (a repeat writes identical, digest-pinned content).
+ * Catalogs: oc-mirror v2 pushes the filtered catalog to the source tag, or the plan-specific
+ * targetTag, and REPLACES what that tag held (verified on the exact binary).
+ */
+const stageRegistryWrites = (profile, stage, destination) => {
+  if (!destination) return null;
+  const dest = destination.replace(/^docker:\/\//, "").replace(/\/+$/, "");
+  const catalogs = profile.content.operators
+    ? [...new Set(profile.operators.selected.map((o) => o.catalogImage).filter((c) => typeof c === "string" && c.includes(`:v${stage.minor}`)))]
+    : [];
+  return {
+    releases: profile.content.platform ? [`${dest}/openshift/release-images:${stage.release}-*`, `${dest}/openshift/release:${stage.release}-*`] : [],
+    catalogs: catalogs.map((src) => {
+      const noHost = src.replace(/^[^/]+\//, "");
+      const [repo, srcTag] = noHost.split(":");
+      const tag = profile.operators.catalogTargetTag || srcTag;
+      return { source: src, destination: `${dest}/${repo}:${tag}`, tag, planSpecific: Boolean(profile.operators.catalogTargetTag) };
+    })
+  };
+};
+/** Destination credentials for a read-only manifest check; the temporary auth file never outlives the check. */
+const withDestinationAuth = async (creds, fn) => {
+  let authFile = null;
+  try {
+    if (creds.destinationAuth !== "anonymous" && creds.mirrorPullSecret) authFile = writeTempAuth(authFileDocument(parseRegistryAuth(creds.mirrorPullSecret, "destination registry credentials")));
+    return await fn(authFile);
+  } finally {
+    if (authFile) safeUnlink(authFile);
+  }
+};
+/** Which catalog tags this mirror-to-mirror operation would replace (exists true) or could not check (unknown). */
+const probeSequenceCatalogs = async (preview, creds) => {
+  const targets = preview.stages.flatMap((r) => (r.writes?.catalogs || []).map((c) => ({ stageId: r.stageId, release: r.release, ...c })));
+  if (!targets.length) return [];
+  const results = await withDestinationAuth(creds, (authFile) => probeManifests(targets.map((t) => t.destination), { authFile }));
+  return targets.map((t, i) => ({ ...t, exists: results[i]?.exists ?? "unknown", digest: results[i]?.digest || null, problem: results[i]?.problem || null }));
+};
+const checkUpgradeSequenceDestination = async (plan, input, creds) => {
+  const preview = previewUpgradeSequence(plan, input);
+  if (!preview.ok) return preview;
+  if (input.mode !== "mirrorToMirror") return { ok: true, json: { catalogs: [], token: preview.json.token } };
+  try {
+    return { ok: true, json: { catalogs: await probeSequenceCatalogs(preview.json, creds), token: preview.json.token } };
+  } catch (err) {
+    return { ok: false, status: 400, json: { error: String(err?.message || err).slice(0, 300), code: "DESTINATION_CHECK_FAILED" } };
+  }
+};
 const previewUpgradeSequence = (plan, input) => {
   if (!SEQUENCE_MODES.includes(input.mode)) return { ok: false, status: 400, json: { error: "A stage sequence runs mirror to disk or mirror to mirror. Disk to mirror runs one received transfer at a time.", code: "SEQUENCE_MODE_INVALID" } };
   const { stages, unknown } = sequenceScope(plan, input);
@@ -5803,12 +5852,17 @@ const previewUpgradeSequence = (plan, input) => {
       stageId: s.id, release: s.release, minor: s.minor, profileId: p.id, profileName: p.name,
       operators: p.content.operators ? p.operators.selected.length : 0,
       catalogMinor: p.content.operators ? p.operators.catalogMinor : null,
-      destination: input.mode === "mirrorToMirror" ? input.registryUrl || null : paths.archivePath,
+      // Mirror to mirror: the reviewed registry, else the stage's own (deliberately different) registry, else the plan's.
+      destination: input.mode === "mirrorToMirror" ? input.registryUrl || p.execution.registryUrl || plan.mirror?.registryUrl || null : paths.archivePath,
       workspace: paths.workspacePath,
-      cache: paths.cachePath
+      cache: paths.cachePath,
+      ...(input.mode === "mirrorToMirror" ? { writes: stageRegistryWrites(p, s, input.registryUrl || p.execution.registryUrl || plan.mirror?.registryUrl || null) } : {})
     };
   });
-  return { ok: true, json: { mode: input.mode, stages: rows, token: sequenceToken(plan, input, stages), stopsOnFirstFailure: true, preflightPerStage: true, clusterUnaffected: true } };
+  for (const r of rows) {
+    if (input.mode === "mirrorToMirror" && !r.problem && !r.destination) r.problem = "No destination registry: set the plan's mirror registry (Mirror & transfer).";
+  }
+  return { ok: true, json: { mode: input.mode, stages: rows, token: sequenceToken(plan, input, rows), stopsOnFirstFailure: true, preflightPerStage: true, clusterUnaffected: true } };
 };
 /** Stop one stage run exactly as POST /api/jobs/:id/stop does (recorded as cancelled, not failed). */
 const stopStageRun = (runId) => {
@@ -5826,16 +5880,26 @@ const waitForTerminal = async (jobId, shouldStop) => {
     await new Promise((r) => setTimeout(r, process.env.NODE_ENV === "test" ? 50 : 1000));
   }
 };
-const startUpgradeSequence = (plan, input) => {
+const credentials0 = (input) => ({ mirrorPullSecret: input.mirrorPullSecret, destinationAuth: input.destinationAuth });
+const startUpgradeSequence = async (plan, input) => {
   const preview = previewUpgradeSequence(plan, input);
   if (!preview.ok) return preview;
   if (input.previewToken !== preview.json.token) return { ok: false, status: 409, json: { error: "The stages, mode or destination changed after the sequence was reviewed. Review it again.", code: "SEQUENCE_SCOPE_CHANGED", preview: preview.json } };
   if (preview.json.stages.some((r) => r.problem)) return { ok: false, status: 409, json: { error: preview.json.stages.find((r) => r.problem).problem, code: "SEQUENCE_STAGE_INVALID" } };
+  // Owner refinement 4: never replace an existing catalog tag silently. Each tag that exists (or
+  // could not be checked) must be acknowledged by name in this request; checked again here, now.
+  if (input.mode === "mirrorToMirror") {
+    let catalogs;
+    try { catalogs = await probeSequenceCatalogs(preview.json, credentials0(input)); } catch (err) { return { ok: false, status: 400, json: { error: String(err?.message || err).slice(0, 300), code: "DESTINATION_CHECK_FAILED" } }; }
+    const acknowledged = new Set(input.acknowledgedOverwrites || []);
+    const unacknowledged = catalogs.filter((c) => c.exists !== false && !acknowledged.has(c.destination));
+    if (unacknowledged.length) return { ok: false, status: 409, json: { error: `${unacknowledged.length} catalog tag(s) already exist in the destination (or could not be checked) and would be replaced. Review and acknowledge each one, or write catalogs under a plan-specific tag.`, code: "CATALOG_OVERWRITE_NOT_ACKNOWLEDGED", catalogs } };
+  }
   const existing = runningUpgradeSequences.get(plan.id);
   if (existing && !isTerminalJobStatus(getJob(existing)?.status)) return { ok: false, status: 409, json: { error: "A sequence for this plan is already running.", code: "SEQUENCE_RUNNING", jobId: existing } };
   const jobId = createJob("upgrade-sequence", `Stage sequence for ${plan.name}`);
   const stagesMeta = preview.json.stages.map((r) => ({ stageId: r.stageId, release: r.release, profileId: r.profileId, state: "pending", jobId: null, detail: null }));
-  updateJobMetadata(jobId, { workflow: "upgrade", owner: { workflow: "upgrade", planId: plan.id }, mode: input.mode, registryUrl: input.mode === "mirrorToMirror" ? input.registryUrl || null : null, stages: stagesMeta });
+  updateJobMetadata(jobId, { workflow: "upgrade", owner: { workflow: "upgrade", planId: plan.id }, mode: input.mode, registryUrl: input.mode === "mirrorToMirror" ? [...new Set(preview.json.stages.map((r) => r.destination).filter(Boolean))].join(", ") || null : null, stages: stagesMeta });
   runningUpgradeSequences.set(plan.id, jobId);
   // Secrets: this closure only.
   let credentials = {
@@ -5858,7 +5922,7 @@ const startUpgradeSequence = (plan, input) => {
           ...(credentials.rhAuthSource ? { rhAuthSource: credentials.rhAuthSource } : {}),
           ...(credentials.rhPullSecret ? { rhPullSecret: credentials.rhPullSecret } : {}),
           ...(input.mode === "mirrorToMirror" ? {
-            registryUrl: input.registryUrl, mirrorAuthSource: "inline", verifyDestination: true,
+            registryUrl: preview.json.stages[i].destination, mirrorAuthSource: "inline", verifyDestination: true,
             ...(credentials.destinationAuth === "anonymous" ? { destinationAuth: "anonymous" } : credentials.mirrorPullSecret ? { mirrorPullSecret: credentials.mirrorPullSecret } : {})
           } : {}),
           ...(input.advanced ? { advanced: input.advanced } : {})
@@ -6152,6 +6216,34 @@ const applyUpgradeIntentToStages = (plan, entries, { includeImages }) => {
   return { ok: true, report };
 };
 
+/**
+ * Plan registry → stage destinations (v2.3.0 UX: entered once). A stage that follows the plan
+ * (empty destination, or the plan's previous value) takes the new value; a stage deliberately
+ * given its own registry keeps it. Values are already validated host[:port]/path references.
+ */
+const applyUpgradeMirrorToStages = (plan, previous, next) => {
+  const slice = readMirroringSlice();
+  const report = [];
+  const owned = plan.stages.map((st) => [st, slice.profiles[st.profileId]]).filter(([, p]) => p && p.ownedBy?.planId === plan.id);
+  for (const [, p] of owned) {
+    if (mirroringProfileRunning(p.id)) return { ok: false, status: 409, json: { error: "A stage of this plan is running. Change the mirroring settings when it has finished.", code: "STAGE_RUNNING" } };
+  }
+  for (const [stage, p] of owned) {
+    const current = p.execution.registryUrl || "";
+    const followsPlan = !current || current === (previous.registryUrl || "");
+    const catalogTargetTag = next.catalogTag === "plan" ? planCatalogTag(plan.id, stage.minor) : null;
+    slice.profiles[p.id] = normalizeProfile({
+      ...p,
+      execution: followsPlan ? { ...p.execution, registryUrl: next.registryUrl || "" } : p.execution,
+      operators: { ...p.operators, catalogTargetTag },
+      updatedAt: Date.now()
+    }, p.id);
+    report.push({ stageId: stage.id, registry: followsPlan ? "follows the plan" : "own registry kept", catalogTargetTag });
+  }
+  writeMirroringSlice(slice);
+  return { ok: true, report };
+};
+
 const upgradeApi = registerUpgradeRoutes(app, {
   validateBody,
   readUpgradeSlice,
@@ -6162,9 +6254,11 @@ const upgradeApi = registerUpgradeRoutes(app, {
   onPlanDeleted: releaseUpgradePlanProfiles,
   previewSequence: previewUpgradeSequence,
   startSequence: startUpgradeSequence,
+  checkSequenceDestination: checkUpgradeSequenceDestination,
   stageEvidence: upgradeStageEvidence,
   buildArtifacts: buildUpgradeArtifacts,
   applyIntentToStages: applyUpgradeIntentToStages,
+  applyMirrorToStages: applyUpgradeMirrorToStages,
   sequenceRunning: (planId) => { const id = runningUpgradeSequences.get(planId); return id && !isTerminalJobStatus(getJob(id)?.status) ? id : null; },
   previewDeletion: (plan) => {
     const owned = Object.values(readMirroringSlice().profiles).filter((p) => p.ownedBy?.planId === plan.id);

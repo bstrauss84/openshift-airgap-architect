@@ -198,10 +198,20 @@ test("ocMirrorPreflightSchema: rejects registry URL longer than 2048 chars", () 
   assert.ok(result.error.issues[0].message.includes("String must contain at most 2048"));
 });
 
-test("ocMirrorPreflightSchema: accepts registry URL at 2048 char limit", () => {
-  const url = "http://example.com/" + "a".repeat(2020);
-  const result = ocMirrorPreflightSchema.safeParse({ registryUrl: url });
-  assert.strictEqual(result.success, true);
+// v2.3.0 (owner refinement 5): a registry reference is host[:port]/path and can never carry a credential.
+// (The previous "2048-character http:// URL is accepted" case is now refused by design: scheme and length.)
+test("ocMirrorPreflightSchema: accepts a host[:port]/path registry reference (docker:// prefix allowed)", () => {
+  for (const url of ["mirror.example.com:8443/ocp", "docker://mirror.example.com/ocp/release", "10.0.0.5:5000", ""]) {
+    assert.strictEqual(ocMirrorPreflightSchema.safeParse({ registryUrl: url }).success, true, url);
+  }
+});
+
+test("ocMirrorPreflightSchema: refuses registry references with a scheme, credentials, query or token-like path", () => {
+  for (const url of ["http://example.com/ocp", "https://user:pass@example.com/ocp", "user:pass@example.com/ocp", "example.com/ocp?token=x", `example.com/${"ab12".repeat(12)}`]) {
+    const result = ocMirrorPreflightSchema.safeParse({ registryUrl: url });
+    assert.strictEqual(result.success, false, url);
+    assert.ok(!JSON.stringify(result.error.issues).includes("pass@"), "the value is not echoed");
+  }
 });
 
 test("ocMirrorPreflightSchema: defaults mode to mirrorToDisk", () => {

@@ -109,3 +109,33 @@ export async function verifyDestination(mapping, { authFile, env = process.env, 
     missing, mismatched, errors: errors.slice(0, 50)
   };
 }
+
+/**
+ * v2.3.0 (owner refinement 4): does each destination reference already exist? Used before a
+ * mirror-to-mirror stage writes catalog tags, because oc-mirror replaces a catalog tag's content
+ * (verified on the exact binary). Read-only manifest GETs; "unknown" when the check itself failed,
+ * which the caller treats like "exists" (it must be acknowledged, never assumed absent).
+ */
+export async function probeManifests(refs, { authFile = null, env = process.env, signal = null } = {}) {
+  const clients = new Map();
+  const out = [];
+  try {
+    for (const ref of refs.slice(0, 100)) {
+      let coords;
+      try { coords = registryCoordinates(ref); } catch (err) { out.push({ ref, exists: "unknown", problem: String(err?.message || err).slice(0, 200) }); continue; }
+      const key = `${coords.host}/${coords.repository}`;
+      if (!clients.has(key)) clients.set(key, createRegistryClient(coords, { authFile, env, signal, retries: 1 }));
+      try {
+        const res = await clients.get(key).get(`/v2/${coords.repository}/manifests/${coords.digest || coords.tag}`, { Accept: "application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json" });
+        const body = Buffer.from(await res.arrayBuffer());
+        out.push({ ref, exists: true, digest: `sha256:${(await import("node:crypto")).createHash("sha256").update(body).digest("hex")}` });
+      } catch (err) {
+        if (err?.code === "NOT_FOUND" || err?.status === 404) out.push({ ref, exists: false });
+        else out.push({ ref, exists: "unknown", problem: String(err?.message || err).slice(0, 200) });
+      }
+    }
+  } finally {
+    for (const c of clients.values()) { try { c.close(); } catch { /* closed */ } }
+  }
+  return out;
+}

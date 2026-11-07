@@ -428,7 +428,10 @@ export const normalizeProfile = (raw, id) => {
       // imported ImageSetConfiguration). Only "platform" may be rewritten
       // automatically; the others are preserved until the user reconciles.
       catalogMinorSource: CATALOG_MINOR_SOURCES.includes(r.operators?.catalogMinorSource) ? r.operators.catalogMinorSource : null,
-      selected: operators.slice(0, MAX_SELECTED_OPERATORS).map(normalizeOperator).filter(Boolean)
+      selected: operators.slice(0, MAX_SELECTED_OPERATORS).map(normalizeOperator).filter(Boolean),
+      // v2.3.0: a catalog target tag set only by an Upgrade plan ("write catalogs under a plan-specific tag"),
+      // so a stage never replaces a catalog tag an existing CatalogSource polls. null = the source tag.
+      catalogTargetTag: typeof r.operators?.catalogTargetTag === "string" && /^[a-z0-9][a-z0-9._-]{0,63}$/.test(r.operators.catalogTargetTag) ? r.operators.catalogTargetTag : null
     },
     additionalImages: images.slice(0, MAX_ADDITIONAL_IMAGES).map((img, i) => normalizeImage(img, i)).filter(Boolean),
     options: normalizeOptions(r.options),
@@ -792,7 +795,8 @@ export const projectProfileForGeneration = (profile) => {
     },
     options: {
       content: { platform: c.platform, operators: c.operators, additionalImages: c.additionalImages },
-      catalogMinor: c.operators ? catalogMinor : null
+      catalogMinor: c.operators ? catalogMinor : null,
+      ...(c.operators && profile.operators.catalogTargetTag ? { catalogTargetTag: profile.operators.catalogTargetTag } : {})
     }
   };
 };

@@ -17,6 +17,12 @@
  *    Forget. Replace swaps it everywhere for that profile.
  *  - The mounted pull secret is the same kind of choice: explicit, per profile,
  *    and only where the user accepted it.
+ *  - v2.3.0 (owner decision D-2): an Upgrade plan has ONE credential context,
+ *    keyed "upgrade-plan:<planId>". Entering it once, in a field that says so,
+ *    is the explicit approval for that plan's catalog scans, checks and runs —
+ *    and nothing else: never another plan, never a Mirroring profile.
+ *  - Destination (mirror registry) credentials for an Upgrade plan live in the
+ *    same memory-only store, keyed by the same context (destinationSessions).
  *
  * @author Bill Strauss
  *
@@ -40,11 +46,17 @@ export const SITE_LABEL = {
 
 export const getSourceCredential = (profileId) => (profileId ? sessions.get(profileId) || null : null);
 
+/** The single credential context of one Upgrade plan (D-2). */
+export const PLAN_CONTEXT_PREFIX = "upgrade-plan:";
+export const planCredentialKey = (planId) => `${PLAN_CONTEXT_PREFIX}${planId}`;
+export const isPlanContext = (key) => typeof key === "string" && key.startsWith(PLAN_CONTEXT_PREFIX);
+
 /** Enter or replace the profile's source credential at `site` (it is then accepted there only). */
 export function setSourceCredential(profileId, { secret = "", mounted = false }, site) {
   if (!profileId) return;
   if (!mounted && !String(secret).trim()) { forgetSourceCredential(profileId); return; }
-  sessions.set(profileId, { secret: mounted ? "" : String(secret).trim(), mounted: Boolean(mounted), enteredFor: site, approved: new Set([site]) });
+  // A plan context is approved for all of that plan's places by the one explicit entry.
+  sessions.set(profileId, { secret: mounted ? "" : String(secret).trim(), mounted: Boolean(mounted), enteredFor: site, approved: new Set(isPlanContext(profileId) ? ["*"] : [site]) });
   notify();
 }
 
@@ -60,8 +72,40 @@ export function forgetSourceCredential(profileId) {
   if (sessions.delete(profileId)) notify();
 }
 
+/** contextKey -> { secret: string, anonymous: boolean } — memory only, like the source credential. */
+const destinationSessions = new Map();
+export const getDestinationCredential = (key) => (key ? destinationSessions.get(key) || null : null);
+export function setDestinationCredential(key, { secret = "", anonymous = false }) {
+  if (!key) return;
+  if (!anonymous && !String(secret).trim()) destinationSessions.delete(key);
+  else destinationSessions.set(key, { secret: anonymous ? "" : String(secret), anonymous: Boolean(anonymous) });
+  notify();
+}
+export function forgetDestinationCredential(key) {
+  if (destinationSessions.delete(key)) notify();
+}
+/** The plan's destination credential: `body` is what a mirror-to-mirror request sends. */
+export function useDestinationCredential(key) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const l = () => tick((n) => n + 1);
+    listeners.add(l);
+    return () => listeners.delete(l);
+  }, []);
+  const entry = getDestinationCredential(key);
+  return {
+    entry,
+    secret: entry?.secret || "",
+    anonymous: Boolean(entry?.anonymous),
+    ready: Boolean(entry && (entry.anonymous || entry.secret.trim())),
+    body: entry?.anonymous ? { destinationAuth: "anonymous" } : entry?.secret ? { mirrorPullSecret: entry.secret } : {},
+    set: (value) => setDestinationCredential(key, value),
+    forget: () => forgetDestinationCredential(key)
+  };
+}
+
 /** Tests only: what a page reload does. */
-export const _resetSourceCredentialsForTests = () => { sessions.clear(); notify(); };
+export const _resetSourceCredentialsForTests = () => { sessions.clear(); destinationSessions.clear(); notify(); };
 
 /**
  * The profile's credential as one place (`site`) may use it.
@@ -76,7 +120,7 @@ export function useSourceCredential(profileId, site) {
     return () => listeners.delete(l);
   }, []);
   const entry = getSourceCredential(profileId);
-  const usable = Boolean(entry && entry.approved.has(site));
+  const usable = Boolean(entry && (entry.approved.has(site) || entry.approved.has("*")));
   return {
     entry,
     usable,

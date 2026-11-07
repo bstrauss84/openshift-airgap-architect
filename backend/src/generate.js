@@ -2151,6 +2151,9 @@ const assertSupportedCatalogMinor = (minor) => {
   return parsed;
 };
 
+/** OCI tag grammar, kept short and lowercase for catalog target tags Architect sets. */
+export const CATALOG_TARGET_TAG_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+
 const buildImageSetConfig = (state, options = {}) => {
   const content = options.content || null;
   const includePlatform = content ? content.platform === true : true;
@@ -2239,8 +2242,12 @@ const buildImageSetConfig = (state, options = {}) => {
       channels: [channel]
     });
   }
+  // v2.3.0 (owner refinement 4): an optional plan-specific catalog tag. oc-mirror v2 pushes a filtered
+  // catalog to the SAME tag as its source and replaces whatever that tag held (verified on the exact
+  // binary); targetTag writes it under its own tag so existing CatalogSource consumers are untouched.
+  const targetTag = typeof options.catalogTargetTag === "string" && CATALOG_TARGET_TAG_RE.test(options.catalogTargetTag) ? options.catalogTargetTag : null;
   for (const [catalog, packages] of byCatalog.entries()) {
-    images.mirror.operators.push({ catalog, packages });
+    images.mirror.operators.push(targetTag ? { catalog, targetTag, packages } : { catalog, packages });
   }
   return yaml.dump(images, { lineWidth: 120 });
 };
