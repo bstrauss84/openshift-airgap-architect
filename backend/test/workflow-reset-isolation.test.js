@@ -29,6 +29,7 @@ import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle
 import { resetMirroringForTests } from "./helpers/resetWorkflowsForTests.js";
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || "/data");
+const RH_TEST_PULL_SECRET = JSON.stringify({ auths: { "registry.redhat.io": { auth: "dGVzdDp0ZXN0" } } });
 const SECRET = JSON.stringify({ auths: { "registry.redhat.io": { auth: Buffer.from("canary-user:reset-canary-9f3").toString("base64") } } });
 
 let server;
@@ -131,7 +132,7 @@ describe("Install Start Over cancels only Install runs", () => {
 
   test("an Install run is tagged, cancelled when asked, and listed by the preview exactly as executed", async () => {
     assert.equal((await lockInstall()).status, 200);
-    const run = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", archivePath: path.join(DATA_DIR, "reset-install-a") });
+    const run = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", rhPullSecret: RH_TEST_PULL_SECRET, archivePath: path.join(DATA_DIR, "reset-install-a") });
     assert.equal(run.status, 200, JSON.stringify(run.json));
     const id = run.json.jobId;
     assert.equal(getJobMetadata(id).workflow, "install", "Install runs carry an explicit workflow tag");
@@ -148,7 +149,7 @@ describe("Install Start Over cancels only Install runs", () => {
     const tmp = path.join(DATA_DIR, "tmp");
     fs.mkdirSync(tmp, { recursive: true });
     const beforeFiles = new Set(fs.readdirSync(tmp));
-    const run = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", archivePath: path.join(DATA_DIR, "reset-install-b") });
+    const run = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", rhPullSecret: RH_TEST_PULL_SECRET, archivePath: path.join(DATA_DIR, "reset-install-b") });
     assert.equal(run.status, 200, JSON.stringify(run.json));
     const id = run.json.jobId;
     try {
@@ -166,7 +167,7 @@ describe("Install Start Over cancels only Install runs", () => {
 
   test("a running job with no recognised workflow tag is reported, never cancelled", async () => {
     assert.equal((await lockInstall()).status, 200);
-    const run = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", archivePath: path.join(DATA_DIR, "reset-install-c") });
+    const run = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", rhPullSecret: RH_TEST_PULL_SECRET, archivePath: path.join(DATA_DIR, "reset-install-c") });
     const id = run.json.jobId;
     updateJobMetadata(id, { workflow: "legacy-unknown" });
     const preview = (await api("GET", "/api/start-over/preview?cancelInstallRuns=true")).json;
@@ -182,7 +183,7 @@ describe("Install Start Over cancels only Install runs", () => {
     injectUpgrade();
     const before = (await api("GET", "/api/start-over/preview?cancelInstallRuns=true")).json;
     assert.equal((await lockInstall()).status, 200);
-    const run = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", archivePath: path.join(DATA_DIR, "reset-install-d") });
+    const run = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", rhPullSecret: RH_TEST_PULL_SECRET, archivePath: path.join(DATA_DIR, "reset-install-d") });
     const r = await api("POST", "/api/start-over", { cancelInstallRuns: true, previewToken: before.token });
     assert.equal(r.status, 409);
     assert.equal(r.json.code, "RESET_SCOPE_CHANGED");

@@ -3316,6 +3316,16 @@ async function startOcMirrorRun(ctx) {
   const contractBlockers = [];
   const destinationProblem = destinationCredentialProblem({ mode, isMirroring, mirrorAuthSource, mirrorPullSecret: mirrorPullSecretRaw, installSecret: state.credentials?.mirrorRegistryPullSecret });
   if (destinationProblem) contractBlockers.push(destinationProblem);
+  // Source credential (correction pass): the preflight's rule for pulling from
+  // the source registries. Mirror to disk / mirror to mirror with Red Hat
+  // content (every Install run, any Mirroring platform or operator content)
+  // need a Red Hat pull secret; content without Red Hat sources may pull
+  // anonymously but a given secret must be valid. Disk to mirror reads local
+  // archives and needs none.
+  if (mode !== "diskToMirror") {
+    const sourceCheck = ctx.pullSecretPolicy === "optional" ? validateOptionalPullSecret(rhPullSecretRaw) : validateRhPullSecret(rhPullSecretRaw);
+    if (!sourceCheck.valid) contractBlockers.push(sourceCheck.error);
+  }
   const trustItem = describeTrust();
   if (trustItem.status === "block") contractBlockers.push(trustItem.detail);
   if (contractBlockers.length) {
@@ -4788,6 +4798,7 @@ const mirroringRunHandler = async (req, res) => {
     workflow: "mirroring",
     profileId: profile.id,
     owner: profile.ownedBy || null,
+    pullSecretPolicy: profile.content.platform || profile.content.operators ? "redhat" : "optional",
     storage: storageView(profile),
     storageBaseExpected: profile.storageBase ?? null,
     ...(body.mode === "mirrorToDisk" ? m2dArchiveHooks(profile, paths.archivePath, body) : {}),
@@ -4890,6 +4901,8 @@ app.post("/api/mirroring/profiles/:id/operations/:jobId/retry", validateBody(mir
     state: ensureState(),
     body: runServiceBody(body),
     workflow: "mirroring",
+    // The original plan's content decides whether Red Hat sources are involved.
+    pullSecretPolicy: original.content?.platform || original.content?.operators || profile.content.platform || profile.content.operators ? "redhat" : "optional",
     profileId: profile.id,
     storage: storageView(profile),
     storageBaseExpected: profile.storageBase ?? null,
@@ -6091,6 +6104,54 @@ app.post("/api/upgrade/import", validateBody(upgradeImportSchema), (req, res) =>
   }
 });
 
+/**
+ * Add operators the user accepted for this plan to every Upgrade-owned stage
+ * profile, at that stage's catalog minor. Selections already in a stage are
+ * never changed or removed. Channels come from the user's choice; whether a
+ * channel exists in each stage's catalog is checked by Mirroring's live
+ * catalog check, never assumed.
+ */
+const applyUpgradeIntentToStages = (plan, entries, { includeImages }) => {
+  const slice = readMirroringSlice();
+  const report = [];
+  for (const stage of plan.stages) {
+    const profile = slice.profiles[stage.profileId];
+    if (!profile || profile.ownedBy?.planId !== plan.id) { report.push({ stageId: stage.id, skipped: "no stage profile" }); continue; }
+    if (mirroringProfileRunning(profile.id)) return { ok: false, status: 409, json: { error: `Stage ${stage.id.slice(1)} is running; try again when it has finished.`, code: "STAGE_RUNNING" } };
+    const selected = [...profile.operators.selected];
+    const added = [];
+    const kept = [];
+    for (const e of entries) {
+      const catalogImage = `registry.redhat.io/redhat/${e.catalogKind}-operator-index:v${stage.minor}`;
+      const id = `${catalogImage}::${e.name}`;
+      if (selected.some((o) => o.id === id || (o.name === e.name && o.catalogImage === catalogImage))) { kept.push(e.name); continue; }
+      selected.push({ id, name: e.name, catalog: e.catalogKind, catalogImage, defaultChannel: e.channel || null, sources: [`upgrade:${e.category}`] });
+      added.push(e.name);
+    }
+    const isLast = stage.id === plan.stages[plan.stages.length - 1].id;
+    const images = [...profile.additionalImages];
+    const imagesAdded = [];
+    if (includeImages && isLast) {
+      for (const img of plan.presetImages || []) {
+        if (images.some((i) => i.name === img.name)) continue;
+        images.push({ id: `img-up${crypto.createHash("sha256").update(img.name).digest("hex").slice(0, 10)}`, name: img.name, source: "upgrade-preset" });
+        imagesAdded.push(img.name);
+      }
+    }
+    if (!added.length && !imagesAdded.length) { report.push({ stageId: stage.id, added, kept, imagesAdded }); continue; }
+    slice.profiles[profile.id] = normalizeProfile({
+      ...profile,
+      content: { ...profile.content, operators: profile.content.operators || added.length > 0, additionalImages: profile.content.additionalImages || imagesAdded.length > 0 },
+      operators: { ...profile.operators, catalogMinor: stage.minor, catalogMinorSource: "platform", selected },
+      additionalImages: images,
+      updatedAt: Date.now()
+    }, profile.id);
+    report.push({ stageId: stage.id, added, kept, imagesAdded });
+  }
+  writeMirroringSlice(slice);
+  return { ok: true, report };
+};
+
 const upgradeApi = registerUpgradeRoutes(app, {
   validateBody,
   readUpgradeSlice,
@@ -6103,6 +6164,7 @@ const upgradeApi = registerUpgradeRoutes(app, {
   startSequence: startUpgradeSequence,
   stageEvidence: upgradeStageEvidence,
   buildArtifacts: buildUpgradeArtifacts,
+  applyIntentToStages: applyUpgradeIntentToStages,
   sequenceRunning: (planId) => { const id = runningUpgradeSequences.get(planId); return id && !isTerminalJobStatus(getJob(id)?.status) ? id : null; },
   previewDeletion: (plan) => {
     const owned = Object.values(readMirroringSlice().profiles).filter((p) => p.ownedBy?.planId === plan.id);

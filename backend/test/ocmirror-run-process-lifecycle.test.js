@@ -84,6 +84,7 @@ const startRun = async (baseUrl, dir) => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       mode: "mirrorToDisk",
+      rhPullSecret: JSON.stringify({ auths: { "registry.redhat.io": { auth: "dGVzdDp0ZXN0" } } }),
       archivePath: dir,
       workspacePath: dir,
       cachePath: dir,

@@ -39,6 +39,7 @@ let stubDir;
 const originalBin = process.env.OC_MIRROR_BIN;
 
 const SYNTHETIC_PULL_SECRET = JSON.stringify({ auths: { "registry.example.invalid": { auth: "dGVzdDp0ZXN0" } } });
+const RH_TEST_PULL_SECRET = JSON.stringify({ auths: { "registry.redhat.io": { auth: "dGVzdDp0ZXN0" } } }); // synthetic (v2.3.0: runs enforce the source credential rule)
 
 const api = async (method, url, body) => {
   const res = await fetch(`${baseUrl}${url}`, {
@@ -344,7 +345,7 @@ describe("Start Over scoping", () => {
     useStub("sleep 5");
     await resetAll();
     await lockInstall422();
-    const run = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", archivePath: path.join(DATA_DIR, "m1-install-a") });
+    const run = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", rhPullSecret: RH_TEST_PULL_SECRET, archivePath: path.join(DATA_DIR, "m1-install-a") });
     assert.equal(run.status, 200, JSON.stringify(run.json));
     const mso = await api("POST", "/api/mirroring/start-over", {});
     assert.equal(mso.status, 410);
@@ -359,10 +360,10 @@ describe("one oc-mirror run at a time", () => {
   test("a second run in either workflow is refused with 409 until the first stops", async () => {
     useStub("sleep 5");
     await lockInstall422();
-    const first = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", archivePath: path.join(DATA_DIR, "m1-install-b") });
+    const first = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", rhPullSecret: RH_TEST_PULL_SECRET, archivePath: path.join(DATA_DIR, "m1-install-b") });
     assert.equal(first.status, 200);
 
-    const second = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", archivePath: path.join(DATA_DIR, "m1-install-c") });
+    const second = await api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", rhPullSecret: RH_TEST_PULL_SECRET, archivePath: path.join(DATA_DIR, "m1-install-c") });
     assert.equal(second.status, 409);
     assert.equal(second.json.code, "OC_MIRROR_RUN_IN_PROGRESS");
     assert.equal(second.json.activeJobId, first.json.jobId);
@@ -382,8 +383,8 @@ describe("one oc-mirror run at a time", () => {
     await resetAll();
     await lockInstall422();
     const [a, b] = await Promise.all([
-      api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", archivePath: path.join(DATA_DIR, "m1-race-a") }),
-      api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", archivePath: path.join(DATA_DIR, "m1-race-b") })
+      api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", rhPullSecret: RH_TEST_PULL_SECRET, archivePath: path.join(DATA_DIR, "m1-race-a") }),
+      api("POST", "/api/ocmirror/run", { mode: "mirrorToDisk", rhPullSecret: RH_TEST_PULL_SECRET, archivePath: path.join(DATA_DIR, "m1-race-b") })
     ]);
     const statuses = [a.status, b.status].sort();
     assert.deepEqual(statuses, [200, 409]);
@@ -416,7 +417,7 @@ describe("command line built for the shipped binary", () => {
     // profile's own workspace and cache; disk to mirror runs only from a
     // received transfer, never from a regenerated configuration.
     const m2m = await api("POST", `/api/mirroring/profiles/${p.id}/run`, {
-      mode: "mirrorToMirror", registryUrl: "registry.example.invalid:5000", rhPullSecret: SYNTHETIC_PULL_SECRET,
+      mode: "mirrorToMirror", registryUrl: "registry.example.invalid:5000", rhPullSecret: RH_TEST_PULL_SECRET,
       mirrorAuthSource: "inline", mirrorPullSecret: SYNTHETIC_PULL_SECRET, advanced
     });
     assert.equal(m2m.status, 200, JSON.stringify(m2m.json));
@@ -436,7 +437,7 @@ describe("command line built for the shipped binary", () => {
     await lockInstall422();
     const m2mInstall = await api("POST", "/api/ocmirror/run", {
       mode: "mirrorToMirror", workspacePath: path.join(DATA_DIR, "m1-ws-since"), cachePath: path.join(DATA_DIR, "m1-cache-since"),
-      registryUrl: "registry.example.invalid:5000", rhPullSecret: SYNTHETIC_PULL_SECRET,
+      registryUrl: "registry.example.invalid:5000", rhPullSecret: RH_TEST_PULL_SECRET,
       mirrorAuthSource: "inline", mirrorPullSecret: SYNTHETIC_PULL_SECRET, advanced
     });
     assert.equal(m2mInstall.status, 200, JSON.stringify(m2mInstall.json));
@@ -460,7 +461,7 @@ describe("command line built for the shipped binary", () => {
     await resetAll();
     await lockInstall422();
     const run = await api("POST", "/api/ocmirror/run", {
-      mode: "mirrorToMirror", workspacePath: path.join(DATA_DIR, "m1-ws"), registryUrl: "registry.example.invalid:5000",
+      mode: "mirrorToMirror", workspacePath: path.join(DATA_DIR, "m1-ws"), registryUrl: "registry.example.invalid:5000", rhPullSecret: RH_TEST_PULL_SECRET,
       mirrorAuthSource: "inline", mirrorPullSecret: SYNTHETIC_PULL_SECRET
     });
     assert.equal(run.status, 200, JSON.stringify(run.json));
@@ -535,7 +536,7 @@ describe("external ImageSetConfiguration preflight", () => {
     await resetAll();
     await lockInstall422();
     const res = await api("POST", "/api/ocmirror/run", {
-      mode: "mirrorToDisk", archivePath: path.join(DATA_DIR, "m1-ext-run"), configSourceType: "uploaded", configPath: "/etc/os-release"
+      mode: "mirrorToDisk", rhPullSecret: RH_TEST_PULL_SECRET, archivePath: path.join(DATA_DIR, "m1-ext-run"), configSourceType: "uploaded", configPath: "/etc/os-release"
     });
     assert.equal(res.status, 200);
     const job = await terminal(res.json.jobId);
