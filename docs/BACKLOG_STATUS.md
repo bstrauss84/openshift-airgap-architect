@@ -38,10 +38,15 @@ RFC rev 2 and final authorization (2026-11-06); contract and user guide in `docs
   identified (hashicorp errwrap, go-multierror, golang-lru), libgpgme apparently loaded via `dlopen` (not embedded;
   inference), proposed shared notice implementation. No new redistribution enabled; Upgrade ships acquisition guidance
   only; Install unchanged.
+- **Owner correction pass (2026-11-06/07, `done_pending_verification`):** Install card footer actions (Continue
+  install → | New Install; single Start install without progress); Mirroring card counts independent profiles only;
+  sticky Upgrade tabs with scroll-to-top on tab change (Mirroring's mechanism); new Operators tab with earlier
+  ImageSetConfigurations as optional, editable, unverified presets (v2 validated, v1 field-by-field) and operator
+  intent (category + confidence + provenance); evidence-only stage progress tracker. Tests:
+  `backend/test/upgrade-presets.test.js`, `frontend/tests/upgrade-ui.test.jsx`, `frontend/tests/landing-cta.test.jsx`.
 - **Findings queue (unnumbered; not fixed in this tranche):**
-  - (a) the Install `/api/ocmirror/run` (and Mirroring run) still treat a missing *Red Hat* pull secret as a
-    preflight-only blocker (N4 scope was destination credentials and trust). Owner decision whether the run contract
-    should also require it.
+  - (a) **fixed in the correction pass:** the run contract now enforces the source (Red Hat) pull-secret rule
+    (fail-first `backend/test/source-credential-run-contract.test.js`, 3/5 on aee6a32).
   - (b) operator OpenShift-compatibility metadata (`olm.maxOpenShiftVersion`) is not read offline; compatibility is
     "not checked" unless attested.
   - (c) documentation URLs in `data/upgrade-docs/upgrade-docs.json` await human verification (docs.redhat.com

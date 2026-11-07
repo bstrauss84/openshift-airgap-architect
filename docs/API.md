@@ -703,11 +703,15 @@ bodies are strict (unknown fields are refused). Nothing here contacts a cluster.
 | GET | `/api/upgrade/plans/:id/artifacts` | VALIDATED / TEMPLATE / PRODUCED_BY_RUN files |
 | GET | `/api/upgrade/plans/:id/package.zip` · `package.json` | Plan package (no archives, no credentials) |
 | POST | `/api/upgrade/import` | Verified import of `oaa-upgrade-package.json` `{ text }` → read-only received plan |
+| POST | `/api/upgrade/plans/:id/presets/analyze` | Analyze up to 10 earlier ImageSetConfigurations `{ files: [{ name, text }] }` as unverified presets (nothing stored) |
+| POST | `/api/upgrade/plans/:id/operator-intent` | Merge/remove operator intent `{ entries?, images?, remove?, replaceConfirmed? }` (presets never replace confirmed entries without consent) |
+| POST | `/api/upgrade/plans/:id/operator-intent/apply-to-stages` | Add selected operators to every stage at its catalog minor `{ keys, includeImages? }` |
 
 Related (v2.3.0): `GET /api/start-over/preview?cancelInstallRuns=true|false` returns the exact scope of "New Install";
 `POST /api/start-over` accepts `{ cancelInstallRuns, previewToken }` (409 `RESET_SCOPE_CHANGED` when the scope changed).
 `POST /api/mirroring/start-over` answers 410 Gone. Mirroring run/preflight bodies accept `destinationAuth` and
-`verifyDestination`; a run the preflight would block on destination credentials or trust → 409 `PREFLIGHT_BLOCKED`.
+`verifyDestination`; a run the preflight would block on destination credentials, source (Red Hat) credentials for Red Hat content, or
+trust → 409 `PREFLIGHT_BLOCKED`.
 
 ## Asset Generation
 

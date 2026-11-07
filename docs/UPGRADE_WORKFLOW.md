@@ -28,8 +28,10 @@ A **plan** is one cluster update. Choose **Upgrade** on the landing page, then
 **New Upgrade plan**. Plans are independent: creating, changing or deleting one
 never changes another plan, a Mirroring profile or the Install workflow.
 
-Tabs: **Path**, **Content & runs**, **Instructions**, **Readiness**,
-**Review & export**. Switching tabs keeps everything you typed; **Home** (in
+Tabs: **Path**, **Operators**, **Content & runs**, **Instructions**,
+**Readiness**, **Review & export**. The tab row stays visible under the header
+while you scroll (the same mechanism as Mirroring); choosing another tab brings
+you to the top of it, and switching keeps everything you typed. **Home** (in
 Tools) is navigation only.
 
 ### A2. Path — choose the route
@@ -64,6 +66,28 @@ The **Channel graph** (collapsed) draws only the planned route and the selected
 release's updates, one lane per minor; it has keyboard zoom/pan (+, −, 0, arrow
 keys on releases) and an **Accessible table**.
 
+### A2b. Operators — presets and intent
+
+**Presets from earlier ImageSetConfigurations (optional).** Load up to 10 files
+(1 MiB each). oc-mirror v2 files are checked against the v2 schema; v1
+(`v1alpha2`) files are read for platform channels, operator packages and
+additional images only. For each file you see whether it was read and what was
+ignored. Found operators show their channel (choose one when files disagree),
+the file(s) they came from and any conflict; conflicting ones start unticked.
+Release hints are only hints — using one as the current release asks first
+when it would replace your choice. A configuration file says what was *asked*
+to be mirrored, not what is installed, mirrored or in your registry, so every
+accepted item stays **imported preset — unverified**.
+
+**Operators in this plan** lists each operator's **category** — previously
+mirrored or selected (from files), currently installed, new (requested), or
+installed and kept without an update — and its **confidence**: imported preset,
+imported cluster export, confirmed by you, or entered by you. An imported preset
+never replaces an entry confirmed by you or by a cluster export unless you say
+so. **Add the selected operators to every stage** adds each operator from that
+stage's own catalog minor; selections already in a stage are not changed. The
+Mirroring operator browser and Live catalog check then apply per stage.
+
 ### A3. Content & runs — what must be in the disconnected registry
 
 Every release the cluster is updated to (not the one it runs) must be in your
@@ -80,6 +104,10 @@ For each stage:
   evidence, not assumption.
 - **I have updated the cluster to …** records your statement; mirroring never
   marks the cluster as updated.
+- A **progress line** shows the stage's steps (planned, mirrored to disk,
+  transfer prepared, received, in the registry, registry verified, cluster
+  updated) from recorded evidence only — no percentages; steps a
+  mirror-to-mirror stage does not need show as "not needed".
 
 **Run every stage in order** previews the exact scope, then runs the stages one
 after another through the same preflight and run as a single Mirroring run. It
@@ -248,14 +276,31 @@ the job; credentials in the sequence closure only; plan deletion refused while
 it runs. Restart of the server marks a running sequence as interrupted (stale
 job); resume by running the remaining stages.
 
-### B7. Server-side run contract (N4)
+### B7. Server-side run contract (N4 and source credentials)
 
 Every run path (Install, Mirroring, "Run the same again", Upgrade stage and
-sequence) re-applies the preflight's destination-credential and trust rules in
-`startOcMirrorRun` (shared `destinationCredentialProblem`). Anonymous
+sequence) re-applies the preflight's destination-credential, source-credential
+and trust rules in `startOcMirrorRun` (shared `destinationCredentialProblem`
+and the preflight's pull-secret validators). Source rule: mirror to disk and
+mirror to mirror with Red Hat content (every Install run; any Mirroring platform
+or operator content; retries by the original plan's content) need a pull secret
+with a Red Hat registry; additional-images-only content may pull anonymously but
+a given secret must be valid; disk to mirror needs no source credential. Anonymous
 destination access is an explicit `destinationAuth: "anonymous"` (the server
 supplies the OKD placeholder). Missing credentials or a blocked trust store →
 409 `PREFLIGHT_BLOCKED` before anything is spawned.
+
+### B7b. Presets and operator intent (`backend/src/upgradePresets.js`)
+
+Analysis is pure (nothing stored): shared safe YAML parser (size, encoding,
+depth, aliases), v2alpha1 through the shared structural validator, v1alpha2
+field by field; per-file provenance (base name + SHA-256); duplicates merged;
+differing channels and unsupported minors reported; nothing widens support.
+`operatorIntent` entries carry category, confidence and sources; an
+`imported-preset` entry never replaces a `cluster-export`/`user-confirmed` one
+without `replaceConfirmed`. Applying to stages adds packages at each stage's
+catalog minor and never changes existing selections; preset images go to the
+last stage.
 
 ### B8. Reset and isolation contract (owner RFC §18)
 
@@ -296,8 +341,9 @@ supplies the OKD placeholder). Missing credentials or a blocked trust store →
 …/:id/deletion-preview` · `POST …/:id/sequence/preview|sequence` · `GET
 …/:id/readiness` · `POST|DELETE …/:id/inventory` · `POST …/:id/attest` · `POST
 …/:id/cluster-progress` · `GET …/:id/instructions` · `GET …/:id/artifacts` ·
-`GET …/:id/package.zip|package.json` · `POST /api/upgrade/import` · `GET
-/api/start-over/preview`.
+`GET …/:id/package.zip|package.json` · `POST /api/upgrade/import` · `POST
+…/:id/presets/analyze` · `POST …/:id/operator-intent` · `POST
+…/:id/operator-intent/apply-to-stages` · `GET /api/start-over/preview`.
 
 ---
 

@@ -18,9 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   console instructions that cite version-matched documentation. Evidence-based readiness, optional read-only cluster
   inventory import, labelled artifacts, and a plan package with verified offline import. See `docs/UPGRADE_WORKFLOW.md`.
 - `GET /api/start-over/preview`: the exact scope of a New Install reset.
+- Upgrade **Operators** tab: earlier ImageSetConfigurations (several at once; oc-mirror v2, and v1 for the basic
+  fields) as optional, editable presets with per-file provenance, always labelled unverified; operator intent
+  (previously mirrored / installed / requested / kept) with its confidence; add accepted operators to every stage.
+- Per-stage progress steps from recorded evidence (no percentages; reduced motion respected).
 
 ### Changed
-- **Landing page:** no global Start Over; each card shows what exists and offers only its own actions. "New Install…"
+- **Landing page:** no global Start Over; each card shows what exists and offers only its own actions (Install:
+  "Continue install →" and "New Install" in the card's footer bar). "New Install…"
   (landing, Tools, Review, unsupported-version recovery) opens one scoped confirmation rendered from the server preview.
   Opening a workflow is navigation only (the Install card no longer resets Install state when no step was visited).
 - **Install reset** cancels only jobs positively tagged as Install's; Mirroring, Upgrade and unclassified running jobs are
@@ -31,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **N4:** every oc-mirror run path re-applies the preflight's destination-credential and trust rules on the server;
   anonymous destination access is an explicit choice (`destinationAuth: "anonymous"`).
+- Runs also enforce the preflight's **source (Red Hat) pull-secret** rule on the server for Red Hat content; disk to
+  mirror needs none.
 - **N7:** the export-streaming scaling test is robust to concurrent allocations.
 
 ### Documentation
