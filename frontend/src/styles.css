@@ -7902,6 +7902,9 @@ body[data-theme="dark"] .mirroring-tabs { background: #0b1120; }
   gap: 16px;
   align-items: start;
 }
+/* Same rule as .mirroring-layout: grid children may shrink, so the non-wrapping tab row scrolls inside
+   itself instead of widening the whole Upgrade area on narrow screens. */
+.upgrade-layout > * { min-width: 0; }
 .upgrade-plan-list {
   list-style: none;
   margin: 0 0 12px;
@@ -8079,7 +8082,7 @@ body[data-theme="dark"] .mirroring-tabs { background: #0b1120; }
 
 @media (max-width: 900px) {
   .upgrade-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 768px) {

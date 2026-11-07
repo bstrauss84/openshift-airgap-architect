@@ -217,6 +217,13 @@ describe("plan deletion (layered consent)", () => {
 
 
 describe("sticky tabs and tab-change scrolling (correction pass)", () => {
+  it("the Upgrade layout lets its columns shrink, so narrow screens scroll the tab row, not the whole area", () => {
+    // Layout is not computed in jsdom; the rendered 390 px check (Playwright probe) found #upgrade-main 700 px wide
+    // without these rules. They mirror .mirroring-layout > * { min-width: 0 }.
+    const css = read("styles.css");
+    expect(css).toMatch(/\.upgrade-layout > \* \{ min-width: 0; \}/);
+    expect(css).toMatch(/@media \(max-width: 900px\) \{\s*\.upgrade-layout \{\s*grid-template-columns: minmax\(0, 1fr\);/);
+  });
   it("the tab row sits after an anchor, the header height is measured, and a deep scroll returns to the new tab's start", async () => {
     mock(basePlan());
     const { container } = render(<UpgradeShell onExit={() => {}} />);
