@@ -21,6 +21,7 @@ import { getMinorVersion } from "../../shared/versionUtils.js";
 import { evaluateReadiness, ATTESTABLE } from "./upgradeReadiness.js";
 import { projectInventory, InventoryError, INVENTORY_KINDS, INVENTORY_COMMANDS } from "./upgradeInventory.js";
 import { buildInstructions } from "./upgradeInstructions.js";
+import { analyzePresetFiles, OPERATOR_CATEGORIES } from "./upgradePresets.js";
 
 const planIdParam = (req, res) => {
   if (!isValidPlanId(req.params.id)) { res.status(400).json({ error: "Invalid plan id.", code: "PLAN_ID_INVALID" }); return null; }
@@ -64,6 +65,22 @@ export const upgradeInventorySchema = z.object({ kind: z.enum(INVENTORY_KINDS), 
 export const upgradeAttestSchema = z.object({ checkId: z.string().max(48), attested: z.boolean(), note: z.string().max(500).optional() }).strict();
 export const upgradeClusterProgressSchema = z.object({ stageId: z.string().regex(/^s[0-9]{1,2}$/), state: z.enum(["none", "attested"]) }).strict();
 export const upgradeImportSchema = z.object({ text: z.string().min(2).max(9 * 1024 * 1024) }).strict();
+const intentEntry = z.object({
+  name: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,252}$/),
+  catalogKind: z.enum(["redhat", "certified", "community"]),
+  channel: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/).nullable().optional(),
+  category: z.enum(["preset-mirrored", "installed", "requested", "retained"]),
+  confidence: z.enum(["imported-preset", "cluster-export", "user-confirmed", "user-entered"]),
+  sources: z.array(z.object({ file: z.string().max(120), sha256: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional() }).strict()).max(10).optional()
+}).strict();
+export const upgradePresetAnalyzeSchema = z.object({ files: z.array(z.object({ name: z.string().max(255), text: z.string().max(2 * 1024 * 1024) }).strict()).min(1).max(10) }).strict();
+export const upgradeIntentSchema = z.object({
+  entries: z.array(intentEntry).max(300).optional(),
+  images: z.array(z.object({ name: z.string().max(512), sources: z.array(z.object({ file: z.string().max(120), sha256: z.string().regex(/^[a-f0-9]{64}$/).nullable().optional() }).strict()).max(10).optional() }).strict()).max(200).optional(),
+  remove: z.array(z.string().max(300)).max(300).optional(),
+  replaceConfirmed: z.boolean().optional()
+}).strict();
+export const upgradeIntentApplySchema = z.object({ keys: z.array(z.string().max(300)).max(300), includeImages: z.boolean().optional() }).strict();
 export const upgradeActiveSchema = z.object({ planId: z.string().max(40).nullable() }).strict();
 const secretText = z.string().min(2).max(65536);
 export const upgradeSequenceSchema = z.object({
@@ -106,7 +123,7 @@ export const defaultPlanningChannel = (plan) => {
 };
 
 export function registerUpgradeRoutes(app, deps) {
-  const { validateBody, readUpgradeSlice, writeUpgradeSlice, isHighSide, describePlanExtras = () => ({}), onPlanDeleted = () => ({ ok: true, report: {} }), materializeStages = null, previewDeletion = () => ({}), previewSequence = null, startSequence = null, sequenceRunning = () => null, stageEvidence = () => ({ clusterResources: {}, signatureEvidence: {} }), buildArtifacts = null } = deps;
+  const { validateBody, readUpgradeSlice, writeUpgradeSlice, isHighSide, describePlanExtras = () => ({}), onPlanDeleted = () => ({ ok: true, report: {} }), materializeStages = null, previewDeletion = () => ({}), previewSequence = null, startSequence = null, sequenceRunning = () => null, stageEvidence = () => ({ clusterResources: {}, signatureEvidence: {} }), buildArtifacts = null, applyIntentToStages = null } = deps;
 
   const loadPlan = (req, res) => {
     const id = planIdParam(req, res);
@@ -320,6 +337,57 @@ export function registerUpgradeRoutes(app, deps) {
     if (!loaded) return;
     if (!buildArtifacts) return res.status(501).json({ error: "Not available.", code: "NOT_AVAILABLE" });
     res.json(buildArtifacts(loaded.plan));
+  });
+
+  /**
+   * Analyze one or more earlier ImageSetConfigurations as presets. Nothing is
+   * stored: the user reviews, edits and accepts what to apply.
+   */
+  app.post("/api/upgrade/plans/:id/presets/analyze", validateBody(upgradePresetAnalyzeSchema), (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    const out = analyzePresetFiles(req.body.files);
+    if (out.error) return res.status(out.error.status).json({ error: out.error.message, code: out.error.code });
+    res.json({ ...out, categories: OPERATOR_CATEGORIES });
+  });
+
+  /**
+   * Merge accepted operator intent into the plan. An imported preset never
+   * replaces an entry confirmed by the user or by a cluster export unless the
+   * request says so explicitly (replaceConfirmed).
+   */
+  app.post("/api/upgrade/plans/:id/operator-intent", validateBody(upgradeIntentSchema), (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    const { slice, plan } = loaded;
+    if (plan.kind === "received") return res.status(409).json({ error: "A received plan is read-only.", code: "PLAN_READ_ONLY" });
+    const byKey = new Map(plan.operatorIntent.map((e) => [e.key, e]));
+    for (const k of req.body.remove || []) byKey.delete(k);
+    const skipped = [];
+    for (const e of req.body.entries || []) {
+      const key = `${e.catalogKind}|${e.name}`;
+      const existing = byKey.get(key);
+      const strongerExisting = existing && ["cluster-export", "user-confirmed"].includes(existing.confidence) && e.confidence === "imported-preset";
+      if (strongerExisting && !req.body.replaceConfirmed) { skipped.push({ key, reason: `kept: already ${existing.category} (${existing.confidence}); an imported preset does not replace it` }); continue; }
+      byKey.set(key, { ...e, key, updatedAt: new Date().toISOString() });
+    }
+    const images = new Map((plan.presetImages || []).map((i) => [i.name, i]));
+    for (const i of req.body.images || []) images.set(i.name, i);
+    const saved = savePlan(slice, { ...plan, operatorIntent: [...byKey.values()], presetImages: [...images.values()] });
+    res.json({ plan: describePlan(saved), skipped });
+  });
+
+  /** Add accepted operators (and optionally preset images) to the plan's stage profiles; existing selections are never changed. */
+  app.post("/api/upgrade/plans/:id/operator-intent/apply-to-stages", validateBody(upgradeIntentApplySchema), (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    const { plan } = loaded;
+    if (!plan.stages.length) return res.status(409).json({ error: "Prepare the stages first.", code: "STAGES_REQUIRED" });
+    if (!applyIntentToStages) return res.status(501).json({ error: "Not available.", code: "NOT_AVAILABLE" });
+    const entries = plan.operatorIntent.filter((e) => req.body.keys.includes(e.key));
+    const out = applyIntentToStages(plan, entries, { includeImages: Boolean(req.body.includeImages) });
+    if (!out.ok) return res.status(out.status).json(out.json);
+    res.json({ plan: describePlan(readUpgradeSlice().plans.find((p) => p.id === plan.id)), report: out.report });
   });
 
   app.get("/api/upgrade/graph", (req, res) => {

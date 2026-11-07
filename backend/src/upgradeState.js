@@ -105,6 +105,26 @@ const normalizeInventory = (inv) => {
   };
 };
 
+export const MAX_INTENT = 300;
+const INTENT_CATEGORIES = ["preset-mirrored", "installed", "requested", "retained"];
+const INTENT_CONFIDENCE = ["imported-preset", "cluster-export", "user-confirmed", "user-entered"];
+const normalizeSources = (list) => (Array.isArray(list) ? list.slice(0, 10).map((x) => ({ file: str(x?.file, 120), sha256: typeof x?.sha256 === "string" && /^[a-f0-9]{64}$/.test(x.sha256) ? x.sha256 : null })).filter((x) => x.file) : []);
+const normalizeIntent = (e) => {
+  const name = typeof e?.name === "string" && /^[a-z0-9][a-z0-9._-]{0,252}$/.test(e.name) ? e.name : null;
+  const catalogKind = ["redhat", "certified", "community"].includes(e?.catalogKind) ? e.catalogKind : null;
+  if (!name || !catalogKind) return null;
+  return {
+    key: `${catalogKind}|${name}`,
+    name,
+    catalogKind,
+    channel: typeof e?.channel === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(e.channel) ? e.channel : null,
+    category: oneOf(e?.category, INTENT_CATEGORIES, "preset-mirrored"),
+    confidence: oneOf(e?.confidence, INTENT_CONFIDENCE, "imported-preset"),
+    sources: normalizeSources(e?.sources),
+    updatedAt: iso(e?.updatedAt)
+  };
+};
+
 export const normalizePlan = (p) => {
   const createdAt = iso(p?.createdAt) || new Date().toISOString();
   return {
@@ -132,6 +152,10 @@ export const normalizePlan = (p) => {
     path: normalizePath(p?.path),
     stages: Array.isArray(p?.stages) ? p.stages.slice(0, MAX_STAGES).map(normalizeStage).filter((s) => s.release) : [],
     stagesStale: Boolean(p?.stagesStale),
+    // Owner correction pass: what the user intends for each operator, with where it came from.
+    // Imported presets stay "imported-preset" until the user (or a cluster export) confirms otherwise.
+    operatorIntent: Array.isArray(p?.operatorIntent) ? p.operatorIntent.slice(0, MAX_INTENT).map(normalizeIntent).filter(Boolean) : [],
+    presetImages: Array.isArray(p?.presetImages) ? p.presetImages.slice(0, 200).map((i) => ({ name: str(i?.name, 512), sources: normalizeSources(i?.sources) })).filter((i) => /^[a-z0-9][a-z0-9.\-]*(:\d+)?(\/[a-z0-9._\-]+)+(:[A-Za-z0-9._-]{1,128}|@sha256:[a-f0-9]{64})$/.test(i.name)) : [],
     inventory: normalizeInventory(p?.inventory),
     readiness: {
       attestations: Object.fromEntries(Object.entries(p?.readiness?.attestations && typeof p.readiness.attestations === "object" ? p.readiness.attestations : {})
