@@ -53,7 +53,13 @@ export default function YamlDrawer({
   statusNote = null,
   /* v2.2.0 R-UX09 (imageset mode): the shown file is a DRAFT of a profile
      that is not ready. A notice (node) explains why; Download is disabled. */
-  draftNotice = null
+  draftNotice = null,
+  /* v2.3.0 Upgrade (opt-in): a control shown under the header (the stage selector), the file
+     name a Download saves (imageset mode; defaults to the pane's name), and mode "files", which
+     shows each previewFiles entry under its own name (Handoff templates). Install and Mirroring
+     pass none of these. */
+  headerExtras = null,
+  downloadName = null
 }) {
   // State for drawer width (persisted to localStorage, reset on close)
   const [drawerWidth, setDrawerWidth] = useState(() => {
@@ -211,7 +217,7 @@ export default function YamlDrawer({
       if (typeof exported !== "string" || !exported) {
         throw new Error(`${filename} could not be generated for download`);
       }
-      saveFile(exported, filename);
+      saveFile(exported, mode === 'imageset' && downloadName ? downloadName : filename);
     } catch (e) {
       setDownloadError(`${filename} was not downloaded: ${String(e?.message || e)}`);
     }
@@ -544,9 +550,18 @@ metadata:
 
   // Main config rendering logic
   const renderConfigs = () => {
-    // Mirroring profile: the ImageSetConfiguration only.
+    // Mirroring profile / Upgrade stage: the ImageSetConfiguration only.
     if (mode === 'imageset') {
       return renderImageSetWithSwitching();
+    }
+    // Upgrade Handoff: named files, one pane each, in one scroll area.
+    if (mode === 'files') {
+      const names = Object.keys(previewFiles);
+      return (
+        <div className="yaml-files-list" style={{ flex: 1, overflow: 'auto' }}>
+          {names.length ? names.map((name) => <div key={name} className="yaml-files-item">{renderSingleConfig(name)}</div>) : <p className="subtle" style={{ padding: 16 }}>{emptyMessage || "No files to show."}</p>}
+        </div>
+      );
     }
 
     // Operators tab: show ImageSet only
@@ -627,7 +642,7 @@ metadata:
         <h2 id="yaml-drawer-title" className="card-title" style={{ margin: 0, flex: 1 }}>
           YAML Preview
         </h2>
-        {mode !== 'imageset' && (
+        {mode !== 'imageset' && mode !== 'files' && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.875rem', cursor: 'pointer' }}>
           <input
             type="checkbox"
@@ -650,9 +665,12 @@ metadata:
       <p className="note subtle" style={{ margin: '8px 20px 0' }} data-download-policy-note="true">
         {mode === 'imageset'
           ? <>An ImageSetConfiguration holds no credentials, so there is nothing to reveal. Download saves exactly this file, generated again at that moment.</>
+          : mode === 'files'
+          ? <>These files hold no credentials. Download saves exactly the file shown.</>
           : <>Revealing values only changes what is shown here. Download saves each file using your
             Export Options on Assets &amp; Guide — the same rules as the bundle.</>}
       </p>
+      {headerExtras ? <div className="yaml-drawer-extras" style={{ margin: '8px 20px 0' }}>{headerExtras}</div> : null}
       {mode === 'imageset' && statusNote ? (
         <p className="note subtle" style={{ margin: '8px 20px 0' }} data-validation-note="true">{statusNote}</p>
       ) : null}

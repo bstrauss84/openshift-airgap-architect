@@ -235,6 +235,31 @@ describe("copying a stage's operators to later stages", () => {
     assert.ok(b.operators.selected.every((o) => o.catalogImage.endsWith(":v4.21")));
     assert.ok(c.operators.selected.every((o) => o.catalogImage.endsWith(":v4.22")));
   });
+
+  test("the copy reports what each target catalog's scan says about the copied channel, and never changes it", async () => {
+    const plan = await stagedPlan();
+    const [p1] = await stageProfiles(plan);
+    assert.equal((await api("POST", `/api/mirroring/profiles/${p1.id}`, { content: { platform: true, operators: true, additionalImages: false }, operators: { selected: [
+      { id: "registry.redhat.io/redhat/redhat-operator-index:v4.20::kiali-ossm", name: "kiali-ossm", catalog: "redhat", catalogImage: "registry.redhat.io/redhat/redhat-operator-index:v4.20", defaultChannel: "stable" },
+      { id: "registry.redhat.io/redhat/redhat-operator-index:v4.20::odf-operator", name: "odf-operator", catalog: "redhat", catalogImage: "registry.redhat.io/redhat/redhat-operator-index:v4.20", defaultChannel: "stable-4.20" }
+    ] } })).status, 200);
+    // Synthetic scan evidence: 4.21 lists both (odf's default is stable-4.21); 4.22 is not scanned.
+    const seed = db.prepare("INSERT INTO operator_results (version, catalog, results_json, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(version, catalog) DO UPDATE SET results_json = excluded.results_json, updated_at = excluded.updated_at");
+    db.prepare("DELETE FROM operator_results WHERE version IN ('4.21', '4.22')").run();
+    seed.run("4.21", "redhat", JSON.stringify([{ name: "kiali-ossm", defaultChannel: "stable" }, { name: "odf-operator", defaultChannel: "stable-4.21" }]), Date.now());
+    try {
+      const r = await api("POST", `/api/upgrade/plans/${plan.id}/stages/s1/copy-operators`, {});
+      assert.equal(r.status, 200, r.text);
+      const by = Object.fromEntries(r.json.report.map((x) => [x.stageId, Object.fromEntries(x.checks.map((c) => [c.name, c]))]));
+      assert.equal(by.s2["kiali-ossm"].status, "default-channel");
+      assert.equal(by.s2["odf-operator"].status, "channel-not-checked", "a different default is not evidence the copied channel exists, nor that it does not");
+      assert.equal(by.s3["kiali-ossm"].status, "not-scanned");
+      const [, b] = await stageProfiles(plan);
+      assert.equal(b.operators.selected.find((o) => o.name === "odf-operator").defaultChannel, "stable-4.20", "the copied channel is never silently replaced");
+    } finally {
+      db.prepare("DELETE FROM operator_results WHERE version IN ('4.21', '4.22')").run();
+    }
+  });
 });
 
 describe("readiness: every check says what to do next", () => {
@@ -250,5 +275,37 @@ describe("readiness: every check says what to do next", () => {
     assert.equal(by["etcd-backup"].group, "cluster");
     assert.equal(r.summary.pending, 3);
     assert.equal(r.summary.blocked, 0, "nothing here is evidence of a problem");
+  });
+});
+
+describe("YAML preview parity with the Handoff package (owner QA, 2026-11-07)", () => {
+  test("each stage's live preview is byte-for-byte the configuration in the artifacts list and the package", async () => {
+    const plan = await stagedPlan();
+    await addOperatorToEveryStage(plan);
+    await api("POST", `/api/upgrade/plans/${plan.id}/mirror`, { catalogTag: "plan" });
+    const check = async (label) => {
+      const profiles = await stageProfiles(plan);
+      const artifacts = (await api("GET", `/api/upgrade/plans/${plan.id}/artifacts`)).json.files;
+      const pkg = (await api("GET", `/api/upgrade/plans/${plan.id}/package.json`)).json;
+      for (const [i, st] of plan.stages.entries()) {
+        const pv = await api("POST", `/api/mirroring/profiles/${profiles[i].id}/preview`, {});
+        assert.equal(pv.status, 200, pv.text);
+        const art = artifacts.find((f) => f.stageId === st.id);
+        assert.equal(art.label, "VALIDATED");
+        assert.equal(pv.json.imagesetConfig, art.content, `${label}: stage ${st.id} preview = artifact`);
+        assert.equal(pv.json.imagesetConfig, pkg.content.stages[i].imagesetConfig, `${label}: stage ${st.id} preview = package`);
+        assert.equal(pv.text.includes(CANARY), false);
+      }
+      return profiles;
+    };
+    const profiles = await check("initial");
+    // A change to one stage's operators changes that stage's preview, and parity still holds.
+    const before = (await api("POST", `/api/mirroring/profiles/${profiles[1].id}/preview`, {})).json.imagesetConfig;
+    const sel = [...profiles[1].operators.selected, { id: "registry.redhat.io/redhat/redhat-operator-index:v4.21::web-terminal", name: "web-terminal", catalog: "redhat", catalogImage: "registry.redhat.io/redhat/redhat-operator-index:v4.21", defaultChannel: "fast" }];
+    assert.equal((await api("POST", `/api/mirroring/profiles/${profiles[1].id}`, { operators: { selected: sel } })).status, 200);
+    const after = (await api("POST", `/api/mirroring/profiles/${profiles[1].id}/preview`, {})).json.imagesetConfig;
+    assert.notEqual(after, before);
+    assert.match(after, /web-terminal/);
+    await check("after an operator change");
   });
 });

@@ -8297,3 +8297,39 @@ body[data-theme="dark"] .upgrade-route-strip { background: #0b1120; }
 .upgrade-rail-outside { font-size: 0.72rem; font-style: italic; color: var(--text-subtle); }
 .upgrade-explore-label { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; font-size: 0.9rem; }
 .upgrade-explore-missing ul { margin: 6px 0; }
+
+/* v2.3.0 Upgrade: stage selector in the YAML drawer. */
+.yaml-stage-select { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; flex-direction: row; }
+.yaml-stage-select select { width: auto; max-width: 100%; }
+.yaml-files-item + .yaml-files-item { border-top: 1px solid var(--border-color); }
+
+/* v2.3.0 owner QA: operator matrix (filter, bulk edit, evidence marks) and route catalog scans. */
+.upgrade-matrix-tools { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin: 4px 0 10px; }
+.upgrade-matrix-tools input[type="search"] { width: 14rem; max-width: 100%; }
+.upgrade-matrix-tools select { width: auto; max-width: 16rem; }
+.upgrade-matrix-bulk { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.upgrade-shell .upgrade-matrix-overwrite { font-size: 0.85rem; align-items: center; }
+.upgrade-matrix-feedback { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 8px; font-size: 0.9rem; }
+.upgrade-matrix-name { display: inline-flex; align-items: center; gap: 6px; }
+.upgrade-shell .upgrade-matrix-pick { width: auto; padding: 0; margin: 0; background: none; border: none; box-shadow: none; flex: 0 0 auto; }
+.upgrade-matrix-why { display: block; font-size: 0.75rem; font-weight: 400; }
+.upgrade-matrix-minor { display: block; font-weight: 400; font-size: 0.75rem; }
+.upgrade-operator-matrix tr[data-selected="true"] { background: var(--card-bg-subtle); }
+.upgrade-matrix-cell { white-space: nowrap; }
+.upgrade-cell-mark { display: inline-flex; align-items: center; justify-content: center; min-width: 1.3rem; height: 1.3rem; margin-right: 4px; border-radius: 999px; border: 1px solid var(--border-color); font-size: 0.75rem; font-weight: 700; }
+.upgrade-cell-mark[data-state="VERIFIED"] { color: var(--state-verified); border-color: var(--state-verified); }
+.upgrade-cell-mark[data-state="BLOCKED"] { color: var(--error-color); border-color: var(--color-danger); }
+.upgrade-cell-mark[data-state="WARNING"] { color: var(--state-warning); border-color: var(--state-warning); }
+.upgrade-cell-mark[data-state="PENDING"] { color: var(--state-pending); border-color: var(--state-pending); }
+.upgrade-cell-mark[data-state="NOT_CHECKED"] { border-style: dashed; color: var(--text-subtle); }
+.upgrade-cell-label { display: block; font-size: 0.72rem; color: var(--text-subtle); }
+.upgrade-cell-label[data-state="BLOCKED"] { color: var(--error-color); }
+.upgrade-cell-label[data-state="WARNING"] { color: var(--state-warning); }
+.upgrade-matrix-legend { margin-top: 8px; font-size: 0.85rem; }
+.upgrade-matrix-legend li { margin: 4px 0; }
+.upgrade-scan-plan { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.upgrade-scan-row { border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 12px; }
+.upgrade-scan-row-main { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.upgrade-scan-why { font-size: 0.82rem; margin-top: 2px; }
+.upgrade-scan-details { font-size: 0.8rem; margin-top: 4px; }
+.upgrade-scan-details code { overflow-wrap: anywhere; }

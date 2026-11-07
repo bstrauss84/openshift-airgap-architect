@@ -6269,17 +6269,22 @@ const copyUpgradeStageOperators = (plan, fromStageId, toStageIds) => {
     const selected = [...p.operators.selected];
     const added = [];
     const kept = [];
+    const checks = [];
     for (const op of src.operators.selected) {
       if (typeof op.catalogImage !== "string" || !/:v\d+\.\d+$/.test(op.catalogImage)) continue;
       const catalogImage = op.catalogImage.replace(/:v\d+\.\d+$/, `:v${t.minor}`);
       if (selected.some((o) => o.name === op.name && o.catalogImage === catalogImage)) { kept.push(op.name); continue; }
       selected.push({ id: `${catalogImage}::${op.name}`, name: op.name, catalog: op.catalog, catalogImage, defaultChannel: op.defaultChannel || null, sources: [`upgrade:copied-from-${fromStageId}`] });
       added.push(op.name);
+      // What the target minor's scanned catalog says (evidence only; the copied channel is never replaced).
+      const cached = getResults(t.minor, op.catalog || "redhat");
+      const hit = cached?.results?.find((e) => String(e.name || "").toLowerCase() === String(op.name).toLowerCase());
+      checks.push({ name: op.name, channel: op.defaultChannel || null, status: !cached?.updatedAt ? "not-scanned" : !hit ? "not-in-catalog" : hit.defaultChannel === op.defaultChannel ? "default-channel" : "channel-not-checked" });
     }
     if (added.length) {
       slice.profiles[p.id] = normalizeProfile({ ...p, content: { ...p.content, operators: true }, operators: { ...p.operators, catalogMinor: t.minor, catalogMinorSource: "platform", selected }, updatedAt: Date.now() }, p.id);
     }
-    report.push({ stageId: t.id, added, kept });
+    report.push({ stageId: t.id, added, kept, checks });
   }
   writeMirroringSlice(slice);
   return { ok: true, report };

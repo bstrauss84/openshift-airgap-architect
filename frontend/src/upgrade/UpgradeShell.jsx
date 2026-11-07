@@ -28,7 +28,8 @@ import ReadinessTab from "./ReadinessTab.jsx";
 import ReviewTab from "./ReviewTab.jsx";
 // Same sticky-tab mechanism as Mirroring: measured header height + reveal on deliberate tab change.
 import { revealTabStart } from "../mirroring/ProfileWorkspace.jsx";
-import { setActiveProfile } from "../mirroring/mirroringApi.js";
+import { setActiveProfile, fetchMirroring } from "../mirroring/mirroringApi.js";
+import { useProfilePreview } from "../mirroring/useProfilePreview.js";
 import { planCredentialKey, forgetSourceCredential, forgetDestinationCredential } from "../mirroring/sourceCredentialSession.js";
 import { fetchUpgrade, createPlan, setActivePlan, deletionPreview, deletePlan, importPackage, updatePlan } from "./upgradeApi.js";
 import { readUpgradeReturn, clearUpgradeReturn, rememberUpgradeReturn } from "./upgradeReturn.js";
@@ -82,7 +83,12 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
   const [tab, setTab] = useState(readTab);
   const [focusStage, setFocusStage] = useState(null);
   const [toolsOpen, setToolsOpen] = useState(false);
+  // YAML drawer: "stage" = the live, validated ImageSetConfiguration of one stage (the same
+  // generator and route as its download and the Handoff package); "files" = named Handoff files.
+  const [yamlOpen, setYamlOpen] = useState(false);
   const [yamlFiles, setYamlFiles] = useState(null);
+  const [yamlStageId, setYamlStageId] = useState(null);
+  const [profileCache, setProfileCache] = useState({});
   const [actionError, setActionError] = useState("");
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
@@ -152,6 +158,36 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
 
   const plan = slice?.plans.find((p) => p.id === activeId) || null;
   const credentialKey = plan ? planCredentialKey(plan.id) : null;
+  /** Keep the newest copy of every stage profile the steps load or save (drives the live preview). */
+  const profilesSeen = useCallback((list) => {
+    setProfileCache((all) => {
+      let changed = false;
+      const next = { ...all };
+      for (const p of list || []) {
+        if (!p?.id) continue;
+        const cur = next[p.id];
+        if (!cur || (p.updatedAt || 0) >= (cur.updatedAt || 0)) { if (cur !== p) { next[p.id] = p; changed = true; } }
+      }
+      return changed ? next : all;
+    });
+  }, []);
+  const stageViews = plan?.stageViews || [];
+  const yamlStage = stageViews.find((v) => v.id === yamlStageId) || stageViews[0] || null;
+  const yamlProfile = yamlStage?.linkedProfileId ? profileCache[yamlStage.linkedProfileId] || null : null;
+  const stagePreviewOn = yamlOpen && !yamlFiles;
+  const preview = useProfilePreview(stagePreviewOn ? yamlProfile : null);
+  useEffect(() => {
+    if (!stagePreviewOn || !yamlStage?.linkedProfileId || yamlProfile) return;
+    fetchMirroring().then((m) => profilesSeen(m.profiles || [])).catch(() => {});
+  }, [stagePreviewOn, yamlStage?.linkedProfileId, yamlProfile, profilesSeen]);
+  const showStageYaml = useCallback((stageId) => { setYamlFiles(null); if (stageId) setYamlStageId(stageId); setYamlOpen(true); }, []);
+  const stageShown = useCallback((stageId) => setYamlStageId(stageId), []);
+  const showFiles = (files) => {
+    const stageFile = files.length === 1 && files[0].stageId ? files[0] : null;
+    if (stageFile) { showStageYaml(stageFile.stageId); return; }
+    setYamlFiles(files);
+    setYamlOpen(true);
+  };
   const onPlanChanged = (next) => {
     if (!next) { load(); return; }
     setSlice((s) => (s ? { ...s, plans: s.plans.map((p) => (p.id === next.id ? next : p)) } : s));
@@ -159,6 +195,8 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
   const selectPlan = async (id) => {
     setActiveId(id);
     setYamlFiles(null);
+    setYamlOpen(false);
+    setYamlStageId(null);
     setFocusStage(null);
     try { await setActivePlan(id); } catch { /* navigation hint only */ }
   };
@@ -234,7 +272,11 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
       <header className="app-header">
         <div className="brand"><img className="brand-banner" src="/airgap-architect-banner.png" alt="Red Hat OpenShift Airgap Architect" /></div>
         <div className="header-actions">
-          {yamlFiles ? <button type="button" className="ghost icon-button" onClick={() => setYamlFiles(null)} aria-label="Hide YAML">Hide YAML</button> : null}
+          {plan && (stageViews.length || yamlOpen) ? (
+            <button type="button" className="ghost icon-button" onClick={() => { if (yamlOpen) { setYamlOpen(false); setYamlFiles(null); } else showStageYaml(null); }} aria-label={yamlOpen ? "Hide YAML" : "Show YAML"} title={yamlOpen ? "Hide YAML preview" : "Show each stage's ImageSetConfiguration"}>
+              {yamlOpen ? "Hide YAML" : "Show YAML"}
+            </button>
+          ) : null}
           <button type="button" className="ghost icon-button" onClick={() => setToolsOpen((o) => !o)} title="Tools: Home, theme and about" aria-label="Open Tools">⚙ Tools</button>
         </div>
       </header>
@@ -323,11 +365,11 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
                             {STEPS.map(([k]) => (
                               <div key={k} role="tabpanel" id={`upgrade-tabpanel-${k}`} aria-labelledby={`upgrade-tab-${k}`} hidden={tab !== k} className="mirroring-tabpanel">
                                 {k === "route" ? <PathTab key={plan.id} plan={plan} supportedMinors={slice.supportedMinors} highSide={slice.highSide} onPlanChanged={onPlanChanged} /> : null}
-                                {k === "content" ? <ContentTab key={plan.id} plan={plan} onPlanChanged={onPlanChanged} onShowOperation={showOperation} credentialKey={credentialKey} onPreviewFiles={(files) => setYamlFiles(files)} onGoToStep={activateTab} /> : null}
+                                {k === "content" ? <ContentTab key={plan.id} plan={plan} onPlanChanged={onPlanChanged} onShowOperation={showOperation} credentialKey={credentialKey} onPreviewStage={showStageYaml} onStageShown={stageShown} onProfilesSeen={profilesSeen} onGoToStep={activateTab} /> : null}
                                 {k === "readiness" && tab === k ? <ReadinessTab key={plan.id} plan={plan} onPlanChanged={onPlanChanged} credentialKey={credentialKey} onGoToStep={activateTab} /> : null}
-                                {k === "mirror" ? <MirrorTab key={plan.id} plan={plan} highSide={slice.highSide} onPlanChanged={onPlanChanged} credentialKey={credentialKey} onShowOperation={showOperation} onOpenStageInMirroring={onOpenMirroring ? (view) => openInMirroring(view) : null} initialStageId={focusStage} onGoToStep={activateTab} /> : null}
+                                {k === "mirror" ? <MirrorTab key={plan.id} plan={plan} highSide={slice.highSide} onPlanChanged={onPlanChanged} credentialKey={credentialKey} onShowOperation={showOperation} onOpenStageInMirroring={onOpenMirroring ? (view) => openInMirroring(view) : null} initialStageId={focusStage} onGoToStep={activateTab} onProfilesSeen={profilesSeen} /> : null}
                                 {k === "update" && tab === k ? <InstructionsTab key={plan.id} plan={plan} onPlanChanged={onPlanChanged} onGoToStep={activateTab} /> : null}
-                                {k === "handoff" && tab === k ? <ReviewTab key={plan.id} plan={plan} onPreviewArtifacts={(files) => setYamlFiles(files)} onGoToStep={activateTab} /> : null}
+                                {k === "handoff" && tab === k ? <ReviewTab key={plan.id} plan={plan} onPreviewArtifacts={showFiles} onGoToStep={activateTab} /> : null}
                               </div>
                             ))}
                           </>
@@ -338,17 +380,54 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
                 </div>
               </div>
             </main>
-            {yamlFiles ? (
+            {yamlOpen && yamlFiles ? (
               <YamlDrawer
                 isOpen
-                onClose={() => setYamlFiles(null)}
-                mode="imageset"
+                onClose={() => { setYamlOpen(false); setYamlFiles(null); }}
+                mode="files"
                 sourceLabel={`Upgrade plan: ${plan?.name || ""}`}
                 emptyMessage="No files yet."
                 previewFiles={Object.fromEntries(yamlFiles.filter((f) => f.content).map((f) => [f.name, f.content]))}
-                statusNote="Labels are on the Handoff step: validated configuration, template (fill in), or produced by a completed run."
                 resetSizing={false}
                 fetchExportFile={async (name) => yamlFiles.find((f) => f.name === name)?.content || ""}
+              />
+            ) : null}
+            {yamlOpen && !yamlFiles && plan ? (
+              <YamlDrawer
+                isOpen
+                onClose={() => setYamlOpen(false)}
+                mode="imageset"
+                sourceLabel={yamlStage ? `Stage ${yamlStage.id.slice(1)} · ${yamlStage.release}` : "No stage"}
+                downloadName={yamlStage ? `stage-${yamlStage.id.slice(1)}-${yamlStage.release}-imageset-config.yaml` : null}
+                headerExtras={stageViews.length ? (
+                  <label className="yaml-stage-select">
+                    <span>Stage shown</span>
+                    <select value={yamlStage?.id || ""} onChange={(e) => setYamlStageId(e.target.value)}>
+                      {stageViews.map((v) => <option key={v.id} value={v.id}>Stage {v.id.slice(1)} · {v.release}</option>)}
+                    </select>
+                  </label>
+                ) : null}
+                emptyMessage={!stageViews.length
+                  ? "Prepare the stages (Content) to generate their ImageSetConfigurations."
+                  : !yamlStage?.linkedProfileId
+                  ? "This stage has no profile yet: prepare the stages again, or receive its transfer."
+                  : preview.notReady.length
+                  ? `This stage is not ready to generate yet: ${preview.notReady.join(" ")}`
+                  : "Loading this stage's configuration…"}
+                previewFiles={preview.yaml ? { "imageset-config.yaml": preview.yaml } : preview.draft?.yaml ? { "imageset-config.yaml": preview.draft.yaml } : {}}
+                draftNotice={preview.draft ? (
+                  <>
+                    <strong>Draft — not downloadable.</strong> This stage is not ready to generate its ImageSetConfiguration yet.
+                    <ul className="yaml-draft-blockers">{preview.draft.blockers.map((b) => <li key={`${b.path}:${b.code || ""}`}>{b.message}</li>)}</ul>
+                    {preview.draft.error ? <div className="subtle">The draft could not be rendered: {preview.draft.error}</div> : null}
+                  </>
+                ) : null}
+                statusNote={preview.yaml && preview.validation ? `${preview.validation.summary} The same file is in the Handoff package.` : null}
+                loading={preview.loading || (Boolean(yamlStage?.linkedProfileId) && !yamlProfile)}
+                error={preview.error}
+                stale={preview.stale}
+                resetSizing={false}
+                fetchExportFile={preview.fetchForDownload}
               />
             ) : null}
           </div>

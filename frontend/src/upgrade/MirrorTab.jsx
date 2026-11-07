@@ -19,7 +19,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic).
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Button from "../components/Button.jsx";
 import Banner from "../components/Banner.jsx";
 import Modal from "../components/Modal.jsx";
@@ -115,8 +115,11 @@ export function MirrorJobsDialog({ plan, review, sourceReady, destReady, destAno
   );
 }
 
-export default function MirrorTab({ plan, highSide, onPlanChanged, credentialKey, onShowOperation = null, onOpenStageInMirroring = null, initialStageId = null, onGoToStep = null }) {
+export default function MirrorTab({ plan, highSide, onPlanChanged, credentialKey, onShowOperation = null, onOpenStageInMirroring = null, initialStageId = null, onGoToStep = null, onProfilesSeen = null }) {
   const [profiles, setProfiles] = useState({});
+  // Report every loaded or saved stage profile to the shell (live YAML preview), without re-running loads.
+  const seenRef = useRef(onProfilesSeen);
+  seenRef.current = onProfilesSeen;
   const [error, setError] = useState("");
   const [registryDraft, setRegistryDraft] = useState(plan.mirror?.registryUrl || "");
   const [registryError, setRegistryError] = useState("");
@@ -138,6 +141,7 @@ export default function MirrorTab({ plan, highSide, onPlanChanged, credentialKey
     try {
       const m = await fetchMirroring();
       setProfiles(Object.fromEntries((m.profiles || []).map((p) => [p.id, p])));
+      seenRef.current?.(m.profiles || []);
     } catch (err) {
       setError(`Could not load the stage profiles: ${String(err.message || err)}`);
     }
@@ -326,7 +330,7 @@ export default function MirrorTab({ plan, highSide, onPlanChanged, credentialKey
       {detailView && detailProfile ? (
         <section className="card upgrade-stage-details" id={`upgrade-stage-details-${plan.id}`} aria-labelledby={`upgrade-stage-details-h-${plan.id}`}>
           <h3 id={`upgrade-stage-details-h-${plan.id}`}>Stage {detailView.id.slice(1)} · {detailView.release}: run, transfer and checks</h3>
-          <MirroringRunPanel key={detailProfile.id} profile={detailProfile} onProfileChanged={(p) => setProfiles((all) => ({ ...all, [p.id]: p }))} onProfilesChanged={() => { loadProfiles(); onPlanChanged(null); }} onShowOperation={onShowOperation} requestDestinationCheck managed={managed} />
+          <MirroringRunPanel key={detailProfile.id} profile={detailProfile} onProfileChanged={(p) => { setProfiles((all) => ({ ...all, [p.id]: p })); seenRef.current?.([p]); }} onProfilesChanged={() => { loadProfiles(); onPlanChanged(null); }} onShowOperation={onShowOperation} requestDestinationCheck managed={managed} />
         </section>
       ) : null}
 

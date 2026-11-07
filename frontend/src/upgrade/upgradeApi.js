@@ -45,3 +45,7 @@ export const copyStageOperators = (id, stageId, toStageIds) => post(`/api/upgrad
 export const fetchStageConfig = (profileId) => post(`/api/mirroring/profiles/${encodeURIComponent(profileId)}/preview`, {});
 /** Exploration only (D-1): a route across older minors from the public graph; never changes a plan. */
 export const exploreRoute = (body) => post("/api/upgrade/explore", body);
+/** Existing Mirroring scan route (one job per catalog for one minor); credentials in this request only. */
+export const startCatalogScan = (body) => post("/api/operators/scan", body);
+/** Cached scan results for one catalog minor (all three catalogs). */
+export const fetchCatalogStatus = (minor) => apiFetch(`/api/operators/status?version=${encodeURIComponent(minor)}`);
