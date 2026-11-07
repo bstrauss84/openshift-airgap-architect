@@ -14,10 +14,11 @@ import {
   UPDATE_METHODS, STRATEGIES, CHANNEL_STRATEGIES
 } from "./upgradeState.js";
 import {
-  refreshPublicGraph, importGraph, readCachedGraph, describeGraphEntry, assertGraphRequest, UpdateGraphError, GRAPH_STALE_MS
+  refreshPublicGraph, importGraph, readCachedGraph, describeGraphEntry, assertGraphRequest, UpdateGraphError, GRAPH_STALE_MS,
+  explorationGraph, exploreMinors
 } from "./updateGraph.js";
-import { solvePath, classifyTargets, validateRoute, buildHops, channelPrefix, PLANNING_CHANNEL_RE, GRAPH_ARCHES, gaVersion } from "../../shared/upgradePath.js";
-import { getMinorVersion } from "../../shared/versionUtils.js";
+import { solvePath, classifyTargets, validateRoute, buildHops, channelPrefix, PLANNING_CHANNEL_RE, GRAPH_ARCHES, gaVersion, exploreRoute } from "../../shared/upgradePath.js";
+import { getMinorVersion, compareVersions } from "../../shared/versionUtils.js";
 import { evaluateReadiness, ATTESTABLE } from "./upgradeReadiness.js";
 import { projectInventory, InventoryError, INVENTORY_KINDS, INVENTORY_COMMANDS } from "./upgradeInventory.js";
 import { buildInstructions } from "./upgradeInstructions.js";
@@ -91,6 +92,7 @@ export const upgradeMirrorSettingsSchema = z.object({
   catalogTag: z.enum(CATALOG_TAG_MODES).optional()
 }).strict();
 export const upgradeCopyOperatorsSchema = z.object({ toStageIds: z.array(z.string().regex(/^s\d{1,2}$/)).max(8).optional() }).strict();
+export const upgradeExploreSchema = z.object({ arch: z.enum(GRAPH_ARCHES), source: z.string().max(16), target: z.string().max(16) }).strict();
 export const upgradeActiveSchema = z.object({ planId: z.string().max(40).nullable() }).strict();
 const secretText = z.string().min(2).max(65536);
 export const upgradeSequenceSchema = z.object({
@@ -228,6 +230,45 @@ export function registerUpgradeRoutes(app, deps) {
     const out = copyStageOperators(loaded.plan, req.params.stageId, req.body.toStageIds);
     if (!out.ok) return res.status(out.status).json(out.json);
     res.json({ plan: describePlan(readUpgradeSlice().plans.find((p) => p.id === loaded.plan.id)), report: out.report });
+  });
+
+  /**
+   * Exploration only (owner decision D-1): a route between releases from 4.1 up to the newest
+   * supported minor, from REAL edges of each step's stable-4.N graph (same allowlisted host, its own
+   * cache). Never changes a plan; nothing is generated from it. Targets above the newest supported
+   * minor are refused (422), as everywhere else.
+   */
+  app.post("/api/upgrade/explore", validateBody(upgradeExploreSchema), async (req, res) => {
+    if (isHighSide()) return res.status(409).json({ error: "Exploration reads the public update graph (api.openshift.com), which the disconnected side does not reach.", code: "GRAPH_OFFLINE_SIDE" });
+    const minors = exploreMinors();
+    const src = gaVersion(req.body.source);
+    const dst = gaVersion(req.body.target);
+    if (dst && !minors.includes(getMinorVersion(dst)) && compareVersions(getMinorVersion(dst), minors[minors.length - 1]) > 0) return unsupported(res, getMinorVersion(dst));
+    if (!src || !dst || !minors.includes(getMinorVersion(src)) || !minors.includes(getMinorVersion(dst))) {
+      return res.json(exploreRoute({ graphs: {}, source: req.body.source, target: req.body.target, minors, planningMinors: SUPPORTED_MINORS, arch: req.body.arch }));
+    }
+    const from = minors.indexOf(getMinorVersion(src));
+    const to = minors.indexOf(getMinorVersion(dst));
+    if (to < from) return res.json(exploreRoute({ graphs: {}, source: src, target: dst, minors, planningMinors: SUPPORTED_MINORS, arch: req.body.arch }));
+    const graphs = {};
+    const sources = [];
+    const failures = [];
+    for (const m of minors.slice(from, to + 1)) {
+      const channel = `stable-${m}`;
+      try {
+        const entry = await explorationGraph(channel, req.body.arch);
+        graphs[channel] = entry.normalized;
+        sources.push({ channel, fetchedAt: entry.fetchedAt, bodySha256: entry.bodySha256 });
+      } catch (err) {
+        failures.push({ code: "GRAPH_UNAVAILABLE", message: `The ${channel} graph for ${req.body.arch} could not be read: ${err instanceof UpdateGraphError ? err.message : "unexpected error"}` });
+      }
+    }
+    if (failures.length) return res.json({ ok: false, exploration: true, reasons: failures, nextStep: "Try again when api.openshift.com is reachable from this server." });
+    const out = exploreRoute({ graphs, source: src, target: dst, minors, planningMinors: SUPPORTED_MINORS, arch: req.body.arch });
+    const docs = out.ok
+      ? [...new Set(out.hops.map((h) => getMinorVersion(h.to)).filter((m) => !SUPPORTED_MINORS.includes(m)))].map((m) => ({ minor: m, url: `https://docs.redhat.com/en/documentation/openshift_container_platform/${m}/html/updating_clusters/index`, humanVerified: false }))
+      : [];
+    res.json({ ...out, graphSources: sources, docs, asOf: "Red Hat's update graph as it is today; past recommendations are not reconstructed." });
   });
 
   app.post("/api/upgrade/plans/:id", validateBody(upgradePlanUpdateSchema), (req, res) => {

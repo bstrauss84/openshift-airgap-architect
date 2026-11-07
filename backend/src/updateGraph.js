@@ -23,6 +23,7 @@ import { z } from "zod";
 import { getCache, setCache } from "./utils.js";
 import { SUPPORTED_MINORS } from "./versionPolicy.js";
 import { normalizeGraph, PLANNING_CHANNEL_RE, GRAPH_ARCHES } from "../../shared/upgradePath.js";
+import { getMinorVersion, compareVersions, isVersionGTE } from "../../shared/versionUtils.js";
 
 export const GRAPH_ENDPOINT = "https://api.openshift.com/api/upgrades_info/v1/graph";
 export const GRAPH_TIMEOUT_MS = 15000;
@@ -113,10 +114,12 @@ const readCapped = async (res) => {
 };
 
 /** Build an entry (what is cached and returned) from a validated body. */
-export const buildEntry = ({ body, text, channel, arch, source, sourceUrl, fetchedAt, origin }) => {
-  const normalized = normalizeGraph(body, { channel, arch, supportedMinors: SUPPORTED_MINORS });
+export const buildEntry = ({ body, text, channel, arch, source, sourceUrl, fetchedAt, origin, minors = SUPPORTED_MINORS }) => {
+  const normalized = normalizeGraph(body, { channel, arch, supportedMinors: minors });
   if (!normalized.versions.length) {
-    throw new UpdateGraphError("GRAPH_EMPTY", `The ${channel} graph for ${arch} has no release in the supported minors (${SUPPORTED_MINORS.join(", ")}).`, 404);
+    throw new UpdateGraphError("GRAPH_EMPTY", minors === SUPPORTED_MINORS
+      ? `The ${channel} graph for ${arch} has no release in the supported minors (${SUPPORTED_MINORS.join(", ")}).`
+      : `The ${channel} graph for ${arch} is empty.`, 404);
   }
   return {
     source,
@@ -132,9 +135,8 @@ export const buildEntry = ({ body, text, channel, arch, source, sourceUrl, fetch
   };
 };
 
-/** Fetch from the public graph API and cache (only after validation). */
-export const refreshPublicGraph = async (channel, arch, { fetchImpl = fetch, now = () => Date.now() } = {}) => {
-  assertGraphRequest(channel, arch);
+/** GET one channel graph from the single allowlisted host; validated before anything is kept. */
+const fetchGraphText = async (channel, arch, fetchImpl) => {
   const url = new URL(GRAPH_ENDPOINT);
   url.searchParams.set("channel", channel);
   url.searchParams.set("arch", arch);
@@ -150,9 +152,49 @@ export const refreshPublicGraph = async (channel, arch, { fetchImpl = fetch, now
   if (res.status >= 300 && res.status < 400) throw new UpdateGraphError("GRAPH_REDIRECT_REFUSED", "The update graph service answered with a redirect, which Architect does not follow.");
   if (!res.ok) throw new UpdateGraphError("GRAPH_HTTP_ERROR", `The update graph service answered HTTP ${res.status}.`);
   const text = await readCapped(res);
-  const body = validateGraphBody(text);
+  return { url, text, body: validateGraphBody(text) };
+};
+
+/** Fetch from the public graph API and cache (only after validation). */
+export const refreshPublicGraph = async (channel, arch, { fetchImpl = fetch, now = () => Date.now() } = {}) => {
+  assertGraphRequest(channel, arch);
+  const { url, text, body } = await fetchGraphText(channel, arch, fetchImpl);
   const entry = buildEntry({ body, text, channel, arch, source: "public", origin: "public-api", sourceUrl: url.toString(), fetchedAt: new Date(now()).toISOString() });
   setCache(cacheKey("public", channel, arch), entry);
+  return entry;
+};
+
+/**
+ * Exploration only (v2.3.0, owner decision D-1): stable-4.1 … stable-<newest supported> from the
+ * SAME allowlisted host, with the same limits and validation, cached under a separate "explore"
+ * source that planning, stages, instructions and packages never read (readCachedGraph refuses it).
+ * Older minors are therefore never usable for anything but showing a route.
+ */
+export const EXPLORE_CHANNEL_RE = /^stable-4\.(\d{1,2})$/;
+const newestSupported = () => SUPPORTED_MINORS[SUPPORTED_MINORS.length - 1];
+/** 4.1 … newest supported minor (shared version comparison; 4.0 was never a public GA release). */
+export const exploreMinors = () => {
+  const out = [];
+  for (let i = 1; i < 100 && isVersionGTE(newestSupported(), `4.${i}`); i += 1) out.push(`4.${i}`);
+  return out;
+};
+export const assertExploreRequest = (channel, arch) => {
+  const minor = typeof channel === "string" && EXPLORE_CHANNEL_RE.test(channel) ? getMinorVersion(channel.slice("stable-".length)) : null;
+  if (!minor || compareVersions(minor, "4.1") < 0) throw new UpdateGraphError("GRAPH_CHANNEL_INVALID", "Exploration reads stable-4.N channels from 4.1 on.", 400);
+  if (!isVersionGTE(newestSupported(), minor)) throw new UpdateGraphError("UNSUPPORTED_VERSION", `OpenShift ${minor} is not supported by this version of Architect (supported: ${SUPPORTED_MINORS.join(", ")}).`, 422);
+  if (!GRAPH_ARCHES.includes(arch)) throw new UpdateGraphError("GRAPH_ARCH_INVALID", `Architecture must be one of ${GRAPH_ARCHES.join(", ")}.`, 400);
+};
+export const readExplorationGraph = (channel, arch) => getCache(cacheKey("explore", channel, arch))?.value || null;
+let exploreFetchOverride = null;
+/** Tests only: serve exploration graphs without the network. */
+export const _setExploreFetchForTests = (fn) => { exploreFetchOverride = fn; };
+export const explorationGraph = async (channel, arch, { fetchImpl = exploreFetchOverride || fetch, now = () => Date.now(), maxAgeMs = GRAPH_STALE_MS } = {}) => {
+  assertExploreRequest(channel, arch);
+  const hit = readExplorationGraph(channel, arch);
+  if (hit && now() - Date.parse(hit.fetchedAt) < maxAgeMs) return hit;
+  const { url, text, body } = await fetchGraphText(channel, arch, fetchImpl);
+  const entry = buildEntry({ body, text, channel, arch, source: "explore", origin: "public-api", sourceUrl: url.toString(), fetchedAt: new Date(now()).toISOString(), minors: exploreMinors() });
+  setCache(cacheKey("explore", channel, arch), entry);
   return entry;
 };
 

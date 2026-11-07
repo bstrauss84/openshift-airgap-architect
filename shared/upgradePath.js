@@ -362,3 +362,58 @@ export function validateRoute({ graph, route, supportedMinors, allowConditional 
   }
   return { ok: true };
 }
+
+/**
+ * Exploration only (v2.3.0, owner decision D-1): a route between any two releases from 4.1 up to
+ * the newest supported minor, using ONLY real edges, each taken from the graph of the channel the
+ * cluster is on for that hop (stable-<destination minor>). The per-step graphs are merged so that
+ * an edge into minor N comes from stable-4.N alone, then the planning solver runs unchanged over
+ * the merged graph (recommended edges, at most one minor per hop, highest-release convention).
+ * Nothing is synthesized. The caller labels the result as exploration and generates nothing from it.
+ *
+ * @param {object} p
+ * @param {Record<string, object>} p.graphs - normalized stable-4.N graphs by channel
+ * @param {string} p.source
+ * @param {string} p.target
+ * @param {string[]} p.minors - every minor that may appear (4.1 … newest supported)
+ * @param {string[]} p.planningMinors - the planning range (SUPPORTED_MINORS)
+ * @param {string} p.arch
+ */
+export function exploreRoute({ graphs, source, target, minors, planningMinors, arch }) {
+  const src = gaVersion(source);
+  const dst = gaVersion(target);
+  const fail = (code, message, nextStep = null) => ({ ok: false, exploration: true, reasons: [reason(code, message)], nextStep });
+  if (!src) return fail("SOURCE_INVALID", "Enter the release the cluster runs as x.y.z, for example 4.12.30.");
+  if (!dst) return fail("TARGET_INVALID", "Enter the release to explore up to as x.y.z, for example 4.18.10.");
+  if (!minors.includes(minorOf(src))) return fail("SOURCE_OUT_OF_RANGE", `Exploration covers OpenShift 4.1 to ${minors[minors.length - 1]}.`);
+  if (!minors.includes(minorOf(dst))) return fail("TARGET_UNSUPPORTED", `OpenShift ${minorOf(dst)} is not supported by this version of Architect (supported: ${planningMinors.join(", ")}).`);
+  if (compareVersions(src, dst) >= 0) return fail("TARGET_NOT_NEWER", "Choose a release newer than the one the cluster runs.");
+  const merged = { channel: `stable-${minorOf(dst)}`, arch, nodes: {}, edges: [], conditional: [] };
+  for (const [channel, g] of Object.entries(graphs)) {
+    if (!g) continue;
+    const intoMinor = channelMinor(channel);
+    for (const [v, n] of Object.entries(g.nodes)) {
+      const prev = merged.nodes[v];
+      merged.nodes[v] = prev ? { ...prev, channels: [...new Set([...(prev.channels || []), ...(n.channels || [])])] } : n;
+    }
+    for (const [a, b] of g.edges) if (minorOf(b) === intoMinor) merged.edges.push([a, b]);
+    for (const c of g.conditional) if (minorOf(c.to) === intoMinor) merged.conditional.push(c);
+  }
+  merged.versions = Object.keys(merged.nodes).sort(compareVersions);
+  const srcChannels = [`stable-${minorOf(src)}`];
+  if (!merged.nodes[src]) {
+    return fail("SOURCE_NOT_IN_GRAPHS", `${src} is not in Red Hat's update graph today (${srcChannels.join(", ")} for ${arch}). Updates from it are no longer listed.`,
+      `Update within ${minorOf(src)} to a release that is still listed (see the OpenShift ${minorOf(src)} documentation), or contact Red Hat support.`);
+  }
+  if (!merged.nodes[dst]) return fail("TARGET_NOT_IN_GRAPHS", `${dst} is not in the stable-${minorOf(dst)} graph for ${arch}. Choose a release that channel lists.`);
+  const solved = solvePath({ graph: merged, source: src, target: dst, supportedMinors: minors, stepGraphs: graphs, channelStrategy: "per-minor", maxAlternatives: 3 });
+  const reasons = (solved.reasons || []).map((r) => (r.code === "NO_RECOMMENDED_PATH"
+    ? { ...r, message: `Red Hat's update graph today has no recommended route from ${src} to ${dst}${solved.conditionalAvailable ? " (a route exists only through conditional updates, which have known risks)" : ""}.` }
+    : r));
+  if (!solved.ok) {
+    return { ok: false, exploration: true, reasons, conditionalAvailable: Boolean(solved.conditionalAvailable),
+      nextStep: solved.conditionalAvailable ? `Review the conditional updates and their risks in the OpenShift ${minorOf(dst)} documentation before choosing such a route.` : `Check that each minor between ${minorOf(src)} and ${minorOf(dst)} has a listed update, or choose a nearer target.` };
+  }
+  const firstSupported = solved.path.find((v) => planningMinors.includes(minorOf(v))) || null;
+  return { ...solved, exploration: true, reasons, firstSupported, nodeInfo: Object.fromEntries(solved.path.map((v) => [v, { channels: merged.nodes[v]?.channels || [] }])) };
+}
