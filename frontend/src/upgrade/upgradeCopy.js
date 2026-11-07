@@ -171,3 +171,14 @@ Run the command shown below where the cluster is reachable, and paste its JSON o
 
 **Caveats:**
 Each import replaces the previous one of the same kind.`;
+
+export const PRESET_FILES_HINT = `One or more ImageSetConfiguration files you used before.
+
+**Why it matters:**
+They suggest operators, images and release hints so you do not start from nothing.
+
+**Caveats:**
+A file says what was asked to be mirrored. It is not evidence of what is installed, mirrored or in your registry; everything it suggests stays unverified until you or a cluster export confirms it.
+
+**Format:**
+oc-mirror v2 (v2alpha1) files are fully checked; v1 (v1alpha2) files are read for platform channels, operator packages and additional images only. Up to 10 files, 1 MiB each.`;

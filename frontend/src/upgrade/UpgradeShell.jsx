@@ -12,7 +12,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic).
  */
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Button from "../components/Button.jsx";
 import Banner from "../components/Banner.jsx";
 import Modal from "../components/Modal.jsx";
@@ -25,10 +25,13 @@ import ContentTab from "./ContentTab.jsx";
 import InstructionsTab from "./InstructionsTab.jsx";
 import ReadinessTab from "./ReadinessTab.jsx";
 import ReviewTab from "./ReviewTab.jsx";
+import OperatorsTab from "./OperatorsTab.jsx";
+// Same sticky-tab mechanism as Mirroring (owner C): measured header height + reveal on deliberate tab change.
+import { revealTabStart } from "../mirroring/ProfileWorkspace.jsx";
 import { fetchUpgrade, createPlan, setActivePlan, deletionPreview, deletePlan, importPackage } from "./upgradeApi.js";
 
 const TAB_KEY = "oaa.upgrade.tab.v1";
-const TABS = [["path", "Path"], ["content", "Content & runs"], ["instructions", "Instructions"], ["readiness", "Readiness"], ["review", "Review & export"]];
+const TABS = [["path", "Path"], ["operators", "Operators"], ["content", "Content & runs"], ["instructions", "Instructions"], ["readiness", "Readiness"], ["review", "Review & export"]];
 const readTab = () => { try { const t = sessionStorage.getItem(TAB_KEY); return TABS.some(([k]) => k === t) ? t : "path"; } catch { return "path"; } };
 
 export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
@@ -48,6 +51,25 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
   const [removeStages, setRemoveStages] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const tabRefs = useRef({});
+  // Sticky tabs: the tab row sticks under the sticky step header, whose measured height is
+  // --mirroring-header-h (exactly as in Mirroring). A deliberate tab change brings the new panel's start
+  // into view; programmatic changes do not move the page.
+  const shellRef = useRef(null);
+  const stepHeaderRef = useRef(null);
+  const tabAnchorRef = useRef(null);
+  const [revealRequest, setRevealRequest] = useState(0);
+  useEffect(() => {
+    const header = stepHeaderRef.current;
+    const shell = shellRef.current;
+    if (!header || !shell) return undefined;
+    const apply = () => shell.style.setProperty("--mirroring-header-h", `${Math.ceil(header.getBoundingClientRect().height)}px`);
+    apply();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(apply);
+    ro.observe(header);
+    return () => ro.disconnect();
+  }, [status]);
+  useLayoutEffect(() => { if (revealRequest) revealTabStart(tabAnchorRef.current); }, [revealRequest]);
 
   const load = useCallback(async () => {
     try {
@@ -85,6 +107,7 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
     setTab(t);
     try { sessionStorage.setItem(TAB_KEY, t); } catch { /* not persisted */ }
   };
+  const activateTab = (t) => { showTab(t); setRevealRequest((n) => n + 1); };
   const onTabKey = (e, i) => {
     const n = TABS.length;
     let j = null;
@@ -92,7 +115,7 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
     if (e.key === "ArrowLeft") j = (i + n - 1) % n;
     if (e.key === "Home") j = 0;
     if (e.key === "End") j = n - 1;
-    if (j != null) { e.preventDefault(); showTab(TABS[j][0]); tabRefs.current[TABS[j][0]]?.focus(); }
+    if (j != null) { e.preventDefault(); activateTab(TABS[j][0]); tabRefs.current[TABS[j][0]]?.focus(); }
   };
   const openDelete = async (p) => {
     setPendingDelete(p);
@@ -127,7 +150,7 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
   const stageProfiles = deleteInfo?.stageProfiles || [];
   const running = stageProfiles.some((p) => p.running);
   return (
-    <div className="app-shell mirroring-shell upgrade-shell">
+    <div className="app-shell mirroring-shell upgrade-shell" ref={shellRef}>
       <a href="#upgrade-main" className="skip-link">Skip to main content</a>
       <header className="app-header">
         <div className="brand"><img className="brand-banner" src="/airgap-architect-banner.png" alt="Red Hat OpenShift Airgap Architect" /></div>
@@ -141,7 +164,7 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
           <div className="main-layout" style={{ display: "flex", flex: 1, overflow: "hidden" }}>
             <main className="main" id="upgrade-main" aria-label="Upgrade" tabIndex={-1} style={{ flex: 1, minWidth: 0, overflow: "auto" }}>
               <div className="step">
-                <div className="step-header">
+                <div className="step-header" ref={stepHeaderRef}>
                   <div className="step-header-main">
                     <h2>Upgrade</h2>
                     <p className="subtle">Plan a supported disconnected update of an OpenShift {slice?.supportedMinors?.join(" / ") || "4.20 / 4.21 / 4.22"} cluster: the route from the update graph, the content to mirror per release, and the OSUS, CLI or web console steps. Architect never connects to or changes the cluster.</p>
@@ -187,14 +210,16 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
                           <section className="card"><h3>Select or create a plan</h3><p className="subtle">Plans are independent: creating one never changes another, and Install and Mirroring are not affected.</p></section>
                         ) : (
                           <>
+                            <div ref={tabAnchorRef} className="mirroring-tabs-anchor" aria-hidden="true" />
                             <div className="mirroring-tabs" role="tablist" aria-label={`${plan.name}: sections`}>
                               {TABS.map(([k, label], i) => (
-                                <button key={k} ref={(el) => { tabRefs.current[k] = el; }} type="button" role="tab" id={`upgrade-tab-${k}`} aria-selected={tab === k} aria-controls={`upgrade-tabpanel-${k}`} tabIndex={tab === k ? 0 : -1} className={`mirroring-tab${tab === k ? " active" : ""}`} onClick={() => showTab(k)} onKeyDown={(e) => onTabKey(e, i)}>{label}</button>
+                                <button key={k} ref={(el) => { tabRefs.current[k] = el; }} type="button" role="tab" id={`upgrade-tab-${k}`} aria-selected={tab === k} aria-controls={`upgrade-tabpanel-${k}`} tabIndex={tab === k ? 0 : -1} className={`mirroring-tab${tab === k ? " active" : ""}`} onClick={() => activateTab(k)} onKeyDown={(e) => onTabKey(e, i)}>{label}</button>
                               ))}
                             </div>
                             {TABS.map(([k]) => (
                               <div key={k} role="tabpanel" id={`upgrade-tabpanel-${k}`} aria-labelledby={`upgrade-tab-${k}`} hidden={tab !== k} className="mirroring-tabpanel">
                                 {k === "path" ? <PathTab key={plan.id} plan={plan} supportedMinors={slice.supportedMinors} highSide={slice.highSide} onPlanChanged={onPlanChanged} /> : null}
+                                {k === "operators" ? <OperatorsTab key={plan.id} plan={plan} onPlanChanged={onPlanChanged} /> : null}
                                 {k === "content" ? <ContentTab key={plan.id} plan={plan} highSide={slice.highSide} onPlanChanged={onPlanChanged} /> : null}
                                 {k === "instructions" && tab === k ? <InstructionsTab key={plan.id} plan={plan} /> : null}
                                 {k === "readiness" && tab === k ? <ReadinessTab key={plan.id} plan={plan} onPlanChanged={onPlanChanged} /> : null}

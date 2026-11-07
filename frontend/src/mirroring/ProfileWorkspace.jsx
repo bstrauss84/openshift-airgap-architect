@@ -143,7 +143,7 @@ const blockersPerTab = (profile) => {
 /** The element that scrolls the page around `el` (Mirroring: #mirroring-main), or null. */
 const scrollParentOf = (el) => {
   for (let n = el?.parentElement; n; n = n.parentElement) {
-    if (n.id === "mirroring-main") return n;
+    if (n.id === "mirroring-main" || n.id === "upgrade-main") return n;
     const oy = typeof window !== "undefined" ? window.getComputedStyle(n).overflowY : "";
     if (/(auto|scroll)/.test(oy) && n.scrollHeight > n.clientHeight) return n;
   }

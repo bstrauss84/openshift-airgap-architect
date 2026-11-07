@@ -61,7 +61,7 @@ describe("New Install… (scoped Install reset)", () => {
     render(<App />);
     await screen.findByRole("button", { name: /Continue install/i });
     expect(screen.queryByRole("button", { name: /^Start Over$/i })).toBeNull();
-    await waitFor(() => expect(screen.getByTestId("landing-mirroring-status")).toHaveTextContent("2 profiles · 1 Upgrade stage profile"));
+    await waitFor(() => expect(screen.getByTestId("landing-mirroring-status")).toHaveTextContent(/^2 profiles$/));
     expect(screen.getByTestId("landing-upgrade-status")).toHaveTextContent("1 plan");
     expect(screen.getByTestId("landing-install-status")).toHaveTextContent(/In progress/);
   });
@@ -69,7 +69,7 @@ describe("New Install… (scoped Install reset)", () => {
   it("lists what is cleared, kept and stopped from the server preview, and confirms with its token", async () => {
     mockServer(stateWithBlueprintCompleteMethodologyIncomplete());
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "New Install…" }));
+    fireEvent.click(await screen.findByRole("button", { name: "New Install" }));
     const dialog = await screen.findByRole("dialog");
     await waitFor(() => expect(within(dialog).getByText(/2 Mirroring profiles/)).toBeInTheDocument());
     expect(within(dialog).getByText(/1 Upgrade plan and their 3 stage profiles/)).toBeInTheDocument();
@@ -85,7 +85,7 @@ describe("New Install… (scoped Install reset)", () => {
   it("with nothing running, the confirmation says so plainly", async () => {
     mockServer(stateWithBlueprintCompleteMethodologyIncomplete(), { preview: { ...PREVIEW, cancel: [], unaffected: [], installRunsRunning: 0 } });
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "New Install…" }));
+    fireEvent.click(await screen.findByRole("button", { name: "New Install" }));
     const dialog = await screen.findByRole("dialog");
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "Start a new Install" })).not.toBeDisabled());
     expect(within(dialog).queryByText(/Running work that will be stopped/)).toBeNull();
@@ -103,7 +103,7 @@ describe("New Install… (scoped Install reset)", () => {
       }
     });
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "New Install…" }));
+    fireEvent.click(await screen.findByRole("button", { name: "New Install" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(await within(dialog).findByRole("button", { name: /start a new Install/i }));
     await waitFor(() => expect(within(dialog).getByText(/changed while the dialog was open/)).toBeInTheDocument());
@@ -116,7 +116,7 @@ describe("New Install… (scoped Install reset)", () => {
     fresh.ui = { ...(fresh.ui || {}), visitedSteps: {}, completedSteps: {} };
     mockServer(fresh);
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: /Start new install/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Start (new )?install/i }));
     await waitFor(() => expect(screen.queryByRole("heading", { name: /What would you like to do\?/ })).toBeNull());
     expect(apiFetch).not.toHaveBeenCalledWith("/api/start-over", expect.anything());
   });

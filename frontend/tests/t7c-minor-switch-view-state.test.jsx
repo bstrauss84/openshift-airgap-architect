@@ -102,7 +102,7 @@ const runAt = (minor) => ({
 });
 
 /** The landing page is showing iff its primary call to action is present. */
-const landingVisible = () => screen.queryByRole("button", { name: /Start new install|Continue install/i }) !== null;
+const landingVisible = () => screen.queryByRole("button", { name: /Start (new )?install|Continue install/i }) !== null;
 
 async function mountAt(minor) {
   harness.initialState = runAt(minor);
@@ -112,7 +112,7 @@ async function mountAt(minor) {
 
 /** Leave the landing page the way a user does: by clicking through it. */
 async function enterWizard() {
-  const cta = screen.getByRole("button", { name: /Start new install|Continue install/i });
+  const cta = screen.getByRole("button", { name: /Start (new )?install|Continue install/i });
   fireEvent.click(cta);
   await waitFor(() => expect(landingVisible()).toBe(false));
 }
@@ -278,7 +278,7 @@ describe("T7C.3 — changing the minor does not snap the page to the top", () =>
     harness.initialState = runAt(minor);
     render(<App />);
     await waitFor(() => expect(screen.queryByText(/Loading OpenShift/i)).toBeNull());
-    const cta = screen.getByRole("button", { name: /Start new install|Continue install/i });
+    const cta = screen.getByRole("button", { name: /Start (new )?install|Continue install/i });
     fireEvent.click(cta);
     await waitFor(() => expect(landingVisible()).toBe(false));
     await waitFor(() => expect(mainEl()).not.toBeNull());

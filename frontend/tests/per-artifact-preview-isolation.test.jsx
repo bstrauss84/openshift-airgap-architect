@@ -271,7 +271,7 @@ async function flush(fn) {
 async function openPreview() {
   harness.initialState = lockedAgentRun();
   render(<App />);
-  const cta = await screen.findByRole("button", { name: /Continue install|Start new install/i });
+  const cta = await screen.findByRole("button", { name: /Continue install|Start (new )?install/i });
   fireEvent.click(cta);
   const toggle = await screen.findByRole("button", { name: /^Show YAML$/i });
   fireEvent.click(toggle);

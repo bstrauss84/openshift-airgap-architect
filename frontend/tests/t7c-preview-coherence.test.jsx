@@ -209,7 +209,7 @@ describe("T7C — a superseded response cannot overwrite a newer one", () => {
     };
     render(<App />);
     // Leave the landing page.
-    const cta = await screen.findByRole("button", { name: /Continue install|Start new install/i });
+    const cta = await screen.findByRole("button", { name: /Continue install|Start (new )?install/i });
     fireEvent.click(cta);
     // Open the YAML drawer.
     const toggle = await screen.findByRole("button", { name: /^Show YAML$/i });
@@ -355,7 +355,7 @@ describe("T7C.1 — preview stays coherent across every state transition", () =>
   async function open(minor) {
     harness.initialState = resumed(minor);
     render(<App />);
-    const cta = await screen.findByRole("button", { name: /Continue install|Start new install/i });
+    const cta = await screen.findByRole("button", { name: /Continue install|Start (new )?install/i });
     fireEvent.click(cta);
     const toggle = await screen.findByRole("button", { name: /^Show YAML$/i });
     fireEvent.click(toggle);
@@ -426,7 +426,7 @@ describe("T7C.1 — preview stays coherent across every state transition", () =>
     const base = resumed("4.22");
     harness.initialState = { ...base, version: { ...base.version, locked: false }, release: { ...base.release, confirmed: false } };
     render(<App />);
-    const cta = await screen.findByRole("button", { name: /Continue install|Start new install/i });
+    const cta = await screen.findByRole("button", { name: /Continue install|Start (new )?install/i });
     fireEvent.click(cta);
     await waitFor(() => expect(screen.queryByText(/Continue install|Start new install/i)).toBeNull());
     expect(api.calls.length, "an unconfirmed release must not reach the generator").toBe(0);

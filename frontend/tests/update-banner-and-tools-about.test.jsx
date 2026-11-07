@@ -236,7 +236,7 @@ describe("Landing update banner", () => {
 
   it("renders Feedback button to the right of Tools in wizard header", async () => {
     render(<App />);
-    const startButton = await screen.findByRole("button", { name: /continue install|start new install/i });
+    const startButton = await screen.findByRole("button", { name: /continue install|start (new )?install/i });
     startButton.click();
     const tools = await screen.findByRole("button", { name: /open tools/i });
     const feedback = await screen.findByRole("button", { name: /open feedback/i });
@@ -279,7 +279,7 @@ describe("App-level version identity regression", () => {
 
     render(<App />);
 
-    const startButton = await screen.findByRole("button", { name: /continue install|start new install/i });
+    const startButton = await screen.findByRole("button", { name: /continue install|start (new )?install/i });
     await user.click(startButton);
 
     expect(vi.mocked(apiFetch)).toHaveBeenCalledWith("/api/build-info");

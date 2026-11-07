@@ -8093,3 +8093,68 @@ body[data-theme="dark"] .mirroring-tabs { background: #0b1120; }
     height: 320px;
   }
 }
+
+/* v2.3.0 correction pass: Install card actions share the card's red footer bar. Two separate buttons in the
+   footer's own visual language (white text, same font and size), with a subtle divider. */
+.landing-card-actions {
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  z-index: 2;
+}
+.landing-card-action {
+  flex: 0 1 auto;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  padding: 14px 24px;
+  cursor: pointer;
+  border-radius: 0;
+}
+.landing-card-action:first-child {
+  flex: 1 1 auto;
+}
+.landing-card-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.landing-card-action:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: -3px;
+}
+.landing-card-action-divider {
+  width: 1px;
+  margin: 10px 0;
+  background: rgba(255, 255, 255, 0.35);
+}
+.landing-card-install {
+  cursor: default;
+}
+
+/* v2.3.0 correction pass: per-stage progress, from recorded evidence only (no percentages). */
+.upgrade-stage-progress {
+  list-style: none;
+  margin: 8px 0 12px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.upgrade-stage-progress-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+.upgrade-stage-progress-step[data-state="done"] { color: var(--state-verified); font-weight: 600; }
+.upgrade-stage-progress-step[data-state="active"] { color: var(--accent-path); font-weight: 600; }
+.upgrade-stage-progress-step[aria-current="step"] { text-decoration: underline; text-underline-offset: 3px; }
+.upgrade-stage-progress-dot { display: inline-block; min-width: 1em; text-align: center; }
+.upgrade-stage-progress-step[data-state="active"] .upgrade-stage-progress-dot { animation: upgrade-pulse 1.4s ease-in-out infinite; }
+@keyframes upgrade-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .upgrade-stage-progress-step[data-state="active"] .upgrade-stage-progress-dot { animation: none; }
+}

@@ -41,7 +41,7 @@ afterEach(() => {
   localStorage.removeItem("airgap-theme");
 });
 
-const landing = () => screen.queryByRole("button", { name: /Start new install|Continue install/i });
+const landing = () => screen.queryByRole("button", { name: /Start (new )?install|Continue install/i });
 const openTools = () => {
   fireEvent.click(screen.getByRole("button", { name: "Open Tools" }));
   return screen.getByRole("dialog", { name: "Tools" });

@@ -55,7 +55,7 @@ describe("Feedback drawer visibility and open/close", () => {
   it("shows Feedback trigger and opens drawer when feedback is visible", async () => {
     setupMock({ visible: true, enabled: true, mode: "offline" });
     render(<App />);
-    const startButton = await screen.findByRole("button", { name: /continue install|start new install/i });
+    const startButton = await screen.findByRole("button", { name: /continue install|start (new )?install/i });
     fireEvent.click(startButton);
 
     const openButton = await screen.findByRole("button", { name: /open feedback/i });
@@ -78,7 +78,7 @@ describe("Feedback drawer visibility and open/close", () => {
     // Rationale: Config fetch can fail, but users should always have access to feedback
     setupMock({ visible: false, enabled: false, mode: "disabled" });
     render(<App />);
-    const startButton = await screen.findByRole("button", { name: /continue install|start new install/i });
+    const startButton = await screen.findByRole("button", { name: /continue install|start (new )?install/i });
     fireEvent.click(startButton);
 
     // Button should be visible even when config says disabled

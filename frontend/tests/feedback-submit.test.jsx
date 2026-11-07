@@ -52,7 +52,7 @@ function mountWithFeedbackMocks(
 }
 
 async function openDrawer() {
-  const startButton = await screen.findByRole("button", { name: /continue install|start new install/i });
+  const startButton = await screen.findByRole("button", { name: /continue install|start (new )?install/i });
   fireEvent.click(startButton);
   const feedbackButtons = await screen.findAllByRole("button", { name: /open feedback/i });
   const openButton = feedbackButtons[0];
@@ -125,7 +125,7 @@ describe("Feedback submit behavior", () => {
         reason: "Feedback disabled"
       }
     );
-    const startButton = await screen.findByRole("button", { name: /continue install|start new install/i });
+    const startButton = await screen.findByRole("button", { name: /continue install|start (new )?install/i });
     fireEvent.click(startButton);
 
     // Button should be visible (v1.7.0 change)

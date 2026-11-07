@@ -33,4 +33,7 @@ export const fetchArtifacts = (id) => apiFetch(`/api/upgrade/plans/${id}/artifac
 export const previewSequence = (id, body) => post(`/api/upgrade/plans/${id}/sequence/preview`, body);
 export const startSequence = (id, body) => post(`/api/upgrade/plans/${id}/sequence`, body);
 export const importPackage = (text) => post("/api/upgrade/import", { text });
+export const analyzePresets = (id, files) => post(`/api/upgrade/plans/${id}/presets/analyze`, { files });
+export const saveOperatorIntent = (id, body) => post(`/api/upgrade/plans/${id}/operator-intent`, body);
+export const applyIntentToStages = (id, keys, includeImages) => post(`/api/upgrade/plans/${id}/operator-intent/apply-to-stages`, { keys, includeImages: Boolean(includeImages) });
 export const packageZipUrl = (id) => `${API_BASE}/api/upgrade/plans/${id}/package.zip`;

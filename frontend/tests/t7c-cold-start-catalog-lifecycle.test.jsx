@@ -274,7 +274,7 @@ describe("T7C — the real App tree mounts on a cold start", () => {
 
   it("the fresh run renders the landing page, so the check above is not vacuous", async () => {
     await mountApp(freshState());
-    expect(screen.getByRole("button", { name: /Start new install/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Start (new )?install/i })).toBeTruthy();
   });
 
   it("no catalogs were loaded, because no version was selected", async () => {

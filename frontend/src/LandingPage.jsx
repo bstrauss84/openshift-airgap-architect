@@ -12,7 +12,6 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import React, { useEffect, useState } from "react";
-import Button from "./components/Button.jsx";
 import { apiFetch } from "./api.js";
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -27,10 +26,13 @@ function useWorkflowSummaries(enabled) {
       const [m, u] = await Promise.allSettled([apiFetch("/api/mirroring"), apiFetch("/api/upgrade")]);
       if (cancelled) return;
       setSummaries({
+        // Upgrade-owned stage profiles belong to their plans: counted on the Upgrade card, not as Mirroring profiles.
         mirroring: m.status === "fulfilled" && Array.isArray(m.value?.profiles)
-          ? { profiles: m.value.profiles.filter((p) => !p.ownedBy).length, stageProfiles: m.value.profiles.filter((p) => p.ownedBy).length }
+          ? { profiles: m.value.profiles.filter((p) => !p.ownedBy).length }
           : null,
-        upgrade: u.status === "fulfilled" && Array.isArray(u.value?.plans) ? { plans: u.value.plans.length } : null
+        upgrade: u.status === "fulfilled" && Array.isArray(u.value?.plans)
+          ? { plans: u.value.plans.length, stages: u.value.plans.reduce((n, p) => n + (Array.isArray(p.stages) ? p.stages.length : 0), 0) }
+          : null
       });
     })();
     return () => { cancelled = true; };
@@ -39,17 +41,19 @@ function useWorkflowSummaries(enabled) {
 }
 
 const LandingPage = ({ hasProgress, installStatus = null, onStartInstall, onStartNewInstall = null, onStartMirroring, onStartUpgrade = null, loadSummaries = false }) => {
-  const installCta = hasProgress ? "Continue install →" : "Start new install →";
+  const installCta = hasProgress ? "Continue install →" : "Start install →";
   const summaries = useWorkflowSummaries(loadSummaries);
   const installLine = hasProgress
     ? `In progress${installStatus?.step ? ` — ${installStatus.step}` : ""}${installStatus?.version ? ` · OpenShift ${installStatus.version}` : ""}`
     : "Not started";
   const mirroringLine = summaries.mirroring
-    ? summaries.mirroring.profiles || summaries.mirroring.stageProfiles
-      ? `${plural(summaries.mirroring.profiles, "profile", "profiles")}${summaries.mirroring.stageProfiles ? ` · ${plural(summaries.mirroring.stageProfiles, "Upgrade stage profile", "Upgrade stage profiles")}` : ""}`
-      : "No profiles yet"
+    ? summaries.mirroring.profiles ? plural(summaries.mirroring.profiles, "profile", "profiles") : "No profiles yet"
     : null;
-  const upgradeLine = summaries.upgrade ? (summaries.upgrade.plans ? plural(summaries.upgrade.plans, "plan", "plans") : "No plans yet") : null;
+  const upgradeLine = summaries.upgrade
+    ? summaries.upgrade.plans
+      ? `${plural(summaries.upgrade.plans, "plan", "plans")}${summaries.upgrade.stages ? ` · ${plural(summaries.upgrade.stages, "mirroring stage", "mirroring stages")}` : ""}`
+      : "No plans yet"
+    : null;
 
   return (
     <div className="landing">
@@ -59,15 +63,12 @@ const LandingPage = ({ hasProgress, installStatus = null, onStartInstall, onStar
       </div>
       <div className="landing-cards">
         <div className="landing-card-wrap">
-          <button
-            type="button"
-            className="landing-card landing-card-install"
-            onClick={onStartInstall}
-            aria-label={installCta}
-          >
+          {/* Two separate actions in the card's own footer bar (owner correction): the card body is not a
+              button, so the actions never nest inside one another. */}
+          <div className="landing-card landing-card-install" role="group" aria-labelledby="landing-install-title">
             <div className="landing-card-inner">
               <div className="landing-card-top">
-                <h2 className="landing-card-title">Install</h2>
+                <h2 className="landing-card-title" id="landing-install-title">Install</h2>
                 <p className="landing-card-subtitle">Net-new disconnected install</p>
               </div>
               <p className="landing-card-desc">
@@ -75,12 +76,17 @@ const LandingPage = ({ hasProgress, installStatus = null, onStartInstall, onStar
                 methodology, operators, and generate install assets.
               </p>
               <p className="landing-card-status" data-testid="landing-install-status">{installLine}</p>
-              <div className="landing-card-footer-rail">{installCta}</div>
+              <div className="landing-card-footer-rail landing-card-actions">
+                <button type="button" className="landing-card-action" onClick={onStartInstall}>{installCta}</button>
+                {hasProgress && onStartNewInstall ? (
+                  <>
+                    <span className="landing-card-action-divider" aria-hidden="true" />
+                    <button type="button" className="landing-card-action" onClick={onStartNewInstall}>New Install</button>
+                  </>
+                ) : null}
+              </div>
             </div>
-          </button>
-          {hasProgress && onStartNewInstall ? (
-            <Button variant="secondary" className="landing-card-secondary" onClick={onStartNewInstall}>New Install…</Button>
-          ) : null}
+          </div>
         </div>
 
         <div className="landing-card-wrap">

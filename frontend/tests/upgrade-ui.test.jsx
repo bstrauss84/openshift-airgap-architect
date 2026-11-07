@@ -18,13 +18,14 @@ import { fileURLToPath } from "url";
 import { apiFetch } from "../src/api.js";
 import UpgradeShell from "../src/upgrade/UpgradeShell.jsx";
 import UpgradeGraphView from "../src/upgrade/UpgradeGraphView.jsx";
+import { StageProgress } from "../src/upgrade/ContentTab.jsx";
 import { findSupportPlacementViolations, findFragmentWrappedSupport, findBandOrderViolations } from "./helpers/fieldSupportStructure.js";
 
 vi.mock("../src/api.js", () => ({ apiFetch: vi.fn(), API_BASE: "" }));
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(__dirname, "../src");
-const UPGRADE_SOURCES = ["upgrade/UpgradeShell.jsx", "upgrade/PathTab.jsx", "upgrade/ContentTab.jsx", "upgrade/InstructionsTab.jsx", "upgrade/ReadinessTab.jsx", "upgrade/ReviewTab.jsx", "upgrade/UpgradeTimeline.jsx", "upgrade/UpgradeGraphView.jsx", "components/ScopedConfirmModal.jsx", "InstallResetDialog.jsx", "LandingPage.jsx"];
+const UPGRADE_SOURCES = ["upgrade/UpgradeShell.jsx", "upgrade/PathTab.jsx", "upgrade/OperatorsTab.jsx", "upgrade/ContentTab.jsx", "upgrade/InstructionsTab.jsx", "upgrade/ReadinessTab.jsx", "upgrade/ReviewTab.jsx", "upgrade/UpgradeTimeline.jsx", "upgrade/UpgradeGraphView.jsx", "components/ScopedConfirmModal.jsx", "InstallResetDialog.jsx", "LandingPage.jsx"];
 const read = (rel) => fs.readFileSync(path.join(SRC, rel), "utf8");
 
 const DIGEST = `quay.io/openshift-release-dev/ocp-release@sha256:${"b".repeat(64)}`;
@@ -48,6 +49,16 @@ const basePlan = (extra = {}) => ({
   ...extra
 });
 
+const PRESET_ANALYSIS = {
+  confidence: "imported preset (unverified): what a configuration file asked to mirror, not what is installed or mirrored",
+  files: [{ index: 0, fileName: "a.yaml", status: "valid", format: "oc-mirror v2 (v2alpha1)", notes: [] }, { index: 1, fileName: "b.yaml", status: "valid", format: "oc-mirror v2 (v2alpha1)", notes: [] }],
+  releases: [{ channel: "stable-4.20", minVersion: "4.20.10", maxVersion: "4.20.10", supported: true, note: "A hint only: it is what a file mirrored, not the cluster's current release.", sources: [{ file: "a.yaml" }] }],
+  operators: [
+    { key: "redhat|kubevirt-hyperconverged", name: "kubevirt-hyperconverged", catalogKind: "redhat", catalogMinors: ["4.20"], channelOptions: ["stable"], suggestedChannel: "stable", duplicates: 2, conflicts: [], sources: [{ file: "a.yaml", sha256: "a".repeat(64) }, { file: "b.yaml", sha256: "b".repeat(64) }] },
+    { key: "redhat|odf-operator", name: "odf-operator", catalogKind: "redhat", catalogMinors: ["4.20"], channelOptions: ["stable-4.19", "stable-4.20"], suggestedChannel: null, duplicates: 2, conflicts: ["Files name different channels: stable-4.19, stable-4.20. Choose one."], sources: [{ file: "a.yaml" }, { file: "b.yaml" }] }
+  ],
+  images: []
+};
 let calls;
 const mock = (plan, { deletion = { stageProfiles: [] }, instructions = null, readiness = null } = {}) => {
   calls = [];
@@ -63,6 +74,11 @@ const mock = (plan, { deletion = { stageProfiles: [] }, instructions = null, rea
     if (p.startsWith("/api/upgrade/plans/") && opts.method === "DELETE") return Promise.resolve({ ok: true });
     if (p === "/api/upgrade/active") return Promise.resolve({});
     if (p === "/api/mirroring") return Promise.resolve({ profiles: [] });
+    if (p.includes("/presets/analyze")) return Promise.resolve(PRESET_ANALYSIS);
+    if (p.endsWith("/operator-intent")) {
+      const body = JSON.parse(opts.body);
+      return Promise.resolve({ plan: { ...plan, operatorIntent: (body.entries || []).map((e) => ({ ...e, key: `${e.catalogKind}|${e.name}` })) }, skipped: [] });
+    }
     return Promise.resolve({});
   });
 };
@@ -196,5 +212,96 @@ describe("plan deletion (layered consent)", () => {
     const dialog = await screen.findByRole("dialog");
     await waitFor(() => expect(within(dialog).getByText(/A stage of this plan is running/)).toBeInTheDocument());
     expect(within(dialog).getByRole("button", { name: "Delete the plan" })).toBeDisabled();
+  });
+});
+
+
+describe("sticky tabs and tab-change scrolling (correction pass)", () => {
+  it("the tab row sits after an anchor, the header height is measured, and a deep scroll returns to the new tab's start", async () => {
+    mock(basePlan());
+    const { container } = render(<UpgradeShell onExit={() => {}} />);
+    const tabs = await screen.findByRole("tablist", { name: /Prod: sections/ });
+    const anchor = tabs.previousElementSibling;
+    expect(anchor.classList.contains("mirroring-tabs-anchor")).toBe(true);
+    expect(container.querySelector(".upgrade-shell").style.getPropertyValue("--mirroring-header-h")).toMatch(/px$/);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Path", "Operators", "Content & runs", "Instructions", "Readiness", "Review & export"]);
+    const main = document.getElementById("upgrade-main");
+    Object.defineProperty(main, "scrollHeight", { value: 5000, configurable: true });
+    Object.defineProperty(main, "clientHeight", { value: 800, configurable: true });
+    main.scrollTop = 1200;
+    anchor.getBoundingClientRect = () => ({ top: -700, bottom: -700, left: 0, right: 0, width: 0, height: 0 });
+    main.getBoundingClientRect = () => ({ top: 0, bottom: 800, left: 0, right: 0, width: 0, height: 800 });
+    fireEvent.click(screen.getByRole("tab", { name: "Readiness" }));
+    expect(main.scrollTop).toBe(500);
+    // Keyboard activation reveals too; panels stay mounted (entered state is kept).
+    main.scrollTop = 1200;
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Readiness" }), { key: "ArrowLeft" });
+    expect(screen.getByRole("tab", { name: "Instructions" })).toHaveAttribute("aria-selected", "true");
+    expect(main.scrollTop).toBe(500);
+    expect(document.getElementById("upgrade-tabpanel-path").hidden).toBe(true);
+    expect(within(document.getElementById("upgrade-tabpanel-path")).getByLabelText("Current release", { selector: "select" })).toBeInTheDocument();
+  });
+  it("near the top nothing moves", async () => {
+    mock(basePlan());
+    render(<UpgradeShell onExit={() => {}} />);
+    const tabs = await screen.findByRole("tablist", { name: /Prod: sections/ });
+    const main = document.getElementById("upgrade-main");
+    main.scrollTop = 40;
+    tabs.previousElementSibling.getBoundingClientRect = () => ({ top: 120, bottom: 120, left: 0, right: 0, width: 0, height: 0 });
+    main.getBoundingClientRect = () => ({ top: 0, bottom: 800, left: 0, right: 0, width: 0, height: 800 });
+    fireEvent.click(screen.getByRole("tab", { name: "Operators" }));
+    expect(main.scrollTop).toBe(40);
+  });
+});
+
+describe("ImageSetConfiguration presets (correction pass)", () => {
+  it("reviewed per file, conflicts shown, accepted as unverified presets with their sources", async () => {
+    sessionStorage.setItem("oaa.upgrade.tab.v1", "operators");
+    mock(basePlan());
+    render(<UpgradeShell onExit={() => {}} />);
+    const input = await screen.findByLabelText("ImageSetConfiguration files", { selector: "input" });
+    const f1 = new File(["apiVersion: mirror.openshift.io/v2alpha1"], "a.yaml", { type: "text/yaml" });
+    const f2 = new File(["apiVersion: mirror.openshift.io/v2alpha1"], "b.yaml", { type: "text/yaml" });
+    fireEvent.change(input, { target: { files: [f1, f2] } });
+    await screen.findByRole("heading", { name: "Operators found" });
+    expect(screen.getByText(/hint · unverified/)).toBeInTheDocument();
+    expect(screen.getByText(/not the cluster's current release/)).toBeInTheDocument();
+    expect(screen.getByText(/Files name different channels/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Add odf-operator" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Add kubevirt-hyperconverged" })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Add the ticked items to the plan" }));
+    await waitFor(() => expect(calls.some(([p, m]) => p.endsWith("/operator-intent") && m === "POST")).toBe(true));
+    const body = JSON.parse(calls.find(([p]) => p.endsWith("/operator-intent"))[2]);
+    expect(body.entries).toHaveLength(1);
+    expect(body.entries[0]).toMatchObject({ name: "kubevirt-hyperconverged", confidence: "imported-preset", category: "preset-mirrored", channel: "stable" });
+    expect(body.entries[0].sources.map((x) => x.file)).toEqual(["a.yaml", "b.yaml"]);
+    expect(await screen.findByText("imported preset — unverified")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm installed" })).toBeInTheDocument();
+  });
+  it("a release hint never replaces the current release without confirmation", async () => {
+    sessionStorage.setItem("oaa.upgrade.tab.v1", "operators");
+    mock(basePlan());
+    render(<UpgradeShell onExit={() => {}} />);
+    const input = await screen.findByLabelText("ImageSetConfiguration files", { selector: "input" });
+    fireEvent.change(input, { target: { files: [new File(["x"], "a.yaml")] } });
+    fireEvent.click(await screen.findByRole("button", { name: /Use 4.20.10 as the current release/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/not evidence of what the cluster runs/)).toBeInTheDocument();
+    expect(calls.some(([p, m, b]) => m === "POST" && p === "/api/upgrade/plans/u-testplan0001" && String(b).includes("4.20.10"))).toBe(false);
+  });
+});
+
+describe("stage progress (correction pass)", () => {
+  it("steps come from evidence only; mirror to mirror marks disk/transfer as not needed; no percentages", () => {
+    render(<StageProgress view={{ id: "s2", clusterUpdated: "none", content: { state: "in-registry-unverified", evidence: [{ kind: "mirrored-to-registry" }] } }} />);
+    const list = screen.getByRole("list", { name: "Stage 2 progress" });
+    expect(within(list).getByText("Mirrored to disk (not needed)")).toBeInTheDocument();
+    expect(within(list).getByText("In the registry").closest("li")).toHaveAttribute("data-state", "done");
+    expect(within(list).getByText("Registry verified").closest("li")).toHaveAttribute("aria-current", "step");
+    expect(list.textContent).not.toMatch(/%/);
+  });
+  it("a running stage marks only its next step as in progress", () => {
+    render(<StageProgress view={{ id: "s1", clusterUpdated: "none", content: { state: "running", evidence: [] } }} />);
+    expect(screen.getByText("Mirrored to disk (in progress)").closest("li")).toHaveAttribute("data-state", "active");
   });
 });

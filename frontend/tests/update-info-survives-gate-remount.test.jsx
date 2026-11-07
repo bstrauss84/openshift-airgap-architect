@@ -93,8 +93,8 @@ describe("update status survives the version gate remounting AppShell", () => {
     harness.initialState = runAt("4.20");
     render(<App />);
     await waitFor(() => expect(screen.queryByText(/Loading OpenShift/i)).toBeNull());
-    fireEvent.click(screen.getByRole("button", { name: /Start new install|Continue install/i }));
-    await waitFor(() => expect(screen.queryByRole("button", { name: /Start new install|Continue install/i })).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: /Start (new )?install|Continue install/i }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Start (new )?install|Continue install/i })).toBeNull());
 
     // Precondition: the target minor is not resident, so the gate genuinely blocks.
     expect(areCatalogsLoadedForMinor("4.22")).toBe(false);

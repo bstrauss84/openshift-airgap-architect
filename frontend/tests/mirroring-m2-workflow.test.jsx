@@ -120,7 +120,7 @@ describe("landing and gate entry points", () => {
     render(<LandingPage hasProgress={false} onStartInstall={() => {}} onStartMirroring={onStartMirroring} />);
     fireEvent.click(screen.getByRole("button", { name: "Open Mirroring" }));
     expect(onStartMirroring).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: "Start new install →" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Start install →" })).toBeTruthy();
     // v2.3.0: the Upgrade card is a workflow of its own; disabled only when no handler is given.
     expect(screen.getByText("Upgrade").closest(".landing-card").disabled).toBe(true);
     expect(screen.queryByText("Operator mirroring")).toBeNull();

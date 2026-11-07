@@ -39,6 +39,43 @@ export const CONTENT_STATE_TEXT = {
   "registry-verified": ["VERIFIED", "✓ in the registry, every image confirmed"],
   "profile-missing": ["BLOCKED", "✕ no stage profile (prepare stages, or receive this stage's transfer)"]
 };
+/**
+ * Where one stage stands, as steps (no percentages: oc-mirror reports none we
+ * could honestly turn into one). Every step comes from recorded evidence —
+ * the stage's runs, transfers, receipts and destination checks — or, for the
+ * last step, from your own statement. Steps a mirror-to-mirror stage does not
+ * need are shown as "not needed". The only motion is a pulse on the step in
+ * progress, which reduced motion turns off.
+ */
+export function StageProgress({ view }) {
+  const kinds = new Set((view.content?.evidence || []).map((e) => e.kind));
+  const viaRegistryDirect = kinds.has("mirrored-to-registry");
+  const steps = [
+    { id: "planned", label: "Planned", done: view.content?.state !== "profile-missing" },
+    { id: "disk", label: "Mirrored to disk", done: kinds.has("mirrored-to-disk"), skip: viaRegistryDirect && !kinds.has("mirrored-to-disk") },
+    { id: "transfer", label: "Transfer prepared", done: kinds.has("transfer-prepared"), skip: viaRegistryDirect && !kinds.has("transfer-prepared") },
+    { id: "received", label: "Received", done: kinds.has("transfer-received"), skip: viaRegistryDirect && !kinds.has("transfer-received") },
+    { id: "registry", label: "In the registry", done: kinds.has("mirrored-to-registry") || kinds.has("loaded-into-registry") },
+    { id: "verified", label: "Registry verified", done: kinds.has("registry-verified") },
+    { id: "cluster", label: "Cluster updated (your statement)", done: view.clusterUpdated === "attested" }
+  ];
+  const running = view.content?.state === "running";
+  const next = steps.findIndex((st) => !st.done && !st.skip);
+  return (
+    <ol className="upgrade-stage-progress" aria-label={`Stage ${view.id.slice(1)} progress`}>
+      {steps.map((st, i) => {
+        const state = st.done ? "done" : st.skip ? "skipped" : running && i === next ? "active" : "todo";
+        return (
+          <li key={st.id} className="upgrade-stage-progress-step" data-state={state} aria-current={i === next ? "step" : undefined}>
+            <span className="upgrade-stage-progress-dot" aria-hidden="true">{state === "done" ? "✓" : state === "skipped" ? "–" : state === "active" ? "●" : "○"}</span>
+            <span>{st.label}{state === "skipped" ? " (not needed)" : state === "active" ? " (in progress)" : ""}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 const SEQ_STATE = { pending: "waiting", running: "running", "mirrored-to-disk": "✓ mirrored to disk", "registry-verified": "✓ in registry, verified", "preflight-blocked": "✕ preflight blocked", refused: "✕ refused", failed: "✕ failed", stopped: "■ stopped", "not-run": "not run", "registry-unverified": "✕ not verified in the registry" };
 
 function SequenceCard({ plan, onDone }) {
@@ -222,6 +259,7 @@ export default function ContentTab({ plan, highSide, onPlanChanged, onShowOperat
         <section className="card" aria-labelledby={`upgrade-stage-detail-${plan.id}`}>
           <h3 id={`upgrade-stage-detail-${plan.id}`}>Stage {view.id.slice(1)}: {view.release}</h3>
           <p className="subtle">Required to update to {view.release}. {received ? "This stage's received transfer is loaded into your registry with disk to mirror, then checked against the registry." : "Mirror to disk if this server cannot reach the disconnected registry (then prepare a transfer); mirror to mirror if it can."}</p>
+          <StageProgress view={view} />
           <label className="switch-row">
             <input type="checkbox" checked={view.clusterUpdated === "attested"} onChange={async (e) => onPlanChanged(await setClusterProgress(plan.id, view.id, e.target.checked ? "attested" : "none"))} />
             <span>I have updated the cluster to {view.release} (recorded as your statement; Architect never infers this from mirroring).</span>
