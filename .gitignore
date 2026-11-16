@@ -52,6 +52,23 @@ data/cache/
 !/data/docs-index/**
 !/data/params/
 !/data/params/**
+# Global oc-mirror v2 ImageSetConfiguration structural authority (DOC-166). Canonical
+# tracked data, not runtime scratch: backend/test/imageset-config-schema.test.js reads it.
+!/data/oc-mirror-v2/
+!/data/oc-mirror-v2/**
+# Architecture-support matrix (D3 / DOC-156). Canonical tracked data:
+# scripts/validate-arch-support.js and its test read it, and it is referenced by
+# docs/minor-release/4.22/TRANCHE_2_ASSET_AUTHORING_4.22.md. Without this
+# re-inclusion the deny-by-default /data/* rule above would silently drop it.
+!/data/arch-support/
+!/data/arch-support/**
+# Platform x installation-methodology scenario surface (DOC-202). Canonical
+# tracked data: scripts/validate-scenario-support.js and its test read it, and
+# npm run validate-authority runs that guard. Same deny-by-default trap as the
+# matrix above — without this re-inclusion /data/* would silently drop it and
+# the guard would fail on a fresh clone.
+!/data/scenario-support/
+!/data/scenario-support/**
 **/openshift-install-*
 **/openshift-install-*.tar.gz
 # When DATA_DIR is backend/ (e.g. local dev)
@@ -81,6 +98,7 @@ docs/e2e-examples/nmstate/
 
 # Local/internal scratch and exports (not for public repo)
 archive/
+.archive/
 thread-export-bundle/
 frontend/dist/
 frontend/src/*.NULL_GUARD_EDITS.md
@@ -137,8 +155,57 @@ claude_chat_history.txt
 *.chat.txt
 /local-docs/
 backend/tmp-installer-test/
+# Repository-root scratch directory. Tests that write here must not be able to
+# dirty the working tree: a dirty tree changes the release candidate id and
+# invalidates certification evidence bound to it (the last full run was recorded
+# as "f860d7db...+dirty" for exactly this class of reason).
+/tmp/
 
 # Playwright E2E test artifacts
 test-results/
 playwright-report/
 playwright/.cache/
+e2e-results/
+
+# Test coverage reports
+coverage/
+**/coverage/
+*.lcov
+
+# Release-certification evidence (scripts/release/certify.mjs).
+# Generated per run and regenerable; large (SBOMs, scanner reports, suite logs).
+# Committing it would also make the tree dirty on every run, which changes the
+# candidate id and invalidates the evidence just produced. Retention policy:
+# CI uploads summary.json/summary.md/axes as workflow artifacts, and a release
+# attaches them to the release bundle. The harness and its waiver file ARE
+# tracked (scripts/release/**) — only generated output is ignored.
+release-certification/
+
+# Research and analysis artifacts (keep local only)
+.research/
+
+# Claude Code user-specific settings (migrated from .git/info/exclude)
+.claude/settings.local.json
+.claude/hooks/*.sh
+!.claude/hooks/shared-*.sh
+
+# Additional temporary editor files
+*.swp
+*.swo
+*~
+.*.sw?
+
+# OS-specific files
+Thumbs.db
+desktop.ini
+
+# Package manager debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Local manual QA evidence — never commit/push
+docs/MANUAL_TESTING_CHECKLIST.md
+docs/MANUAL_TESTING_CHECKLIST_*.md

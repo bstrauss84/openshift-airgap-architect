@@ -1,0 +1,579 @@
+/**
+ * Deterministic tests for the AXIS registry and each axis's pure logic.
+ *
+ * Nothing here runs a container, a scanner or a network call: the testable
+ * core of every axis is factored into exported pure functions, and that is
+ * what is exercised.
+ */
+
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+
+import { AXES, AXIS_IDS, REQUIRED_AXIS_IDS, NON_WAIVABLE_AXIS_IDS, CONTAINER_AXES, axisById } from "./axes/index.mjs";
+import { INCOMPLETE } from "./lib/status.mjs";
+import { REUSE } from "./lib/evidence.mjs";
+import { shippedInstallScope, COMPONENTS, BUILDER_ONLY_COMPONENTS } from "./axes/dependencies.mjs";
+import { repoSlug } from "./axes/docs.mjs";
+import { normalizeWorkflowRuns, REQUIRED_WORKFLOWS } from "./axes/ci-integrity.mjs";
+import { provesPrivilegeDrop, stripShellComments } from "./axes/containers.mjs";
+import { normaliseTrivy, normaliseGrype, selectStrategy } from "./axes/image-vulnerabilities.mjs";
+import { selectGenerator, parseToolProvenance, REQUIRED_TOOL_FIELDS } from "./axes/sbom.mjs";
+import plannedAxes, { plannedAxis } from "./axes/planned.mjs";
+
+const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..");
+
+describe("axis registry", () => {
+  test("axis ids are unique", () => {
+    assert.equal(new Set(AXIS_IDS).size, AXIS_IDS.length);
+  });
+
+  test("every axis declares the full contract", () => {
+    for (const a of AXES) {
+      assert.equal(typeof a.id, "string", "id");
+      assert.ok(a.id.length, `${a.id}: non-empty id`);
+      assert.equal(typeof a.title, "string", `${a.id}: title`);
+      assert.ok(Array.isArray(a.inputs), `${a.id}: inputs array`);
+      assert.equal(typeof a.run, "function", `${a.id}: run()`);
+      assert.ok(Object.values(REUSE).includes(a.reuse), `${a.id}: must declare a reuse class`);
+      assert.equal(typeof a.required, "boolean", `${a.id}: must declare required`);
+    }
+  });
+
+  test("a context-bound axis supplies a context key", () => {
+    for (const a of AXES.filter((x) => x.reuse === REUSE.CONTEXT)) {
+      assert.equal(typeof a.contextKey, "function", `${a.id}: CONTEXT reuse requires contextKey()`);
+    }
+  });
+
+  test("every Tranche 8 certification axis is represented", () => {
+    for (const required of [
+      "identity", "repo-hygiene", "docs", "dependencies-shipped", "dependencies-builder",
+      "secrets", "tests", "ci-integrity", "containers", "image-vulnerabilities",
+      "component-inventory", "lifecycle", "compatibility", "connectivity", "artifacts",
+    ]) {
+      assert.ok(axisById(required), `axis "${required}" must be registered`);
+    }
+  });
+
+  test("shipped and builder dependency surfaces are SEPARATE axes", () => {
+    // A single axis that passes on clean shipped deps while merely mentioning
+    // builder criticals cannot keep them out of a GREEN release.
+    assert.ok(axisById("dependencies-shipped"));
+    assert.ok(axisById("dependencies-builder"));
+    assert.ok(REQUIRED_AXIS_IDS.includes("dependencies-builder"), "builder findings must be release-owned");
+  });
+
+  test("the container-scan and SBOM blockers are NON-WAIVABLE", () => {
+    assert.deepEqual([...NON_WAIVABLE_AXIS_IDS].sort(), ["component-inventory", "image-vulnerabilities"]);
+    for (const id of NON_WAIVABLE_AXIS_IDS) {
+      assert.ok(axisById(id).nonWaivableReason, `${id} must record why it cannot be waived`);
+    }
+  });
+
+  test("every registered axis is required, so none can be quietly dropped", () => {
+    assert.deepEqual([...REQUIRED_AXIS_IDS].sort(), [...AXIS_IDS].sort());
+  });
+
+  test("declared container axes exist", () => {
+    for (const id of CONTAINER_AXES) assert.ok(axisById(id), `${id} must exist`);
+  });
+
+  test("the four formerly-planned axes are now real, not placeholders", () => {
+    // They were lifecycle/compatibility/connectivity/artifacts, each
+    // hard-coded to INCOMPLETE. The ids must survive the substitution (the
+    // registry contract) while the placeholder marker must not.
+    for (const id of ["lifecycle", "compatibility", "connectivity", "artifacts"]) {
+      const axis = axisById(id);
+      assert.ok(axis, `${id} must still be registered`);
+      assert.notEqual(axis.planned, true, `${id} must no longer be a placeholder`);
+      assert.equal(typeof axis.run, "function", `${id} must have a real runner`);
+    }
+    assert.deepEqual(plannedAxes, [], "no axis should currently be in the planned state");
+  });
+
+  test("the plannedAxis factory still produces a conforming placeholder", async () => {
+    // Asserted against a synthetic spec rather than by iterating the (now
+    // empty) export, which would pass vacuously — the DOC-224 trap. The
+    // factory is retained for the NEXT gap, so its contract is still live.
+    const axis = plannedAxis({
+      id: "synthetic-gap",
+      title: "A gap registered so it cannot be forgotten",
+      inputs: ["backend/src"],
+      owner: "PROD-000",
+      tranche: "9X",
+      reason: "the proof requires infrastructure that does not exist",
+      closure: ["provision the infrastructure", "write the probe"],
+    });
+
+    assert.equal(axis.required, true, "a planned axis must stay required or the gap hides");
+    assert.equal(axis.planned, true);
+
+    const r = await axis.run();
+    assert.equal(r.status, INCOMPLETE, "a planned axis must not claim a status it has not proven");
+    assert.equal(r.evidence.backlogItem, "PROD-000", "it must name its canonical backlog item");
+    assert.equal(r.evidence.closesIn, "9X", "it must name the tranche that closes it");
+    assert.ok(r.evidence.closure.length, "it must carry concrete closure steps");
+  });
+});
+
+describe("shipped-vs-builder dependency scope", () => {
+  // The v2.1 Tranche 7C bug in both directions: counting a builder install as
+  // shipped, and ignoring a real shipped install.
+  test("a single stage with a bare npm ci ships its dev tree", () => {
+    assert.equal(shippedInstallScope('FROM node\nRUN npm ci\nCMD ["node"]\n'), "all");
+  });
+
+  test("a single stage with --omit=dev ships production only", () => {
+    assert.equal(shippedInstallScope('FROM node\nRUN npm ci --omit=dev\nCMD ["node"]\n'), "prod");
+  });
+
+  test("a builder stage's full install is not counted as shipped", () => {
+    const cf = ["FROM node AS builder", "RUN npm ci", "RUN npm run build", "", "FROM nginx", "COPY --from=builder /build/dist /usr/share/nginx/html", ""].join("\n");
+    assert.equal(shippedInstallScope(cf), "none");
+  });
+
+  test("a final stage that copies node_modules in does ship them", () => {
+    const cf = ["FROM node AS builder", "RUN npm ci", "", "FROM node", "COPY --from=builder /app/node_modules /app/node_modules", ""].join("\n");
+    assert.equal(shippedInstallScope(cf), "all");
+  });
+
+  test("a copied tree is scoped by the install that BUILT it, not by the copy", () => {
+    // A builder that omitted dev ships a production-only tree. Reporting it
+    // as "all" would audit dev advisories as though they shipped.
+    const cf = [
+      "FROM node AS builder",
+      "RUN npm ci --omit=dev",
+      "",
+      "FROM node",
+      "COPY --from=builder /app/node_modules /app/node_modules",
+      ""
+    ].join("\n");
+    assert.equal(shippedInstallScope(cf), "prod");
+  });
+
+  test("an unresolvable copy source over-reports rather than under-reports", () => {
+    // Unknown provenance must never quietly exclude dev advisories.
+    const unknownStage = ["FROM node", "COPY --from=somewhere-else /app/node_modules /app/node_modules", ""].join("\n");
+    assert.equal(shippedInstallScope(unknownStage), "all");
+
+    const stageWithNoInstall = [
+      "FROM node AS builder",
+      "COPY node_modules /app/node_modules",
+      "",
+      "FROM node",
+      "COPY --from=builder /app/node_modules /app/node_modules",
+      ""
+    ].join("\n");
+    assert.equal(shippedInstallScope(stageWithNoInstall), "all");
+  });
+
+  test("the flag and command vocabulary matches the shell gate", () => {
+    // These two spellings are where the JS and shell classifiers silently
+    // diverged: the shell accepted them, this one did not. Asserted in both
+    // test files so neither implementation can drift alone.
+    const onlyProd = ["FROM node AS builder", "RUN npm ci --only=prod", "", "FROM node", "COPY --from=builder /app/node_modules /app/node_modules", ""].join("\n");
+    assert.equal(shippedInstallScope(onlyProd), "prod");
+
+    const shortForm = ["FROM node AS builder", "RUN npm i --omit=dev", "", "FROM node", "COPY --from=builder /app/node_modules /app/node_modules", ""].join("\n");
+    assert.equal(shippedInstallScope(shortForm), "prod");
+
+    // ...and the short form without a prod flag still ships everything.
+    assert.equal(shippedInstallScope('FROM node\nRUN npm i\nCMD ["node"]\n'), "all");
+  });
+
+  test("a final stage that copies a prod tree AND installs on top ships everything", () => {
+    // The one place the stage-resolution change was WEAKER than what it
+    // replaced. Pre-8D any `COPY --from=… node_modules` returned "all";
+    // resolving the builder and returning its scope alone reported "prod"
+    // for a stage that then installed the full dev tree. Both sources ship,
+    // so the answer is the weaker of the two.
+    const copyThenInstall = [
+      "FROM node AS builder", "RUN npm ci --omit=dev", "",
+      "FROM node", "COPY --from=builder /app/node_modules /app/node_modules", "RUN npm i express", "",
+    ].join("\n");
+    assert.equal(shippedInstallScope(copyThenInstall), "all");
+
+    // ...but a prod install on top of a prod tree is still prod.
+    const copyThenProdInstall = [
+      "FROM node AS builder", "RUN npm ci --omit=dev", "",
+      "FROM node", "COPY --from=builder /app/node_modules /app/node_modules", "RUN npm i --omit=dev express", "",
+    ].join("\n");
+    assert.equal(shippedInstallScope(copyThenProdInstall), "prod");
+  });
+
+  test("the repository root is audited as a builder-only tree", () => {
+    // It was in neither axis, so a HIGH advisory in the root tree (js-yaml)
+    // was invisible to the whole certification while both axes truthfully
+    // reported on what they had been asked about. A blind spot is not a pass.
+    const builderNames = [...COMPONENTS, ...BUILDER_ONLY_COMPONENTS].map((c) => c.name);
+    assert.ok(builderNames.includes("tooling"), "the root tree must be in the BUILDER surface");
+    assert.deepEqual(
+      BUILDER_ONLY_COMPONENTS.map((c) => c.dir),
+      ["."],
+      "the root tree is the repository root",
+    );
+  });
+
+  test("the root tree is NOT claimed as a shipped surface", () => {
+    // There is no root image. Giving it a containerfile would make the
+    // shipped axis derive an install scope for an image that does not exist —
+    // a false statement in the comfortable direction.
+    assert.ok(!COMPONENTS.some((c) => c.name === "tooling"), "root must not be a shipped component");
+    for (const c of BUILDER_ONLY_COMPONENTS) {
+      assert.equal(c.containerfile, undefined, `${c.name} must declare no Containerfile`);
+    }
+    for (const c of COMPONENTS) {
+      assert.ok(c.containerfile, `${c.name} ships an image and must name its Containerfile`);
+    }
+  });
+
+  test("adding the root tree did not disturb multi-stage shipped classification", () => {
+    // The real backend image is builder + minimal runtime; the real frontend
+    // ships nginx with no npm surface at all. Both must be unchanged by the
+    // builder-surface widening.
+    const backend = fs.readFileSync(path.join(REPO_ROOT, "backend", "Containerfile"), "utf8");
+    const frontend = fs.readFileSync(path.join(REPO_ROOT, "frontend", "Containerfile"), "utf8");
+    assert.equal(shippedInstallScope(backend), "prod", "backend ships a production-only dependency tree");
+    assert.equal(shippedInstallScope(frontend), "none", "frontend ships no npm dependency surface");
+  });
+
+  test("a chained `&&` install is read as two installs, not one", () => {
+    // `[^\n]*` swallowed the whole RUN line as a single match, found
+    // --omit=dev in it and reported "prod" for a line that then ran a bare
+    // `npm ci`. The shell splits on && for this reason; so must this.
+    assert.equal(shippedInstallScope("FROM node\nRUN npm ci --omit=dev && npm ci\n"), "all");
+    assert.equal(shippedInstallScope("FROM node\nRUN npm ci --omit=dev && npm i --omit=dev\n"), "prod");
+  });
+
+  test("FROM flags do not hide the stage alias", () => {
+    // `FROM --platform=… node AS builder` bound the flag as the image name,
+    // so the alias was never seen and the stage read as unresolvable.
+    const platform = [
+      "FROM --platform=linux/amd64 node AS builder", "RUN npm ci --omit=dev", "",
+      "FROM node", "COPY --from=builder /app/node_modules /app/node_modules", "",
+    ].join("\n");
+    assert.equal(shippedInstallScope(platform), "prod");
+  });
+
+  test("a COPY whose --from is not the first flag is still seen", () => {
+    // `COPY --chown=1001:0 --from=builder …` is idiomatic, and classifying it
+    // as "none" claims the image ships no npm surface at all — which in the
+    // shell gate is an unconditional PASS.
+    const chown = [
+      "FROM node AS builder", "RUN npm ci", "",
+      "FROM node", "COPY --chown=1001:0 --from=builder /app/node_modules ./node_modules", "",
+    ].join("\n");
+    assert.equal(shippedInstallScope(chown), "all");
+  });
+
+  test("a numeric --from index resolves to that stage", () => {
+    const cf = [
+      "FROM node AS builder",
+      "RUN npm ci --omit=dev",
+      "",
+      "FROM node",
+      "COPY --from=0 /app/node_modules /app/node_modules",
+      ""
+    ].join("\n");
+    assert.equal(shippedInstallScope(cf), "prod");
+  });
+
+  test("a commented-out install is not mistaken for a real one", () => {
+    assert.equal(shippedInstallScope('FROM nginx\n# RUN npm ci\nCMD ["nginx"]\n'), "none");
+  });
+
+  test("the repository's real Containerfiles classify as expected", () => {
+    const backend = fs.readFileSync(path.join(REPO_ROOT, "backend", "Containerfile"), "utf8");
+    const frontend = fs.readFileSync(path.join(REPO_ROOT, "frontend", "Containerfile"), "utf8");
+    // Message deliberately shape-neutral: the backend was single-stage and is
+    // now builder + minimal runtime. What must hold is the SCOPE, not the
+    // stage count — a message naming the shape goes stale on restructure.
+    assert.equal(shippedInstallScope(backend), "prod", "backend ships a production-only dependency tree");
+    assert.equal(shippedInstallScope(frontend), "none", "frontend ships nginx and static assets only (PROD-026)");
+  });
+});
+
+describe("CI workflow normalisation", () => {
+  const mk = (workflowName, conclusion, extra = {}) => ({
+    workflowName, conclusion, status: "completed", createdAt: "2026-10-12T00:00:00Z", attempt: 1, databaseId: 1, ...extra,
+  });
+
+  test("all required workflows green is a clean result", () => {
+    const n = normalizeWorkflowRuns([mk("CI", "success"), mk("Versioned Copy Guard", "success")]);
+    assert.deepEqual(n.failing, []);
+    assert.deepEqual(n.missing, []);
+    assert.deepEqual(n.pending, []);
+  });
+
+  test("A REQUIRED WORKFLOW THAT NEVER RAN IS MISSING, not silently fine", () => {
+    const n = normalizeWorkflowRuns([mk("CI", "success")]);
+    assert.deepEqual(n.missing, ["Versioned Copy Guard"]);
+  });
+
+  test("an irrelevant green workflow is not counted as release proof", () => {
+    const n = normalizeWorkflowRuns([mk("Some Other Workflow", "success")]);
+    assert.deepEqual(n.missing, [...REQUIRED_WORKFLOWS]);
+    assert.equal(n.extra.length, 1);
+  });
+
+  test("A SUCCESSFUL RERUN SUPERSEDES THE FAILED ATTEMPT IT REPLACED", () => {
+    const runs = [
+      mk("CI", "failure", { attempt: 1, databaseId: 10 }),
+      mk("CI", "success", { attempt: 2, databaseId: 10 }),
+      mk("Versioned Copy Guard", "success"),
+    ];
+    const n = normalizeWorkflowRuns(runs);
+    assert.deepEqual(n.failing, [], "the later attempt is the current truth");
+    assert.equal(n.perWorkflow.find((w) => w.workflow === "CI").attempt, 2);
+  });
+
+  test("a failing rerun of a previously green run is a failure", () => {
+    const runs = [
+      mk("CI", "success", { attempt: 1, databaseId: 10 }),
+      mk("CI", "failure", { attempt: 2, databaseId: 10 }),
+      mk("Versioned Copy Guard", "success"),
+    ];
+    assert.equal(normalizeWorkflowRuns(runs).failing.length, 1);
+  });
+
+  test("a newer run supersedes an older one at the same attempt number", () => {
+    const runs = [
+      mk("CI", "failure", { createdAt: "2026-10-11T00:00:00Z", databaseId: 1 }),
+      mk("CI", "success", { createdAt: "2026-10-12T00:00:00Z", databaseId: 2 }),
+      mk("Versioned Copy Guard", "success"),
+    ];
+    assert.deepEqual(normalizeWorkflowRuns(runs).failing, []);
+  });
+
+  test("a pending required workflow is pending, not success", () => {
+    const n = normalizeWorkflowRuns([mk("CI", null, { status: "in_progress" }), mk("Versioned Copy Guard", "success")]);
+    assert.deepEqual(n.pending, ["CI"]);
+  });
+
+  test("skipped and cancelled are not success", () => {
+    for (const c of ["skipped", "cancelled", "timed_out", "startup_failure", "action_required"]) {
+      const n = normalizeWorkflowRuns([mk("CI", c), mk("Versioned Copy Guard", "success")]);
+      assert.equal(n.failing.length, 1, `${c} must not read as success`);
+    }
+  });
+
+  test("an unrecognised conclusion is never treated as success", () => {
+    const n = normalizeWorkflowRuns([mk("CI", "something_new"), mk("Versioned Copy Guard", "success")]);
+    assert.ok(n.pending.includes("CI"));
+  });
+
+  test("ci-integrity never reuses evidence", () => {
+    assert.equal(axisById("ci-integrity").reuse, REUSE.NEVER);
+  });
+});
+
+describe("container privilege-drop proof", () => {
+  test("A COMMENT MENTIONING runuser PROVES NOTHING", () => {
+    // The 8A weakness: the regex ran against raw text, so the entrypoint's own
+    // explanatory header could have satisfied it.
+    const text = "#!/bin/sh\n# Run as root, then hand off via runuser to UID 1001\nnode src/index.js\n";
+    assert.equal(provesPrivilegeDrop(text), false);
+  });
+
+  test("a real exec handoff proves the drop", () => {
+    const text = '#!/bin/sh\nchown -R 1001:0 "$DATA_DIR"\nexec runuser -u appuser -- /bin/sh -c "node src/index.js"\n';
+    assert.equal(provesPrivilegeDrop(text), true);
+  });
+
+  test("gosu, su-exec and setpriv are accepted in exec position", () => {
+    for (const tool of ["gosu", "su-exec", "setpriv"]) {
+      assert.equal(provesPrivilegeDrop(`#!/bin/sh\nexec ${tool} appuser node app.js\n`), true, tool);
+    }
+  });
+
+  test("a mention outside executable position does not count", () => {
+    assert.equal(provesPrivilegeDrop('#!/bin/sh\necho "we could use runuser here"\nnode app.js\n'), false);
+    assert.equal(provesPrivilegeDrop("#!/bin/sh\nRUNUSER_DOC=runuser\nnode app.js\n"), false);
+  });
+
+  test("an exec drop inside a conditional branch still counts", () => {
+    assert.equal(provesPrivilegeDrop('#!/bin/sh\nif [ "$(id -u)" = 0 ]; then exec runuser -u appuser -- node app.js; fi\n'), true);
+  });
+
+  test("comment stripping respects quoting", () => {
+    assert.equal(stripShellComments('echo "a # b" # trailing').trim(), 'echo "a # b"');
+    assert.equal(stripShellComments("echo 'a # b'").trim(), "echo 'a # b'");
+  });
+
+  test("the repository's real backend entrypoint satisfies the proof", () => {
+    const ep = fs.readFileSync(path.join(REPO_ROOT, "backend", "scripts", "entrypoint.sh"), "utf8");
+    assert.equal(provesPrivilegeDrop(ep), true);
+  });
+});
+
+describe("scanner and SBOM generator selection", () => {
+  test("no tool available is INCOMPLETE-shaped, never a silent skip", () => {
+    const s = selectStrategy({ nativeTrivy: false, nativeGrype: false, engine: null });
+    assert.equal(s.kind, null);
+    assert.ok(s.reason, "must explain why no proof is possible");
+  });
+
+  test("AN ENGINE ALONE IS NOT ENOUGH WHILE THE SCANNER IMAGE IS UNPINNED", () => {
+    // An unpinned floating tag would make every run scan with whatever was
+    // published most recently. 8A.1 also found the tag 8A named did not exist.
+    //
+    // The unpinned scanner is now INJECTED rather than read from the live
+    // CONTAINERIZED_SCANNER constant. Reading the constant meant this
+    // guarantee quietly stopped being tested the moment 8D approved a real
+    // digest — i.e. exactly when an accidental un-pinning would do the most
+    // damage. selectGenerator covers syft, which remains genuinely unpinned.
+    const unpinned = { tool: "trivy", image: "docker.io/aquasec/trivy", tag: null, digest: null };
+    assert.equal(
+      selectStrategy({ nativeTrivy: false, nativeGrype: false, engine: "podman", scanner: unpinned }).kind,
+      null,
+    );
+    assert.equal(selectGenerator({ nativeSyft: false, engine: "podman" }).kind, null);
+  });
+
+  test("native scanners are preferred in a deterministic order", () => {
+    assert.equal(selectStrategy({ nativeTrivy: true, nativeGrype: true }).kind, "native-trivy");
+    assert.equal(selectStrategy({ nativeTrivy: false, nativeGrype: true }).kind, "native-grype");
+    assert.equal(selectGenerator({ nativeSyft: true }).kind, "native-syft");
+  });
+
+  test("trivy and grype output normalise to one severity tally", () => {
+    const t = normaliseTrivy({ Results: [{ Vulnerabilities: [{ Severity: "CRITICAL", VulnerabilityID: "CVE-1", PkgName: "p" }, { Severity: "low" }] }] });
+    assert.equal(t.tally.CRITICAL, 1);
+    assert.equal(t.tally.LOW, 1);
+    assert.equal(t.findings.length, 1, "only blocking severities are enumerated");
+
+    const g = normaliseGrype({ matches: [{ vulnerability: { severity: "High", id: "CVE-2" }, artifact: { name: "q", version: "1" } }] });
+    assert.equal(g.tally.HIGH, 1);
+    assert.equal(g.findings[0].id, "CVE-2");
+  });
+
+  test("empty scanner output is zero findings, not a crash", () => {
+    assert.equal(normaliseTrivy({}).findings.length, 0);
+    assert.equal(normaliseGrype({}).findings.length, 0);
+  });
+});
+
+describe("component inventory: external binaries", () => {
+  const complete = [
+    "OC_RESOLVED_VERSION=4.22.3",
+    "OC_RESOLVED_SHA256=abc123",
+    "OC_RESOLVED_CHANNEL=latest-4.22",
+    "OC_MIRROR_RESOLVED_VERSION=4.22.1",
+    "OC_MIRROR_RESOLVED_SHA256=def456",
+    "OC_MIRROR_RESOLVED_CHANNEL=latest",
+    "TOOLS_RESOLVED_ARCH=x86_64",
+  ].join("\n");
+
+  test("a complete provenance file yields oc and oc-mirror components", () => {
+    const r = parseToolProvenance(complete);
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.components.map((c) => c.name), ["oc", "oc-mirror"]);
+    assert.equal(r.components[0].version, "4.22.3");
+    assert.equal(r.components[0].checksum.value, "abc123");
+    assert.equal(r.components[1].checksum.algorithm, "SHA256");
+  });
+
+  test("MISSING EXTERNAL-BINARY PROVENANCE IS NOT OK", () => {
+    // Attaching a sidecar file was never proof the binaries were inventoried.
+    for (const field of REQUIRED_TOOL_FIELDS) {
+      const text = complete.split("\n").filter((l) => !l.startsWith(`${field}=`)).join("\n");
+      const r = parseToolProvenance(text);
+      assert.equal(r.ok, false, `${field} must be required`);
+      assert.ok(r.missing.includes(field));
+    }
+  });
+
+  test("an empty provenance file is not ok", () => {
+    assert.equal(parseToolProvenance("").ok, false);
+    assert.equal(parseToolProvenance(null).ok, false);
+  });
+
+  test("the axis is named for what it actually produces", () => {
+    const axis = axisById("component-inventory");
+    assert.match(axis.title, /external binaries/i);
+    assert.ok(!axisById("sbom"), "the overstated 'sbom' id is gone");
+  });
+});
+
+describe("repository metadata parsing", () => {
+  test("owner/name is extracted from every URL form", () => {
+    assert.equal(repoSlug("https://github.com/o/n.git"), "o/n");
+    assert.equal(repoSlug("git@github.com:o/n.git"), "o/n");
+    assert.equal(repoSlug("https://github.com/o/n"), "o/n");
+    assert.equal(repoSlug("https://gitlab.com/o/n.git"), null);
+    assert.equal(repoSlug(null), null);
+  });
+});
+
+describe("tests axis: the candidate's suites never inherit the image axes' inputs (backlog item 21)", async () => {
+  const { default: testsAxis, suiteEnv, SUITE_ENV_SCRUB } = await import("./axes/tests.mjs");
+  const { run } = await import("./lib/exec.mjs");
+  const os = await import("node:os");
+  const CANDIDATE = {
+    RUNTIME_PACKAGE_BACKEND_IMAGE: "localhost/oaa-v221-rc-backend:20261106",
+    RUNTIME_PACKAGE_FRONTEND_IMAGE: "localhost/oaa-v221-rc-frontend:20261106",
+    AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE: "auto",
+  };
+  const withEnv = async (vars, fn) => {
+    const saved = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
+    Object.assign(process.env, vars);
+    try { return await fn(); } finally {
+      for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    }
+  };
+
+  test("suiteEnv drops exactly the image-axis variables and keeps everything else", () => {
+    const env = suiteEnv({ ...CANDIDATE, PATH: "/bin", HOME: "/h", DATA_DIR: "/d" });
+    for (const k of SUITE_ENV_SCRUB) assert.equal(k in env, false, k);
+    assert.deepEqual(env, { PATH: "/bin", HOME: "/h", DATA_DIR: "/d" });
+  });
+
+  test("the axis hands every suite the scrubbed environment even when the operator exported candidate names", async () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "oaa-tests-axis-"));
+    for (const d of ["node_modules", "backend/node_modules", "frontend/node_modules"]) fs.mkdirSync(path.join(repo, d), { recursive: true });
+    const seen = [];
+    const store = { writeArtifact: (_id, name) => name };
+    await withEnv(CANDIDATE, () => testsAxis.run({ repoRoot: repo, store, runImpl: (cmd, args, opts) => { seen.push(opts.env); return { status: 0, stdout: "# tests 1\n# pass 1\n# fail 0\n", stderr: "" }; } }));
+    assert.equal(seen.length, 3);
+    for (const env of seen) for (const k of SUITE_ENV_SCRUB) assert.equal(env[k], undefined, k);
+    fs.rmSync(repo, { recursive: true, force: true });
+  });
+
+  test("with the real backend test script, the scrubbed run resolves the test-owned names; the inherited run (defective baseline) does not", async () => {
+    const real = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "backend", "package.json"), "utf8")).scripts.test;
+    const cut = real.indexOf(" node --test");
+    assert.ok(cut > 0, "the backend test script still sets its variables before `node --test`");
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "oaa-tests-axis-real-"));
+    fs.writeFileSync(path.join(repo, "package.json"), JSON.stringify({ name: "probe", private: true, scripts: {
+      test: `${real.slice(0, cut)} node -e "for (const k of ${JSON.stringify(SUITE_ENV_SCRUB).replace(/"/g, "'")}) console.log(k + '=' + process.env[k])"`,
+    } }));
+    const parse = (out) => Object.fromEntries(out.split("\n").filter((l) => /^[A-Z_]+=/.test(l)).map((l) => l.split("=")));
+    const scrubbed = await withEnv(CANDIDATE, () => parse(run("npm", ["test", "--silent"], { cwd: repo, env: suiteEnv(process.env) }).stdout));
+    assert.equal(scrubbed.RUNTIME_PACKAGE_BACKEND_IMAGE, "localhost/oaa-test-owned-backend:never-built");
+    assert.equal(scrubbed.RUNTIME_PACKAGE_FRONTEND_IMAGE, "localhost/oaa-test-owned-frontend:never-built");
+    assert.equal(scrubbed.AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE, "none");
+    const inherited = await withEnv(CANDIDATE, () => parse(run("npm", ["test", "--silent"], { cwd: repo, env: process.env }).stdout));
+    assert.equal(inherited.RUNTIME_PACKAGE_BACKEND_IMAGE, CANDIDATE.RUNTIME_PACKAGE_BACKEND_IMAGE, "the pre-fix behaviour leaked the candidate name");
+    fs.rmSync(repo, { recursive: true, force: true });
+  });
+});
+
+describe("containers axis: the application user must be able to use the baked tools (v2.2.1)", async () => {
+  const { PROBES, probeUser } = await import("./axes/containers.mjs");
+  test("backend app-user probes exist for oc-mirror, oc and the backend's own hashing path", () => {
+    const names = PROBES.backend.filter((p) => p.asAppUser).map((p) => p.name);
+    assert.ok(names.some((n) => /read, hash and execute oc-mirror/.test(n)));
+    assert.ok(names.some((n) => /read, hash and execute oc$/.test(n)));
+    assert.ok(names.some((n) => /resolves and hashes its oc-mirror/.test(n)));
+    for (const p of PROBES.backend.filter((x) => x.asAppUser)) assert.match(p.argv.join(" "), /sha256|describeOcMirrorTool/);
+  });
+  test("app-user probes run as the drop target with gid 0, and are never silently run as root", () => {
+    const probe = { asAppUser: true };
+    assert.deepEqual(probeUser(probe, 1001), { user: "1001:0" });
+    assert.ok(probeUser(probe, null).error);
+    assert.ok(probeUser(probe, 0).error, "root is not the application user");
+    assert.deepEqual(probeUser({}, 1001), { user: null });
+  });
+});

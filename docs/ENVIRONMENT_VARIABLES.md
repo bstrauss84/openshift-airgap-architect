@@ -38,11 +38,24 @@ This document catalogs all configurable environment variables for the OpenShift 
   - Contains `state.db` (SQLite), `tmp/` directory, and job output directories
   - Permissions must allow read/write for the application user
 
----
+### `OAA_MIRROR_STORAGE_ROOT`
+- **Type:** Path (absolute, inside the container)
+- **Default:** unset — new Mirroring profiles start in `DATA_DIR/oc-mirror`
+- **Required:** No
+- **Description:** The default storage location for NEW Mirroring profiles (archives, oc-mirror workspace and cache, received transfers, plans, each under `<location>/profiles/<id>/`). Users can still type any writable directory for a profile before it writes anything, as in Install's Run oc-mirror step.
+- **Example:** `OAA_MIRROR_STORAGE_ROOT=/mnt/mirror-data` with the volume `-v /data/mirror:/mnt/mirror-data:Z`
+- **Security:** Every location must be a real directory (not a symbolic link), not `/`, a system directory, the application's directory or another profile's directory, and writable by the backend user (UID 1001 in containers). A location that fails a check blocks that profile's runs with the reason; nothing falls back to `DATA_DIR`.
+- **Notes:**
+  - Read once at start-up
+  - Existing profiles keep their location; nothing is moved
+  - See docs/ENTERPRISE_PODMAN_DEPLOYMENT.md §9
 
-## Build and Version Information
-
-These variables are typically set during CI/CD builds and displayed in the UI (Tools → About).
+### `OAA_SECRET_TMPDIR`
+- **Type:** Path (absolute)
+- **Default:** unset — `/dev/shm/oaa-secrets-<uid>-<hash>` (memory), else `DATA_DIR/tmp`
+- **Required:** No
+- **Description:** Where oc-mirror runs' temporary registry auth files are written (0600, removed after each run; leftovers removed at start-up). Must be a directory owned by the backend user and not accessible to others.
+- **Example:** `OAA_SECRET_TMPDIR=/run/user/1001/oaa`
 
 ### `APP_GIT_SHA`
 - **Type:** String
@@ -50,7 +63,8 @@ These variables are typically set during CI/CD builds and displayed in the UI (T
 - **Required:** No
 - **Description:** Git commit SHA of the build
 - **Example:** `APP_GIT_SHA=a1b2c3d4e5f6`
-- **Notes:** Displayed in About page and used for update checks
+- **Notes:** Optional provenance shown in Tools → About when supplied, and omitted
+  when not. It is **not** used for update checks.
 
 ### `APP_BUILD_TIME`
 - **Type:** ISO 8601 timestamp
@@ -63,26 +77,33 @@ These variables are typically set during CI/CD builds and displayed in the UI (T
 - **Type:** String (GitHub repository)
 - **Default:** `"bstrauss84/openshift-airgap-architect"`
 - **Required:** No
-- **Description:** GitHub repository for update checks and documentation links
+- **Description:** GitHub repository whose published Releases are checked for updates, and used for documentation links
 - **Example:** `APP_REPO=myorg/my-fork`
 
 ### `APP_BRANCH`
 - **Type:** String
 - **Default:** `"main"`
 - **Required:** No
-- **Description:** Git branch for documentation links
+- **Description:** Git branch for documentation links. This is configuration, not
+  build provenance (Compose sets it to `main`), so the UI does not present it as the
+  build's source branch. It is not used for update checks.
 - **Example:** `APP_BRANCH=develop`
 
 ### `CHECK_UPDATES`
 - **Type:** String (`"true"` | `"false"`)
-- **Default:** `"true"` (enabled when `APP_GIT_SHA` is set)
+- **Default:** `"true"`
 - **Required:** No
-- **Description:** Enable/disable automatic update checks against GitHub releases
+- **Description:** Enable/disable the automatic update check
 - **Example:** `CHECK_UPDATES=false`
 - **Notes:**
-  - When enabled, fetches latest release tag from GitHub API
-  - Set to `false` in fully disconnected environments
-  - Failure to check is non-blocking (warning only)
+  - When enabled, the backend asks the GitHub **Releases** API for `APP_REPO` and
+    compares the newest published, stable release with the installed application
+    version from `package.json`. `APP_GIT_SHA` is not needed. Drafts and
+    prereleases are never offered, and an older release never produces a downgrade
+    prompt. See [docs/UPDATING.md](UPDATING.md#what-the-update-states-mean).
+  - `false` or `0` disables the check without any network request. Set it in fully
+    disconnected environments.
+  - Failure to check is non-blocking and reports `offline`, never "up to date".
 
 ---
 
@@ -284,15 +305,19 @@ FEEDBACK_BURST_MAX=1                   # 1 per 30 seconds
 - **Type:** Path (absolute)
 - **Default:** None (uses discovery fallback)
 - **Required:** No
-- **Description:** Path to Red Hat pull secret JSON file for operator scans and oc-mirror
+- **Description:** Path to a Red Hat pull secret JSON file used by oc-mirror operations
 - **Example:** `PULL_SECRET_FILE=/opt/secrets/pull-secret.json`
-- **Security:** File must be readable by backend process
-- **Discovery Fallback (if not set):**
-  1. `${HOME}/.openshift/pull-secret`
-  2. `/run/secrets/pull-secret` (Kubernetes secret mount)
+- **Security:** File must be readable by backend process. **The contents are never sent to the browser** — the backend holds them in memory and uses them server-side only.
+- **Discovery Fallback (if not set), first match wins:**
+  1. `/run/secrets/pull-secret` (Docker/Podman native `--secret` mount)
+  2. `<DATA_DIR>/pull-secret.json` (bind-mount into the data directory)
+  3. `${HOME}/.openshift/pull-secret` (`oc` CLI default, non-container dev runs)
 - **Notes:**
-  - Required for operator scan and oc-mirror operations
-  - Can be overridden by wizard-provided pull secret in state
+  - Used by `POST /api/ocmirror/preflight` and `POST /api/ocmirror/run` when the request selects `rhAuthSource: "mounted"`
+  - Mirroring (v2.2.0): the one mounted **source** credential for Mirroring catalog scans, live catalog checks, preflight and runs — each only when the user switches on "Use the pull secret mounted into the container" (`rhAuthSource: "mounted"`). Never used for the destination registry.
+  - **Not** used by Install operator catalog scans — those authenticate via `REGISTRY_AUTH_FILE`, a separate mechanism
+  - Can be overridden by a wizard-provided pull secret in state
+  - As of v2.1 the Blueprint pull-secret field is **not** pre-populated from this file, and `GET /api/secrets/rh-pull-secret/content` returns `410 ENDPOINT_WITHDRAWN`. Only `GET /api/secrets/rh-pull-secret` → `{ available: boolean }` is exposed.
 
 ### `REGISTRY_AUTH_FILE`
 - **Type:** Path (absolute)
@@ -302,7 +327,8 @@ FEEDBACK_BURST_MAX=1                   # 1 per 30 seconds
 - **Example:** `REGISTRY_AUTH_FILE=/opt/auth/config.json`
 - **Notes:**
   - Backend generates temporary auth files for oc-mirror runs
-  - Permanent file can be provided for operator scans
+  - Permanent file can be provided for **Install** operator scans
+  - **Not** used by Mirroring (v2.2.0): Mirroring scans name their source credential explicitly (pasted, or the mounted Red Hat pull secret above) and never fall back to this file
   - Format: Docker registry auth JSON (same as `pull-secret.json` structure)
 
 ### `OC_MIRROR_BIN`
@@ -364,16 +390,118 @@ FEEDBACK_BURST_MAX=1                   # 1 per 30 seconds
 - **Description:** Reserved for future airgap mode variations
 - **Notes:** Currently unused; placeholder for potential high-side/low-side workflow modes
 
+### `AIRGAP_RUNTIME_PACKAGE_IMAGE_EXPORT_MODE`
+- **Type:** String: `auto`, `fixture` or `none`
+- **Default:** `auto`
+- **Required:** No
+- **Description:** How the high-side runtime package obtains the backend and frontend image archives.
+- **Notes:** `auto` exports the images named by `RUNTIME_PACKAGE_BACKEND_IMAGE` / `RUNTIME_PACKAGE_FRONTEND_IMAGE`
+  (default `localhost/openshift-airgap-architect-{backend,frontend}:latest`) with podman or docker when one is present;
+  the shipped container has neither. `none` never calls a container engine (the package is produced without image
+  archives and says so). `fixture` writes placeholder archives for tests. The backend test runner defaults to `none`
+  and to test-owned image names, so a suite run never reads or exports the operator's own images; a test that needs
+  another mode sets it explicitly.
+
 ### `AIRGAP_RUNTIME_SIDE`
 - **Type:** String
 - **Default:** None
 - **Required:** No
-- **Description:** Reserved for high-side/low-side deployment tracking
-- **Notes:** Currently unused; placeholder for future disconnected workflow features
+- **Description:** Marks the deployment side. The high-side runtime package sets `high-side`.
+- **Notes:** With `high-side` (v2.2.0) the backend makes no Internet request on its own: no Cincinnati cache warm-up at
+  start and no release update check (as with `CHECK_UPDATES=false`). Requests a user starts (for example refreshing
+  OpenShift release lists) are still attempted and fail without network access. Mirroring disk to mirror confines
+  oc-mirror to the destination registry independently of this setting.
 
 ---
 
 ## Security and Rate Limiting
+
+### `BIND_ADDRESS`
+- **Type:** IP address
+- **Default:** `127.0.0.1` when `OAA_AUTH_MODE=disabled`, `0.0.0.0` when `OAA_AUTH_MODE=proxy`
+- **Required:** No
+- **Scope:** Backend
+- **Description:** The interface the HTTP server binds. **This is the address
+  the server actually binds**, not a hint: it is resolved once in
+  `backend/src/accessControl.js` and passed to `listen`. Before the AUTH-01
+  correction the server called `app.listen(port)` with no host — which binds
+  the unspecified address `::`, every interface — while the startup guard
+  checked this variable, so unauthenticated mode passed its own loopback check
+  and served the network anyway.
+- **Startup refusal:** `OAA_AUTH_MODE=disabled` with a non-loopback value is
+  refused unless the container exception below applies. The whole
+  `127.0.0.0/8` range counts as loopback.
+- **`HOST`** is accepted as an alias, for compatibility.
+
+### `OAA_CONTAINER_NETWORK`
+- **Type:** `isolated` (the only accepted value)
+- **Default:** unset
+- **Required:** Only to bind a non-loopback address in `OAA_AUTH_MODE=disabled`
+- **Scope:** Backend
+- **Description:** Declares that the bind is confined to a container's own
+  network namespace. A published port forwards to the *container's* address
+  and never to the container's loopback, so a containerised backend must bind
+  a wildcard address for `ports:` to work at all — which is a different fact
+  from "the API is exposed on the operator's network".
+- **Not a bare flag:** the backend also requires evidence that it really is in
+  a container (`/run/.containerenv`, `/.dockerenv`, or a container cgroup) and
+  refuses the declaration on a host. That is what stops these lines being
+  lifted out of `docker-compose.yml` into a systemd unit.
+- **What it cannot do:** a process cannot see how its ports were published, nor
+  whether the container shares the host network namespace. `--network=host` or
+  publishing on `0.0.0.0` exposes an unauthenticated API regardless. The
+  shipped `docker-compose.yml` pins `127.0.0.1:4000:4000`; keep it that way, or
+  use `OAA_AUTH_MODE=proxy`.
+- **Example:** `BIND_ADDRESS=0.0.0.0` + `OAA_CONTAINER_NETWORK=isolated`
+
+### `OAA_AUTH_MODE`
+- **Type:** `disabled` | `proxy`
+- **Default:** `disabled`
+- **Scope:** Backend
+- **Description:** `proxy` requires a proven identity on every `/api` route
+  except `/api/health`, `/api/ready`, `/api/metrics`, and requires
+  `OAA_PROXY_SHARED_SECRET` (≥32 chars) and `OAA_ALLOWED_ORIGINS`. `disabled`
+  is the historical single-user local behaviour. See `docs/API.md` →
+  Authentication and the decision record in
+  `docs/security/DECISION_RECORD_API_EXPOSURE_AND_TRUST_ANCHORS.md`.
+
+### `OAA_PROXY_SHARED_SECRET` / `OAA_ALLOWED_ORIGINS` / `OAA_OIDC_ISSUER`
+- **Scope:** Backend. The shared secret proves a request traversed the
+  authenticating proxy; the allowlist replaces wildcard CORS; setting
+  `OAA_OIDC_ISSUER` makes the backend exit at startup, because external OIDC
+  removes the built-in OAuth server this topology needs.
+- **Never committed.** Both secrets are operator-created
+  (`manifests/README.md` → "Before you apply"), and no manifest in this
+  repository declares them — an empty value in an applied manifest would
+  overwrite the live one.
+
+### `OAA_NGINX_LISTEN_ADDRESS`
+- **Type:** `127.0.0.1` | `0.0.0.0`
+- **Default:** `0.0.0.0`
+- **Scope:** Frontend container
+- **Description:** The address nginx serves 5173 on. **`127.0.0.1` in the
+  authenticated OpenShift overlay**, because oauth-proxy reaches nginx over
+  the pod's loopback and nothing else should: that server block forwards the
+  caller's identity headers and attaches the backend shared secret, so serving
+  it on the pod IP is a complete authentication bypass for any pod that can
+  reach the pod. `0.0.0.0` under Compose, where the container boundary plays
+  that role.
+- **Startup refusal:** rendering fails if `OAA_REQUIRE_PROXY_SECRET` is set and
+  this is not loopback.
+
+### `OAA_NGINX_RESOLVER` / `OAA_RESOLV_CONF`
+- **Type:** IP address(es) / path
+- **Default:** derived from the pod's `/etc/resolv.conf`
+- **Scope:** Frontend container
+- **Description:** nginx re-resolves the backend Service per request and needs
+  a resolver to do it. It is read from `resolv.conf`, which is correct on
+  OpenShift (`dns-default` in `openshift-dns`), on vanilla Kubernetes and under
+  Compose. The old hard-coded default,
+  `kube-dns.kube-system.svc.cluster.local`, is an upstream-Kubernetes name that
+  does not exist on OpenShift — and nginx resolves a named resolver through the
+  *system* resolver at config load, so it failed the config load rather than
+  degrading. Set `OAA_NGINX_RESOLVER` explicitly only if your container has no
+  usable `resolv.conf`; rendering fails closed if neither is available.
 
 ### `NODE_EXTRA_CA_CERTS`
 - **Type:** Path (absolute)
@@ -451,12 +579,22 @@ These are set on the **frontend** container/service, not the backend.
 | Variable | Default | Required | Scope | Purpose |
 |----------|---------|----------|-------|---------|
 | `PORT` | 4000 | No | Backend | HTTP server port |
+| `BIND_ADDRESS` | 127.0.0.1 (disabled) / 0.0.0.0 (proxy) | No | Backend | Interface the server actually binds |
+| `OAA_CONTAINER_NETWORK` | None | Only for a non-loopback bind in `disabled` | Backend | Declares a container network namespace; corroborated, not believed |
+| `OAA_AUTH_MODE` | disabled | No | Backend | `proxy` requires identity on every `/api` route |
+| `OAA_PROXY_SHARED_SECRET` | None | Yes in `proxy` | Backend + frontend | Proves a request traversed the authenticating proxy |
+| `OAA_ALLOWED_ORIGINS` | None | Yes in `proxy` | Backend | Origin allowlist replacing wildcard CORS |
+| `OAA_OIDC_ISSUER` | None | No | Backend | If set, startup fails: external OIDC is unsupported here |
+| `OAA_NGINX_LISTEN_ADDRESS` | 0.0.0.0 | No | Frontend | `127.0.0.1` in the authenticated overlay |
+| `OAA_NGINX_RESOLVER` | (from resolv.conf) | No | Frontend | Override for the /api proxy's DNS resolver |
 | `DATA_DIR` | /data | No | Backend | SQLite + job outputs |
-| `APP_GIT_SHA` | "unknown" | No | Backend | Build version (About page) |
+| `OAA_MIRROR_STORAGE_ROOT` | (DATA_DIR/oc-mirror) | No | Backend | Default Mirroring location for new profiles (container path) |
+| `OAA_SECRET_TMPDIR` | (/dev/shm, else DATA_DIR/tmp) | No | Backend | Temporary registry auth files for oc-mirror runs |
+| `APP_GIT_SHA` | "unknown" | No | Backend | Optional revision provenance (About page) |
 | `APP_BUILD_TIME` | "unknown" | No | Backend | Build timestamp |
-| `APP_REPO` | bstrauss84/… | No | Backend | GitHub repo for updates |
+| `APP_REPO` | bstrauss84/… | No | Backend | GitHub repo whose Releases are checked |
 | `APP_BRANCH` | main | No | Backend | Git branch for docs |
-| `CHECK_UPDATES` | true | No | Backend | Enable update checks |
+| `CHECK_UPDATES` | true | No | Backend | Enable published-release update checks |
 | `HTTP_PROXY` | None | No | Backend | HTTP proxy URL |
 | `HTTPS_PROXY` | None | No | Backend | HTTPS proxy URL |
 | `NO_PROXY` | None | No | Backend | Proxy bypass list |
@@ -564,7 +702,11 @@ services:
 - **Fix:** Add reverse proxy IPs to `TRUSTED_PROXIES`
 
 ### Operator scan fails with auth errors
-- **Check:** `PULL_SECRET_FILE` points to valid pull secret
+- **Check (Install):** `REGISTRY_AUTH_FILE` points to a valid pull secret. Install operator scans read
+  **only** this variable; a `PULL_SECRET_FILE` mount will not authenticate an Install scan.
+- **Check (Mirroring):** paste the pull secret for the scan, or mount it (`PULL_SECRET_FILE` /
+  `/run/secrets/pull-secret`) and switch on "Use the pull secret mounted into the container".
+  `REGISTRY_AUTH_FILE` is not used by Mirroring. The failed scan's reason is shown in Operators and Operations.
 - **Check:** File is readable by UID 1001 (backend user in containers)
 - **Check:** Pull secret contains `registry.redhat.io` and `quay.io` auth
 

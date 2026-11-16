@@ -9,12 +9,24 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useApp } from "../store.jsx";
+import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
+import { isParamVisibleForVersion, getFieldAnnotationInfo } from "../catalogFieldMeta.js";
+import { SUPPORTED_MINORS } from "../shared/versionPolicy.js";
+import { validateAwsRootVolumeThroughput } from "../validation.js";
 import { formatMACAsYouType } from "../formatUtils.js";
+import { validateBmcVerifyCA } from "../../../shared/bmcVerifyCA.js";
+import {
+  selectedProvisioningFamily,
+  switchProvisioningFamily
+} from "../../../shared/provisioningNetworkFamily.js";
+import { isAgentSingleNodeTopology } from "../hostInventoryV2Helpers.js";
 import { apiFetch } from "../api.js";
 import OptionRow from "../components/OptionRow.jsx";
+import CommaListInput from "../components/CommaListInput.jsx";
 import Switch from "../components/Switch.jsx";
 import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
@@ -70,8 +82,39 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const method = state.methodology?.method;
   const selectedVersion = state.version?.selectedVersion || state.release?.patchVersion || "";
   const arch = state.blueprint?.arch || "x86_64";
-  const versionConfirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
-  const catalogParams = getCatalogForScenario(scenarioId) || [];
+  const versionConfirmed = getVersionLocked(state);
+  // No baseline substitution: this used to read `|| "4.20"`, which silently
+  // presented 4.20 parameter metadata for a run whose minor was not known. With
+  // no selected minor there is no catalog to read, so the parameter set is
+  // empty — see catalogPaths.getCatalogForScenario, which now refuses a missing
+  // minor outright rather than defaulting.
+  const selectedMinor = getOpenShiftMinorFromState(state);
+  const catalogParams = (selectedMinor ? getCatalogForScenario(scenarioId, selectedMinor) : null) || [];
+  const isCatalogFieldVisible = (path, outputFile) => {
+    const param = catalogParams.find(
+      (entry) => entry.path === path && entry.outputFile === outputFile
+    );
+    return isParamVisibleForVersion(param, selectedMinor);
+  };
+  const needsReview = Boolean(state.reviewFlags?.["platform-specifics"]);
+  const showFieldErrors = highlightErrors;
+  const [touchedFields, setTouchedFields] = useState({});
+  const markTouched = useCallback((fieldName) => {
+    setTouchedFields(prev => prev[fieldName] ? prev : { ...prev, [fieldName]: true });
+  }, []);
+  const fieldErrorVisible = useCallback((fieldName) => {
+    return (showFieldErrors || Boolean(touchedFields[fieldName])) && Boolean(fieldErrors[fieldName]);
+  }, [showFieldErrors, touchedFields, fieldErrors]);
+  const baselineMinor = SUPPORTED_MINORS[0];
+  const fieldAnnotation = (path, outputFile) =>
+    getFieldAnnotationInfo(path, outputFile, catalogParams, selectedMinor, baselineMinor);
+  /**
+   * Historical provenance for hint copy: the minor the field was actually
+   * introduced in, which is NOT the same as the currently locked target. Falls
+   * back to the locked minor only when the catalog records no introduction.
+   */
+  const fieldIntroducedIn = (path, outputFile) =>
+    fieldAnnotation(path, outputFile).introducedInMinor || selectedMinor;
   const showAwsGovcloudSection = catalogParams.some(
     (p) => p.path === "platform.aws.region" && p.outputFile === INSTALL_CONFIG
   );
@@ -90,12 +133,17 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const [localAwsRootVolumeSize, setLocalAwsRootVolumeSize] = useState(platformConfig.aws?.rootVolumeSize || "");
   const [localAwsRootVolumeType, setLocalAwsRootVolumeType] = useState(platformConfig.aws?.rootVolumeType || "");
   const [localAwsRootVolumeIops, setLocalAwsRootVolumeIops] = useState(platformConfig.aws?.rootVolumeIops || "");
+  const [localAwsRootVolumeThroughput, setLocalAwsRootVolumeThroughput] = useState(platformConfig.aws?.rootVolumeThroughput || "");
+  const [awsThroughputError, setAwsThroughputError] = useState("");
   const [localAwsRootVolumeKmsKeyArn, setLocalAwsRootVolumeKmsKeyArn] = useState(platformConfig.aws?.rootVolumeKmsKeyArn || "");
 
   // Local state for text inputs (onBlur pattern) - Azure
   const [localAzureRegion, setLocalAzureRegion] = useState(platformConfig.azure?.region || "");
   const [localAzureResourceGroupName, setLocalAzureResourceGroupName] = useState(platformConfig.azure?.resourceGroupName || "");
   const [localAzureBaseDomainResourceGroupName, setLocalAzureBaseDomainResourceGroupName] = useState(platformConfig.azure?.baseDomainResourceGroupName || "");
+  const [localAzureVirtualNetwork, setLocalAzureVirtualNetwork] = useState(platformConfig.azure?.virtualNetwork || "");
+  const [localAzureNetworkResourceGroupName, setLocalAzureNetworkResourceGroupName] = useState(platformConfig.azure?.networkResourceGroupName || "");
+  const [localAzureControlPlaneSubnet, setLocalAzureControlPlaneSubnet] = useState(platformConfig.azure?.controlPlaneSubnet || "");
 
   // Local state for text inputs (onBlur pattern) - IBM Cloud
   const [localIbmRegion, setLocalIbmRegion] = useState(platformConfig.ibmcloud?.region || "");
@@ -140,6 +188,11 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const [localProvisioningDHCPRange, setLocalProvisioningDHCPRange] = useState(inventory.provisioningDHCPRange || "");
   const [localClusterProvisioningIP, setLocalClusterProvisioningIP] = useState(inventory.clusterProvisioningIP || "");
   const [localProvisioningMACAddress, setLocalProvisioningMACAddress] = useState(inventory.provisioningMACAddress || "");
+  const [localProvisioningNetworkGateway, setLocalProvisioningNetworkGateway] = useState(inventory.provisioningNetworkGateway || "");
+
+  // Local state for BMC Verify CA
+  const [localBmcVerifyCA, setLocalBmcVerifyCA] = useState(inventory.bmcVerifyCA || "");
+  const [bmcVerifyCAError, setBmcVerifyCAError] = useState("");
 
   // Local state for text inputs (onBlur pattern) - Agent Options
   const [localBootArtifactsBaseURL, setLocalBootArtifactsBaseURL] = useState(inventory.bootArtifactsBaseURL || "");
@@ -161,9 +214,13 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
     apiFetch(
       `/api/aws/regions?version=${encodeURIComponent(selectedVersion)}&arch=${encodeURIComponent(arch)}`
     )
-      .then((data) => setAwsRegions(data.regions || []))
+      .then((data) => {
+        const allRegions = data.regions || [];
+        const isGovCloud = scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi";
+        setAwsRegions(isGovCloud ? allRegions.filter(r => r.startsWith("us-gov-")) : allRegions);
+      })
       .catch(() => setAwsRegions([]));
-  }, [showAwsAmiLookup, selectedVersion, arch]);
+  }, [showAwsAmiLookup, selectedVersion, arch, scenarioId]);
 
   // Sync local state when store values change (for imports/loads) - AWS
   useEffect(() => { setLocalAwsAmiId(platformConfig.aws?.amiId || ""); }, [platformConfig.aws?.amiId]);
@@ -174,12 +231,47 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   useEffect(() => { setLocalAwsRootVolumeSize(platformConfig.aws?.rootVolumeSize || ""); }, [platformConfig.aws?.rootVolumeSize]);
   useEffect(() => { setLocalAwsRootVolumeType(platformConfig.aws?.rootVolumeType || ""); }, [platformConfig.aws?.rootVolumeType]);
   useEffect(() => { setLocalAwsRootVolumeIops(platformConfig.aws?.rootVolumeIops || ""); }, [platformConfig.aws?.rootVolumeIops]);
+  useEffect(() => { setLocalAwsRootVolumeThroughput(platformConfig.aws?.rootVolumeThroughput || ""); }, [platformConfig.aws?.rootVolumeThroughput]);
   useEffect(() => { setLocalAwsRootVolumeKmsKeyArn(platformConfig.aws?.rootVolumeKmsKeyArn || ""); }, [platformConfig.aws?.rootVolumeKmsKeyArn]);
+  useEffect(() => {
+    if (localAwsRootVolumeThroughput === "" || localAwsRootVolumeThroughput == null) return;
+    const result = validateAwsRootVolumeThroughput(localAwsRootVolumeThroughput, (platformConfig.aws?.rootVolumeType || "").trim() || undefined);
+    setAwsThroughputError(result.valid ? "" : result.error);
+  }, [platformConfig.aws?.rootVolumeType]);
+
+  /**
+   * Commit an AWS root-volume throughput edit to canonical state.
+   *
+   * Called on every change so the live YAML preview stays in step with the
+   * input, and again on blur. `surfaceError` is false while typing: a partially
+   * entered number ("1" on the way to "125") must not flash a range error
+   * before the field has been left.
+   */
+  const commitAwsRootVolumeThroughput = (raw, { surfaceError }) => {
+    if (raw === "" || raw == null) {
+      setAwsThroughputError("");
+      updateAws({ rootVolumeThroughput: undefined });
+      return;
+    }
+    const result = validateAwsRootVolumeThroughput(
+      raw,
+      (platformConfig.aws?.rootVolumeType || "").trim() || undefined
+    );
+    if (!result.valid) {
+      if (surfaceError) setAwsThroughputError(result.error);
+      return;
+    }
+    setAwsThroughputError("");
+    updateAws({ rootVolumeThroughput: Number(raw) });
+  };
 
   // Sync local state when store values change (for imports/loads) - Azure
   useEffect(() => { setLocalAzureRegion(platformConfig.azure?.region || ""); }, [platformConfig.azure?.region]);
   useEffect(() => { setLocalAzureResourceGroupName(platformConfig.azure?.resourceGroupName || ""); }, [platformConfig.azure?.resourceGroupName]);
   useEffect(() => { setLocalAzureBaseDomainResourceGroupName(platformConfig.azure?.baseDomainResourceGroupName || ""); }, [platformConfig.azure?.baseDomainResourceGroupName]);
+  useEffect(() => { setLocalAzureVirtualNetwork(platformConfig.azure?.virtualNetwork || ""); }, [platformConfig.azure?.virtualNetwork]);
+  useEffect(() => { setLocalAzureNetworkResourceGroupName(platformConfig.azure?.networkResourceGroupName || ""); }, [platformConfig.azure?.networkResourceGroupName]);
+  useEffect(() => { setLocalAzureControlPlaneSubnet(platformConfig.azure?.controlPlaneSubnet || ""); }, [platformConfig.azure?.controlPlaneSubnet]);
 
   // Sync local state when store values change (for imports/loads) - IBM Cloud
   useEffect(() => { setLocalIbmRegion(platformConfig.ibmcloud?.region || ""); }, [platformConfig.ibmcloud?.region]);
@@ -224,6 +316,10 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   useEffect(() => { setLocalProvisioningDHCPRange(inventory.provisioningDHCPRange || ""); }, [inventory.provisioningDHCPRange]);
   useEffect(() => { setLocalClusterProvisioningIP(inventory.clusterProvisioningIP || ""); }, [inventory.clusterProvisioningIP]);
   useEffect(() => { setLocalProvisioningMACAddress(inventory.provisioningMACAddress || ""); }, [inventory.provisioningMACAddress]);
+  useEffect(() => { setLocalProvisioningNetworkGateway(inventory.provisioningNetworkGateway || ""); }, [inventory.provisioningNetworkGateway]);
+
+  // Sync local state for BMC Verify CA
+  useEffect(() => { setLocalBmcVerifyCA(inventory.bmcVerifyCA || ""); }, [inventory.bmcVerifyCA]);
 
   // Sync local state when store values change (for imports/loads) - Agent Options
   useEffect(() => { setLocalBootArtifactsBaseURL(inventory.bootArtifactsBaseURL || ""); }, [inventory.bootArtifactsBaseURL]);
@@ -262,61 +358,76 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
     [selectedVersion, arch, updateAws]
   );
 
-  /** Agent options (boot artifacts etc.) for agent-based scenarios that expose agent-config params in catalog. */
-  const showAgentOptionsSection = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && catalogParams.some(
-    (p) => p.path === "bootArtifactsBaseURL" && p.outputFile === AGENT_CONFIG
-  );
-  const metaBootArtifacts = getParamMeta(scenarioId, "bootArtifactsBaseURL", AGENT_CONFIG);
-  const requiredPathsAgent = getRequiredParamsForOutput(scenarioId, AGENT_CONFIG) || [];
+  const awsRegionForAutoFill = platformConfig.aws?.region;
+  const awsAmiManuallySet = platformConfig.aws?.amiId && platformConfig.aws?.amiAutoFilled !== true;
+  useEffect(() => {
+    if (!showAwsAmiLookup || !awsRegionForAutoFill || awsAmiManuallySet) return;
+    fetchAmiFromInstaller(awsRegionForAutoFill, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable primitive deps; fetchAmiFromInstaller identity changes on every render due to updateAws
+  }, [showAwsAmiLookup, awsRegionForAutoFill, selectedVersion, arch]);
+
+  const isAgentScenario = scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent";
+  const showBootArtifactsBaseURL = isAgentScenario && isCatalogFieldVisible("bootArtifactsBaseURL", AGENT_CONFIG);
+  const metaBootArtifacts = getParamMeta(scenarioId, "bootArtifactsBaseURL", AGENT_CONFIG, state);
+  const requiredPathsAgent = getRequiredParamsForOutput(scenarioId, AGENT_CONFIG, state) || [];
   const isRequiredAgent = (path) => requiredPathsAgent.includes(path);
-  const metaAwsRegion = getParamMeta(scenarioId, "platform.aws.region", INSTALL_CONFIG);
-  const metaAwsHostedZone = getParamMeta(scenarioId, "platform.aws.hostedZone", INSTALL_CONFIG);
-  const metaAwsHostedZoneRole = getParamMeta(scenarioId, "platform.aws.hostedZoneRole", INSTALL_CONFIG);
-  const metaAwsLbType = getParamMeta(scenarioId, "platform.aws.lbType", INSTALL_CONFIG);
-  const metaAwsSubnets = getParamMeta(scenarioId, "platform.aws.vpc.subnets", INSTALL_CONFIG);
-  const metaAwsAmiID = getParamMeta(scenarioId, "platform.aws.amiID", INSTALL_CONFIG);
-  const metaControlPlaneAwsType = getParamMeta(scenarioId, "controlPlane.platform.aws.type", INSTALL_CONFIG);
-  const metaComputeAwsType = getParamMeta(scenarioId, "compute[].platform.aws.type", INSTALL_CONFIG);
-  const metaPublish = getParamMeta(scenarioId, "publish", INSTALL_CONFIG);
-  const metaCredentialsMode = getParamMeta(scenarioId, "credentialsMode", INSTALL_CONFIG);
+  const metaAwsRegion = getParamMeta(scenarioId, "platform.aws.region", INSTALL_CONFIG, state);
+  const metaAwsHostedZone = getParamMeta(scenarioId, "platform.aws.hostedZone", INSTALL_CONFIG, state);
+  const metaAwsHostedZoneRole = getParamMeta(scenarioId, "platform.aws.hostedZoneRole", INSTALL_CONFIG, state);
+  const metaAwsLbType = getParamMeta(scenarioId, "platform.aws.lbType", INSTALL_CONFIG, state);
+  const metaAwsSubnets = getParamMeta(scenarioId, "platform.aws.vpc.subnets", INSTALL_CONFIG, state);
+  const metaAwsAmiID = getParamMeta(scenarioId, "platform.aws.amiID", INSTALL_CONFIG, state);
+  const metaControlPlaneAwsType = getParamMeta(scenarioId, "controlPlane.platform.aws.type", INSTALL_CONFIG, state);
+  const metaComputeAwsType = getParamMeta(scenarioId, "compute[].platform.aws.type", INSTALL_CONFIG, state);
+  const showAwsWorkerInstanceType =
+    scenarioId === "aws-govcloud-ipi" &&
+    isCatalogFieldVisible("compute[].platform.aws.type", INSTALL_CONFIG);
+  const metaPublish = getParamMeta(scenarioId, "publish", INSTALL_CONFIG, state);
+  const metaCredentialsMode = getParamMeta(scenarioId, "credentialsMode", INSTALL_CONFIG, state);
 
   /** Azure Government IPI: show when catalog has platform.azure.cloudName. */
   const showAzureGovSection = catalogParams.some(
     (p) => p.path === "platform.azure.cloudName" && p.outputFile === INSTALL_CONFIG
   );
-  const metaAzureCloudName = getParamMeta(scenarioId, "platform.azure.cloudName", INSTALL_CONFIG);
-  const metaAzureRegion = getParamMeta(scenarioId, "platform.azure.region", INSTALL_CONFIG);
-  const metaAzureResourceGroupName = getParamMeta(scenarioId, "platform.azure.resourceGroupName", INSTALL_CONFIG);
-  const metaAzureBaseDomainResourceGroupName = getParamMeta(scenarioId, "platform.azure.baseDomainResourceGroupName", INSTALL_CONFIG);
+  const metaAzureCloudName = getParamMeta(scenarioId, "platform.azure.cloudName", INSTALL_CONFIG, state);
+  const metaAzureRegion = getParamMeta(scenarioId, "platform.azure.region", INSTALL_CONFIG, state);
+  const metaAzureResourceGroupName = getParamMeta(scenarioId, "platform.azure.resourceGroupName", INSTALL_CONFIG, state);
+  const metaAzureBaseDomainResourceGroupName = getParamMeta(scenarioId, "platform.azure.baseDomainResourceGroupName", INSTALL_CONFIG, state);
+  const showAzureAllowSharedKeyAccess = isCatalogFieldVisible("platform.azure.allowSharedKeyAccess", INSTALL_CONFIG);
+  const showAzureBYOVNet = isCatalogFieldVisible("platform.azure.virtualNetwork", INSTALL_CONFIG);
+  const showAzureSubnetsArray = isCatalogFieldVisible("platform.azure.subnets.name", INSTALL_CONFIG);
 
   /** IBM Cloud IPI: show when catalog has platform.ibmcloud.region. */
   const showIbmCloudSection = catalogParams.some(
     (p) => p.path === "platform.ibmcloud.region" && p.outputFile === INSTALL_CONFIG
   );
-  const metaIbmRegion = getParamMeta(scenarioId, "platform.ibmcloud.region", INSTALL_CONFIG);
-  const metaIbmResourceGroupName = getParamMeta(scenarioId, "platform.ibmcloud.resourceGroupName", INSTALL_CONFIG);
-  const metaIbmNetworkResourceGroupName = getParamMeta(scenarioId, "platform.ibmcloud.networkResourceGroupName", INSTALL_CONFIG);
-  const metaIbmVpcName = getParamMeta(scenarioId, "platform.ibmcloud.vpcName", INSTALL_CONFIG);
-  const metaIbmControlPlaneSubnets = getParamMeta(scenarioId, "platform.ibmcloud.controlPlaneSubnets", INSTALL_CONFIG);
-  const metaIbmComputeSubnets = getParamMeta(scenarioId, "platform.ibmcloud.computeSubnets", INSTALL_CONFIG);
-  const metaIbmServiceEndpoints = getParamMeta(scenarioId, "platform.ibmcloud.serviceEndpoints", INSTALL_CONFIG);
-  const metaIbmType = getParamMeta(scenarioId, "platform.ibmcloud.type", INSTALL_CONFIG);
-  const metaIbmDedicatedHostsProfile = getParamMeta(scenarioId, "platform.ibmcloud.dedicatedHosts.profile", INSTALL_CONFIG);
-  const metaIbmDedicatedHostsName = getParamMeta(scenarioId, "platform.ibmcloud.dedicatedHosts.name", INSTALL_CONFIG);
+  const metaIbmRegion = getParamMeta(scenarioId, "platform.ibmcloud.region", INSTALL_CONFIG, state);
+  const metaIbmResourceGroupName = getParamMeta(scenarioId, "platform.ibmcloud.resourceGroupName", INSTALL_CONFIG, state);
+  const metaIbmNetworkResourceGroupName = getParamMeta(scenarioId, "platform.ibmcloud.networkResourceGroupName", INSTALL_CONFIG, state);
+  const metaIbmVpcName = getParamMeta(scenarioId, "platform.ibmcloud.vpcName", INSTALL_CONFIG, state);
+  const metaIbmControlPlaneSubnets = getParamMeta(scenarioId, "platform.ibmcloud.controlPlaneSubnets", INSTALL_CONFIG, state);
+  const metaIbmComputeSubnets = getParamMeta(scenarioId, "platform.ibmcloud.computeSubnets", INSTALL_CONFIG, state);
+  const metaIbmServiceEndpoints = getParamMeta(scenarioId, "platform.ibmcloud.serviceEndpoints", INSTALL_CONFIG, state);
+  const metaIbmType = getParamMeta(scenarioId, "platform.ibmcloud.type", INSTALL_CONFIG, state);
+  const metaIbmDedicatedHostsProfile = getParamMeta(scenarioId, "platform.ibmcloud.dedicatedHosts.profile", INSTALL_CONFIG, state);
+  const metaIbmDedicatedHostsName = getParamMeta(scenarioId, "platform.ibmcloud.dedicatedHosts.name", INSTALL_CONFIG, state);
   const metaIbmDefaultMachineBootVolumeKey = getParamMeta(
     scenarioId,
     "platform.ibmcloud.defaultMachinePlatform.bootVolume.encryptionKey",
-    INSTALL_CONFIG
+    INSTALL_CONFIG,
+    state
   );
   const metaIbmControlPlaneBootVolumeKey = getParamMeta(
     scenarioId,
     "controlPlane.platform.ibmcloud.bootVolume.encryptionKey",
-    INSTALL_CONFIG
+    INSTALL_CONFIG,
+    state
   );
   const metaIbmComputeBootVolumeKey = getParamMeta(
     scenarioId,
     "compute[].platform.ibmcloud.bootVolume.encryptionKey",
-    INSTALL_CONFIG
+    INSTALL_CONFIG,
+    state
   );
   const ibmVpcMode = platformConfig.ibmcloud?.vpcMode || "existing-vpc";
   const isIbmExistingVpcMode = ibmVpcMode === "existing-vpc";
@@ -346,26 +457,28 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
     (p) => (p.path === "platform.nutanix.prismCentral" || p.path === "platform.nutanix.subnet") && p.outputFile === INSTALL_CONFIG
   );
   const updateNutanix = (patch) => updatePlatformConfig({ nutanix: { ...(platformConfig.nutanix || {}), ...patch } });
-  const metaNutanixEndpoint = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint.address", INSTALL_CONFIG);
-  const metaNutanixPort = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint.port", INSTALL_CONFIG);
-  const metaNutanixUsername = getParamMeta(scenarioId, "platform.nutanix.prismCentral.username", INSTALL_CONFIG);
-  const metaNutanixPassword = getParamMeta(scenarioId, "platform.nutanix.prismCentral.password", INSTALL_CONFIG);
-  const metaNutanixSubnet = getParamMeta(scenarioId, "platform.nutanix.subnet", INSTALL_CONFIG);
-  const metaNutanixClusterName = getParamMeta(scenarioId, "platform.nutanix.clusterName", INSTALL_CONFIG);
+  const metaNutanixEndpoint = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint.address", INSTALL_CONFIG, state);
+  const metaNutanixPort = getParamMeta(scenarioId, "platform.nutanix.prismCentral.endpoint.port", INSTALL_CONFIG, state);
+  const metaNutanixUsername = getParamMeta(scenarioId, "platform.nutanix.prismCentral.username", INSTALL_CONFIG, state);
+  const metaNutanixPassword = getParamMeta(scenarioId, "platform.nutanix.prismCentral.password", INSTALL_CONFIG, state);
+  const metaNutanixSubnet = getParamMeta(scenarioId, "platform.nutanix.subnet", INSTALL_CONFIG, state);
+  const metaNutanixClusterName = getParamMeta(scenarioId, "platform.nutanix.clusterName", INSTALL_CONFIG, state);
 
   /** vSphere IPI/UPI: show when catalog has platform.vsphere params. */
   const showVsphereIpiSection = catalogParams.some(
     (p) => p.path === "platform.vsphere.vcenter" && p.outputFile === INSTALL_CONFIG
   );
-  // Failure domains are IPI-only (not valid for UPI or Agent-based)
-  const showFailureDomainsSection = scenarioId === "vsphere-ipi" && catalogParams.some(
+  const showFailureDomainsSection = catalogParams.some(
     (p) => p.path === "platform.vsphere.failureDomains" && p.outputFile === INSTALL_CONFIG
   );
-  const metaVsphereVcenter = getParamMeta(scenarioId, "platform.vsphere.vcenter", INSTALL_CONFIG);
-  const metaVsphereDatacenter = getParamMeta(scenarioId, "platform.vsphere.datacenter", INSTALL_CONFIG);
-  const metaVsphereDefaultDatastore = getParamMeta(scenarioId, "platform.vsphere.defaultDatastore", INSTALL_CONFIG);
-  const metaVsphereDiskType = getParamMeta(scenarioId, "platform.vsphere.diskType", INSTALL_CONFIG);
-  const requiredPathsInstall = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
+  const showFdTemplateField = catalogParams.some(
+    (p) => p.path === "platform.vsphere.failureDomains[].topology.template" && p.outputFile === INSTALL_CONFIG
+  );
+  const metaVsphereVcenter = getParamMeta(scenarioId, "platform.vsphere.vcenter", INSTALL_CONFIG, state);
+  const metaVsphereDatacenter = getParamMeta(scenarioId, "platform.vsphere.datacenter", INSTALL_CONFIG, state);
+  const metaVsphereDefaultDatastore = getParamMeta(scenarioId, "platform.vsphere.defaultDatastore", INSTALL_CONFIG, state);
+  const metaVsphereDiskType = getParamMeta(scenarioId, "platform.vsphere.diskType", INSTALL_CONFIG, state);
+  const requiredPathsInstall = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG, state) || [];
   const isRequiredInstall = (path) => requiredPathsInstall.includes(path);
 
   const failureDomains = Array.isArray(platformConfig.vsphere?.failureDomains) ? platformConfig.vsphere.failureDomains : [];
@@ -375,9 +488,8 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
   const updateFailureDomain = (index, patch) => setFailureDomains(failureDomains.map((fd, i) => (i === index ? { ...fd, ...patch } : fd)));
   const updateFailureDomainTopology = (index, topPatch) => setFailureDomains(failureDomains.map((fd, i) => (i === index ? { ...fd, topology: { ...(fd.topology || {}), ...topPatch } } : fd)));
 
-  /** When failure-domains mode is selected and none exist, render one empty FD by default (4.20 recommended path). */
   useEffect(() => {
-    if (!showVsphereIpiSection) return;
+    if (!showFailureDomainsSection) return;
     const mode = platformConfig.vsphere?.placementMode || "failureDomains";
     const fds = platformConfig.vsphere?.failureDomains;
     if (mode === "failureDomains" && (!fds || fds.length === 0)) {
@@ -388,42 +500,69 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
         }
       });
     }
-  }, [showVsphereIpiSection, platformConfig.vsphere?.placementMode, platformConfig.vsphere?.failureDomains?.length]);
+  }, [showFailureDomainsSection, platformConfig.vsphere?.placementMode, platformConfig.vsphere?.failureDomains?.length]);
+
+  // Reset per-field touched state when placement mode changes so newly-revealed fields start pristine.
+  const vsPlacementMode = platformConfig.vsphere?.placementMode || "failureDomains";
+  useEffect(() => {
+    setTouchedFields({});
+  }, [vsPlacementMode]);
 
   /** Provisioning network section is IPI-only (installer-provisioned). UPI does not use installer-managed provisioning network; do not show for bare-metal-upi or bare-metal-agent. */
   const showProvisioningNetworkSection = scenarioId === "bare-metal-ipi" && catalogParams.some(
     (p) => p.path === "platform.baremetal.provisioningNetwork" && p.outputFile === INSTALL_CONFIG
   );
-  const metaProvisioningNetwork = getParamMeta(scenarioId, "platform.baremetal.provisioningNetwork", INSTALL_CONFIG);
-  const metaProvisioningCIDR = getParamMeta(scenarioId, "platform.baremetal.provisioningNetworkCIDR", INSTALL_CONFIG);
-  const metaProvisioningInterface = getParamMeta(scenarioId, "platform.baremetal.provisioningNetworkInterface", INSTALL_CONFIG);
-  const metaProvisioningDHCPRange = getParamMeta(scenarioId, "platform.baremetal.provisioningDHCPRange", INSTALL_CONFIG);
-  const metaClusterProvisioningIP = getParamMeta(scenarioId, "platform.baremetal.clusterProvisioningIP", INSTALL_CONFIG);
-  const metaProvisioningMAC = getParamMeta(scenarioId, "platform.baremetal.provisioningMACAddress", INSTALL_CONFIG);
+  const metaProvisioningNetwork = getParamMeta(scenarioId, "platform.baremetal.provisioningNetwork", INSTALL_CONFIG, state);
+  const metaProvisioningCIDR = getParamMeta(scenarioId, "platform.baremetal.provisioningNetworkCIDR", INSTALL_CONFIG, state);
+  const metaProvisioningInterface = getParamMeta(scenarioId, "platform.baremetal.provisioningNetworkInterface", INSTALL_CONFIG, state);
+  const metaProvisioningDHCPRange = getParamMeta(scenarioId, "platform.baremetal.provisioningDHCPRange", INSTALL_CONFIG, state);
+  const metaClusterProvisioningIP = getParamMeta(scenarioId, "platform.baremetal.clusterProvisioningIP", INSTALL_CONFIG, state);
+  const metaProvisioningMAC = getParamMeta(scenarioId, "platform.baremetal.provisioningMACAddress", INSTALL_CONFIG, state);
+  /**
+   * New at OpenShift 4.22. Version gating is catalog-driven via
+   * isCatalogFieldVisible, exactly as platform.baremetal.bmcVerifyCA was gated
+   * when it arrived at 4.21 — so the control appears only on minors whose
+   * catalog carries the row as supported-ui, and nothing needs editing at the
+   * support flip.
+   */
+  const showProvisioningNetworkGateway = isCatalogFieldVisible("platform.baremetal.provisioningNetworkGateway", INSTALL_CONFIG);
 
   const provisioningNetworkOptions = Array.isArray(metaProvisioningNetwork?.allowed)
     ? metaProvisioningNetwork.allowed
     : ["Managed", "Unmanaged", "Disabled"];
 
+  const showBmcVerifyCA = isCatalogFieldVisible("platform.baremetal.bmcVerifyCA", INSTALL_CONFIG)
+    && !(scenarioId === "bare-metal-agent" && isAgentSingleNodeTopology(state.hostInventory?.nodes));
+
+  const bmcVerifyCAAdvisory = useMemo(() => {
+    const val = localBmcVerifyCA.trim();
+    if (!val) return "";
+    if (/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/.test(val)) return "";
+    return "Content does not contain a complete PEM certificate block (-----BEGIN CERTIFICATE----- ... -----END CERTIFICATE-----). The upstream installer does not validate PEM format for this field, but the value may not work as intended.";
+  }, [localBmcVerifyCA]);
+
   /** Advanced (gap remediation): show only when catalog has any of these params for this scenario. */
-  const showComputeHyperthreading = hasParam(catalogParams, "compute[].hyperthreading", INSTALL_CONFIG);
-  const showControlPlaneHyperthreading = hasParam(catalogParams, "controlPlane[].hyperthreading", INSTALL_CONFIG);
-  const showCapabilities = hasParam(catalogParams, "capabilities.baselineCapabilitySet", INSTALL_CONFIG) || hasParam(catalogParams, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
-  const showCpuPartitioningMode = hasParam(catalogParams, "cpuPartitioningMode", INSTALL_CONFIG);
-  const showFeatureSet = hasParam(catalogParams, "featureSet", INSTALL_CONFIG);
-  const showMinimalISO = (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && hasParam(catalogParams, "minimalISO", AGENT_CONFIG);
+  const showComputeHyperthreading = isCatalogFieldVisible("compute[].hyperthreading", INSTALL_CONFIG);
+  const showControlPlaneHyperthreading = isCatalogFieldVisible("controlPlane[].hyperthreading", INSTALL_CONFIG);
+  const showBaselineCapabilitySet = isCatalogFieldVisible("capabilities.baselineCapabilitySet", INSTALL_CONFIG);
+  const showAdditionalEnabledCapabilities = isCatalogFieldVisible("capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
+  const showCapabilities = showBaselineCapabilitySet || showAdditionalEnabledCapabilities;
+  const showCpuPartitioningMode = isCatalogFieldVisible("cpuPartitioningMode", INSTALL_CONFIG);
+  const showFeatureSet = isCatalogFieldVisible("featureSet", INSTALL_CONFIG);
+  const showFeatureGates = isCatalogFieldVisible("featureGates", INSTALL_CONFIG);
+  const showMinimalISO = isAgentScenario && isCatalogFieldVisible("minimalISO", AGENT_CONFIG);
   /** Global folder/resource pool are deprecated (9.1.5); replacement is failureDomains[].topology.folder/resourcePool. Backend only uses vs.folder/vs.resourcePool for legacy path. */
   const showVsphereLegacyFolderResourcePool = showVsphereIpiSection && (platformConfig.vsphere?.placementMode === "legacy");
-  const showAdvancedSection = showComputeHyperthreading || showControlPlaneHyperthreading || showCapabilities || showCpuPartitioningMode || showFeatureSet || showMinimalISO || showAgentOptionsSection || showVsphereIpiSection;
+  const showAdvancedSection = showComputeHyperthreading || showControlPlaneHyperthreading || showCapabilities || showCpuPartitioningMode || showFeatureSet || showMinimalISO || showBootArtifactsBaseURL || showVsphereIpiSection;
 
-  const metaComputeHyperthreading = getParamMeta(scenarioId, "compute[].hyperthreading", INSTALL_CONFIG);
-  const metaControlPlaneHyperthreading = getParamMeta(scenarioId, "controlPlane[].hyperthreading", INSTALL_CONFIG);
-  const metaBaselineCapability = getParamMeta(scenarioId, "capabilities.baselineCapabilitySet", INSTALL_CONFIG);
-  const metaAdditionalCapabilities = getParamMeta(scenarioId, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG);
-  const metaCpuPartitioningMode = getParamMeta(scenarioId, "cpuPartitioningMode", INSTALL_CONFIG);
-  const metaFeatureSet = getParamMeta(scenarioId, "featureSet", INSTALL_CONFIG);
-  const metaFeatureGates = getParamMeta(scenarioId, "featureGates", INSTALL_CONFIG);
-  const metaMinimalISO = getParamMeta(scenarioId, "minimalISO", AGENT_CONFIG);
+  const metaComputeHyperthreading = getParamMeta(scenarioId, "compute[].hyperthreading", INSTALL_CONFIG, state);
+  const metaControlPlaneHyperthreading = getParamMeta(scenarioId, "controlPlane[].hyperthreading", INSTALL_CONFIG, state);
+  const metaBaselineCapability = getParamMeta(scenarioId, "capabilities.baselineCapabilitySet", INSTALL_CONFIG, state);
+  const metaAdditionalCapabilities = getParamMeta(scenarioId, "capabilities.additionalEnabledCapabilities", INSTALL_CONFIG, state);
+  const metaCpuPartitioningMode = getParamMeta(scenarioId, "cpuPartitioningMode", INSTALL_CONFIG, state);
+  const metaFeatureSet = getParamMeta(scenarioId, "featureSet", INSTALL_CONFIG, state);
+  const metaFeatureGates = getParamMeta(scenarioId, "featureGates", INSTALL_CONFIG, state);
+  const metaMinimalISO = getParamMeta(scenarioId, "minimalISO", AGENT_CONFIG, state);
 
   const hyperthreadingOptions = ["Enabled", "Disabled"];
   const featureSetOptions = ["TechPreviewNoUpgrade", "CustomNoUpgrade", "LatencyMitigating"];
@@ -499,6 +638,7 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
                   <p className="note subtle platform-specifics-region-note">Using archived region list. Installer metadata will replace this when the background download completes.</p>
                 )}
                 <div className="field-grid">
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="AWS GovCloud region"
                     hint={`AWS GovCloud region where the OpenShift cluster will be deployed.
@@ -514,22 +654,25 @@ export default function PlatformSpecificsStep({ highlightErrors, fieldErrors = {
 **Example:** 'us-gov-west-1' for West Coast federal agencies, 'us-gov-east-1' for East Coast deployments.`}
                     required={metaAwsRegion?.required || isRequiredInstall("platform.aws.region")}
                   >
-                    {(() => {
-                      const regionsForDropdown = awsRegions.length > 0 ? awsRegions : AWS_GOVCLOUD_ARCHIVED_REGIONS;
-                      return (
-                        <select
-                          value={platformConfig.aws?.region || ""}
-                          onChange={(e) => updateAws({ region: e.target.value })}
-                          style={{ maxWidth: "280px" }}
-                        >
-                          <option value="" disabled>Select a region</option>
-                          {regionsForDropdown.map((r) => (
-                            <option key={r} value={r}>{r}</option>
-                          ))}
-                        </select>
-                      );
-                    })()}
+                    <select
+                      value={platformConfig.aws?.region || ""}
+                      onChange={(e) => { markTouched("awsRegion"); updateAws({ region: e.target.value }); }}
+                      onBlur={() => markTouched("awsRegion")}
+                      style={{ maxWidth: "280px" }}
+                      className={fieldErrorVisible("awsRegion") ? "input-error" : ""}
+                      aria-invalid={fieldErrorVisible("awsRegion") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("awsRegion") ? "error-awsRegion" : undefined}
+                    >
+                      <option value="" disabled>Select a region</option>
+                      {(awsRegions.length > 0 ? awsRegions : AWS_GOVCLOUD_ARCHIVED_REGIONS).map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
                   </FieldLabelWithInfo>
+                  <div className="field-control-support">
+                    {fieldErrorVisible("awsRegion") && <span id="error-awsRegion" className="field-error">{fieldErrors.awsRegion}</span>}
+                  </div>
+                  </div>
                   <FieldLabelWithInfo
                     label="RHCOS AMI ID (optional; gov/secret regions)"
                     hint={`Amazon Machine Image (AMI) ID for Red Hat CoreOS (RHCOS) in the selected AWS GovCloud region.
@@ -836,6 +979,7 @@ subnet-0def456abc789 (us-east-1b)`}
                           style={{ maxWidth: "280px" }}
                         />
                       </FieldLabelWithInfo>
+                      {showAwsWorkerInstanceType && (
                       <FieldLabelWithInfo
                         label="Worker instance type (optional)"
                         hint={`AWS EC2 instance type to use for worker (compute) nodes. Leave blank to use OpenShift installer defaults (typically m5.large - 2 vCPUs, 8 GB RAM). Worker nodes run your application workloads (pods, containers) - they do NOT run control plane services.
@@ -857,10 +1001,57 @@ subnet-0def456abc789 (us-east-1b)`}
                           style={{ maxWidth: "280px" }}
                         />
                       </FieldLabelWithInfo>
+                      )}
+                      {isCatalogFieldVisible("controlPlane.platform.aws.cpuOptions.confidentialCompute", INSTALL_CONFIG) && (
+                      <div className="field-control-stack">
+                      <FieldLabelWithInfo
+                        label="Confidential compute (optional)"
+                        hint={"Introduced in OpenShift " + fieldIntroducedIn("controlPlane.platform.aws.cpuOptions.confidentialCompute", INSTALL_CONFIG) + `. Confidential compute policy for control plane instances.
+
+**Use installer default:** No cpuOptions emitted — the installer uses its own default (currently Disabled).
+
+**Disabled:** Explicitly disables confidential computing for control plane instances. The cpuOptions block is emitted with confidentialCompute set to Disabled.
+
+**AMD SEV-SNP:** Requests AMD Secure Encrypted Virtualization — Secure Nested Paging for control plane instances. Encrypts VM memory in hardware, isolating it from the hypervisor and other VMs.
+
+**Compatibility requirements:**
+AMD SEV-SNP requires a compatible AWS instance type, region, and AMI. This application does not verify that AWS compatibility offline. Incompatible infrastructure can cause provisioning failure.
+
+Emitted to \`controlPlane.platform.aws.cpuOptions.confidentialCompute\` in install-config.yaml.`}
+                      >
+                        <select
+                          value={platformConfig.aws?.cpuOptions?.confidentialCompute || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "") {
+                              updateAws({ cpuOptions: undefined });
+                            } else {
+                              updateAws({ cpuOptions: { confidentialCompute: val } });
+                            }
+                          }}
+                          aria-label="Confidential compute policy"
+                        >
+                          <option value="">Use installer default</option>
+                          <option value="Disabled">Disabled</option>
+                          <option value="AMDEncryptedVirtualizationNestedPaging">AMD SEV-SNP</option>
+                        </select>
+                      </FieldLabelWithInfo>
+                      <div className="field-control-support">
+                        {fieldAnnotation("controlPlane.platform.aws.cpuOptions.confidentialCompute", INSTALL_CONFIG).isIntroduced && (
+                          <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
+                        )}
+                        {platformConfig.aws?.cpuOptions?.confidentialCompute === "AMDEncryptedVirtualizationNestedPaging" && (
+                          <div className="field-helper">
+                            AMD SEV-SNP requires a compatible AWS instance type, region, and AMI. This application does not verify that AWS compatibility offline.
+                          </div>
+                        )}
+                      </div>
+                      </div>
+                      )}
                     </div>
                     <h4 className="platform-specifics-subsection">Root volume (optional)</h4>
                     <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
-                      Size and type for control plane and compute root volumes (4.20 doc: compute.platform.aws.rootVolume, controlPlane.platform.aws.rootVolume). Emitted only when set.
+                      Size and type for control plane and compute root volumes (see compute.platform.aws.rootVolume, controlPlane.platform.aws.rootVolume). Emitted only when set.
                     </p>
                     <div className="field-grid">
                       <FieldLabelWithInfo
@@ -939,6 +1130,65 @@ Emitted to \`controlPlane.platform.aws.rootVolume.iops\` and \`compute[].platfor
                           placeholder="omit"
                         />
                       </FieldLabelWithInfo>
+                      {isCatalogFieldVisible("controlPlane.platform.aws.rootVolume.throughput", INSTALL_CONFIG) && (
+                      <div className="field-control-stack">
+                      <FieldLabelWithInfo
+                        label="Root volume throughput (MiB/s)"
+                        hint={"Introduced in OpenShift " + fieldIntroducedIn("controlPlane.platform.aws.rootVolume.throughput", INSTALL_CONFIG) + `. Provisioned throughput in MiB/s for EBS root volumes. Only applicable to gp3 volume type. Leave blank to use the AWS default (125 MiB/s for gp3).
+
+**Range:** 125 to 2000 MiB/s (integer values only).
+
+**When needed:**
+gp3 volumes default to 125 MiB/s throughput. Increase when workloads require sustained sequential I/O (log streaming, large container image pulls, etcd snapshots on control plane). Most clusters perform well with the default.
+
+**How it's used:**
+Emitted to \`controlPlane.platform.aws.rootVolume.throughput\` and \`compute[].platform.aws.rootVolume.throughput\` in install-config.yaml. Applied to all cluster nodes (control plane and workers).
+
+**Important:**
+Higher throughput increases EBS costs. Only valid for gp3 volumes — invalid for gp2, io1, io2.`}
+                        className="field-short"
+                      >
+                        <input
+                          type="number"
+                          min={125}
+                          max={2000}
+                          step={1}
+                          value={localAwsRootVolumeThroughput}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setLocalAwsRootVolumeThroughput(raw);
+                            // Commit valid edits as they are typed so the live
+                            // YAML preview tracks the field like the other
+                            // numeric controls. Intermediate invalid text is
+                            // held in local state only: canonical state keeps
+                            // its last good value and the error is still
+                            // surfaced on blur, preserving first-entry/touch
+                            // validation behaviour.
+                            commitAwsRootVolumeThroughput(raw, { surfaceError: false });
+                          }}
+                          onBlur={() => {
+                            commitAwsRootVolumeThroughput(localAwsRootVolumeThroughput, { surfaceError: true });
+                          }}
+                          aria-invalid={awsThroughputError ? "true" : undefined}
+                          aria-describedby={awsThroughputError ? "aws-throughput-error" : undefined}
+                          placeholder="omit"
+                        />
+                      </FieldLabelWithInfo>
+                      <div className="field-control-support">
+                        {awsThroughputError && (
+                          <div id="aws-throughput-error" className="field-error" role="alert">
+                            {awsThroughputError}
+                          </div>
+                        )}
+                        {fieldAnnotation("controlPlane.platform.aws.rootVolume.throughput", INSTALL_CONFIG).isIntroduced && (
+                          <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
+                        )}
+                        <div className="field-helper">
+                          125–2000 MiB/s, gp3 only
+                        </div>
+                      </div>
+                      </div>
+                      )}
                       <FieldLabelWithInfo
                         label="Root volume KMS Key ARN (optional)"
                         hint={`AWS KMS (Key Management Service) Customer Master Key ARN for encrypting EBS root volumes. Leave blank to use AWS-managed default encryption.
@@ -1158,12 +1408,10 @@ Written to install-config.yaml platform.aws.defaultMachinePlatform.zones as arra
 **Example:**
 us-gov-west-1a,us-gov-west-1b,us-gov-west-1c`}
                       >
-                        <input
-                          value={(platformConfig.aws?.defaultMachinePlatformZones || []).join(",")}
-                          onChange={(e) => {
-                            const zones = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
-                            updateAws({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined });
-                          }}
+                        <CommaListInput
+                          value={platformConfig.aws?.defaultMachinePlatformZones || []}
+                          separator=","
+                          onCommit={(zones) => updateAws({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined })}
                           placeholder="e.g. us-gov-west-1a,us-gov-west-1b,us-gov-west-1c"
                           style={{ maxWidth: "500px" }}
                         />
@@ -1333,7 +1581,7 @@ Service name: s3, URL: https://s3.us-gov-west-1.vpce.amazonaws.com`}
             <div className="card-body">
               <OptionRow
                 title="Include optional Day-2 bare metal fields in install-config"
-                description="When enabled, install-config can include §9.1.4 optional platform.baremetal provisioning* (when set) and hosts[] with name, bootMACAddress, and bmc only (per 4.20 doc; not used during initial provisioning). role and rootDeviceHints stay in agent-config only. When disabled, install-config stays minimal (apiVIPs/ingressVIPs) and agent-config carries install-time host fields."
+                description="When enabled, install-config can include §9.1.4 optional platform.baremetal provisioning* (when set) and hosts[] with name, bootMACAddress, and bmc only (not used during initial provisioning). role and rootDeviceHints stay in agent-config only. When disabled, install-config stays minimal (apiVIPs/ingressVIPs) and agent-config carries install-time host fields."
               >
                 <Switch
                   checked={!!inventory.includeBareMetalDay2InInstallConfig}
@@ -1356,6 +1604,7 @@ Service name: s3, URL: https://s3.us-gov-west-1.vpce.amazonaws.com`}
             </div>
             <div className="card-body">
               <div className="field-grid" style={{ marginTop: 12 }}>
+                <div className="field-control-stack">
                 <FieldLabelWithInfo
                   label="Region"
                   hint={`Azure Government region where the cluster will be deployed. This determines the physical datacenter location for all cluster resources (VMs, storage, networking).
@@ -1379,10 +1628,17 @@ Service name: s3, URL: https://s3.us-gov-west-1.vpce.amazonaws.com`}
                   <input
                     value={localAzureRegion}
                     onChange={(e) => setLocalAzureRegion(e.target.value)}
-                    onBlur={() => updateAzure({ region: localAzureRegion })}
+                    onBlur={() => { markTouched("azureRegion"); updateAzure({ region: localAzureRegion }); }}
                     placeholder="e.g. usgovvirginia"
+                    className={fieldErrorVisible("azureRegion") ? "input-error" : ""}
+                    aria-invalid={fieldErrorVisible("azureRegion") ? "true" : undefined}
+                    aria-describedby={fieldErrorVisible("azureRegion") ? "error-azureRegion" : undefined}
                   />
                 </FieldLabelWithInfo>
+                <div className="field-control-support">
+                  {fieldErrorVisible("azureRegion") && <span id="error-azureRegion" className="field-error">{fieldErrors.azureRegion}</span>}
+                </div>
+                </div>
                 <FieldLabelWithInfo
                   label="Resource group name"
                   hint={`Name of the Azure resource group where the installer will create all cluster resources (VMs, disks, NSGs, load balancers, public IPs, availability sets, etc.). This resource group must ALREADY EXIST before installation - the installer will not create it.
@@ -1403,6 +1659,7 @@ Service name: s3, URL: https://s3.us-gov-west-1.vpce.amazonaws.com`}
                     placeholder="Existing resource group for cluster"
                   />
                 </FieldLabelWithInfo>
+                <div className="field-control-stack">
                 <FieldLabelWithInfo
                   label="Base domain resource group"
                   hint={`Name of the Azure resource group that contains the DNS zone for your base domain (the parent domain under which the cluster will be created). This resource group must ALREADY EXIST and must contain a properly configured Azure DNS zone matching your base domain.
@@ -1427,10 +1684,225 @@ You can find DNS zones in Azure portal → DNS zones, or list them via 'az netwo
                   <input
                     value={localAzureBaseDomainResourceGroupName}
                     onChange={(e) => setLocalAzureBaseDomainResourceGroupName(e.target.value)}
-                    onBlur={() => updateAzure({ baseDomainResourceGroupName: localAzureBaseDomainResourceGroupName })}
+                    onBlur={() => { markTouched("azureBaseDomainResourceGroupName"); updateAzure({ baseDomainResourceGroupName: localAzureBaseDomainResourceGroupName }); }}
                     placeholder="Resource group containing DNS zone for base domain"
+                    className={fieldErrorVisible("azureBaseDomainResourceGroupName") ? "input-error" : ""}
+                    aria-invalid={fieldErrorVisible("azureBaseDomainResourceGroupName") ? "true" : undefined}
+                    aria-describedby={fieldErrorVisible("azureBaseDomainResourceGroupName") ? "error-azureBaseDomainResourceGroupName" : undefined}
                   />
                 </FieldLabelWithInfo>
+                <div className="field-control-support">
+                  {fieldErrorVisible("azureBaseDomainResourceGroupName") && <span id="error-azureBaseDomainResourceGroupName" className="field-error">{fieldErrors.azureBaseDomainResourceGroupName}</span>}
+                </div>
+                </div>
+                {showAzureBYOVNet && (
+                <FieldLabelWithInfo
+                  label="VNet mode"
+                  hint={`Choose how Azure virtual networking is configured for the cluster.
+
+**Installer-managed (default):**
+Do not supply an existing VNet configuration. Networking resources are provisioned separately from this configuration.
+
+**Existing VNet:**
+Use a pre-existing Azure VNet and provide its network resource group and subnet names for control plane and compute nodes.`}
+                >
+                  <select
+                    value={platformConfig.azure?.vnetMode || "installer-managed"}
+                    onChange={(e) => updateAzure({ vnetMode: e.target.value })}
+                    style={{ maxWidth: "320px" }}
+                  >
+                    <option value="installer-managed">Installer-managed VNet (default)</option>
+                    <option value="existing-vnet">Existing VNet</option>
+                  </select>
+                </FieldLabelWithInfo>
+                )}
+              </div>
+              {showAzureBYOVNet && platformConfig.azure?.vnetMode === "existing-vnet" && (() => {
+                const azureNodeSubnets = Array.isArray(platformConfig.azure?.nodeSubnets) ? platformConfig.azure.nodeSubnets : [];
+                const canAddNodeSubnet = showAzureSubnetsArray;
+                const nodeSubnetDisplay = azureNodeSubnets.length > 0 ? azureNodeSubnets : [""];
+                const updateNodeSubnetAt = (index, value) => {
+                  if (azureNodeSubnets.length === 0 && index === 0) {
+                    updateAzure({ nodeSubnets: [value] });
+                  } else {
+                    const next = azureNodeSubnets.map((s, i) => i === index ? value : s);
+                    updateAzure({ nodeSubnets: next });
+                  }
+                };
+                const addNodeSubnet = () => updateAzure({ nodeSubnets: [...azureNodeSubnets, ""] });
+                const removeNodeSubnetAt = (index) => updateAzure({ nodeSubnets: azureNodeSubnets.filter((_, i) => i !== index) });
+                return (
+                  <div className="field-grid" style={{ marginTop: 8 }}>
+                    <FieldLabelWithInfo
+                      label="Virtual network name"
+                      hint={`Name of the existing Azure VNet to install the cluster into. The VNet must already exist in the resource group specified below.
+
+**Prerequisites:**
+- VNet must exist in the specified network resource group
+- VNet CIDR must have sufficient address space for cluster subnets
+- Subnets for control plane and compute nodes must be pre-created within this VNet
+
+**Example:** my-cluster-vnet`}
+                      required
+                    >
+                      <input
+                        value={localAzureVirtualNetwork}
+                        onChange={(e) => setLocalAzureVirtualNetwork(e.target.value)}
+                        onBlur={() => updateAzure({ virtualNetwork: localAzureVirtualNetwork })}
+                        placeholder="Existing VNet name"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo
+                      label="Network resource group"
+                      hint={`Name of the Azure resource group containing the existing VNet.
+
+**What is this:**
+The resource group the VNet lives in. Azure organises networking separately from compute in most enterprise subscriptions, so this is frequently not the group the cluster itself is created in.
+
+**When it applies:**
+Required when installing into an existing (bring-your-own) VNet. Not used when the installer creates the networking for you.
+
+**Format:**
+An Azure resource group name — letters, numbers, underscore, hyphen, period, parentheses; no trailing period.
+
+**Valid values:**
+A resource group that already exists in the same subscription and region as the cluster, and that actually contains the named VNet.
+
+**How it is used:**
+Becomes \`platform.azure.networkResourceGroupName\` in install-config.yaml. The installer looks the VNet and its subnets up in this group rather than in the cluster resource group.
+
+**Important:**
+⚠️ This is usually **different** from the cluster resource group above. Pointing it at the cluster group is the common mistake and fails at validation because the VNet is not found there. The installer's service principal needs read access to this group.
+
+**Example:**
+my-networking-rg`}
+                      required
+                    >
+                      <input
+                        value={localAzureNetworkResourceGroupName}
+                        onChange={(e) => setLocalAzureNetworkResourceGroupName(e.target.value)}
+                        onBlur={() => updateAzure({ networkResourceGroupName: localAzureNetworkResourceGroupName })}
+                        placeholder="Resource group containing the VNet"
+                      />
+                    </FieldLabelWithInfo>
+                    <FieldLabelWithInfo
+                      label="Control plane subnet"
+                      hint={`Name of the existing subnet within the VNet for control plane (master) nodes. Exactly one control plane subnet is required.
+
+**Requirements:**
+- Must exist within the specified VNet
+- Must not overlap with node subnet names
+
+**Example:** master-subnet`}
+                      required
+                    >
+                      <input
+                        value={localAzureControlPlaneSubnet}
+                        onChange={(e) => setLocalAzureControlPlaneSubnet(e.target.value)}
+                        onBlur={() => updateAzure({ controlPlaneSubnet: localAzureControlPlaneSubnet })}
+                        placeholder="Subnet name for control plane nodes"
+                      />
+                    </FieldLabelWithInfo>
+                    <div className="field-control-stack field-grid-span-full" style={{ gridColumn: "1 / -1" }}>
+                      <FieldLabelWithInfo
+                        label={canAddNodeSubnet ? "Node subnets" : "Node subnet"}
+                        hint={canAddNodeSubnet
+                          ? "Introduced in OpenShift " + fieldIntroducedIn("platform.azure.subnets.name", INSTALL_CONFIG) + `. Names of existing subnets within the VNet for compute (worker) nodes. At least one node subnet is required. Multiple node subnets are supported from this minor onward.
+
+**Requirements:**
+- Each subnet must exist within the specified VNet
+- Subnet names must be unique (no duplicates, and different from control plane subnet)
+- At least one node subnet is required
+
+**Example:** worker-subnet-1, worker-subnet-2`
+                          : `Name of the existing subnet within the VNet for compute (worker) nodes. Exactly one node subnet is required for OpenShift 4.20.
+
+**Requirements:**
+- Must exist within the specified VNet
+- Must have sufficient IP addresses for worker nodes
+- Must not overlap with control plane subnet name
+
+**Example:** worker-subnet`}
+                        required
+                      />
+                      <div className="list" style={{ marginTop: 6 }}>
+                        {nodeSubnetDisplay.map((subnetName, idx) => (
+                          <div key={idx} className="list-item" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <input
+                              value={subnetName}
+                              onChange={(e) => updateNodeSubnetAt(idx, e.target.value)}
+                              placeholder={`Node subnet name${canAddNodeSubnet ? ` ${idx + 1}` : ""}`}
+                              style={{ flex: "1 1 200px", minWidth: 140 }}
+                            />
+                            {azureNodeSubnets.length > 1 && (
+                              <button type="button" className="ghost" onClick={() => removeNodeSubnetAt(idx)} aria-label="Remove node subnet">Remove</button>
+                            )}
+                          </div>
+                        ))}
+                        {canAddNodeSubnet && (
+                          <button type="button" className="ghost" onClick={addNodeSubnet} style={{ marginTop: 4 }}>Add node subnet</button>
+                        )}
+                      </div>
+                      <div className="field-control-support">
+                        {fieldAnnotation("platform.azure.subnets.name", INSTALL_CONFIG).isIntroduced && (
+                          <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}: multiple node subnets supported</div>
+                        )}
+                      </div>
+                    </div>
+                    {!canAddNodeSubnet && azureNodeSubnets.length > 1 && (
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <p className="note warning" style={{ marginTop: 4 }}>
+                          OpenShift 4.20 supports only one node subnet. You have {azureNodeSubnets.length} node subnets configured. Remove extras to generate for 4.20. Configurations requiring multiple node subnets must use OpenShift 4.21.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+              <div className="field-grid" style={{ marginTop: showAzureBYOVNet ? 0 : undefined }}>
+                {showAzureAllowSharedKeyAccess && (
+                <div className="field-control-stack">
+                <FieldLabelWithInfo
+                  label="Azure Storage shared-key access"
+                  hint={"Introduced in OpenShift " + fieldIntroducedIn("platform.azure.allowSharedKeyAccess", INSTALL_CONFIG) + `. Controls whether Azure Storage accounts created during installation allow shared-key access.
+
+**Use installer default (recommended):**
+Omits the field; the installer defaults to allowing shared-key access (equivalent to true).
+
+**Allowed:**
+Explicitly enables shared-key access on storage accounts.
+
+**Disallowed:**
+Disables shared-key access. The installation identity must have appropriate Azure RBAC permissions, including the Storage Blob Data Contributor role where required.
+
+⚠️ Disabling shared-key access without the correct RBAC configuration will cause the installation to fail.`}
+                >
+                  <select
+                    value={platformConfig.azure?.allowSharedKeyAccess === true ? "true" : platformConfig.azure?.allowSharedKeyAccess === false ? "false" : ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "true") updateAzure({ allowSharedKeyAccess: true });
+                      else if (v === "false") updateAzure({ allowSharedKeyAccess: false });
+                      else updateAzure({ allowSharedKeyAccess: undefined });
+                    }}
+                  >
+                    <option value="">Use installer default</option>
+                    <option value="true">Allowed</option>
+                    <option value="false">Disallowed</option>
+                  </select>
+                </FieldLabelWithInfo>
+                <div className="field-control-support">
+                  {fieldAnnotation("platform.azure.allowSharedKeyAccess", INSTALL_CONFIG).isIntroduced && (
+                    <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
+                  )}
+                  {platformConfig.azure?.allowSharedKeyAccess === false && (
+                    <p className="note warning" style={{ marginTop: 4 }}>
+                      Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.
+                    </p>
+                  )}
+                </div>
+                </div>
+                )}
                 <FieldLabelWithInfo
                   label="Publish (optional)"
                   hint={`Controls whether cluster endpoints are publicly accessible or private-network only.
@@ -1638,12 +2110,10 @@ Written to install-config.yaml platform.azure.defaultMachinePlatform.zones as ar
 **Example:**
 1,2,3 (for regions with 3 availability zones)`}
                 >
-                  <input
-                    value={(platformConfig.azure?.defaultMachinePlatformZones || []).join(",")}
-                    onChange={(e) => {
-                      const zones = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
-                      updateAzure({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined });
-                    }}
+                  <CommaListInput
+                    value={platformConfig.azure?.defaultMachinePlatformZones || []}
+                    separator=","
+                    onCommit={(zones) => updateAzure({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined })}
                     placeholder="e.g. 1,2,3"
                     style={{ maxWidth: "200px" }}
                   />
@@ -2352,12 +2822,10 @@ Written to install-config.yaml platform.ibmcloud.defaultMachinePlatform.zones as
 us-east-1,us-east-2,us-east-3 (for us-east region with 3 zones)
 us-south-1,us-south-2 (for us-south region with 2 zones)`}
                 >
-                  <input
-                    value={(platformConfig.ibmcloud?.defaultMachinePlatformZones || []).join(",")}
-                    onChange={(e) => {
-                      const zones = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
-                      updateIbmCloud({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined });
-                    }}
+                  <CommaListInput
+                    value={platformConfig.ibmcloud?.defaultMachinePlatformZones || []}
+                    separator=","
+                    onCommit={(zones) => updateIbmCloud({ defaultMachinePlatformZones: zones.length > 0 ? zones : undefined })}
                     placeholder="e.g. us-east-1,us-east-2,us-east-3"
                     style={{ maxWidth: "400px" }}
                   />
@@ -2577,10 +3045,12 @@ ssd-container`}
                     key={opt.value}
                     type="button"
                     className={`select-card ${(platformConfig.nutanixTopology || "ha") === opt.value ? "selected" : ""}`}
+                    aria-pressed={(platformConfig.nutanixTopology || "ha") === opt.value}
                     onClick={() => updatePlatformConfig({ nutanixTopology: opt.value })}
                   >
                     <div className="card-title">{opt.label}</div>
                     <div className="card-sub">{opt.sub}</div>
+                    <span className="select-card-check" aria-hidden="true">✓ Selected</span>
                   </button>
                 ))}
               </div>
@@ -2843,7 +3313,7 @@ The password is included in generated install-config.yaml **only when** you choo
 
               <h4 className="platform-specifics-subsection">Placement</h4>
               <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
-                Choose failure domains (recommended for 4.20) or legacy single placement. Only the selected path is used in the generated install-config.
+                Choose failure domains (recommended) or legacy single placement. Only the selected path is used in the generated install-config.
               </p>
               <div className="field-grid field-grid--no-paired-layout" style={{ marginTop: 8, marginBottom: 12 }}>
                 <div style={{ gridColumn: "1 / -1" }}>
@@ -2886,6 +3356,7 @@ The password is included in generated install-config.yaml **only when** you choo
                     </p>
                   </div>
                   <div className="field-grid">
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="vCenter server"
                     hint={`Fully qualified domain name (FQDN) or IP address of your vCenter Server.
@@ -2913,10 +3384,18 @@ vcenter.example.com (production)
                     <input
                       value={localVsphereVcenter}
                       onChange={(e) => setLocalVsphereVcenter(e.target.value)}
-                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, vcenter: localVsphereVcenter } })}
+                      onBlur={() => { markTouched("vsphereVcenter"); updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, vcenter: localVsphereVcenter } }); }}
                       placeholder="vcenter.example.com"
+                      className={fieldErrorVisible("vsphereVcenter") ? "input-error" : ""}
+                      aria-invalid={fieldErrorVisible("vsphereVcenter") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("vsphereVcenter") ? "error-vsphereVcenter" : undefined}
                     />
                   </FieldLabelWithInfo>
+                  <div className="field-control-support">
+                    {fieldErrorVisible("vsphereVcenter") && <span id="error-vsphereVcenter" className="field-error">{fieldErrors.vsphereVcenter}</span>}
+                  </div>
+                  </div>
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="Datacenter (⚠️ Deprecated)"
                     hint={`⚠️ **DEPRECATED:** Use failureDomains[].topology.datacenter instead for multi-zone deployments.
@@ -2943,10 +3422,18 @@ Datacenter-Production (descriptive naming)`}
                     <input
                       value={localVsphereDatacenter}
                       onChange={(e) => setLocalVsphereDatacenter(e.target.value)}
-                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datacenter: localVsphereDatacenter } })}
+                      onBlur={() => { markTouched("vsphereLegacyDatacenter"); updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datacenter: localVsphereDatacenter } }); }}
                       placeholder="Datacenter name"
+                      className={fieldErrorVisible("vsphereLegacyDatacenter") ? "input-error" : ""}
+                      aria-invalid={fieldErrorVisible("vsphereLegacyDatacenter") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("vsphereLegacyDatacenter") ? "error-vsphereLegacyDatacenter" : undefined}
                     />
                   </FieldLabelWithInfo>
+                  <div className="field-control-support">
+                    {fieldErrorVisible("vsphereLegacyDatacenter") && <span id="error-vsphereLegacyDatacenter" className="field-error">{fieldErrors.vsphereLegacyDatacenter}</span>}
+                  </div>
+                  </div>
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="Default datastore (⚠️ Deprecated)"
                     hint={`⚠️ **DEPRECATED:** Use failureDomains[].topology.datastore instead for multi-zone deployments.
@@ -2977,10 +3464,18 @@ Production-SAN-01 (descriptive naming)`}
                     <input
                       value={localVsphereDefaultDatastore}
                       onChange={(e) => setLocalVsphereDefaultDatastore(e.target.value)}
-                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datastore: localVsphereDefaultDatastore } })}
+                      onBlur={() => { markTouched("vsphereLegacyDatastore"); updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, datastore: localVsphereDefaultDatastore } }); }}
                       placeholder="Datastore name"
+                      className={fieldErrorVisible("vsphereLegacyDatastore") ? "input-error" : ""}
+                      aria-invalid={fieldErrorVisible("vsphereLegacyDatastore") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("vsphereLegacyDatastore") ? "error-vsphereLegacyDatastore" : undefined}
                     />
                   </FieldLabelWithInfo>
+                  <div className="field-control-support">
+                    {fieldErrorVisible("vsphereLegacyDatastore") && <span id="error-vsphereLegacyDatastore" className="field-error">{fieldErrors.vsphereLegacyDatastore}</span>}
+                  </div>
+                  </div>
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="Compute cluster (⚠️ Deprecated)"
                     hint={`⚠️ **DEPRECATED:** Legacy single-zone field. Use failureDomains[].topology.computeCluster instead.
@@ -3010,10 +3505,18 @@ Compute-Zone-A`}
                     <input
                       value={localVsphereCluster}
                       onChange={(e) => setLocalVsphereCluster(e.target.value)}
-                      onBlur={() => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, cluster: localVsphereCluster } })}
+                      onBlur={() => { markTouched("vsphereLegacyCluster"); updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, cluster: localVsphereCluster } }); }}
                       placeholder="e.g. Cluster1"
+                      className={fieldErrorVisible("vsphereLegacyCluster") ? "input-error" : ""}
+                      aria-invalid={fieldErrorVisible("vsphereLegacyCluster") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("vsphereLegacyCluster") ? "error-vsphereLegacyCluster" : undefined}
                     />
                   </FieldLabelWithInfo>
+                  <div className="field-control-support">
+                    {fieldErrorVisible("vsphereLegacyCluster") && <span id="error-vsphereLegacyCluster" className="field-error">{fieldErrors.vsphereLegacyCluster}</span>}
+                  </div>
+                  </div>
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="VM network (⚠️ Deprecated)"
                     hint={`⚠️ **DEPRECATED:** Use failureDomains[].topology.networks[] instead for multi-zone deployments.
@@ -3059,9 +3562,17 @@ OCP-Production-VLAN100 (VLAN-backed network)`}
                     <input
                       value={platformConfig.vsphere?.network || ""}
                       onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, network: e.target.value } })}
+                      onBlur={() => markTouched("vsphereLegacyNetwork")}
                       placeholder="e.g. VM Network"
+                      className={fieldErrorVisible("vsphereLegacyNetwork") ? "input-error" : ""}
+                      aria-invalid={fieldErrorVisible("vsphereLegacyNetwork") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("vsphereLegacyNetwork") ? "error-vsphereLegacyNetwork" : undefined}
                     />
                   </FieldLabelWithInfo>
+                  <div className="field-control-support">
+                    {fieldErrorVisible("vsphereLegacyNetwork") && <span id="error-vsphereLegacyNetwork" className="field-error">{fieldErrors.vsphereLegacyNetwork}</span>}
+                  </div>
+                  </div>
                   </div>
                 </CollapsibleSection>
               )}
@@ -3070,7 +3581,7 @@ OCP-Production-VLAN100 (VLAN-backed network)`}
                 <div style={{ marginBottom: 20 }}>
                   <h4 className="card-title" style={{ marginBottom: 4, fontSize: "1rem" }}>Failure domains</h4>
                   <p className="note subtle" style={{ marginTop: 0, marginBottom: 8 }}>
-                    For vSphere IPI, at least one failure domain is required (4.20+ recommended path). Add more for multi-zone placement. Only the selected path is emitted; legacy fields above are ignored when using failure domains.
+                    When failure-domain placement is selected, at least one failure domain is required. Add more for multi-zone placement. Only the selected placement model is emitted; legacy single-placement fields are ignored while failure domains are active.
                   </p>
                   <button type="button" className="ghost" onClick={addFailureDomain} style={{ marginBottom: 12 }}>Add failure domain</button>
                   {failureDomains.map((fd, index) => (
@@ -3155,9 +3666,10 @@ If you have three compute clusters (Cluster1, Cluster2, Cluster3):
                         >
                           <input value={fd.zone || ""} onChange={(e) => updateFailureDomain(index, { zone: e.target.value })} placeholder="cluster-01" />
                         </FieldLabelWithInfo>
+                        <div className="field-control-stack">
                         <FieldLabelWithInfo
-                          label="Server (vCenter FQDN or IP)"
-                          hint={`Fully qualified domain name (FQDN) or IP address of the vCenter Server managing this failure domain.
+                          label="Server (vCenter hostname, FQDN, or IP)"
+                          hint={`Hostname, fully qualified domain name (FQDN), or IP address of the vCenter Server managing this failure domain.
 
 **Deployment patterns:**
 
@@ -3180,8 +3692,12 @@ This allows OpenShift to span multiple vCenter instances in a single cluster dep
 vcenter.example.com
 192.168.1.10`}
                         >
-                          <input value={fd.server || ""} onChange={(e) => updateFailureDomain(index, { server: e.target.value })} placeholder="vcenter.example.com" />
+                          <input value={fd.server || ""} onChange={(e) => updateFailureDomain(index, { server: e.target.value })} onBlur={() => markTouched("fd_" + index + "_server")} placeholder="vcenter.example.com" className={fieldErrorVisible("fd_" + index + "_server") ? "input-error" : ""} aria-invalid={fieldErrorVisible("fd_" + index + "_server") ? "true" : undefined} aria-describedby={fieldErrorVisible("fd_" + index + "_server") ? `error-fd-${index}-server` : undefined} />
                         </FieldLabelWithInfo>
+                        <div className="field-control-support">
+                          {fieldErrorVisible("fd_" + index + "_server") && <span id={`error-fd-${index}-server`} className="field-error">{fieldErrors["fd_" + index + "_server"]}</span>}
+                        </div>
+                        </div>
                         <FieldLabelWithInfo
                           label="Topology: Datacenter"
                           hint={`vSphere datacenter name where resources for this failure domain are located.
@@ -3212,12 +3728,17 @@ Production-DC`}
                         >
                           <input value={fd.topology?.datacenter || ""} onChange={(e) => updateFailureDomainTopology(index, { datacenter: e.target.value })} placeholder="Datacenter1" />
                         </FieldLabelWithInfo>
+                        <div className="field-control-stack">
                         <FieldLabelWithInfo
                           label="Topology: Compute cluster"
-                          hint={`vSphere compute cluster name where VMs for this failure domain will be provisioned.
+                          hint={`Full vSphere inventory path to the compute cluster where VMs for this failure domain will be provisioned. The installer validates this path with the pattern /<datacenter>/host/<cluster>.
+
+**Format:**
+/<datacenter-name>/host/<cluster-name>
 
 **Requirements:**
-• Must match the **exact** cluster name in vCenter (**case-sensitive**)
+• Must be a **full inventory path** starting with / (the installer rejects short names)
+• The datacenter segment must match this failure domain's datacenter field
 • Sufficient CPU, memory, and storage resources for nodes in this failure domain
 • **DRS enabled** recommended for automatic VM placement and load balancing
 
@@ -3227,25 +3748,30 @@ Collection of ESXi hosts that share resources and provide high availability feat
 **Zone separation:**
 Each failure domain can target a different cluster - this is how you achieve **true zone separation** in vSphere (nodes in different clusters can survive cluster-level failures)
 
-**How it's used:**
-The installer provisions VMs into this cluster according to your node distribution settings
+**How to find the full path:**
+vCenter → Hosts and Clusters → right-click cluster → Copy Path
 
 **Example:**
-Cluster1
-Production-Cluster
-Compute-Zone-A`}
+/Datacenter1/host/Cluster1
+/Production-DC/host/Production-Cluster`}
                         >
-                          <input value={fd.topology?.computeCluster || ""} onChange={(e) => updateFailureDomainTopology(index, { computeCluster: e.target.value })} placeholder="Cluster1" />
+                          <input value={fd.topology?.computeCluster || ""} onChange={(e) => updateFailureDomainTopology(index, { computeCluster: e.target.value })} onBlur={() => markTouched("fd_" + index + "_computeCluster")} placeholder="/Datacenter1/host/Cluster1" className={fieldErrorVisible("fd_" + index + "_computeCluster") ? "input-error" : ""} aria-invalid={fieldErrorVisible("fd_" + index + "_computeCluster") ? "true" : undefined} aria-describedby={fieldErrorVisible("fd_" + index + "_computeCluster") ? `error-fd-${index}-computeCluster` : undefined} />
                         </FieldLabelWithInfo>
+                        <div className="field-control-support">
+                          {fieldErrorVisible("fd_" + index + "_computeCluster") && <span id={`error-fd-${index}-computeCluster`} className="field-error">{fieldErrors["fd_" + index + "_computeCluster"]}</span>}
+                        </div>
+                        </div>
+                        <div className="field-control-stack">
                         <FieldLabelWithInfo
                           label="Topology: Datastore"
-                          hint={`Absolute datastore path in vSphere inventory for VM disks in this failure domain.
+                          hint={`Absolute datastore path in vSphere inventory for VM disks in this failure domain. The installer validates this path with the pattern /<datacenter>/datastore/<datastore>.
 
 **Format:**
 /datacenter-name/datastore/datastore-name
 
 **Requirements:**
-• Must match the **exact** path as shown in vCenter
+• Must be a **full inventory path** starting with / (the installer rejects short names)
+• The datacenter segment must match this failure domain's datacenter field
 
 **What is a datastore:**
 Storage container (VMFS, NFS, vSAN, or vVols) where VM disk files (VMDK) are stored
@@ -3271,8 +3797,12 @@ vCenter → Storage → select datastore → Summary tab
 /Datacenter1/datastore/Production-SAN-01
 /Datacenter1/datastore/vsanDatastore`}
                         >
-                          <input value={fd.topology?.datastore || ""} onChange={(e) => updateFailureDomainTopology(index, { datastore: e.target.value })} placeholder="/datacenter/datastore/ds1" />
+                          <input value={fd.topology?.datastore || ""} onChange={(e) => updateFailureDomainTopology(index, { datastore: e.target.value })} onBlur={() => markTouched("fd_" + index + "_datastore")} placeholder="/datacenter/datastore/ds1" className={fieldErrorVisible("fd_" + index + "_datastore") ? "input-error" : ""} aria-invalid={fieldErrorVisible("fd_" + index + "_datastore") ? "true" : undefined} aria-describedby={fieldErrorVisible("fd_" + index + "_datastore") ? `error-fd-${index}-datastore` : undefined} />
                         </FieldLabelWithInfo>
+                        <div className="field-control-support">
+                          {fieldErrorVisible("fd_" + index + "_datastore") && <span id={`error-fd-${index}-datastore`} className="field-error">{fieldErrors["fd_" + index + "_datastore"]}</span>}
+                        </div>
+                        </div>
                         <FieldLabelWithInfo
                           label="Topology: Networks (comma delimited)"
                           hint={`One or more vSphere network names where OpenShift VMs in this failure domain will be connected and where cluster API/Ingress VIPs and DNS records will be assigned.
@@ -3313,19 +3843,20 @@ OpenShift needs to know which vSphere network(s) contain the IP addresses you've
 • Multiple networks: \`DPG-Management, DPG-Storage\` (comma-separated, no quotes)
 • Space in name: \`OCP Prod Network\` (include spaces exactly as shown in vCenter)`}
                         >
-                          <input
-                            value={Array.isArray(fd.topology?.networks) ? fd.topology.networks.join(", ") : (fd.topology?.networks || "")}
-                            onChange={(e) => updateFailureDomainTopology(index, { networks: e.target.value.split(",").map((s) => s.trim()) })}
+                          <CommaListInput
+                            value={fd.topology?.networks}
+                            onCommit={(networks) => updateFailureDomainTopology(index, { networks })}
                             placeholder="e.g. VM Network or VM Network, DPG-1"
                           />
                         </FieldLabelWithInfo>
                       </div>
                       <div style={{ marginTop: 12 }}>
-                        <CollapsibleSection title="Advanced (template, folder, resource pool)" defaultCollapsed={true}>
+                        <CollapsibleSection title="Advanced failure-domain options" defaultCollapsed={true}>
                           <div className="field-grid" style={{ marginTop: 4 }}>
-                          {scenarioId === "vsphere-ipi" && (
+                          {showFdTemplateField && (
+                            <div className="field-control-stack">
                             <FieldLabelWithInfo
-                              label="Topology: RHCOS template (optional, IPI only)"
+                              label="Topology: RHCOS template (optional)"
                               hint={`Absolute path to a pre-deployed RHCOS (Red Hat CoreOS) OVA template in vSphere inventory that the installer will clone to create cluster VMs.
 
 **Format:**
@@ -3362,20 +3893,26 @@ vCenter → select the VM → Summary tab → VM Path field
 **Example:**
 /Datacenter1/vm/rhcos-templates/rhcos-4.14.0-vmware`}
                             >
-                              <div>
-                                <input
-                                  value={fd.topology?.template || ""}
-                                  onChange={(e) => updateFailureDomainTopology(index, { template: e.target.value })}
-                                  placeholder="/datacenter/vm/rhcos-template"
-                                  disabled={Boolean(platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "")}
-                                  aria-describedby={platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" ? `fd-template-disabled-${index}` : undefined}
-                                />
-                                {platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" && (
-                                  <p className="note subtle" style={{ marginTop: 4 }} id={`fd-template-disabled-${index}`}>Disabled: clusterOSImage is set (choose one strategy only).</p>
-                                )}
-                              </div>
+                              <input
+                                value={fd.topology?.template || ""}
+                                onChange={(e) => updateFailureDomainTopology(index, { template: e.target.value })}
+                                onBlur={() => markTouched("fd_" + index + "_template")}
+                                placeholder="/datacenter/vm/rhcos-template"
+                                disabled={Boolean(platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "")}
+                                aria-describedby={fieldErrorVisible("fd_" + index + "_template") ? `error-fd-${index}-template` : (platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" ? `fd-template-disabled-${index}` : undefined)}
+                                className={fieldErrorVisible("fd_" + index + "_template") ? "input-error" : ""}
+                                aria-invalid={fieldErrorVisible("fd_" + index + "_template") ? "true" : undefined}
+                              />
                             </FieldLabelWithInfo>
+                            <div className="field-control-support">
+                              {fieldErrorVisible("fd_" + index + "_template") && <span id={`error-fd-${index}-template`} className="field-error" role="alert">{fieldErrors["fd_" + index + "_template"]}</span>}
+                              {platformConfig.vsphere?.clusterOSImage && String(platformConfig.vsphere.clusterOSImage).trim() !== "" && (
+                                <p className="note subtle" style={{ marginTop: 4 }} id={`fd-template-disabled-${index}`}>Disabled: clusterOSImage is set (choose one strategy only).</p>
+                              )}
+                            </div>
+                            </div>
                           )}
+                          <div className="field-control-stack">
                           <FieldLabelWithInfo
                             label="Topology: Folder (optional)"
                             hint={`Absolute VM folder path in vSphere inventory where the installer places OpenShift VMs for this failure domain.
@@ -3407,8 +3944,13 @@ vCenter → VMs and Templates → right-click datacenter → New Folder
 /Datacenter1/vm/OpenShift
 /Datacenter1/vm/Production/OCP-Cluster`}
                           >
-                            <input value={fd.topology?.folder || ""} onChange={(e) => updateFailureDomainTopology(index, { folder: e.target.value })} placeholder="/datacenter/vm/folder" />
+                            <input value={fd.topology?.folder || ""} onChange={(e) => updateFailureDomainTopology(index, { folder: e.target.value })} onBlur={() => markTouched("fd_" + index + "_folder")} placeholder="/datacenter/vm/folder" className={fieldErrorVisible("fd_" + index + "_folder") ? "input-error" : ""} aria-invalid={fieldErrorVisible("fd_" + index + "_folder") ? "true" : undefined} aria-describedby={fieldErrorVisible("fd_" + index + "_folder") ? `error-fd-${index}-folder` : undefined} />
                           </FieldLabelWithInfo>
+                          <div className="field-control-support">
+                            {fieldErrorVisible("fd_" + index + "_folder") && <span id={`error-fd-${index}-folder`} className="field-error">{fieldErrors["fd_" + index + "_folder"]}</span>}
+                          </div>
+                          </div>
+                          <div className="field-control-stack">
                           <FieldLabelWithInfo
                             label="Topology: Resource pool (optional)"
                             hint={`Absolute resource pool path in vSphere inventory for CPU/memory resource management of VMs in this failure domain.
@@ -3440,8 +3982,12 @@ This setting does **NOT** affect storage (datastore) or network placement
 **Example:**
 /Datacenter1/host/Cluster1/Resources/OpenShift-Pool`}
                           >
-                            <input value={fd.topology?.resourcePool || ""} onChange={(e) => updateFailureDomainTopology(index, { resourcePool: e.target.value })} placeholder="/datacenter/host/cluster/Resources/pool" />
+                            <input value={fd.topology?.resourcePool || ""} onChange={(e) => updateFailureDomainTopology(index, { resourcePool: e.target.value })} onBlur={() => markTouched("fd_" + index + "_resourcePool")} placeholder="/datacenter/host/cluster/Resources/pool" className={fieldErrorVisible("fd_" + index + "_resourcePool") ? "input-error" : ""} aria-invalid={fieldErrorVisible("fd_" + index + "_resourcePool") ? "true" : undefined} aria-describedby={fieldErrorVisible("fd_" + index + "_resourcePool") ? `error-fd-${index}-resourcePool` : undefined} />
                           </FieldLabelWithInfo>
+                          <div className="field-control-support">
+                            {fieldErrorVisible("fd_" + index + "_resourcePool") && <span id={`error-fd-${index}-resourcePool`} className="field-error">{fieldErrors["fd_" + index + "_resourcePool"]}</span>}
+                          </div>
+                          </div>
                         </div>
                       </CollapsibleSection>
                       </div>
@@ -3561,9 +4107,9 @@ Comma-separated names, spaces allowed, no quotes needed
 fd-0, fd-1, fd-2
 zone-east, zone-west (matching your failure domain names)`}
                     >
-                      <input
-                        value={Array.isArray(platformConfig.vsphere?.computeZones) ? platformConfig.vsphere.computeZones.join(", ") : ""}
-                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, computeZones: e.target.value.split(",").map((z) => z.trim()).filter(Boolean) } })}
+                      <CommaListInput
+                        value={platformConfig.vsphere?.computeZones}
+                        onCommit={(computeZones) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, computeZones } })}
                         placeholder="e.g. fd-0, fd-1"
                       />
                     </FieldLabelWithInfo>
@@ -3603,9 +4149,9 @@ Comma-separated names, spaces allowed, no quotes needed
 fd-0, fd-1, fd-2
 zone-east, zone-central, zone-west (matching your failure domain names)`}
                     >
-                      <input
-                        value={Array.isArray(platformConfig.vsphere?.controlPlaneZones) ? platformConfig.vsphere.controlPlaneZones.join(", ") : ""}
-                        onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, controlPlaneZones: e.target.value.split(",").map((z) => z.trim()).filter(Boolean) } })}
+                      <CommaListInput
+                        value={platformConfig.vsphere?.controlPlaneZones}
+                        onCommit={(controlPlaneZones) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, controlPlaneZones } })}
                         placeholder="e.g. fd-0, fd-1"
                       />
                     </FieldLabelWithInfo>
@@ -3774,7 +4320,7 @@ URL pointing to a Red Hat CoreOS OVA file that the installer will download and i
 • Testing specific RHCOS versions
 
 **Applies to:**
-Both IPI and UPI (4.20 doc 9.1.6: Optional VMware vSphere machine pool configuration parameters)
+Both IPI and UPI (see §9.1.6: Optional VMware vSphere machine pool configuration parameters)
 
 **Requirements:**
 1. URL must be reachable from where you run openshift-install
@@ -3791,12 +4337,12 @@ http://192.168.1.100/images/rhcos-vmware.ova`
                         value={platformConfig.vsphere?.clusterOSImage || ""}
                         onChange={(e) => updatePlatformConfig({ vsphere: { ...platformConfig.vsphere, clusterOSImage: e.target.value } })}
                         placeholder="https://mirror.example.com/rhcos.ova"
-                        disabled={scenarioId === "vsphere-ipi" && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "")}
-                        aria-describedby={scenarioId === "vsphere-ipi" && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") ? "cluster-os-image-disabled-note" : undefined}
+                        disabled={showFdTemplateField && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "")}
+                        aria-describedby={showFdTemplateField && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") ? "cluster-os-image-disabled-note" : undefined}
                       />
                     </FieldLabelWithInfo>
                   </div>
-                  {scenarioId === "vsphere-ipi" && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") && (
+                  {showFdTemplateField && failureDomains.some((fd) => fd.topology?.template && String(fd.topology.template).trim() !== "") && (
                     <p className="note subtle" style={{ marginBottom: 8 }} id="cluster-os-image-disabled-note">Disabled: a failure domain has Topology: RHCOS template set (choose one strategy only).</p>
                   )}
                   <div className="field-grid">
@@ -3980,7 +4526,50 @@ Value in MB (use multiples of 1024 for clean GB values):
 
         {showProvisioningNetworkSection && (() => {
           const provisioningMode = inventory.provisioningNetwork || (metaProvisioningNetwork?.default ?? "Managed");
-          const showDhcpRange = provisioningMode !== "Disabled";
+          /* UI/generation parity (Tranche 7C.4A). A control may only be
+             editable in a mode whose generated install-config will actually
+             carry it, otherwise the user types a value that is silently
+             dropped. These two gates mirror
+             backend/src/generate.js exactly:
+               provisioningDHCPRange       — Managed only (Red Hat: "only
+                 applicable to a Managed provisioning network"; CBO clears it
+                 for every non-Managed mode)
+               provisioningNetworkInterface — not Disabled (Red Hat: "Omit the
+                 provisioningInterface configuration setting if the
+                 provisioning network is Disabled")
+             Values stay in state across a mode change, so switching back
+             restores what the user typed. */
+          const showDhcpRange = provisioningMode === "Managed";
+          const showProvisioningInterface = provisioningMode !== "Disabled";
+
+          /* Provisioning-network address family.
+             This is DELIBERATELY NOT the Networking step's IP Stack Mode. The
+             bare-metal provisioning network is a separate network and the
+             installer treats its family as independent: validateNoOverlapMachineCIDR
+             compares the provisioning CIDR against a machine network only when
+             the two are the same family, so a cross-family provisioning network
+             passes. See shared/provisioningNetworkFamily.js for the evidence.
+             An existing CIDR wins over the stored choice so an imported run
+             shows the family it actually has. */
+          /* An explicit stored choice wins over the CIDR's own family, so
+             clearing the CIDR cannot snap the selector back. An imported run
+             with no stored choice still opens on the family it actually has.
+             See shared/provisioningNetworkFamily.js. */
+          const provisioningFamily = selectedProvisioningFamily(inventory);
+          const isV6Provisioning = provisioningFamily === "ipv6";
+          const exampleProvisioning = isV6Provisioning
+            ? {
+                cidr: "fd2e:6f44:5dd8:c956::/64",
+                dhcp: "fd2e:6f44:5dd8:c956::10,fd2e:6f44:5dd8:c956::100",
+                ip: "fd2e:6f44:5dd8:c956::3",
+                gateway: "fd2e:6f44:5dd8:c956::254"
+              }
+            : {
+                cidr: "172.22.0.0/24",
+                dhcp: "172.22.0.10,172.22.0.254",
+                ip: "172.22.0.3",
+                gateway: "172.22.0.254"
+              };
           return (
             <section className="card">
               <div className="card-header">
@@ -4013,46 +4602,107 @@ Value in MB (use multiples of 1024 for clean GB values):
                     required={metaProvisioningNetwork?.required}
                   >
                     <select
+                      className="control-enum"
                       value={provisioningMode}
                       onChange={(e) => updateInventory({ provisioningNetwork: e.target.value })}
-                      style={{ maxWidth: "100%", width: "100%", boxSizing: "border-box" }}
                     >
                       <option value="Managed">Managed — installer runs DHCP/TFTP</option>
                       <option value="Unmanaged">Unmanaged — you provide DHCP</option>
                       <option value="Disabled">Disabled — virtual media / no provisioning net</option>
                     </select>
                   </FieldLabelWithInfo>
+
+                  <div className="field-control-stack field-grid-span-full">
+                    <FieldLabelWithInfo
+                      label="Provisioning network IP family"
+                      hint={`Address family for the provisioning network's own addresses.
+
+**What is this:**
+Whether the provisioning network uses IPv4 or IPv6. It sets the expected format for the provisioning CIDR, DHCP range, cluster provisioning IP and gateway below.
+
+**When it applies:**
+Bare Metal with installer-provisioned infrastructure (IPI). It has no effect on any other platform or install method.
+
+**This is independent of the Networking step's IP Stack Mode:**
+The provisioning network is a separate network from the cluster's machine, pod and service networks. The installer only compares the provisioning CIDR against a machine network when the two are the same address family, so an IPv4 provisioning network in an IPv6-only cluster — or the reverse — is valid and is not flagged. Choosing Dual-stack on the Networking step does not change this field.
+
+**Valid values and relationships:**
+• IPv4 or IPv6 — **not both.** The provisioning network is a single address family. The installer models \`provisioningNetworkCIDR\`, \`clusterProvisioningIP\`, \`bootstrapProvisioningIP\` and \`provisioningDHCPRange\` as single scalar values — plus \`provisioningNetworkGateway\` where that field exists — unlike \`apiVIPs\`/\`ingressVIPs\`, which it models as lists precisely because those do support dual-stack.
+• Every provisioning field below must use the family selected here.
+
+**Important:**
+A **Managed** IPv6 provisioning network cannot be larger than a /64 — a dnsmasq limitation enforced by both the installer and the cluster-baremetal-operator. Unmanaged IPv6 networks may be larger. There is no IPv4 prefix-size constraint.
+
+**Example:**
+IPv4 — 172.22.0.0/24
+IPv6 — fd2e:6f44:5dd8:c956::/64
+
+**Red Hat documentation:**
+Provisioning [metal3.io/v1alpha1], §13.1.1 \`.spec\` — "When using IPv6 and in a network managed by the Baremetal IPI solution this cannot be a network larger than a /64."`}
+                    >
+                      <select
+                        className="control-enum"
+                        value={provisioningFamily}
+                        /* Parks the outgoing family's values and restores the
+                           incoming family's, so the fields are never left
+                           holding addresses of the family you just left. */
+                        onChange={(e) => {
+                          const patch = switchProvisioningFamily(inventory, e.target.value);
+                          if (patch) updateInventory(patch);
+                        }}
+                      >
+                        <option value="ipv4">IPv4</option>
+                        <option value="ipv6">IPv6</option>
+                      </select>
+                    </FieldLabelWithInfo>
+                    <div className="field-control-support">
+                      <div className="field-helper">
+                        Separate from the Networking step's IP Stack Mode. Single family only — the
+                        provisioning network cannot be dual-stack.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="Provisioning network CIDR (optional)"
-                    hint={provisioningMode === "Disabled"
-                      ? "When Disabled, provisioning services use the bare-metal network; omit or use bare-metal CIDR if needed."
-                      : "CIDR (Classless Inter-Domain Routing) notation for the provisioning network's IP address range. Defines the subnet where the OpenShift installer runs provisioning services and assigns temporary IPs to nodes during bootstrap.\n\n**What is this:**\nIPv4 or IPv6 network range in CIDR format (e.g., 172.22.0.0/24) that defines the provisioning network's address space. The installer uses this subnet for DHCP assignments, bootstrap services, and node imaging.\n\n**Format:**\nNetwork address / prefix length\n• IPv4 example: 172.22.0.0/24 (256 addresses)\n• IPv6 example: fd00::/64\n\n**When to set:**\n• **Managed mode:** Optional but recommended - defines the provisioning subnet for DHCP and services\n• **Unmanaged mode:** Optional - documents your existing provisioning network CIDR\n• **Disabled mode:** Omit, or set to bare-metal network CIDR if provisioning services run on that network\n\n**Default behavior:**\nIf omitted in Managed mode, installer may use a default range (consult OpenShift docs for version-specific defaults)\n\n**Sizing guidelines:**\n• /24 (256 addresses) - Standard for small-medium clusters (up to 50 nodes)\n• /23 (512 addresses) - Large clusters or future expansion\n• /25 (128 addresses) - Small clusters (under 20 nodes)\n\n**Requirements:**\n• Must not overlap with Machine network, Cluster network, or Service network CIDRs (from Networking tab)\n• Must be routable only on the provisioning network segment (isolated from production traffic)\n• Enough addresses for all nodes + bootstrap + DHCP overhead (nodes × 2 recommended)\n\n**Relationship to other fields:**\n• **provisioningDHCPRange:** DHCP range must be within this CIDR\n• **clusterProvisioningIP:** Provisioning services IP must be within this CIDR\n\n**Example:**\n172.22.0.0/24 (common choice for isolated provisioning network)"}
+                    /* One hint for every mode. The gold-standard text below
+                       already carries a "When to set" section covering
+                       Managed, Unmanaged and Disabled, so the previous
+                       Disabled-only branch was both a downgrade — one line of
+                       unstructured prose where every other field gives the
+                       full template — and redundant with what it replaced. */
+                    hint={"CIDR (Classless Inter-Domain Routing) notation for the provisioning network's IP address range. Defines the subnet where the OpenShift installer runs provisioning services and assigns temporary IPs to nodes during bootstrap.\n\n**What is this:**\nIPv4 or IPv6 network range in CIDR format (e.g., 172.22.0.0/24) that defines the provisioning network's address space. The installer uses this subnet for DHCP assignments, bootstrap services, and node imaging.\n\n**Format:**\nNetwork address / prefix length\n• IPv4 example: 172.22.0.0/24 (256 addresses)\n• IPv6 example: fd00::/64\n\n**When to set:**\n• **Managed mode:** Optional but recommended - defines the provisioning subnet for DHCP and services\n• **Unmanaged mode:** Optional - documents your existing provisioning network CIDR\n• **Disabled mode:** Omit, or set to bare-metal network CIDR if provisioning services run on that network\n\n**Default behavior:**\nIf omitted in Managed mode, installer may use a default range (consult OpenShift docs for version-specific defaults)\n\n**Sizing guidelines:**\n• /24 (256 addresses) - Standard for small-medium clusters (up to 50 nodes)\n• /23 (512 addresses) - Large clusters or future expansion\n• /25 (128 addresses) - Small clusters (under 20 nodes)\n\n**Requirements:**\n• Must not overlap with Machine network, Cluster network, or Service network CIDRs (from Networking tab)\n• Must be routable only on the provisioning network segment (isolated from production traffic)\n• Enough addresses for all nodes + bootstrap + DHCP overhead (nodes × 2 recommended)\n\n**Relationship to other fields:**\n• **provisioningDHCPRange:** DHCP range must be within this CIDR\n• **clusterProvisioningIP:** Provisioning services IP must be within this CIDR\n\n**Example:**\n172.22.0.0/24 (common choice for isolated provisioning network)"}
                   >
                     <input
-                      className={fieldErrors.provisioningNetworkCIDR ? "input-error" : ""}
-                      title={fieldErrors.provisioningNetworkCIDR || ""}
+                      className={fieldErrorVisible("provisioningNetworkCIDR") ? "input-error" : ""}
+                      title={fieldErrorVisible("provisioningNetworkCIDR") ? fieldErrors.provisioningNetworkCIDR : ""}
                       value={localProvisioningNetworkCIDR}
                       onChange={(e) => setLocalProvisioningNetworkCIDR(e.target.value)}
-                      onBlur={() => updateInventory({ provisioningNetworkCIDR: localProvisioningNetworkCIDR.trim() })}
-                      placeholder={provisioningMode === "Disabled" ? "omit or bare-metal CIDR" : "e.g. 172.22.0.0/24"}
+                      onBlur={() => { markTouched("provisioningNetworkCIDR"); updateInventory({ provisioningNetworkCIDR: localProvisioningNetworkCIDR.trim() }); }}
+                      placeholder={provisioningMode === "Disabled" ? "omit or bare-metal CIDR" : `e.g. ${exampleProvisioning.cidr}`}
+                      aria-invalid={fieldErrorVisible("provisioningNetworkCIDR") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("provisioningNetworkCIDR") ? "error-provisioningNetworkCIDR" : undefined}
                     />
                   </FieldLabelWithInfo>
-                  {fieldErrors.provisioningNetworkCIDR && <span className="note warning inline">{fieldErrors.provisioningNetworkCIDR}</span>}
+                  <div className="field-control-support">
+                    {fieldErrorVisible("provisioningNetworkCIDR") && <span id="error-provisioningNetworkCIDR" className="field-error" role="alert">{fieldErrors.provisioningNetworkCIDR}</span>}
+                  </div>
+                  </div>
+                  {showProvisioningInterface ? (
                   <FieldLabelWithInfo
                     label="Provisioning network interface (optional)"
-                    hint={provisioningMode === "Disabled"
-                      ? "When Disabled, there is no provisioning network; omit unless your setup requires it."
-                      : "Name of the network interface on the bootstrap/provisioning host that connects to the provisioning network. Identifies which NIC the installer binds provisioning services (DHCP, TFTP, HTTP) to.\n\n**What is this:**\nLinux network interface name (e.g., 'eth0', 'ens192', 'enp1s0') on the machine where you run openshift-install. The installer uses this interface to communicate with bare metal nodes during provisioning.\n\n**When to set:**\n• **Required when:** Bootstrap host has multiple network interfaces and you need to specify which one faces the provisioning network\n• **Optional when:** Single NIC system - installer auto-detects\n• **Not used when:** provisioningNetwork = 'Disabled'\n\n**How to find interface name:**\nOn the host where you'll run openshift-install:\n• Linux: `ip link show` or `ip addr show` (lists all interfaces)\n• Look for the interface connected to your provisioning VLAN/network\n\n**Common interface naming:**\n• **Predictable naming (systemd):** ens192, eno1, enp1s0\n• **Traditional naming:** eth0, eth1, eth2\n• **Bond interfaces:** bond0, bond1\n• **VLAN interfaces:** eth0.100, ens192.200\n\n**Requirements:**\n• Interface must be UP (enabled) before running openshift-install\n• Interface should have an IP address in the provisioning network CIDR\n• Interface must be physically connected to the same network segment as bare metal node BMCs and provisioning NICs\n\n**Relationship to provisioningMACAddress:**\nYou can specify interface by name (this field) OR by MAC address (provisioningMACAddress field) - either works, name is more human-readable\n\n**Example:**\neth1 (second NIC on traditional naming)\nens192 (typical VMware VM interface)\nenp2s0 (PCIe slot 2, port 0)"}
+                    hint={"Name of the network interface on the bootstrap/provisioning host that connects to the provisioning network. Identifies which NIC the installer binds provisioning services (DHCP, TFTP, HTTP) to.\n\n**What is this:**\nLinux network interface name (e.g., 'eth0', 'ens192', 'enp1s0') on the machine where you run openshift-install. The installer uses this interface to communicate with bare metal nodes during provisioning.\n\n**When to set:**\n• **Required when:** Bootstrap host has multiple network interfaces and you need to specify which one faces the provisioning network\n• **Optional when:** Single NIC system - installer auto-detects\n• **Not used when:** provisioningNetwork = 'Disabled'\n\n**How to find interface name:**\nOn the host where you'll run openshift-install:\n• Linux: `ip link show` or `ip addr show` (lists all interfaces)\n• Look for the interface connected to your provisioning VLAN/network\n\n**Common interface naming:**\n• **Predictable naming (systemd):** ens192, eno1, enp1s0\n• **Traditional naming:** eth0, eth1, eth2\n• **Bond interfaces:** bond0, bond1\n• **VLAN interfaces:** eth0.100, ens192.200\n\n**Requirements:**\n• Interface must be UP (enabled) before running openshift-install\n• Interface should have an IP address in the provisioning network CIDR\n• Interface must be physically connected to the same network segment as bare metal node BMCs and provisioning NICs\n\n**Relationship to provisioningMACAddress:**\nYou can specify interface by name (this field) OR by MAC address (provisioningMACAddress field) - either works, name is more human-readable\n\n**Example:**\neth1 (second NIC on traditional naming)\nens192 (typical VMware VM interface)\nenp2s0 (PCIe slot 2, port 0)"}
                   >
                     <input
                       value={localProvisioningNetworkInterface}
                       onChange={(e) => setLocalProvisioningNetworkInterface(e.target.value)}
                       onBlur={() => updateInventory({ provisioningNetworkInterface: localProvisioningNetworkInterface })}
-                      placeholder={provisioningMode === "Disabled" ? "omit" : "e.g. eth1"}
+                      placeholder="e.g. eth1"
                     />
                   </FieldLabelWithInfo>
+                  ) : null}
                   {showDhcpRange ? (
-                    <>
+                    <div className="field-control-stack">
                       <FieldLabelWithInfo
                         label="Provisioning DHCP range (optional)"
                         hint={`IP address range for DHCP assignments on the provisioning network during bare metal node bootstrapping. Specifies the pool of IP addresses the installer's DHCP server uses when provisioning nodes.
@@ -4088,33 +4738,73 @@ Start IP, end IP (comma-separated, no spaces after comma)
 172.22.0.50,172.22.0.80 (31 addresses for smaller clusters)`}
                       >
                         <input
-                          className={fieldErrors.provisioningDHCPRange ? "input-error" : ""}
-                          title={fieldErrors.provisioningDHCPRange || ""}
+                          className={fieldErrorVisible("provisioningDHCPRange") ? "input-error" : ""}
+                          title={fieldErrorVisible("provisioningDHCPRange") ? fieldErrors.provisioningDHCPRange : ""}
                           value={localProvisioningDHCPRange}
                           onChange={(e) => setLocalProvisioningDHCPRange(e.target.value)}
-                          onBlur={() => updateInventory({ provisioningDHCPRange: localProvisioningDHCPRange })}
-                          placeholder="e.g. 172.22.0.10,172.22.0.254"
+                          onBlur={() => { markTouched("provisioningDHCPRange"); updateInventory({ provisioningDHCPRange: localProvisioningDHCPRange }); }}
+                          placeholder={`e.g. ${exampleProvisioning.dhcp}`}
+                          aria-invalid={fieldErrorVisible("provisioningDHCPRange") ? "true" : undefined}
+                          aria-describedby={fieldErrorVisible("provisioningDHCPRange") ? "error-provisioningDHCPRange" : undefined}
                         />
                       </FieldLabelWithInfo>
-                      {fieldErrors.provisioningDHCPRange && <span className="note warning inline">{fieldErrors.provisioningDHCPRange}</span>}
-                    </>
+                      <div className="field-control-support">
+                        {fieldErrorVisible("provisioningDHCPRange") && <span id="error-provisioningDHCPRange" className="field-error" role="alert">{fieldErrors.provisioningDHCPRange}</span>}
+                      </div>
+                    </div>
                   ) : null}
+                  <div className="field-control-stack">
                   <FieldLabelWithInfo
                     label="Cluster provisioning IP (optional)"
-                    hint={provisioningMode === "Disabled"
-                      ? "When Disabled, one of two IPs on the bare-metal network for provisioning services (installer needs two IPs on bare-metal network when no dedicated provisioning network exists)."
-                      : "IPv4 or IPv6 address assigned to the provisioning host's interface where OpenShift installer provisioning services (DHCP, TFTP, HTTP) listen. This is the IP nodes contact to fetch boot images and configuration during installation.\n\n**What is this:**\nStatic IP address on the provisioning network that the installer binds its services to. Bare metal nodes PXE boot and download images from this IP during the bootstrap process.\n\n**Default behavior:**\nIf omitted, the installer typically uses the **third IP** of the provisioning subnet (catalog default). For example, if provisioningNetworkCIDR is 172.22.0.0/24, default might be 172.22.0.3.\n\n**When to set explicitly:**\n• When you need a specific IP for firewall rules or DNS entries\n• When the third IP of the subnet is already in use\n• When integrating with existing provisioning infrastructure that expects a particular IP\n\n**Requirements:**\n• **Managed/Unmanaged modes:** Must be within provisioningNetworkCIDR\n• **Disabled mode:** Must be on the bare-metal network (Machine network CIDR)\n• Must NOT conflict with provisioningDHCPRange\n• Must be statically assigned (not in DHCP dynamic range)\n• Must be reachable from bare metal node BMCs and boot interfaces\n\n**Provisioning mode specifics:**\n\n**Managed:** \nInstaller runs DHCP/TFTP on this IP on the provisioning network. Nodes receive this IP via DHCP options as their boot server.\n\n**Unmanaged:**\nYou run DHCP elsewhere, but installer HTTP/image services still bind to this IP. Configure your DHCP server to point nodes to this IP for image downloads.\n\n**Disabled:**\nNo dedicated provisioning network - installer services run on the bare-metal network. This IP is one of two IPs needed on the bare-metal network for provisioning (the other for bootstrap services).\n\n**How nodes use this IP:**\n• PXE boot: Fetch kernel/initrd via TFTP from this IP\n• Image download: Pull RHCOS images via HTTP from this IP\n• Ignition config: Retrieve bootstrap configuration from this IP\n\n**Example:**\n172.22.0.10 (Managed mode, within 172.22.0.0/24)\n10.0.0.100 (Disabled mode, on bare-metal network 10.0.0.0/24)"}
+                    /* One hint for every mode — the text below has a
+                       "Provisioning mode specifics" section that documents
+                       Managed, Unmanaged and Disabled, including the two
+                       bare-metal IPs the Disabled branch used to describe. */
+                    hint={"IPv4 or IPv6 address assigned to the provisioning host's interface where OpenShift installer provisioning services (DHCP, TFTP, HTTP) listen. This is the IP nodes contact to fetch boot images and configuration during installation.\n\n**What is this:**\nStatic IP address on the provisioning network that the installer binds its services to. Bare metal nodes PXE boot and download images from this IP during the bootstrap process.\n\n**Default behavior:**\nIf omitted, the installer typically uses the **third IP** of the provisioning subnet (catalog default). For example, if provisioningNetworkCIDR is 172.22.0.0/24, default might be 172.22.0.3.\n\n**When to set explicitly:**\n• When you need a specific IP for firewall rules or DNS entries\n• When the third IP of the subnet is already in use\n• When integrating with existing provisioning infrastructure that expects a particular IP\n\n**Requirements:**\n• **Managed/Unmanaged modes:** Must be within provisioningNetworkCIDR\n• **Disabled mode:** Must be on the bare-metal network (Machine network CIDR)\n• Must NOT conflict with provisioningDHCPRange\n• Must be statically assigned (not in DHCP dynamic range)\n• Must be reachable from bare metal node BMCs and boot interfaces\n\n**Provisioning mode specifics:**\n\n**Managed:** \nInstaller runs DHCP/TFTP on this IP on the provisioning network. Nodes receive this IP via DHCP options as their boot server.\n\n**Unmanaged:**\nYou run DHCP elsewhere, but installer HTTP/image services still bind to this IP. Configure your DHCP server to point nodes to this IP for image downloads.\n\n**Disabled:**\nNo dedicated provisioning network - installer services run on the bare-metal network. This IP is one of two IPs needed on the bare-metal network for provisioning (the other for bootstrap services).\n\n**How nodes use this IP:**\n• PXE boot: Fetch kernel/initrd via TFTP from this IP\n• Image download: Pull RHCOS images via HTTP from this IP\n• Ignition config: Retrieve bootstrap configuration from this IP\n\n**Example:**\n172.22.0.10 (Managed mode, within 172.22.0.0/24)\n10.0.0.100 (Disabled mode, on bare-metal network 10.0.0.0/24)"}
                   >
                     <input
-                      className={fieldErrors.clusterProvisioningIP ? "input-error" : ""}
-                      title={fieldErrors.clusterProvisioningIP || ""}
+                      className={fieldErrorVisible("clusterProvisioningIP") ? "input-error" : ""}
+                      title={fieldErrorVisible("clusterProvisioningIP") ? fieldErrors.clusterProvisioningIP : ""}
                       value={localClusterProvisioningIP}
                       onChange={(e) => setLocalClusterProvisioningIP(e.target.value)}
-                      onBlur={() => updateInventory({ clusterProvisioningIP: localClusterProvisioningIP.trim() })}
-                      placeholder={provisioningMode === "Disabled" ? "IP on bare-metal network" : "IP within provisioning subnet"}
+                      onBlur={() => { markTouched("clusterProvisioningIP"); updateInventory({ clusterProvisioningIP: localClusterProvisioningIP.trim() }); }}
+                      placeholder={provisioningMode === "Disabled" ? "IP on bare-metal network" : `e.g. ${exampleProvisioning.ip}`}
+                      aria-invalid={fieldErrorVisible("clusterProvisioningIP") ? "true" : undefined}
+                      aria-describedby={fieldErrorVisible("clusterProvisioningIP") ? "error-clusterProvisioningIP" : undefined}
                     />
                   </FieldLabelWithInfo>
-                  {fieldErrors.clusterProvisioningIP && <span className="note warning inline">{fieldErrors.clusterProvisioningIP}</span>}
+                  <div className="field-control-support">
+                    {fieldErrorVisible("clusterProvisioningIP") && <span id="error-clusterProvisioningIP" className="field-error" role="alert">{fieldErrors.clusterProvisioningIP}</span>}
+                  </div>
+                  </div>
+                  {showProvisioningNetworkGateway && provisioningMode === "Managed" ? (
+                    <div className="field-control-stack">
+                      <FieldLabelWithInfo
+                        label="Provisioning network gateway (optional)"
+                        hint={"Introduced in OpenShift " + fieldIntroducedIn("platform.baremetal.provisioningNetworkGateway", INSTALL_CONFIG) + `. Default gateway handed to bare-metal hosts over DHCP on the provisioning network, so they can route to external networks during inspection and provisioning.\n\n**When it applies:**\nOnly when provisioning network mode is **Managed** (installer-managed DHCP). openshift-install accepts the field with Unmanaged or Disabled but ignores it, so this tool omits it in those modes.\n\n**Format:**\nA single IPv4 or IPv6 address (not CIDR notation, not a range).\n\u2022 IPv4 example: 172.22.0.254\n\u2022 IPv6 example: fd00::fe\n\n**Valid values and relationships (Red Hat documented):**\n\u2022 Must be within the provisioning network CIDR\n\u2022 Must be OUTSIDE the provisioning DHCP range\n\u2022 Must not be the same address as the cluster provisioning IP\n\u2022 Must be the same IP family as the provisioning network CIDR\n\n**How it is used:**\nEmitted to \`platform.baremetal.provisioningNetworkGateway\` in install-config.yaml. The installer hands it to hosts as the default route in the DHCP lease it serves on the provisioning network.\n\n**Important:**\nVerify these relationships yourself. openshift-install rejects a malformed IP, but its own DHCP-range overlap check does not fire against the shipped binary \u2014 an overlapping gateway is accepted at validation time and then fails during provisioning. This tool checks the relationships for you.\n\n**Example:**\n172.22.0.254 (for CIDR 172.22.0.0/24 with DHCP range 172.22.0.10,172.22.0.100)\n\n**Availability:** Introduced in OpenShift ` + fieldIntroducedIn("platform.baremetal.provisioningNetworkGateway", INSTALL_CONFIG) + `. Not present on earlier supported targets, where this tool hides the field and omits the key. Source: Red Hat OpenShift installation documentation for the bare-metal install-config \`platform.baremetal\` schema.`}
+                      >
+                        <input
+                          className={fieldErrorVisible("provisioningNetworkGateway") ? "input-error" : ""}
+                          title={fieldErrorVisible("provisioningNetworkGateway") ? fieldErrors.provisioningNetworkGateway : ""}
+                          value={localProvisioningNetworkGateway}
+                          onChange={(e) => setLocalProvisioningNetworkGateway(e.target.value)}
+                          onBlur={() => { markTouched("provisioningNetworkGateway"); updateInventory({ provisioningNetworkGateway: localProvisioningNetworkGateway.trim() }); }}
+                          placeholder={`e.g. ${exampleProvisioning.gateway}`}
+                          aria-invalid={fieldErrorVisible("provisioningNetworkGateway") ? "true" : undefined}
+                          aria-describedby={fieldErrorVisible("provisioningNetworkGateway") ? "error-provisioningNetworkGateway" : undefined}
+                        />
+                      </FieldLabelWithInfo>
+                      <div className="field-control-support">
+                        {fieldErrorVisible("provisioningNetworkGateway") && <span id="error-provisioningNetworkGateway" className="field-error" role="alert">{fieldErrors.provisioningNetworkGateway}</span>}
+                        {fieldAnnotation("platform.baremetal.provisioningNetworkGateway", INSTALL_CONFIG).isIntroduced && (
+                          <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
+                        )}
+                        <div className="field-helper">
+                          Inside the provisioning CIDR, outside the DHCP range
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   <FieldLabelWithInfo
                     label="Provisioning MAC address (optional)"
                     hint={`MAC (hardware) address of the network interface on the bootstrap/provisioning host where the OpenShift installer runs provisioning services (DHCP, TFTP, HTTP) during bare metal installation.
@@ -4159,8 +4849,22 @@ On the host where you'll run openshift-install:
                   </FieldLabelWithInfo>
                 </div>
                 {provisioningMode === "Disabled" && (
+                  /* Why fields remain here at all. "Disabled" turns off the
+                     DEDICATED provisioning network, not provisioning itself:
+                     the services still run and still need addressing, just on
+                     the bare-metal network. Red Hat's own Table 3.10 says the
+                     CIDR "must have a valid CIDR address even if the
+                     provisioning network is Disabled", and requires two IPs on
+                     the bare-metal network. The fields Red Hat tells you to
+                     OMIT in this mode — the provisioning interface and the
+                     DHCP range — are the ones actually hidden above. */
                   <p className="note subtle" style={{ marginTop: 12, marginBottom: 0 }}>
-                    When Disabled, reserve two IPs on the bare-metal network for provisioning services; BMCs must be reachable on that network.
+                    <strong>Disabled turns off the dedicated provisioning network, not provisioning itself.</strong>{" "}
+                    The installer still runs provisioning services, so reserve two IPs on the bare-metal
+                    network for them and make sure BMCs are reachable there. That is why a cluster
+                    provisioning IP and a CIDR are still offered — Red Hat documents the CIDR as needing a
+                    valid value even in this mode. The settings Red Hat tells you to omit when Disabled —
+                    the provisioning interface and the DHCP range — are hidden automatically.
                   </p>
                 )}
 
@@ -4245,10 +4949,89 @@ external-br (descriptive name)`}
           );
         })()}
 
+        {showBmcVerifyCA && (
+          <section className="card">
+            <div className="card-header">
+              <h3 className="card-title">BMC CA Certificate</h3>
+              <div className="card-subtitle">Optional CA certificate for BMC TLS verification. Introduced in OpenShift {fieldIntroducedIn("platform.baremetal.bmcVerifyCA", INSTALL_CONFIG)}.</div>
+            </div>
+            <div className="card-body">
+              <div className="field-grid" style={{ marginTop: 4 }}>
+                <div className="field-control-stack field-grid-span-full">
+                <FieldLabelWithInfo
+                  label="BMC verify CA certificate"
+                  hint={"Introduced in OpenShift " + fieldIntroducedIn("platform.baremetal.bmcVerifyCA", INSTALL_CONFIG) + `. Optional PEM-encoded CA certificate or certificate bundle used by the OpenShift installer to verify BMC (Baseboard Management Controller) TLS certificates during bare metal provisioning.
+
+**What this is:**
+A CA certificate (or chain of certificates) in PEM format. When provided, the installer uses this to verify the TLS certificates presented by BMC endpoints (Redfish/IPMI over HTTPS). This is useful when BMCs use certificates signed by an internal or private CA.
+
+**What the installer does with this value:**
+When non-empty, the installer writes:
+• TLS asset file: bmc-ca/verify_ca.crt
+• ConfigMap: openshift-machine-api/bmc-verify-ca (data key: verify_ca.crt)
+
+The baremetal operator and Ironic components use this ConfigMap to verify BMC connections.
+
+**Format guidance (advisory):**
+Content should contain at least one complete PEM certificate block:
+\`\`\`
+-----BEGIN CERTIFICATE-----
+MIIDxTCCAq2g...
+-----END CERTIFICATE-----
+\`\`\`
+Multiple certificates can be concatenated for a certificate chain. The upstream installer does not perform explicit PEM-format validation, but malformed content may cause BMC connection failures at runtime.
+
+**When to use:**
+• BMCs use TLS certificates signed by an internal/private CA
+• Your environment requires verified BMC connections
+• You want to avoid disableCertificateVerification on individual hosts
+
+**When to leave empty:**
+• BMCs use publicly-trusted certificates
+• BMC certificate verification is handled per-host via disableCertificateVerification
+• Not using TLS for BMC connections (e.g., redfish+http:// addresses)
+
+Emitted to \`platform.baremetal.bmcVerifyCA\` in install-config.yaml.`}
+                >
+                  <textarea
+                    rows={6}
+                    value={localBmcVerifyCA}
+                    onChange={(e) => setLocalBmcVerifyCA(e.target.value)}
+                    onBlur={() => {
+                      const result = validateBmcVerifyCA(localBmcVerifyCA.trim() ? localBmcVerifyCA : undefined);
+                      if (!result.valid) {
+                        setBmcVerifyCAError(result.error);
+                        return;
+                      }
+                      setBmcVerifyCAError("");
+                      updateInventory({ bmcVerifyCA: result.blank ? undefined : localBmcVerifyCA });
+                    }}
+                    placeholder={"-----BEGIN CERTIFICATE-----\nMIIDxTCCAq2g...\n-----END CERTIFICATE-----"}
+                    aria-label="BMC verify CA certificate"
+                    style={{ width: "100%", fontFamily: "monospace", fontSize: "0.85em" }}
+                  />
+                </FieldLabelWithInfo>
+                <div className="field-control-support">
+                  {bmcVerifyCAError && (
+                    <div className="field-error" role="alert">{bmcVerifyCAError}</div>
+                  )}
+                  {fieldAnnotation("platform.baremetal.bmcVerifyCA", INSTALL_CONFIG).isIntroduced && (
+                    <div className="field-helper" data-version-annotation="introduced">New in OpenShift {selectedMinor}</div>
+                  )}
+                  {!bmcVerifyCAError && bmcVerifyCAAdvisory && (
+                    <p className="note warning" role="status">{bmcVerifyCAAdvisory}</p>
+                  )}
+                </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {showAdvancedSection && (
           <CollapsibleSection
             title="Advanced"
-            subtitle={`${showVsphereLegacyFolderResourcePool ? "vSphere folder/resource pool (legacy placement only), " : ""}${showAgentOptionsSection ? "Agent boot artifacts, " : ""}Hyperthreading, capabilities, CPU partitioning, minimal ISO (catalog-driven).`}
+            subtitle={`${showVsphereLegacyFolderResourcePool ? "vSphere folder/resource pool (legacy placement only), " : ""}${showBootArtifactsBaseURL ? "Agent boot artifacts, " : ""}Hyperthreading, capabilities, CPU partitioning, minimal ISO (catalog-driven).`}
             defaultCollapsed={true}
           >
                 <div className="field-grid" style={{ marginTop: 12 }}>
@@ -4260,7 +5043,7 @@ external-br (descriptive name)`}
 Absolute VM folder path in vSphere inventory where the installer places OpenShift VMs when using legacy placement (without failure domains).
 
 **Deprecation notice:**
-OpenShift 4.20 documentation (§9.1.5) deprecates global folder/resource pool fields. Modern deployments should use failure domains with per-domain topology settings.
+OpenShift documentation (§9.1.5) deprecates global folder/resource pool fields. Modern deployments should use failure domains with per-domain topology settings.
 
 **Legacy behavior (if you must use it):**
 • Format: \`/datacenter-name/vm/folder-name\` or \`/datacenter-name/vm/parent/child\`
@@ -4291,7 +5074,7 @@ Only when you cannot use failure domains (e.g., single cluster deployment with n
 Absolute resource pool path in vSphere inventory for CPU/memory resource management of VMs when using legacy placement (without failure domains).
 
 **Deprecation notice:**
-OpenShift 4.20 documentation (§9.1.5) deprecates global folder/resource pool fields. Modern deployments should use failure domains with per-domain topology settings.
+OpenShift documentation (§9.1.5) deprecates global folder/resource pool fields. Modern deployments should use failure domains with per-domain topology settings.
 
 **Legacy behavior (if you must use it):**
 • Format: \`/datacenter-name/host/cluster-name/Resources/pool-name\`
@@ -4324,7 +5107,7 @@ Only when you cannot use failure domains and need basic resource pool assignment
                       </FieldLabelWithInfo>
                     </>
                   )}
-                  {showAgentOptionsSection && (
+                  {showBootArtifactsBaseURL && (
                     <FieldLabelWithInfo
                       label="Boot artifacts base URL"
                       hint={`Base URL where Agent-based installer boot artifacts are hosted for network boot installation.
@@ -4475,6 +5258,7 @@ Leave 'Not set' (enabled) for general-purpose clusters`}
                   )}
                   {showCapabilities && (
                     <>
+                      {showBaselineCapabilitySet && (
                       <FieldLabelWithInfo
                         label="Baseline capability set (optional)"
                         hint={`Defines the baseline set of OpenShift capabilities (cluster features) enabled at installation time.
@@ -4528,6 +5312,8 @@ Leave 'Not set' for normal clusters`}
                           ))}
                         </select>
                       </FieldLabelWithInfo>
+                      )}
+                      {showAdditionalEnabledCapabilities && (
                       <FieldLabelWithInfo
                         label="Additional enabled capabilities (optional, comma-separated)"
                         hint={`List of specific OpenShift capabilities to enable beyond the baseline capability set, allowing fine-grained control over which optional cluster features are installed.
@@ -4586,6 +5372,7 @@ Console, Marketplace, Insights (minimal + marketplace)`}
                           placeholder="e.g. baremetal, marketplace"
                         />
                       </FieldLabelWithInfo>
+                      )}
                     </>
                   )}
                   {showCpuPartitioningMode && (
@@ -4704,7 +5491,7 @@ Leave 'Not set' for standard production clusters`}
                       </select>
                     </FieldLabelWithInfo>
                   )}
-                  {showFeatureSet && platformConfig.featureSet === "CustomNoUpgrade" && (
+                  {showFeatureSet && showFeatureGates && platformConfig.featureSet === "CustomNoUpgrade" && (
                     <FieldLabelWithInfo
                       label="Feature gates (required when CustomNoUpgrade)"
                       hint={`Individual feature gate overrides when using CustomNoUpgrade feature set.
@@ -4743,7 +5530,7 @@ CSIMigrationAWS=true
 TechPreviewFeature=false
 
 **Reference:**
-See OpenShift 4.20 documentation for full list of available feature gates and their effects.`}
+See OpenShift ` + selectedMinor + ` documentation for full list of available feature gates and their effects.`}
                       required={platformConfig.featureSet === "CustomNoUpgrade"}
                     >
                       <textarea
@@ -4774,14 +5561,35 @@ See OpenShift 4.20 documentation for full list of available feature gates and th
           </CollapsibleSection>
         )}
 
-        {scenarioId && !showAgentOptionsSection && !showProvisioningNetworkSection && !showAdvancedSection && !showVsphereIpiSection && (
+        {/*
+          This block renders only when a scenario contributes NO platform-specific
+          section at all. It used to carry a `bare-metal-upi`-specific message
+          ("Bare metal UPI: No installer-managed provisioning network or host
+          list...") as one arm of a ternary. That arm was UNREACHABLE and was
+          removed in v2.1 Tranche 8B.4.
+
+          Proof: reaching this block requires `!showAdvancedSection`, and
+          `showAdvancedSection` is true whenever the scenario's catalog exposes any
+          of compute/controlPlane hyperthreading, capabilities, cpuPartitioningMode,
+          featureSet, minimalISO, bootArtifactsBaseURL or the vSphere IPI section.
+          The `bare-metal-upi` catalog declares six of those as `supported-ui`, with
+          a minVersion at or below the version-awareness baseline and no maxVersion,
+          in every currently supported minor — so `showAdvancedSection` is
+          unconditionally true for that scenario throughout the supported range. The
+          gating is catalog-driven, not state-driven, so no user input can turn it
+          off.
+
+          Behaviour is unchanged: for `bare-metal-upi` this block never rendered
+          and still never renders; every scenario that does reach it already took
+          the generic arm below.
+
+          frontend/tests/platform-specifics-step.test.jsx holds the executing,
+          per-minor guard against the arm being reintroduced.
+        */}
+        {scenarioId && !showBootArtifactsBaseURL && !showProvisioningNetworkSection && !showAdvancedSection && !showVsphereIpiSection && (
           <section className="card">
             <div className="card-body">
-              <p className="note">
-                {scenarioId === "bare-metal-upi"
-                  ? "Bare metal UPI: No installer-managed provisioning network or host list. Configure API and Ingress via your load balancer and DNS (see docs)."
-                  : "No platform-specific options for this scenario yet."}
-              </p>
+              <p className="note">No platform-specific options for this scenario yet.</p>
             </div>
           </section>
         )}

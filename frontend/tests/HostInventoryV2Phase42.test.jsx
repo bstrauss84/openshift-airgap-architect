@@ -87,31 +87,16 @@ describe("Phase 4.2: section ordering", () => {
   });
 });
 
-describe("Phase 4.2: compare mode does not modify wizard state", () => {
-  it.skip("compare toggle calls updateState only with ui (no hostInventory, blueprint, methodology)", () => {
-    // Compare-mode toggle was removed from HostInventoryV2Step UI; section order is always scenario-aware.
-    // If the toggle is re-added, restore this test and remove .skip.
-    const updateStateSpy = vi.fn();
-
-    render(
-      <MockAppProvider updateStateSpy={updateStateSpy}>
-        <HostInventoryV2Step />
-      </MockAppProvider>
-    );
-
-    const compareLabel = screen.queryByText(/Compare legacy vs scenario-aware/i);
-    expect(compareLabel).toBeTruthy();
-    const compareInput = compareLabel?.closest("label")?.querySelector('input[type="checkbox"]');
-    expect(compareInput).toBeTruthy();
-
-    fireEvent.click(compareInput);
-
-    expect(updateStateSpy).toHaveBeenCalled();
-    const patch = updateStateSpy.mock.calls[0][0];
-    expect(patch).toHaveProperty("ui");
-    expect(patch.ui).toHaveProperty("compareMode", true);
-    expect(patch).not.toHaveProperty("hostInventory");
-    expect(patch).not.toHaveProperty("blueprint");
-    expect(patch).not.toHaveProperty("methodology");
-  });
-});
+// REMOVED in v2.1 Tranche 8B.5: "Phase 4.2: compare mode does not modify wizard state".
+//
+// It asserted that a "Compare legacy vs scenario-aware" toggle patched only
+// `ui.compareMode`. That feature no longer exists — `compareMode` has zero
+// occurrences in frontend/src, backend/src, shared/ and the state schema, and
+// HostInventoryV2Step hardcodes `sectionCompareBadge = null` — so the test
+// described obsolete behaviour rather than deferred behaviour, and had been
+// skipped since the initial public release.
+//
+// Deleted rather than replaced: there is no active supported contract left to
+// cover. A stub asserting the feature's absence would test nothing a reader
+// could act on, and re-skipping it would have preserved the suppression this
+// audit exists to remove.

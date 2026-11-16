@@ -19,8 +19,11 @@ import {
   ipv6CidrOverlaps,
   isValidIpv4Cidr,
   isValidIpv4AddressWithPrefix,
-  isValidIpv6
+  isValidIpv6,
+  AWS_SUBNET_ROLES_REQUIRED_EXTERNAL,
+  AWS_SUBNET_ROLES_REQUIRED_INTERNAL
 } from "../src/validation.js";
+import { UnsupportedVersionError } from "../src/catalogPaths.js";
 
 describe("Validation Integration - End-to-End Validation Flow", () => {
   describe("Network CIDR overlap detection prevents invalid configurations", () => {
@@ -553,6 +556,317 @@ describe("Validation Integration - End-to-End Validation Flow", () => {
       // No overlap
       expect(ipv6CidrOverlaps("2001:db8:0:0::/64", "2001:db8:0:1::/64")).toBe(false);
       expect(ipv6CidrOverlaps("fd00::/48", "fd01::/48")).toBe(false);
+    });
+  });
+
+  describe("Nutanix IPI version-neutral validation messages", () => {
+    const makeNutanixState = (overrides = {}) => ({
+      blueprint: { platform: "Nutanix" },
+      methodology: { method: "IPI" },
+      platformConfig: {
+        credentialsMode: "Manual",
+        controlPlaneReplicas: 3,
+        nutanix: {
+          endpoint: "prism-central.example.com",
+          username: "admin",
+          password: "secret",
+          subnet: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          apiVIP: "10.0.0.100",
+          ingressVIP: "10.0.0.101",
+        },
+        ...overrides,
+      },
+      exportOptions: { includeCredentials: true },
+    });
+
+    it("credentialsMode Passthrough produces the exact neutral error", () => {
+      const state = makeNutanixState({ credentialsMode: "Passthrough" });
+      const result = validateStep(state, "networking");
+      expect(result.errors).toContain(
+        "Nutanix IPI requires credentialsMode Manual per the OpenShift Nutanix installation documentation."
+      );
+    });
+
+    it("credentialsMode Manual does not produce a credentialsMode error", () => {
+      const state = makeNutanixState({ credentialsMode: "Manual" });
+      const result = validateStep(state, "networking");
+      expect(result.errors.some(e => e.includes("credentialsMode Manual"))).toBe(false);
+    });
+
+    it("controlPlaneReplicas 5 produces the exact neutral error", () => {
+      const state = makeNutanixState({ controlPlaneReplicas: 5 });
+      const result = validateStep(state, "networking");
+      expect(result.errors).toContain(
+        "Nutanix IPI supports control plane replicas 3 for a standard or compact three-node cluster, or 1 for single-node OpenShift, per the OpenShift Nutanix installation configuration parameters."
+      );
+    });
+
+    it("controlPlaneReplicas 1 does not produce a control-plane replica error", () => {
+      const state = makeNutanixState({ controlPlaneReplicas: 1 });
+      const result = validateStep(state, "networking");
+      expect(result.errors.some(e => e.includes("control plane replicas"))).toBe(false);
+    });
+
+    it("controlPlaneReplicas 3 does not produce a control-plane replica error", () => {
+      const state = makeNutanixState({ controlPlaneReplicas: 3 });
+      const result = validateStep(state, "networking");
+      expect(result.errors.some(e => e.includes("control plane replicas"))).toBe(false);
+    });
+
+    it("invalid Nutanix config with explicit 4.20 produces neutral messages without version reference", () => {
+      const state = {
+        ...makeNutanixState({ credentialsMode: "Passthrough", controlPlaneReplicas: 5 }),
+        version: { selectedMinor: "4.20", selectedPatch: "4.20.15" },
+      };
+      const result = validateStep(state, "networking");
+      expect(result.errors).toContain(
+        "Nutanix IPI requires credentialsMode Manual per the OpenShift Nutanix installation documentation."
+      );
+      expect(result.errors).toContain(
+        "Nutanix IPI supports control plane replicas 3 for a standard or compact three-node cluster, or 1 for single-node OpenShift, per the OpenShift Nutanix installation configuration parameters."
+      );
+      expect(result.errors.some(e => e.includes("OpenShift 4.20"))).toBe(false);
+    });
+
+    it("invalid Nutanix config with explicit 4.21 produces the same neutral messages without version reference", () => {
+      const state = {
+        ...makeNutanixState({ credentialsMode: "Passthrough", controlPlaneReplicas: 5 }),
+        version: { selectedMinor: "4.21", selectedPatch: "4.21.5" },
+      };
+      const result = validateStep(state, "networking");
+      expect(result.errors).toContain(
+        "Nutanix IPI requires credentialsMode Manual per the OpenShift Nutanix installation documentation."
+      );
+      expect(result.errors).toContain(
+        "Nutanix IPI supports control plane replicas 3 for a standard or compact three-node cluster, or 1 for single-node OpenShift, per the OpenShift Nutanix installation configuration parameters."
+      );
+      expect(result.errors.some(e => e.includes("OpenShift 4.21"))).toBe(false);
+    });
+
+    it("direct validation at a supported 4.22 cannot cause version-specific Nutanix messages", () => {
+      const state = {
+        ...makeNutanixState({ credentialsMode: "Passthrough", controlPlaneReplicas: 5 }),
+        version: { selectedMinor: "4.22", selectedPatch: "4.22.0" },
+      };
+      const result = validateStep(state, "networking");
+      expect(result.errors.some(e => e.includes("OpenShift 4.22"))).toBe(false);
+    });
+
+    it("validation result remains a flat array of strings", () => {
+      const state = makeNutanixState({ credentialsMode: "Passthrough" });
+      const result = validateStep(state, "networking");
+      expect(Array.isArray(result.errors)).toBe(true);
+      result.errors.forEach(e => expect(typeof e).toBe("string"));
+    });
+  });
+
+  describe("IBM Cloud version-neutral IPv4 validation messages", () => {
+    const makeIbmCloudState = (networkingOverrides = {}) => ({
+      blueprint: { platform: "IBM Cloud" },
+      methodology: { method: "IPI" },
+      platformConfig: {
+        ibmcloud: {
+          region: "us-east",
+          vpcMode: "existing-vpc",
+          networkResourceGroupName: "rg",
+          vpcName: "vpc",
+          controlPlaneSubnets: "sub-cp",
+          computeSubnets: "sub-compute",
+        },
+      },
+      globalStrategy: {
+        networking: {
+          machineNetworkV4: "10.0.0.0/16",
+          clusterNetworkCidr: "10.128.0.0/14",
+          serviceNetworkCidr: "172.30.0.0/16",
+          ...networkingOverrides,
+        },
+      },
+      credentials: {
+        usingMirrorRegistry: true,
+        mirrorRegistryUnauthenticated: true,
+      },
+    });
+
+    it("populated machineNetworkV6 produces exact IPv4-only message", () => {
+      const state = makeIbmCloudState({ machineNetworkV6: "fd00::/48" });
+      const result = validateStep(state, "networking");
+      expect(result.errors).toContain(
+        "IBM Cloud install-config networking supports IPv4 addresses only."
+      );
+    });
+
+    it("populated clusterNetworkCidrV6 produces exact IPv4-only message", () => {
+      const state = makeIbmCloudState({ clusterNetworkCidrV6: "fd01::/48" });
+      const result = validateStep(state, "networking");
+      expect(result.errors).toContain(
+        "IBM Cloud install-config clusterNetwork supports IPv4 addresses only."
+      );
+    });
+
+    it("populated serviceNetworkCidrV6 produces exact IPv4-only message", () => {
+      const state = makeIbmCloudState({ serviceNetworkCidrV6: "fd02::/112" });
+      const result = validateStep(state, "networking");
+      expect(result.errors).toContain(
+        "IBM Cloud install-config serviceNetwork supports IPv4 addresses only."
+      );
+    });
+
+    it("IPv4-only IBM Cloud state produces none of the IPv6 rejection messages", () => {
+      const state = makeIbmCloudState();
+      const result = validateStep(state, "networking");
+      const ibmIpv4Messages = [
+        "IBM Cloud install-config networking supports IPv4 addresses only.",
+        "IBM Cloud install-config clusterNetwork supports IPv4 addresses only.",
+        "IBM Cloud install-config serviceNetwork supports IPv4 addresses only.",
+      ];
+      for (const msg of ibmIpv4Messages) {
+        expect(result.errors).not.toContain(msg);
+      }
+    });
+
+    it.each([
+      { label: "4.20", version: { selectedMinor: "4.20", selectedPatch: "4.20.15" } },
+      { label: "4.21", version: { selectedMinor: "4.21", selectedPatch: "4.21.5" } },
+      { label: "4.22", version: { selectedMinor: "4.22", selectedPatch: "4.22.0" } },
+    ])("version $label produces the same neutral message without version reference", ({ label, version }) => {
+      const state = { ...makeIbmCloudState({ machineNetworkV6: "fd00::/48" }), version };
+      const result = validateStep(state, "networking");
+      expect(result.errors).toContain(
+        "IBM Cloud install-config networking supports IPv4 addresses only."
+      );
+      expect(result.errors.some(e => e.includes(`OpenShift ${label}`))).toBe(false);
+    });
+
+    it("validation result remains a flat array of strings", () => {
+      const state = makeIbmCloudState({
+        machineNetworkV6: "fd00::/48",
+        clusterNetworkCidrV6: "fd01::/48",
+        serviceNetworkCidrV6: "fd02::/112",
+      });
+      const result = validateStep(state, "networking");
+      expect(Array.isArray(result.errors)).toBe(true);
+      result.errors.forEach(e => expect(typeof e).toBe("string"));
+    });
+  });
+
+  describe("AWS subnet-role version-neutral validation message", () => {
+    const makeAwsState = (subnetEntries, publishOverride) => ({
+      blueprint: { platform: "AWS GovCloud" },
+      methodology: { method: "IPI" },
+      platformConfig: {
+        aws: {
+          region: "us-gov-west-1",
+          vpcMode: "existing",
+          subnetEntries,
+        },
+        publish: publishOverride || "External",
+      },
+      credentials: {
+        usingMirrorRegistry: true,
+        mirrorRegistryUnauthenticated: true,
+      },
+    });
+
+    it("external cluster missing a required role produces exact neutral message", () => {
+      const partialRoles = AWS_SUBNET_ROLES_REQUIRED_EXTERNAL.slice(1);
+      const entries = [
+        { id: "subnet-aaa", roles: partialRoles },
+      ];
+      const state = makeAwsState(entries);
+      const result = validateStep(state, "platform-specifics");
+      const missingRole = AWS_SUBNET_ROLES_REQUIRED_EXTERNAL[0];
+      expect(result.errors).toContain(
+        `Subnet roles must include "${missingRole}" on at least one subnet per the OpenShift AWS installation documentation.`
+      );
+    });
+
+    it("external cluster with complete required role set produces no missing-role error", () => {
+      const entries = [
+        { id: "subnet-aaa", roles: [...AWS_SUBNET_ROLES_REQUIRED_EXTERNAL] },
+      ];
+      const state = makeAwsState(entries);
+      const result = validateStep(state, "platform-specifics");
+      expect(result.errors.some(e => e.includes("Subnet roles must include"))).toBe(false);
+    });
+
+    it("internal cluster does not require ControlPlaneExternalLB", () => {
+      const entries = [
+        { id: "subnet-aaa", roles: [...AWS_SUBNET_ROLES_REQUIRED_INTERNAL] },
+      ];
+      const state = makeAwsState(entries, "Internal");
+      const result = validateStep(state, "platform-specifics");
+      expect(result.errors.some(e => e.includes('"ControlPlaneExternalLB"'))).toBe(false);
+    });
+
+    it("internal cluster still enforces ClusterNode", () => {
+      const rolesWithoutClusterNode = AWS_SUBNET_ROLES_REQUIRED_INTERNAL.filter(
+        r => r !== "ClusterNode"
+      );
+      const entries = [
+        { id: "subnet-aaa", roles: rolesWithoutClusterNode },
+      ];
+      const state = makeAwsState(entries, "Internal");
+      const result = validateStep(state, "platform-specifics");
+      expect(result.errors).toContain(
+        'Subnet roles must include "ClusterNode" on at least one subnet per the OpenShift AWS installation documentation.'
+      );
+    });
+
+    it("subnet with ID but no roles produces per-subnet role error", () => {
+      const entries = [
+        { id: "subnet-aaa", roles: ["ClusterNode"] },
+        { id: "subnet-bbb", roles: [] },
+      ];
+      const state = makeAwsState(entries);
+      const result = validateStep(state, "platform-specifics");
+      expect(result.errors).toContain(
+        "When subnet roles are used, each subnet must have at least one role."
+      );
+    });
+
+    it.each([
+      { label: "4.20", version: { selectedMinor: "4.20", selectedPatch: "4.20.15" } },
+      { label: "4.21", version: { selectedMinor: "4.21", selectedPatch: "4.21.5" } },
+    ])("version $label produces the same neutral missing-role message without version reference", ({ label, version }) => {
+      const partialRoles = AWS_SUBNET_ROLES_REQUIRED_EXTERNAL.slice(1);
+      const entries = [{ id: "subnet-aaa", roles: partialRoles }];
+      const state = { ...makeAwsState(entries), version };
+      const result = validateStep(state, "platform-specifics");
+      const missingRole = AWS_SUBNET_ROLES_REQUIRED_EXTERNAL[0];
+      expect(result.errors).toContain(
+        `Subnet roles must include "${missingRole}" on at least one subnet per the OpenShift AWS installation documentation.`
+      );
+      expect(result.errors.some(e => e.includes(`${label} doc`))).toBe(false);
+    });
+
+    it("unsupported-version boundary preserved — 4.23 after the 4.22 flip", () => {
+      const partialRoles = AWS_SUBNET_ROLES_REQUIRED_EXTERNAL.slice(1);
+      const entries = [{ id: "subnet-aaa", roles: partialRoles }];
+      const state = {
+        ...makeAwsState(entries),
+        version: { selectedMinor: "4.23", selectedPatch: "4.23.0" },
+      };
+      let thrownError;
+      try {
+        validateStep(state, "platform-specifics");
+      } catch (e) {
+        thrownError = e;
+      }
+      expect(thrownError).toBeInstanceOf(UnsupportedVersionError);
+      expect(thrownError.requestedVersion).toBe("4.23");
+      expect(thrownError.supportedVersions).toContain("4.20");
+      expect(thrownError.supportedVersions).toContain("4.21");
+      expect(thrownError.supportedVersions).toContain("4.22");
+    });
+
+    it("validation result remains a flat array of strings", () => {
+      const partialRoles = AWS_SUBNET_ROLES_REQUIRED_EXTERNAL.slice(1);
+      const entries = [{ id: "subnet-aaa", roles: partialRoles }];
+      const state = makeAwsState(entries);
+      const result = validateStep(state, "platform-specifics");
+      expect(Array.isArray(result.errors)).toBe(true);
+      result.errors.forEach(e => expect(typeof e).toBe("string"));
     });
   });
 });

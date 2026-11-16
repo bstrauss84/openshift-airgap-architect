@@ -1,10 +1,15 @@
-import React, { useEffect, useRef, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../api.js";
 import { useApp } from "../store.jsx";
-import { validateBlueprintPullSecretOptional, validateManualOpenShiftRelease } from "../validation.js";
+import { getVersionLocked } from "../shared/versionHelpers.js";
+import { validateBlueprintPullSecretOptional } from "../validation.js";
 import SecretInput from "../components/SecretInput.jsx";
 import { sortChannelsBySemverDescending, getNewestChannel } from "../shared/cincinnatiChannels.js";
-import PreloadedConfigBanner from "../components/PreloadedConfigBanner.jsx";
+import PreloadedConfigBanner from "../components/PreloadedConfigBanner.jsx";import Button from "../components/Button.jsx";
+import ReleaseSelector from "../components/ReleaseSelector.jsx";
+import { useOpenShiftRelease } from "../hooks/useOpenShiftRelease.js";
+import { listArchSupportForBlueprint, renderableArchitectures } from "../archSupportResolver.js";
+import { reconcileMethodForPlatform } from "../../../shared/installMethods.js";
 
 const archOptions = [
   { value: "x86_64", label: "x86_64", sub: "Intel/AMD" },
@@ -13,15 +18,41 @@ const archOptions = [
   { value: "s390x", label: "s390x", sub: "IBM Z" }
 ];
 
-/** OCP 4.20 supported architectures per platform (from platform-specific install docs). */
-const PLATFORM_ARCH_SUPPORT = {
-  "Bare Metal":       ["x86_64", "aarch64", "ppc64le", "s390x"],
-  "VMware vSphere":   ["x86_64", "aarch64"],
-  "Nutanix":          ["x86_64"],
-  "AWS GovCloud":     ["x86_64", "aarch64"],
-  "Azure Government": ["x86_64"],
-  "IBM Cloud":        ["x86_64"]
-};
+/**
+ * Target-cluster architecture support is resolved from the canonical D3 matrix
+ * (`data/arch-support/<minor>.json`) via `archSupportResolver`. It is keyed by
+ * OpenShift minor AND install method, and every cell carries a reason.
+ *
+ * This replaced a platform-keyed `PLATFORM_ARCH_SUPPORT` constant that had no
+ * minor, no install method and no citation, and whose
+ * `|| archOptions.map(...)` fallback opened all four architectures for any
+ * unrecognised platform. See DOC-156.
+ *
+ * This is the TARGET-CLUSTER axis only. The `openshift-install` / `oc` /
+ * `oc-mirror` download architecture on the Review step is a different axis and
+ * is not governed by this matrix.
+ *
+ * WHICH CARDS EXIST, VERSUS WHICH ARE ENABLED (DOC-215)
+ *
+ * `archOptions` is the full set of architectures the product models. Two
+ * separate questions are asked about it, and they must not be collapsed:
+ *
+ *   - ENABLED: does the CURRENTLY selected platform x method x minor offer it?
+ *     `archSupportByValue` answers per card. A closed card still renders,
+ *     disabled, carrying the matrix's own reason — e.g. aarch64 on vSphere,
+ *     which the user can reach by switching to bare metal.
+ *   - RENDERED AT ALL: is there ANY currently supported scenario, on any
+ *     modelled platform x method pair at any supported minor, that offers it?
+ *     `renderableArchitectures()` answers this from the same canonical matrix.
+ *     An architecture with no such scenario can never be enabled by anything
+ *     the user does, so a permanently dead control is misleading noise.
+ *
+ * Today that hides ppc64le (IBM Power) and s390x (IBM Z), because OAA models
+ * no IBM Power or IBM Z platform. It is NOT a claim that OpenShift lacks
+ * support for them — the matrix's `upstreamSupport` evidence is untouched, and
+ * nothing here names an architecture. Onboard an IBM platform and mark a cell
+ * `supported` and the card returns with no change to this file.
+ */
 
 const platformOptions = [
   { value: "Bare Metal", label: "Bare Metal", rec: "Rec: Agent" },
@@ -32,45 +63,36 @@ const platformOptions = [
   { value: "IBM Cloud", label: "IBM Cloud", rec: "Rec: IPI" }
 ];
 
-const JOB_TERMINAL = new Set(["completed", "failed", "cancelled"]);
-
-async function pollJobUntilTerminal(jobId, { timeoutMs = 120000 } = {}) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const job = await apiFetch(`/api/jobs/${jobId}`);
-    if (JOB_TERMINAL.has(job.status)) return job;
-    await new Promise((r) => setTimeout(r, 400));
-  }
-  throw new Error("Timed out waiting for Cincinnati refresh job.");
-}
-
-const BlueprintStep = () => {
+const BlueprintStep = ({ onRequestChangeRelease }) => {
   const { state, updateState } = useApp();
   const blueprint = state.blueprint;
   const release = state.release;
   const version = state.version || {};
   const locked = blueprint?.confirmed;
   const releaseLocked = version?.versionConfirmed ?? release?.confirmed;
-  const mirrorBundleDetected = blueprint?.mirrorBundleDetected ?? false;
+  const mirrorBundleDetected = blueprint?.mirrorBundleDetected ?? false;  const releaseLocked = getVersionLocked(state);
 
-  const [channels, setChannels] = useState([]);
-  const [patches, setPatches] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [patchesLoading, setPatchesLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshNote, setRefreshNote] = useState("");
-  const [updatedMessage, setUpdatedMessage] = useState(false);
+  // Release selection is shared with Mirroring (useOpenShiftRelease). This
+  // adapter reproduces Blueprint's previous writes exactly, including the
+  // install-domain side effect that marks operator selections stale whenever
+  // the release changes. MUST stay the first hook with effects in this
+  // component: its mount/abort effect is the lifecycle guard every later
+  // effect here relies on (see useOpenShiftRelease).
+  const releaseSelection = useOpenShiftRelease({
+    release,
+    version,
+    locked: releaseLocked,
+    writeRelease: (nextRelease, { manual } = {}) =>
+      updateState(manual
+        ? { release: nextRelease, operators: { ...state.operators, stale: true } }
+        : { release: nextRelease }),
+    writeVersion: (nextVersion) =>
+      updateState({ version: nextVersion, operators: { ...state.operators, stale: true } }),
+    onRefreshJobFailed: (jobId) => updateState({ ui: { ...(state.ui || {}), highlightJobId: jobId } })
+  });
+  const { mountedRef, abortRef } = releaseSelection;
   const [mountedSecretBadge, setMountedSecretBadge] = useState(false);
-  const [refreshError, setRefreshError] = useState("");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [manualMinor, setManualMinor] = useState("");
-  const [manualPatch, setManualPatch] = useState("");
-  const [manualApplyError, setManualApplyError] = useState("");
-  const [showImportWarning, setShowImportWarning] = useState(true);
-  /** Suppress automatic patch fetch for N `release.channel` effect runs (forced refresh + StrictMode). */
-  const channelPatchAutoFetchSuppressRef = useRef(0);
-  const prevAdvancedOpenRef = useRef(false);
-  const patchFetchGenerationRef = useRef(0);
+
   const blueprintPullSecretRaw = state.blueprint?.blueprintPullSecretEphemeral ?? "";
   const blueprintPullSecretTrimmed = blueprintPullSecretRaw.trim();
   const blueprintPullSecretError = useMemo(() => {
@@ -79,243 +101,101 @@ const BlueprintStep = () => {
     return r.valid ? "" : r.error;
   }, [blueprintPullSecretTrimmed]);
 
-  const allowedArchs = PLATFORM_ARCH_SUPPORT[blueprint?.platform] || archOptions.map((a) => a.value);
+  // Keyed by PLATFORM, not by the methodology in state. Methodology is a later
+  // step, so on Blueprint `state.methodology.method` is the shipped default or
+  // a stale choice from a previous platform. Keying on it made
+  // `getScenarioId` return null for every platform that does not offer that
+  // method — Nutanix, AWS GovCloud, Azure Government and IBM Cloud — and a null
+  // scenario resolves to "no answer", which renders as every architecture
+  // greyed out, x86_64 included. See listArchSupportForBlueprint.
+  const archSupport = useMemo(
+    () => listArchSupportForBlueprint(state),
+    // Only the inputs the matrix is keyed by. Re-resolving on every state change
+    // would rebuild the cells on each keystroke elsewhere in the step.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [blueprint?.platform, state.methodology?.method, version?.selectedMinor, version?.selectedVersion, release?.channel, release?.patchVersion]
+  );
+  const archSupportByValue = useMemo(
+    () => new Map(archSupport.cells.map((c, i) => [c.architecture ?? archOptions[i].value, c])),
+    [archSupport]
+  );
+  const allowedArchs = archSupport.cells.filter((c) => c.offered).map((c, i) => c.architecture ?? archOptions[i].value);
+
+  // Cards to render at all. Derived from the canonical matrix, not from a list
+  // of architecture names here: an architecture no supported minor offers on
+  // any modelled scenario cannot be enabled by any user action, so it is not
+  // drawn. Independent of the current platform — see the header comment.
+  const visibleArchOptions = useMemo(() => {
+    const renderable = new Set(renderableArchitectures());
+    return archOptions.filter((option) => renderable.has(option.value));
+  }, []);
+
+  /**
+   * Selecting a platform also reconciles the installation method.
+   *
+   * Without this, state can hold a (platform, method) pair the product does not
+   * model — e.g. Nutanix + Agent-Based Installer, reachable in one click from
+   * the shipped defaults. That pair has no scenarioId, so the architecture
+   * matrix, the step's own validation and the generator each have to invent an
+   * answer for it. Reconciling at the point of change keeps the three layers
+   * looking at the same scenario. The user's method is preserved whenever it is
+   * still valid for the new platform; `MethodologyStep` applies the identical
+   * rule from the same table.
+   */
+  const selectPlatform = (platform) => {
+    const method = reconcileMethodForPlatform(platform, state.methodology?.method);
+    // Same blueprint patch `updateBlueprint` applies, including clearing the
+    // confirmation — changing the platform must re-open the lock-in.
+    const patch = {
+      blueprint: { ...blueprint, platform, confirmed: false, confirmationTimestamp: null },
+    };
+    if (method && method !== state.methodology?.method) {
+      patch.methodology = { ...(state.methodology || {}), method };
+    }
+    updateState(patch);
+  };
 
   const updateBlueprint = (patch) => {
     if (locked) return;
     updateState({ blueprint: { ...blueprint, ...patch, confirmed: false, confirmationTimestamp: null } });
   };
 
-  // When platform changes, reset arch to x86_64 if the current selection is no longer supported.
+  // If the selected architecture stops being offered — because the platform, the
+  // install method or the OpenShift minor changed — fall back to the first
+  // architecture that IS offered rather than assuming x86_64 is always valid.
+  // Nothing is reset while no architecture can be resolved: that state means
+  // "not decidable yet", not "unsupported".
   useEffect(() => {
     if (locked) return;
-    const supported = PLATFORM_ARCH_SUPPORT[blueprint?.platform];
-    if (supported && blueprint?.arch && !supported.includes(blueprint.arch)) {
-      updateState({ blueprint: { ...blueprint, arch: "x86_64", confirmed: false, confirmationTimestamp: null } });
+    if (allowedArchs.length === 0) return;
+    if (blueprint?.arch && !allowedArchs.includes(blueprint.arch)) {
+      const next = allowedArchs.includes("x86_64") ? "x86_64" : allowedArchs[0];
+      updateState({ blueprint: { ...blueprint, arch: next, confirmed: false, confirmationTimestamp: null } });
     }
-  }, [blueprint?.platform]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowedArchs.join(","), locked]);
 
-  // Check for a mounted Red Hat pull secret and pre-populate if the field is empty and not locked.
+  // Report whether a mounted Red Hat pull secret exists on the server.
+  //
+  // This used to follow up with /api/secrets/rh-pull-secret/content and
+  // pre-fill the textarea below with the raw credential. That endpoint is
+  // withdrawn: the backend has no authentication, so it handed the operator's
+  // pull secret to anyone who could reach the API. The secret no longer
+  // enters the browser at all.
+  //
+  // Only the boolean is fetched now, and it drives an informational badge.
+  // The field is deliberately left empty — a mounted secret being present is
+  // not the same as the operator having chosen to use it here.
   useEffect(() => {
-    if (locked || blueprintPullSecretTrimmed) return;
-    apiFetch("/api/secrets/rh-pull-secret")
+    if (locked) return;
+    const signal = abortRef.current?.signal;
+    apiFetch("/api/secrets/rh-pull-secret", { signal })
       .then((d) => {
-        if (!d.available) return;
-        return apiFetch("/api/secrets/rh-pull-secret/content").then((c) => {
-          if (c.pullSecret) {
-            updateBlueprint({ blueprintPullSecretEphemeral: c.pullSecret });
-            setMountedSecretBadge(true);
-          }
-        });
+        if (!mountedRef.current) return;
+        setMountedSecretBadge(Boolean(d.available));
       })
       .catch(() => {});
   }, []);
-
-  const updateVersionSelection = (patch) => {
-    updateState({
-      version: {
-        selectedChannel: version.selectedChannel ?? (release?.channel ? `stable-${release.channel}` : null),
-        selectedVersion: version.selectedVersion ?? release?.patchVersion,
-        selectionTimestamp: version.selectionTimestamp ?? Date.now(),
-        confirmedByUser: false,
-        confirmationTimestamp: null,
-        versionConfirmed: false,
-        ...patch
-      },
-      operators: {
-        ...state.operators,
-        stale: true
-      }
-    });
-  };
-
-  useEffect(() => {
-    setLoading(true);
-    apiFetch("/api/cincinnati/channels")
-      .then((data) => {
-        setChannels(sortChannelsBySemverDescending(data.channels || []));
-        if (!data.channels?.length && !releaseLocked) {
-          updateState({
-            release: { ...release, channel: null, patchVersion: null, confirmed: false, followLatestMinor: true }
-          });
-          updateVersionSelection({ selectedChannel: null, selectedVersion: null, selectionTimestamp: Date.now() });
-        }
-        if (!releaseLocked && !release?.channel && data.channels?.length) {
-          const channel = getNewestChannel(data.channels);
-          if (channel) {
-            updateState({
-              release: { ...release, channel, followLatestMinor: true, confirmed: false }
-            });
-            updateVersionSelection({ selectedChannel: `stable-${channel}`, selectedVersion: null, selectionTimestamp: Date.now() });
-          }
-        }
-      })
-      .finally(() => {
-        setLoading(false);
-        apiFetch("/api/cincinnati/update", { method: "POST" })
-          .then((data) => {
-            if (data.channels?.length) {
-              setChannels(sortChannelsBySemverDescending(data.channels));
-            }
-          })
-          .catch(() => {});
-      });
-  }, []);
-
-  const fetchPatches = async (channel, force = false) => {
-    if (!channel) return;
-    if (force && channel !== release?.channel) {
-      channelPatchAutoFetchSuppressRef.current = 1;
-    }
-    const gen = ++patchFetchGenerationRef.current;
-    setPatchesLoading(true);
-    setPatches([]);
-    const endpoint = force ? "/api/cincinnati/patches/update" : "/api/cincinnati/patches";
-    try {
-      const data = force
-        ? await apiFetch(endpoint, { method: "POST", body: JSON.stringify({ channel }) })
-        : await apiFetch(`${endpoint}?channel=${encodeURIComponent(channel)}`);
-      if (gen !== patchFetchGenerationRef.current) return;
-      setPatches(data.versions || []);
-      if (releaseLocked) {
-        return;
-      }
-      if (data.versions?.length) {
-        const patchVersion = data.versions[0];
-        updateState({ release: { ...release, channel, patchVersion, confirmed: false } });
-        updateVersionSelection({
-          selectedChannel: `stable-${channel}`,
-          selectedVersion: patchVersion,
-          selectionTimestamp: Date.now()
-        });
-      } else {
-        updateState({ release: { ...release, channel, patchVersion: null, confirmed: false } });
-        updateVersionSelection({
-          selectedChannel: `stable-${channel}`,
-          selectedVersion: null,
-          selectionTimestamp: Date.now()
-        });
-      }
-    } finally {
-      setPatchesLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!release?.channel) return;
-    if (channelPatchAutoFetchSuppressRef.current > 0) {
-      channelPatchAutoFetchSuppressRef.current -= 1;
-      return;
-    }
-    fetchPatches(release.channel).catch(() => setPatchesLoading(false));
-  }, [release?.channel]);
-
-  useEffect(() => {
-    const wasOpen = prevAdvancedOpenRef.current;
-    if (advancedOpen && !wasOpen) {
-      setManualMinor(String(release?.channel ?? ""));
-      setManualPatch(String(release?.patchVersion ?? ""));
-    }
-    prevAdvancedOpenRef.current = advancedOpen;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-seed when the panel opens; release is read from the render that opened it.
-  }, [advancedOpen]);
-
-  const updateChannel = (channel) => {
-    if (releaseLocked) return;
-    // User explicitly changed minor: drop stale patch list / in-flight fetches from manual entry or prior channel.
-    channelPatchAutoFetchSuppressRef.current = 0;
-    patchFetchGenerationRef.current += 1;
-    setPatches([]);
-    setPatchesLoading(true);
-    updateState({
-      release: { ...release, channel, patchVersion: null, confirmed: false, followLatestMinor: false }
-    });
-    updateVersionSelection({ selectedChannel: `stable-${channel}`, selectedVersion: null, selectionTimestamp: Date.now() });
-  };
-
-  const updatePatch = (patchVersion) => {
-    if (releaseLocked) return;
-    updateState({ release: { ...release, patchVersion, confirmed: false } });
-    updateVersionSelection({ selectedChannel: `stable-${release.channel}`, selectedVersion: patchVersion, selectionTimestamp: Date.now() });
-  };
-
-  const refresh = async () => {
-    setRefreshing(true);
-    setRefreshError("");
-    setRefreshNote("Queuing Cincinnati refresh…");
-    try {
-      const { jobId } = await apiFetch("/api/cincinnati/refresh-job", {
-        method: "POST",
-        body: JSON.stringify({ preferredChannel: release?.channel || null })
-      });
-      setRefreshNote("Refresh running—Operations shows live progress…");
-      const job = await pollJobUntilTerminal(jobId);
-      if (job.status !== "completed") {
-        const outLines = job.output ? String(job.output).trim().split("\n").filter(Boolean) : [];
-        const msg =
-          (job.message && String(job.message).trim()) ||
-          outLines[outLines.length - 1] ||
-          "Cincinnati refresh failed.";
-        setRefreshError(String(msg));
-        updateState({ ui: { ...(state.ui || {}), highlightJobId: jobId } });
-        return;
-      }
-      const chRes = await apiFetch("/api/cincinnati/channels");
-      const newChannels = sortChannelsBySemverDescending(chRes.channels || []);
-      setChannels(newChannels);
-      if (newChannels.length === 0) {
-        setUpdatedMessage(true);
-        setTimeout(() => setUpdatedMessage(false), 5000);
-        return;
-      }
-      const newestChannel = getNewestChannel(newChannels);
-      const followLatest = release?.followLatestMinor === true;
-      let channelToLoad;
-      if (releaseLocked) {
-        channelToLoad = release?.channel || newestChannel;
-      } else if (followLatest) {
-        channelToLoad = newestChannel;
-      } else {
-        const cur = release?.channel;
-        channelToLoad = cur && newChannels.includes(cur) ? cur : newestChannel;
-      }
-      await fetchPatches(channelToLoad, false);
-      setUpdatedMessage(true);
-      setTimeout(() => setUpdatedMessage(false), 5000);
-    } catch (e) {
-      setPatchesLoading(false);
-      setRefreshError(e?.message || String(e));
-    } finally {
-      setRefreshNote("");
-      setRefreshing(false);
-    }
-  };
-
-  const applyManualRelease = () => {
-    setManualApplyError("");
-    const r = validateManualOpenShiftRelease(manualMinor, manualPatch);
-    if (!r.ok) {
-      setManualApplyError(r.errors[0]);
-      return;
-    }
-    const minor = manualMinor.trim();
-    const patch = manualPatch.trim();
-    if (minor !== (release?.channel || "")) {
-      channelPatchAutoFetchSuppressRef.current = 2;
-      patchFetchGenerationRef.current += 1;
-    }
-    updateState({
-      release: { ...release, channel: minor, patchVersion: patch, confirmed: false, followLatestMinor: false },
-      operators: { ...state.operators, stale: true }
-    });
-    updateVersionSelection({
-      selectedChannel: `stable-${minor}`,
-      selectedVersion: patch,
-      selectionTimestamp: Date.now()
-    });
-    setPatches([patch]);
-    setRefreshError("");
-  };
 
   return (
     <div className="step">
@@ -329,58 +209,29 @@ const BlueprintStep = () => {
       <div className="step-body">
         {locked ? (
           <div className="note warning" style={{ marginBottom: 16 }}>
-            Foundational selections are locked. Use Start Over to change platform, architecture, or release.
+            {releaseLocked
+              ? "Foundational selections are locked."
+              : "Platform and architecture are locked. Edit the release below and confirm to proceed."}
           </div>
         ) : null}
-        {state.ui?.isImported && showImportWarning ? (
-          <div className="note warning" style={{ marginBottom: 16, position: "relative" }}>
-            <button
-              type="button"
-              onClick={() => setShowImportWarning(false)}
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "1.2rem",
-                lineHeight: 1,
-                padding: "4px 8px",
-                color: "inherit",
-                opacity: 0.7
-              }}
-              aria-label="Dismiss warning"
-              title="Dismiss this warning"
-            >
-              ×
-            </button>
-            <strong>Import complete – Credentials excluded for security</strong>
-            <p style={{ marginTop: 8, marginBottom: 0 }}>
-              For security, credentials were <strong>not included</strong> in the exported state.
-              You will need to re-enter:
-            </p>
-            <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 24 }}>
-              <li><strong>Pull secrets</strong> (Red Hat, mirror registry, operators) – below and in Platform Specifics</li>
-              <li><strong>SSH keys</strong> – Identity & Access step</li>
-              <li><strong>Certificates</strong> (mirror registry CA, proxy CA) – Trust & Proxy step</li>
-              <li><strong>Platform credentials</strong> (vCenter, BMC, etc.) – Platform Specifics step</li>
-              <li><strong>Proxy credentials</strong> – Trust & Proxy step</li>
-            </ul>
-          </div>
-        ) : null}
+        {/* PHX-033/035: the post-import follow-up notice now lives in App.jsx
+            (ImportFollowUpNotice), above every step, and lists only what the
+            imported run actually needs. */}
         <section className="card">
           <h3>Target Platform</h3>
           <div className="grid">
             {platformOptions.map((option) => (
               <button
                 key={option.value}
+                type="button"
                 className={`select-card ${blueprint?.platform === option.value ? "selected" : ""}`}
+                aria-pressed={blueprint?.platform === option.value}
                 disabled={locked}
-                onClick={() => updateBlueprint({ platform: option.value })}
+                onClick={() => selectPlatform(option.value)}
               >
                 <div className="card-title">{option.label}</div>
                 <div className="card-sub">{option.rec}</div>
+                <span className="select-card-check" aria-hidden="true">✓ Selected</span>
               </button>
             ))}
           </div>
@@ -392,18 +243,25 @@ const BlueprintStep = () => {
             Target cluster host/node architecture (the machines that will run OpenShift). Not your local workstation or browser machine.
           </p>
           <div className="grid">
-            {archOptions.map((option) => {
-              const isSupported = allowedArchs.includes(option.value);
+            {visibleArchOptions.map((option) => {
+              const cell = archSupportByValue.get(option.value);
+              const isSupported = Boolean(cell?.offered);
               return (
                 <button
                   key={option.value}
+                  type="button"
                   className={`select-card ${blueprint?.arch === option.value ? "selected" : ""}`}
+                  aria-pressed={blueprint?.arch === option.value}
                   disabled={locked || !isSupported}
-                  title={!isSupported ? `Not supported on ${blueprint?.platform || "this platform"}` : undefined}
+                  // The matrix carries a reason for every closed cell, so the
+                  // tooltip can name the OpenShift minor and the documentation
+                  // instead of the old version-blind "Not supported on <platform>".
+                  title={!isSupported ? cell?.summary || "Not available for this platform and installation method." : undefined}
                   onClick={() => updateBlueprint({ arch: option.value })}
                 >
                   <div className="card-title">{option.label}</div>
                   <div className="card-sub">{option.sub}</div>
+                  <span className="select-card-check" aria-hidden="true">✓ Selected</span>
                 </button>
               );
             })}
@@ -443,109 +301,26 @@ const BlueprintStep = () => {
           {refreshError ? (
             <div className="note" style={{ marginBottom: 12, color: "var(--danger, #c62828)" }} role="alert">
               {refreshError}
-            </div>
+            </div>        <ReleaseSelector
+          selection={releaseSelection}
+          release={release}
+          idPrefix="blueprint"
+          headerActions={locked && releaseLocked && onRequestChangeRelease ? (
+            <Button variant="secondary" onClick={onRequestChangeRelease}>
+              Change release
+            </Button>
           ) : null}
-          <div className="field-grid" style={{ alignItems: "flex-end", gap: "0.5rem 1rem" }}>
-            <label className="label-emphasis" style={{ minWidth: "10rem" }}>
-              Minor channel
-              <select
-                value={release?.channel ?? ""}
-                disabled={releaseLocked}
-                onChange={(e) => updateChannel(e.target.value || null)}
-              >
-                <option value="" disabled>Select channel</option>
-                {release?.channel && !channels.includes(release.channel) ? (
-                  <option key={`manual-ch-${release.channel}`} value={release.channel}>
-                    stable-{release.channel} (manual)
-                  </option>
-                ) : null}
-                {channels.map((ch) => (
-                  <option key={ch} value={ch}>stable-{ch}</option>
-                ))}
-              </select>
-            </label>
-            <label className="label-emphasis" style={{ minWidth: "10rem" }}>
-              Patch version
-              <select
-                value={release?.patchVersion ?? ""}
-                disabled={releaseLocked || patchesLoading || !release?.channel}
-                onChange={(e) => updatePatch(e.target.value || null)}
-              >
-                <option value="" disabled>Select patch</option>
-                {release?.patchVersion && !patches.includes(release.patchVersion) ? (
-                  <option key={`manual-pv-${release.patchVersion}`} value={release.patchVersion}>
-                    {release.patchVersion} (manual)
-                  </option>
-                ) : null}
-                {patches.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {loading ? <div className="loading">Loading channels…</div> : null}
-          {patchesLoading && release?.channel ? <div className="loading">Loading patches…</div> : null}
-          <details
-            className="subtle"
-            style={{ marginTop: 12, marginBottom: 8 }}
-            onToggle={(e) => setAdvancedOpen(e.target.open)}
-          >
-            <summary style={{ cursor: "pointer", fontWeight: 600 }}>Advanced: set release manually</summary>
-            <p className="note" style={{ marginTop: 10, marginBottom: 8 }}>
-              Use only when Cincinnati lists are empty or wrong for your environment. Verify versions against the{" "}
-              <a
-                href="https://github.com/openshift/cincinnati-graph-data/tree/master/channels"
-                target="_blank"
-                rel="noreferrer"
-              >
-                openshift/cincinnati-graph-data channels
-              </a>{" "}
-              tree for your disconnected reality before locking the blueprint.
+          footer={(
+            <p className="note note-prominent">
+              Operator scans are blocked until you lock these selections.
+              {releaseLocked ? " Release is locked." : ""}
             </p>
-            <div className="field-grid" style={{ alignItems: "flex-end", gap: "0.5rem 1rem", maxWidth: "32rem" }}>
-              <label className="label-emphasis">
-                Minor (e.g. 4.17)
-                <input
-                  type="text"
-                  data-testid="blueprint-manual-minor"
-                  value={manualMinor}
-                  disabled={releaseLocked}
-                  onChange={(e) => setManualMinor(e.target.value)}
-                  placeholder="4.17"
-                  autoComplete="off"
-                />
-              </label>
-              <label className="label-emphasis">
-                Patch (e.g. 4.17.12)
-                <input
-                  type="text"
-                  data-testid="blueprint-manual-patch"
-                  value={manualPatch}
-                  disabled={releaseLocked}
-                  onChange={(e) => setManualPatch(e.target.value)}
-                  placeholder="4.17.12"
-                  autoComplete="off"
-                />
-              </label>
-              <button type="button" className="primary" data-testid="blueprint-manual-apply" onClick={applyManualRelease} disabled={releaseLocked}>
-                Apply
-              </button>
-            </div>
-            {manualApplyError ? (
-              <div className="note" style={{ marginTop: 8, color: "var(--danger, #c62828)" }} role="alert">
-                {manualApplyError}
-              </div>
-            ) : null}
-          </details>
-          <p className="note note-prominent">
-            Operator scans are blocked until you lock these selections.
-            {releaseLocked ? " Release is locked; use Start Over to change it." : ""}
-          </p>
-        </section>
+          )}
+        />
 
         <section className="card pull-secret-section">
           <h3>Red Hat pull secret</h3>
-          {mountedSecretBadge && blueprintPullSecretTrimmed && (
+          {mountedSecretBadge && !blueprintPullSecretTrimmed && (
             <div style={{
               display: "inline-block",
               marginBottom: 10,
@@ -556,7 +331,10 @@ const BlueprintStep = () => {
               border: "1px solid var(--border-color)",
               color: "var(--text-subtle)"
             }}>
-              Pre-populated from a mounted pull secret file — you can override or clear this.
+              A mounted pull secret was detected on the server. Its contents are
+              never sent to the browser. The mirror steps can authenticate with it
+              directly — choose &ldquo;mounted&rdquo; there. Paste one here only to use a
+              different secret.
             </div>
           )}
           <div className="pull-secret-layout">
@@ -564,7 +342,10 @@ const BlueprintStep = () => {
               <SecretInput
                 value={blueprintPullSecretRaw}
                 onChange={(v) => {
-                  if (!v.trim()) setMountedSecretBadge(false);
+                  // The badge now reports a server-side fact — whether a
+                  // mounted secret exists — so it is no longer cleared by
+                  // editing this field. Its visibility is driven by whether
+                  // the field is empty, at the render site above.
                   updateBlueprint({ blueprintPullSecretEphemeral: v });
                 }}
                 label="Pull secret (JSON)"

@@ -1,15 +1,76 @@
-# Allowlist only. Gitleaks uses default rules; this file prevents obvious false positives.
-# Do not add rules here that weaken secret detection.
-[allowlist]
+# Gitleaks configuration.
+#
+# POLICY: allowlist-only. Do not add rules here that weaken secret detection, and do not
+# add a path/stopword exception without a proven false positive and a negative control.
+#
+# [extend] useDefault IS LOAD-BEARING. Without it gitleaks loads ZERO rules from this
+# file and every scan passes vacuously. That was the state until the Tranche 1.5 security
+# gate tested the config against runtime-generated synthetic secrets: a GitHub PAT, a
+# private key, a Slack bot token and two generic API keys were all missed, by this file
+# and therefore by scripts/check-secrets.sh and the check-secrets pre-commit hook.
+# scripts/security/gitleaks-selftest.sh proves the rules are live; it runs inside the
+# tranche security gate so the vacuum cannot silently return.
+
+[extend]
+useDefault = true
+
+# Pre-existing global allowlist, unchanged in substance. Converted from the deprecated
+# singular [allowlist] form, which gitleaks 8.30 refuses to load alongside [[allowlists]].
+# Default condition is OR, matching the original block's behaviour.
+[[allowlists]]
 description = "Test fixtures, mock data, schema placeholders; OKD dummy pull secret (auth only)"
 paths = [
   "frontend/tests/fixtures/",
   "backend/mock-data/",
   "backend/test/fixtures/",
   "backend/test/.*test\\.js$",
+  "e2e/",
   "schema/"
 ]
-# OKD-documented dummy for unauthenticated registry (https://github.com/orgs/okd-project/discussions/1930).
-# Only this exact value is allowlisted; no other pull-secret content is permitted.
-# Test password "secret123" is a fake credential used in unit tests only.
-stopwords = ["aWQ6cGFzcwo=", "secret123"]
+# EXACT-VALUE allowlist (stopwords). This is the NARROWEST mechanism gitleaks offers:
+# it matches one literal string, not a path, not a directory, not a rule. Every entry
+# below was individually triaged and proven non-secret.
+#
+#   aWQ6cGFzcwo=              -> "id:pass"            OKD-documented dummy for an
+#                                                      unauthenticated registry
+#   dXNlcm5hbWU6cGFzc3dvcmQ=  -> "username:password"  literal placeholder
+#   dGVzdDp0ZXN0              -> "test:test"          e2e mock pull secret
+#   bWlycm9yOnRlc3Q=          -> "mirror:test"        e2e mock mirror pull secret
+#   ZXhhbXBsZTpzZWNyZXQ=      -> "example:secret"     fixture for oc-mirror log redaction test
+#   NutanixTestPass123        -> literal test password in e2e fixtures
+#   eyJhbGciOiJIUzI1NiIs...   -> TRUNCATED JWT prefix in docs/API.md
+#   nutanixApiVIPV6           -> validation field key in frontend/src/validation.js
+#   secret123                 -> fake credential used in backend unit test fixtures only
+stopwords = [
+  "aWQ6cGFzcwo=",
+  "dXNlcm5hbWU6cGFzc3dvcmQ=",
+  "dGVzdDp0ZXN0",
+  "bWlycm9yOnRlc3Q=",
+  "ZXhhbXBsZTpzZWNyZXQ=",
+  "NutanixTestPass123",
+  "eyJhbGciOiJIUzI1NiIs...",
+  "nutanixApiVIPV6",
+  "secret123",
+  "pr0xy-s3cret",
+  "proxyuser",
+  "vSphereTestPass123",
+  "FakeKeyForE2ETestingPurposesOnly",
+]
+
+# ---------------------------------------------------------------------------
+# Narrow false positive: upstream Git SHA-1 provenance, not a credential.
+#
+# data/oc-mirror-v2/imageset-config-schema.json records the exact openshift/oc-mirror
+# commit its ImageSetConfiguration schema was derived from (DOC-166). A 40-hex Git SHA-1
+# matches the default generic-api-key entropy heuristic.
+#
+# condition = "AND" IS LOAD-BEARING. Gitleaks combines allowlist criteria with OR by
+# default, so path + regex without it means "exempt anything in this file".
+# ---------------------------------------------------------------------------
+[[allowlists]]
+description = "DOC-166 provenance Git SHA-1 in imageset-config-schema.json apiCommit"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''data/oc-mirror-v2/imageset-config-schema\.json$''']
+regexes = ['''"apiCommit"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"''']
+regexTarget = "line"

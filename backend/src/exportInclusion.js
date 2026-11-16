@@ -47,4 +47,39 @@ const canonicalizeExportOptions = (exportOptions = {}) => {
   };
 };
 
-export { defaultSecretInclusion, resolveSecretInclusion, deriveLegacyFlagsFromInclusion, canonicalizeExportOptions };
+// DOC-177. The "Proxy values" export switch. When it is off, every proxy value the
+// user configured is replaced by an explicit marker in the exported bundle's
+// generated files (install-config.yaml and the Field Manual). The proxy block is
+// deliberately NOT omitted: an install-config without it silently describes a
+// cluster with no proxy, which is a different cluster. A marker keeps the
+// requirement visible and is not a proxy URL, so it cannot be mistaken for one.
+// Values the user never set stay empty, so no proxy is invented.
+//
+// This governs proxy ENDPOINTS only. Userinfo embedded in a proxy URL is a
+// credential and stays under the credential-inclusion contract (DOC-176), which
+// still applies when this switch is on.
+const PROXY_VALUE_MARKERS = Object.freeze({
+  httpProxy: "REPLACE_WITH_HTTP_PROXY_URL",
+  httpsProxy: "REPLACE_WITH_HTTPS_PROXY_URL",
+  noProxy: "REPLACE_WITH_NO_PROXY_LIST"
+});
+
+const applyProxyValueInclusion = (state) => {
+  if (resolveSecretInclusion(state?.exportOptions || {}).proxyValues !== false) return state;
+  const proxies = state?.globalStrategy?.proxies;
+  if (!proxies || typeof proxies !== "object") return state;
+  const redacted = { ...proxies };
+  for (const [key, marker] of Object.entries(PROXY_VALUE_MARKERS)) {
+    if (typeof proxies[key] === "string" && proxies[key].trim()) redacted[key] = marker;
+  }
+  return { ...state, globalStrategy: { ...state.globalStrategy, proxies: redacted } };
+};
+
+export {
+  defaultSecretInclusion,
+  resolveSecretInclusion,
+  deriveLegacyFlagsFromInclusion,
+  canonicalizeExportOptions,
+  PROXY_VALUE_MARKERS,
+  applyProxyValueInclusion
+};

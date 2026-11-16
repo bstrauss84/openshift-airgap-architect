@@ -1,0 +1,24 @@
+apiVersion: mirror.openshift.io/v1alpha2
+kind: ImageSetConfiguration
+archiveSize: 4
+storageConfig:
+  registry:
+    imageURL: example.com/mirror/oc-mirror-metadata
+    skipTLS: false
+mirror:
+ platform:
+   architectures:
+     - "s390x"
+   channels:
+     - name: stable-{product-version}
+ operators:
+   - catalog: registry.redhat.io/redhat/redhat-operator-index:v{product-version}
+ helm:
+   repositories:
+     - name: redhat-helm-charts
+       url: https://raw.githubusercontent.com/redhat-developer/redhat-helm-charts/master
+       charts:
+         - name: ibm-mongodb-enterprise-helm
+           version: 0.2.0
+ additionalImages:
+   - name: registry.redhat.io/ubi9/ubi:latest

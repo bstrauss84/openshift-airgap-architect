@@ -3,35 +3,195 @@
 
 /**
  * Single entrypoint for param catalog authority checks (CI + local).
- * Runs: docs-index schema, validate-catalog, docs-index↔frontend parity, catalog↔frontend parity,
- * agent networkConfig path kebab guard, buildNmState generator guard.
+ *
+ * Runs, in order:
+ *   - docs-index schema                       (all minors present on disk)
+ *   - validate-catalog                        (recursive over data/params, all minors)
+ *   - docs-index <-> frontend parity          (once per supported minor)
+ *   - catalog   <-> frontend parity           (once per supported minor)
+ *   - agent networkConfig path kebab guard    (canonical + frontend trees)
+ *   - buildNmState generator guard
+ *   - architecture-support matrix             (all minors present on disk)
+ *
+ * Supported minors come from the canonical version policy, not from an
+ * argument. Previously this took `process.argv[2] || "4.20"` and passed that
+ * single value to both parity children, so CI — which passes no argument —
+ * never parity-checked any minor except 4.20. With three minors arriving that
+ * blind spot grows, so the list is now iterated.
+ *
+ * Every check runs even if an earlier one fails, and a PASS/FAIL summary is
+ * printed at the end. Exiting on the first failure meant a single red check
+ * masked the health of every check behind it — which is exactly the state this
+ * gate was in: one data-schema failure hid the fact that catalog parity was
+ * also broken. Exit status is still nonzero if anything failed, so the gate is
+ * no weaker; it is only more legible.
  */
 
 const { spawnSync } = require("child_process");
 const path = require("path");
+const { getSupportedMinors } = require("./lib/supported-minors");
 
 const repoRoot = path.resolve(__dirname, "..");
 const node = process.execPath;
 
-function run(scriptRelative, args = []) {
-  const script = path.join(repoRoot, scriptRelative);
-  const r = spawnSync(node, [script, ...args], { stdio: "inherit", cwd: repoRoot });
-  if (r.status !== 0) process.exit(r.status ?? 1);
+/** Checks whose failures are catalog CONTENT, versus checks that prove tooling/mechanism health. */
+const KIND = { DATA: "data", MECHANISM: "mechanism" };
+
+function run(results, { label, kind, script, args = [] }) {
+  console.log(`\n--- ${label} ---`);
+  const r = spawnSync(node, [path.join(repoRoot, script), ...args], {
+    stdio: "inherit",
+    cwd: repoRoot,
+  });
+  const status = r.status ?? 1;
+  results.push({ label, kind, status });
+  return status;
 }
 
-function main() {
-  const version = process.argv[2] || "4.20";
-  run("scripts/validate-docs-index.js");
-  run("scripts/validate-catalog.js", ["data/params"]);
-  run("scripts/validate-docs-index-frontend-parity.js", [version]);
-  run("scripts/validate-catalog-frontend-parity.js", [version]);
-  run("scripts/validate-catalog-agent-networkconfig-paths.js", ["data/params"]);
-  run("scripts/validate-catalog-agent-networkconfig-paths.js", [
-    path.join("frontend", "src", "data", "catalogs")
-  ]);
-  run("scripts/validate-agent-nmstate-generator.js");
-  console.log("validate-param-authority: all checks passed.");
-  process.exit(0);
+async function main() {
+  let supportedMinors;
+  try {
+    supportedMinors = await getSupportedMinors();
+  } catch (err) {
+    console.error(`validate-param-authority: ${err.message}`);
+    process.exit(1);
+  }
+
+  console.log(`validate-param-authority: supported minors = ${supportedMinors.join(", ")}`);
+
+  const results = [];
+
+  run(results, {
+    label: "docs-index schema (all minors)",
+    kind: KIND.MECHANISM,
+    script: "scripts/validate-docs-index.js",
+  });
+
+  run(results, {
+    label: "catalog schema v2.0.0 (recursive, all minors)",
+    kind: KIND.DATA,
+    script: "scripts/validate-catalog.js",
+    args: ["data/params"],
+  });
+
+  for (const minor of supportedMinors) {
+    run(results, {
+      label: `docs-index frontend parity ${minor}`,
+      kind: KIND.MECHANISM,
+      script: "scripts/validate-docs-index-frontend-parity.js",
+      args: [minor],
+    });
+  }
+
+  for (const minor of supportedMinors) {
+    run(results, {
+      label: `catalog frontend parity ${minor}`,
+      kind: KIND.MECHANISM,
+      script: "scripts/validate-catalog-frontend-parity.js",
+      args: [minor],
+    });
+  }
+
+  run(results, {
+    label: "agent networkConfig kebab-case paths (canonical)",
+    kind: KIND.DATA,
+    script: "scripts/validate-catalog-agent-networkconfig-paths.js",
+    args: ["data/params"],
+  });
+
+  run(results, {
+    label: "agent networkConfig kebab-case paths (frontend mirror)",
+    kind: KIND.DATA,
+    script: "scripts/validate-catalog-agent-networkconfig-paths.js",
+    args: [path.join("frontend", "src", "data", "catalogs")],
+  });
+
+  run(results, {
+    label: "buildNmState generator guard",
+    kind: KIND.MECHANISM,
+    script: "scripts/validate-agent-nmstate-generator.js",
+  });
+
+  // Architecture-support matrix (D3 / DOC-156). Registered here rather than as a
+  // new npm script so it has a CI home from the commit that introduces the data:
+  // an unguarded data surface is how the platform-keyed arch table came to assert
+  // more than its evidence supported. Not minor-scoped — it validates every file
+  // in data/arch-support/, including minors that are not yet supported.
+  run(results, {
+    label: "architecture-support matrix (all minors)",
+    kind: KIND.DATA,
+    script: "scripts/validate-arch-support.js",
+  });
+
+  // Canonical -> frontend architecture projection. Registered here for the same
+  // reason as the matrix above: `sync-arch-support.js --check` already existed
+  // but had no npm script and no CI home, unlike its sync-catalogs and
+  // sync-docs-index siblings, so a stale projection could ship unnoticed.
+  // Tranche 7C.
+  run(results, {
+    label: "architecture-support projection parity (canonical -> frontend)",
+    kind: KIND.DATA,
+    script: "scripts/sync-arch-support.js",
+    args: ["--check"],
+  });
+
+  // Platform x installation-method scenario surface. A first-class onboarding
+  // axis: a newly supported combination (Nutanix + Agent) can appear with no
+  // change to fields or architectures, so no other guard here can see it.
+  // Tranche 7C.1.
+  run(results, {
+    label: "platform x methodology scenario surface (all supported minors)",
+    kind: KIND.DATA,
+    script: "scripts/validate-scenario-support.js",
+  });
+
+  // The human-readable evidence ledger is generated from the two authorities
+  // above, so a disposition change that is not reflected in the ledger means
+  // the research record has gone stale. Tranche 7C.2.
+  run(results, {
+    label: "architecture evidence ledger is in sync with the data",
+    kind: KIND.DATA,
+    script: "scripts/gen-architecture-evidence-ledger.js",
+    args: ["--check"],
+  });
+
+  // Frontend production runtime (PROD-026). Registered here for the same
+  // reason as the two above: the single-stage Vite-dev-server image shipped
+  // its whole devDependency tree for an entire release cycle because nothing
+  // in CI asserted what the final image actually runs. Tranche 7C.1.
+  run(results, {
+    label: "frontend production runtime (PROD-026)",
+    kind: KIND.MECHANISM,
+    script: "scripts/validate-frontend-runtime.js",
+  });
+
+  const failed = results.filter((r) => r.status !== 0);
+
+  console.log("\n=== validate-param-authority summary ===");
+  for (const r of results) {
+    console.log(`  ${r.status === 0 ? "PASS" : "FAIL"}  [${r.kind}]  ${r.label}`);
+  }
+
+  if (failed.length === 0) {
+    console.log("\nvalidate-param-authority: all checks passed.");
+    process.exit(0);
+  }
+
+  const failedMechanism = failed.filter((r) => r.kind === KIND.MECHANISM);
+  console.log(
+    `\n${failed.length} check(s) failed ` +
+      `(${failedMechanism.length} mechanism, ${failed.length - failedMechanism.length} data).`
+  );
+  if (failedMechanism.length === 0) {
+    console.log(
+      "All failures are catalog CONTENT failures. No tooling, parity or schema\n" +
+        "mechanism defect is hiding inside this output."
+    );
+  }
+  process.exit(1);
 }
 
-main();
+main().catch((err) => {
+  console.error(`validate-param-authority: unexpected failure: ${err.stack || err.message}`);
+  process.exit(1);
+});

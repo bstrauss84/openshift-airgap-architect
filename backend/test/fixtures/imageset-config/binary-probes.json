@@ -1,0 +1,436 @@
+{
+ "_about": "Verdicts of the exact global oc-mirror binary (4.22.19, component ed9ff0d, binary sha256 55b55cf1...) for each probe document, recorded 2026-10-26 with `oc-mirror --v2 -c <file> file://<dir> --dry-run` and an isolated HOME. 'decoded-then-failed-at-run' means the configuration loaded and validated, then failed while collecting content (often for lack of registry access in the probe). `architect` is what backend/src/imagesetConfigValidator.js must return. Regenerate only by re-running the probes against a verified binary.",
+ "probes": [
+  {
+   "id": "01-valid",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "accepted"
+   },
+   "architect": {
+    "verdict": "valid"
+   }
+  },
+  {
+   "id": "02-api-v1alpha2",
+   "yaml": "apiVersion: mirror.openshift.io/v1alpha2\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "accepted"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "INVALID_VALUE"
+   }
+  },
+  {
+   "id": "03-api-missing",
+   "yaml": "kind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "accepted"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "REQUIRED"
+   }
+  },
+  {
+   "id": "04-kind-missing",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] configuration missing `kind`"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "REQUIRED"
+   }
+  },
+  {
+   "id": "05-mirror-missing",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\narchiveSize: 4\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] configuration missing the `mirror` stanza"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "REQUIRED"
+   }
+  },
+  {
+   "id": "06-archive-string",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\narchiveSize: \"4\"\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: cannot unmarshal string into Go struct field ImageSetConfiguration.ImageSetConfigurationSpec.archiveSize of type int64"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "WRONG_TYPE"
+   }
+  },
+  {
+   "id": "07-archive-float",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\narchiveSize: 4.5\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: cannot unmarshal number 4.5 into Go struct field ImageSetConfiguration.ImageSetConfigurationSpec.archiveSize of type int64"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "WRONG_TYPE"
+   }
+  },
+  {
+   "id": "08-graph-string",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  platform:\n    graph: \"yes\"\n    channels:\n    - name: stable-4.22\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: cannot unmarshal string into Go struct field Platform.ImageSetConfigurationSpec.mirror.platform.graph of type bool"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "WRONG_TYPE"
+   }
+  },
+  {
+   "id": "09-chan-type-bad",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  platform:\n    channels:\n    - name: stable-4.22\n      type: foo\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "accepted"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "INVALID_VALUE"
+   }
+  },
+  {
+   "id": "10-addimg-string",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - quay.io/a/b:1\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: cannot unmarshal string into Go struct field Mirror.ImageSetConfigurationSpec.mirror.additionalImages of type v2alpha1.AdditionalImage"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "WRONG_TYPE"
+   }
+  },
+  {
+   "id": "11-op-no-catalog",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  operators:\n  - packages:\n    - name: web-terminal\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] invalid configuration: unknown image : reference name is empty"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "REQUIRED"
+   }
+  },
+  {
+   "id": "12-dup-key",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n  additionalImages:\n  - name: quay.io/a/b:1\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] failed to unmarshal config: error converting YAML to JSON: yaml: unmarshal errors:"
+   },
+   "architect": {
+    "verdict": "parse",
+    "code": "DUPLICATE_KEY"
+   }
+  },
+  {
+   "id": "13-alias",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - &a {name: quay.io/a/b:1}\n  - *a\n",
+   "binary": {
+    "verdict": "accepted"
+   },
+   "architect": {
+    "verdict": "valid"
+   }
+  },
+  {
+   "id": "14-multidoc",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n---\napiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: quay.io/second/doc:1\n",
+   "binary": {
+    "verdict": "accepted"
+   },
+   "architect": {
+    "verdict": "parse",
+    "code": "MULTIPLE_DOCUMENTS"
+   }
+  },
+  {
+   "id": "15-chan-no-name",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  platform:\n    channels:\n    - type: ocp\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "decoded-then-failed-at-run",
+    "error": "[Executor] collection error: [GetReleaseReferenceImages] no release images found"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "REQUIRED"
+   }
+  },
+  {
+   "id": "16-addimg-empty-name",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: \"\"\n",
+   "binary": {
+    "verdict": "decoded-then-failed-at-run",
+    "error": "[Executor] collection error: parse image \"\": unknown image : reference name is empty"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "REQUIRED"
+   }
+  },
+  {
+   "id": "17-op-minver-bad",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  operators:\n  - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.22\n    packages:\n    - name: web-terminal\n      channels:\n      - name: fast\n        minVersion: abc\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] invalid configuration: catalog \"registry.redhat.io/redhat/redhat-operator-index:v4.22\": operator \"web-terminal\": channel \"fast\": minVersion \"abc\" must respect semantic versioning notation"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "NOT_SEMVER"
+   }
+  },
+  {
+   "id": "18-blocked-strings",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n  blockedImages:\n  - docker.io/library/alpine\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] decode ImageSetConfiguration: json: cannot unmarshal string into Go struct field Mirror.ImageSetConfigurationSpec.mirror.blockedImages of type v2alpha1.BlockedImage"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "WRONG_TYPE"
+   }
+  },
+  {
+   "id": "19-arch-bad",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  platform:\n    architectures: [foo]\n    channels:\n    - name: stable-4.22\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "decoded-then-failed-at-run",
+    "error": "[Executor] collection error: [GetReleaseReferenceImages] no release images found"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "INVALID_VALUE"
+   }
+  },
+  {
+   "id": "20b-kindother",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: DeleteImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] cannot parse \"DeleteImageSetConfiguration\" as \"ImageSetConfiguration\""
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "INVALID_VALUE"
+   }
+  },
+  {
+   "id": "20c-kindpod",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: Pod\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] cannot parse \"Pod\" as \"ImageSetConfiguration\""
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "INVALID_VALUE"
+   }
+  },
+  {
+   "id": "21-mirror-empty",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror: {}\n",
+   "binary": {
+    "verdict": "decoded-then-failed-at-run",
+    "error": "[Executor] no images to copy"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "EMPTY_MIRROR"
+   }
+  },
+  {
+   "id": "22-mirror-null",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n",
+   "binary": {
+    "verdict": "decoded-then-failed-at-run",
+    "error": "[Executor] no images to copy"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "REQUIRED"
+   }
+  },
+  {
+   "id": "23-op-no-packages",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  operators:\n  - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.22\n",
+   "binary": {
+    "verdict": "decoded-then-failed-at-run",
+    "error": "[Executor] collection error: collect catalog \"registry.redhat.io/redhat/redhat-operator-index:v4.22\": get manifest: error when creating a new image source: unable to retrieve auth token: invalid username/password: unauthorized: Please login to the Red Hat Registry using your Customer Portal credenti"
+   },
+   "architect": {
+    "verdict": "valid"
+   }
+  },
+  {
+   "id": "24-pkg-no-name",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  operators:\n  - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.22\n    packages:\n    - channels:\n      - name: fast\n",
+   "binary": {
+    "verdict": "decoded-then-failed-at-run",
+    "error": "[Executor] collection error: collect catalog \"registry.redhat.io/redhat/redhat-operator-index:v4.22\": get manifest: error when creating a new image source: unable to retrieve auth token: invalid username/password: unauthorized: Please login to the Red Hat Registry using your Customer Portal credenti"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "REQUIRED"
+   }
+  },
+  {
+   "id": "25-dup-pkg",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  operators:\n  - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.22\n    packages:\n    - name: web-terminal\n    - name: web-terminal\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] invalid configuration: catalog \"registry.redhat.io/redhat/redhat-operator-index:v4.22\": duplicate package entry \"web-terminal\""
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "DUPLICATE_ENTRY"
+   }
+  },
+  {
+   "id": "26-mixed-filters",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  operators:\n  - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.22\n    packages:\n    - name: web-terminal\n      minVersion: 1.0.0\n      channels:\n      - name: fast\n        maxVersion: 1.9.0\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] invalid configuration: catalog \"registry.redhat.io/redhat/redhat-operator-index:v4.22\": operator \"web-terminal\": mixing both filtering by minVersion/maxVersion and filtering by channel minVersion/maxVersion is not allowed"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "MIXED_VERSION_FILTERS"
+   }
+  },
+  {
+   "id": "27-api-bogus",
+   "yaml": "apiVersion: nonsense/v9\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "accepted"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "INVALID_VALUE"
+   }
+  },
+  {
+   "id": "28-catalog-bad-ref",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  operators:\n  - catalog: 'Not A Ref!!'\n    packages:\n    - name: x\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] invalid configuration: Not A Ref!! unable to parse image correctly : tag and digest are empty"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "INVALID_IMAGE_REFERENCE"
+   }
+  },
+  {
+   "id": "29-archive-negative",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\narchiveSize: -3\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "accepted"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "OUT_OF_RANGE"
+   }
+  },
+  {
+   "id": "30-dup-chan",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  platform:\n    channels:\n    - name: stable-4.22\n    - name: stable-4.22\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] invalid configuration: release channel \"stable-4.22\": duplicate found in configuration"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "DUPLICATE_ENTRY"
+   }
+  },
+  {
+   "id": "31-addimg-bad-ref",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: 'no spaces allowed here'\n",
+   "binary": {
+    "verdict": "decoded-then-failed-at-run",
+    "error": "[Executor] collection error: parse image \"no spaces allowed here\": no spaces allowed here unable to parse image correctly : tag and digest are empty"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "INVALID_IMAGE_REFERENCE"
+   }
+  },
+  {
+   "id": "32-yaml-tag",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: !!binary aGVsbG8=\n",
+   "binary": {
+    "verdict": "decoded-then-failed-at-run",
+    "error": "[Executor] collection error: parse image \"hello\": hello unable to parse image correctly : tag and digest are empty"
+   },
+   "architect": {
+    "verdict": "parse",
+    "code": "UNSUPPORTED_TAG"
+   }
+  },
+  {
+   "id": "33-lowercase-key",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  additionalimages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "accepted"
+   },
+   "architect": {
+    "verdict": "valid",
+    "code": "KEY_CASE"
+   }
+  },
+  {
+   "id": "34-case-dup",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: example.invalid/one/one@sha256:0000000000000000000000000000000000000000000000000000000000000000\n  additionalimages:\n  - name: example.invalid/two/two@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "accepted"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "DUPLICATE_KEY_CASE"
+   }
+  },
+  {
+   "id": "35-Kind-upper",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nKind: ImageSetConfiguration\nmirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] configuration missing `kind`"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "UNKNOWN_FIELD"
+   }
+  },
+  {
+   "id": "36-Mirror-upper",
+   "yaml": "apiVersion: mirror.openshift.io/v2alpha1\nkind: ImageSetConfiguration\nMirror:\n  additionalImages:\n  - name: example.invalid/none/none@sha256:0000000000000000000000000000000000000000000000000000000000000000\n",
+   "binary": {
+    "verdict": "rejected",
+    "error": "[Executor] configuration missing the `mirror` stanza"
+   },
+   "architect": {
+    "verdict": "invalid",
+    "code": "UNKNOWN_FIELD"
+   }
+  }
+ ]
+}

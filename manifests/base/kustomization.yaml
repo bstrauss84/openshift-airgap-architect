@@ -1,9 +1,18 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+# `secret.yaml` IS DELIBERATELY NOT LISTED. It is a template to read, not a
+# resource to apply.
+#
+# It declares `airgap-architect-secrets` with empty `stringData`, and the guide
+# tells you to create that Secret out of tree with your real pull secret. `oc
+# apply` three-way merges and an empty string is a present value, so applying
+# this overlay afterwards would overwrite your credential with "". The file
+# stays as documentation of the expected keys; creating the Secret is an
+# operator step. See manifests/README.md and the same correction for
+# `airgap-architect-proxy` in manifests/openshift/kustomization.yaml.
 resources:
   - configmap.yaml
-  - secret.yaml
   - pvc.yaml
   - backend-deployment.yaml
   - backend-service.yaml

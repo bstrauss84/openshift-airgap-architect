@@ -11,6 +11,8 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../store.jsx";
 import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
+import { isParamVisibleForVersion } from "../catalogFieldMeta.js";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { formatIpv4Cidr, formatIpv6Cidr } from "../formatUtils.js";
 import { ipv6CidrOverlaps } from "../validation.js";
 import { useAutoSelect } from "../hooks/useAutoSelect.js";
@@ -314,7 +316,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
     setLocalIngressVipV6(hostInventory.ingressVipV6 ?? "");
   }, [hostInventory.ingressVipV6]);
 
-  const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
+  const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG, state) || [];
   const isRequired = (path) => requiredPaths.includes(path);
   const nodes = hostInventory.nodes || [];
   const masterCount = nodes.filter((n) => n.role === "master").length;
@@ -328,14 +330,14 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
     (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && masterCount === 1 && workerCount === 0;
   const vipsRequiredForBareMetalAgent = !isAgentSno;
 
-  const metaApiVip = getParamMeta(scenarioId, "platform.baremetal.apiVIP", INSTALL_CONFIG);
-  const metaIngressVip = getParamMeta(scenarioId, "platform.baremetal.ingressVIP", INSTALL_CONFIG);
-  const metaApiVips = getParamMeta(scenarioId, "platform.baremetal.apiVIPs", INSTALL_CONFIG);
-  const metaIngressVips = getParamMeta(scenarioId, "platform.baremetal.ingressVIPs", INSTALL_CONFIG);
-  const metaApiVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.apiVIPs", INSTALL_CONFIG);
-  const metaIngressVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.ingressVIPs", INSTALL_CONFIG);
-  const metaNutanixApiVIP = getParamMeta(scenarioId, "platform.nutanix.apiVIP", INSTALL_CONFIG);
-  const metaNutanixIngressVIP = getParamMeta(scenarioId, "platform.nutanix.ingressVIP", INSTALL_CONFIG);
+  const metaApiVip = getParamMeta(scenarioId, "platform.baremetal.apiVIP", INSTALL_CONFIG, state);
+  const metaIngressVip = getParamMeta(scenarioId, "platform.baremetal.ingressVIP", INSTALL_CONFIG, state);
+  const metaApiVips = getParamMeta(scenarioId, "platform.baremetal.apiVIPs", INSTALL_CONFIG, state);
+  const metaIngressVips = getParamMeta(scenarioId, "platform.baremetal.ingressVIPs", INSTALL_CONFIG, state);
+  const metaApiVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.apiVIPs", INSTALL_CONFIG, state);
+  const metaIngressVipsVsphere = getParamMeta(scenarioId, "platform.vsphere.ingressVIPs", INSTALL_CONFIG, state);
+  const metaNutanixApiVIP = getParamMeta(scenarioId, "platform.nutanix.apiVIP", INSTALL_CONFIG, state);
+  const metaNutanixIngressVIP = getParamMeta(scenarioId, "platform.nutanix.ingressVIP", INSTALL_CONFIG, state);
 
   const overlapMessages = [];
   if (cidrOverlaps(networking.machineNetworkV4, networking.clusterNetworkCidr)) {
@@ -360,28 +362,37 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
     overlapMessages.push("Cluster network IPv6 CIDR overlaps with service network IPv6 CIDR.");
   }
 
-  const catalogParams = getCatalogForScenario(scenarioId) || [];
+  // No baseline substitution: this used to read `|| "4.20"`, which silently
+  // presented 4.20 parameter metadata for a run whose minor was not known. With
+  // no selected minor there is no catalog to read, so the parameter set is
+  // empty — see catalogPaths.getCatalogForScenario, which now refuses a missing
+  // minor outright rather than defaulting.
+  const selectedMinor = getOpenShiftMinorFromState(state);
+  const catalogParams = (selectedMinor ? getCatalogForScenario(scenarioId, selectedMinor) : null) || [];
   const hasNetworkingParam = (path) =>
     catalogParams.some((p) => p.path === path && p.outputFile === INSTALL_CONFIG);
-  const showBareMetalVips = catalogParams.some(
-    (p) =>
-      (p.path === "platform.baremetal.apiVIP" ||
-        p.path === "platform.baremetal.ingressVIP" ||
-        p.path === "platform.baremetal.apiVIPs" ||
-        p.path === "platform.baremetal.ingressVIPs") &&
-      p.outputFile === INSTALL_CONFIG
-  );
-  const showVsphereIpiVips = scenarioId === "vsphere-ipi";
-  const showVsphereAgentVips = catalogParams.some(
-    (p) => p.path === "platform.vsphere.apiVIPs" && p.outputFile === INSTALL_CONFIG
-  );
-  const showNutanixIpiVips = catalogParams.some(
-    (p) => p.path === "platform.nutanix.apiVIP" && p.outputFile === INSTALL_CONFIG
-  );
+  const isCatalogFieldVisible = (path, outputFile) => {
+    const param = catalogParams.find(
+      (entry) => entry.path === path && entry.outputFile === outputFile
+    );
+    return isParamVisibleForVersion(param, selectedMinor);
+  };
+  const showBareMetalVips =
+    isCatalogFieldVisible("platform.baremetal.apiVIP", INSTALL_CONFIG) ||
+    isCatalogFieldVisible("platform.baremetal.ingressVIP", INSTALL_CONFIG) ||
+    isCatalogFieldVisible("platform.baremetal.apiVIPs", INSTALL_CONFIG) ||
+    isCatalogFieldVisible("platform.baremetal.ingressVIPs", INSTALL_CONFIG);
+  const showVsphereIpiApiVips = scenarioId === "vsphere-ipi" && isCatalogFieldVisible("platform.vsphere.apiVIPs", INSTALL_CONFIG);
+  const showVsphereIpiIngressVips = scenarioId === "vsphere-ipi" && isCatalogFieldVisible("platform.vsphere.ingressVIPs", INSTALL_CONFIG);
+  const showVsphereIpiVips = showVsphereIpiApiVips || showVsphereIpiIngressVips;
+  const showVsphereAgentApiVips = isCatalogFieldVisible("platform.vsphere.apiVIPs", INSTALL_CONFIG);
+  const showVsphereAgentIngressVips = isCatalogFieldVisible("platform.vsphere.ingressVIPs", INSTALL_CONFIG);
+  const showVsphereAgentVips = showVsphereAgentApiVips || showVsphereAgentIngressVips;
+  const showNutanixIpiVips = isCatalogFieldVisible("platform.nutanix.apiVIP", INSTALL_CONFIG);
   const showApiIngressVips = showBareMetalVips || showVsphereIpiVips || showVsphereAgentVips || showNutanixIpiVips;
   const showMachineNetwork = hasNetworkingParam("networking.machineNetwork[].cidr");
   const showClusterNetwork = hasNetworkingParam("networking.clusterNetwork[].cidr");
-  const showServiceNetwork = hasNetworkingParam("networking.serviceNetwork");
+  const showServiceNetwork = isCatalogFieldVisible("networking.serviceNetwork", INSTALL_CONFIG);
   // Support both ipStackMode (current) and enableIpv6 (legacy) for backward compatibility
   const ipStackMode = hostInventory.ipStackMode || (hostInventory.enableIpv6 ? 'dual-stack' : 'ipv4');
   const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
@@ -434,7 +445,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
         ) : null}
         {isIbmCloudIpi ? (
           <Banner variant="info">
-            IBM Cloud disconnected install in OpenShift 4.20 documents IPv4-only networking. Use machine, cluster, and service IPv4 CIDRs; dual-stack and IPv6 fields are intentionally disabled for this scenario.
+            IBM Cloud disconnected install documents IPv4-only networking. Use machine, cluster, and service IPv4 CIDRs; dual-stack and IPv6 fields are intentionally disabled for this scenario.
           </Banner>
         ) : null}
         {scenarioId === "nutanix-ipi" ? (
@@ -461,7 +472,7 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
           <div className="card-body">
             {isIpv4OnlyScenario ? (
               <p className="note" style={{ marginTop: 0, marginBottom: 8 }}>
-                This scenario supports IPv4-only networking in OpenShift 4.20. Dual-stack and IPv6 are not available.
+                This scenario supports IPv4-only networking. Dual-stack and IPv6 are not available.
               </p>
             ) : (
               <>
@@ -482,11 +493,11 @@ export default function NetworkingV2Step({ highlightErrors, fieldErrors = {} }) 
                 </OptionRow>
                 {ipStackMode === 'ipv6' ? (
                   <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
-                    IPv6-only mode: Only IPv6 networks and VIPs will be configured. OpenShift 4.20 supports IPv6-only deployments on bare metal and vSphere platforms (Agent, IPI, and UPI methods). All cluster components will use IPv6 addressing exclusively.
+                    IPv6-only mode: Only IPv6 networks and VIPs will be configured. OpenShift supports IPv6-only deployments on bare metal and vSphere platforms (Agent, IPI, and UPI methods). All cluster components will use IPv6 addressing exclusively.
                   </p>
                 ) : ipStackMode === 'dual-stack' ? (
                   <p className="note" style={{ marginTop: 8, marginBottom: 0 }}>
-                    Dual-stack mode: Both IPv4 and IPv6 fields for machine, cluster, and service networks appear together. OpenShift 4.20 documents dual-stack install-config styles for several on-prem platforms (e.g. Agent-based on vSphere/bare metal); Nutanix IPI supports dual-stack networking and VIP lists when you set both IPv4 and IPv6 machine CIDRs and VIPs (see Installing on Nutanix and installation-config-parameters-nutanix). Defaults apply for optional IPv6 CIDRs when left blank. Machine CIDRs are used for node and VIP validation.
+                    Dual-stack mode: Both IPv4 and IPv6 fields for machine, cluster, and service networks appear together. OpenShift documents dual-stack install-config styles for several on-prem platforms (e.g. Agent-based on vSphere/bare metal); Nutanix IPI supports dual-stack networking and VIP lists when you set both IPv4 and IPv6 machine CIDRs and VIPs (see Installing on Nutanix and installation-config-parameters-nutanix). Defaults apply for optional IPv6 CIDRs when left blank. Machine CIDRs are used for node and VIP validation.
                   </p>
                 ) : null}
               </>
@@ -567,7 +578,7 @@ This is often the **main IPv6 network you customize** - other networks (cluster/
 • /56 = common for enterprise networks
 
 **Important:**
-⚠️ OpenShift 4.20 supports IPv6-only on bare metal and vSphere platforms (Agent, IPI, UPI methods)
+⚠️ OpenShift supports IPv6-only on bare metal and vSphere platforms (Agent, IPI, UPI methods)
 
 **Examples:**
 • Private network: fd10:90::/64
@@ -912,7 +923,7 @@ Only if fd02::/112 conflicts with existing infrastructure networks (rare - ULA a
             <div className="card-body">
               {showNutanixIpiVips ? (
                 <p className="note">
-                  OpenShift 4.20 Nutanix IPI requires static API and Ingress VIPs on the installer-provisioned path (Installing on Nutanix §1.3.5.1). Match address family to your machine network; with dual-stack networking enabled below, set IPv6 VIPs to emit apiVIPs/ingressVIPs lists. NTP via DHCP is recommended for all nodes (§1.3.5).
+                  Nutanix IPI requires static API and Ingress VIPs on the installer-provisioned path (Installing on Nutanix §1.3.5.1). Match address family to your machine network; with dual-stack networking enabled below, set IPv6 VIPs to emit apiVIPs/ingressVIPs lists. NTP via DHCP is recommended for all nodes (§1.3.5).
                 </p>
               ) : showVsphereIpiVips ? (
                 <p className="note">Leave blank if you use an external load balancer.</p>
@@ -934,7 +945,7 @@ Only if fd02::/112 conflicts with existing infrastructure networks (rare - ULA a
                 <p className="note">
                   {vipsRequiredForBareMetalAgent
                     ? ipStackMode === 'dual-stack'
-                      ? "Required for Bare Metal Agent-based multi-node installs when using dual-stack (IPv4 + IPv6): use the separate IPv4 and IPv6 fields below—do not comma-separate in one box. Official 4.20 install-config guidance requires IPv4 entries before IPv6 in apiVIPs/ingressVIPs lists; this app emits that order."
+                      ? "Required for Bare Metal Agent-based multi-node installs when using dual-stack (IPv4 + IPv6): use the separate IPv4 and IPv6 fields below—do not comma-separate in one box. Install-config guidance requires IPv4 entries before IPv6 in apiVIPs/ingressVIPs lists; this app emits that order."
                       : ipStackMode === 'ipv6'
                       ? "Required for Bare Metal Agent-based multi-node installs when using IPv6-only: set API VIP and Ingress VIP using IPv6 addresses. Single IPv6 address per field."
                       : "Required for Bare Metal Agent-based multi-node installs (single-stack IPv4 in this flow): set API VIP and Ingress VIP."
@@ -947,7 +958,7 @@ Only if fd02::/112 conflicts with existing infrastructure networks (rare - ULA a
               ) : scenarioId === "bare-metal-ipi" ? (
                 <p className="note">
                   {ipStackMode === 'dual-stack'
-                    ? "Bare metal IPI: set API and Ingress VIPs, or leave blank if using an external load balancer. With dual-stack, use the separate IPv4 and IPv6 fields (install-config apiVIPs/ingressVIPs list order is IPv4 then IPv6 per 4.20 docs)."
+                    ? "Bare metal IPI: set API and Ingress VIPs, or leave blank if using an external load balancer. With dual-stack, use the separate IPv4 and IPv6 fields (install-config apiVIPs/ingressVIPs list order is IPv4 then IPv6)."
                     : ipStackMode === 'ipv6'
                     ? "Bare metal IPI: set API and Ingress VIPs (IPv6), or leave blank if using an external load balancer. Single IPv6 address per field."
                     : "Bare metal IPI: set API VIP and Ingress VIP (IPv4), or leave blank if using an external load balancer."}
@@ -1218,6 +1229,7 @@ Full details available in the dual-stack IPv4/IPv6 tooltips above`}
                 ) : showVsphereIpiVips ? (
                   ipStackMode === 'dual-stack' ? (
                     <>
+                      {showVsphereIpiApiVips && (
                       <div className="vip-group">
                         <h5 className="vip-group-header">API Virtual IP</h5>
                         <FieldLabelWithInfo
@@ -1276,6 +1288,8 @@ fd00::2`}
                           />
                         </FieldLabelWithInfo>
                       </div>
+                      )}
+                      {showVsphereIpiIngressVips && (
                       <div className="vip-group">
                         <h5 className="vip-group-header">Ingress Virtual IP</h5>
                         <FieldLabelWithInfo
@@ -1334,9 +1348,11 @@ fd00::3`}
                           />
                         </FieldLabelWithInfo>
                       </div>
+                      )}
                     </>
                   ) : ipStackMode === 'ipv6' ? (
                     <>
+                      {showVsphereIpiApiVips && (
                       <FieldLabelWithInfo
                         label="API VIPs (IPv6)"
                         hint={`Virtual IP address(es) for the Kubernetes API load balancer (IPv6-only).
@@ -1366,6 +1382,8 @@ fd00::10`}
                           aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      )}
+                      {showVsphereIpiIngressVips && (
                       <FieldLabelWithInfo
                         label="Ingress VIPs (IPv6)"
                         hint={`Virtual IP address(es) for the default Ingress controller load balancer (IPv6-only).
@@ -1395,9 +1413,11 @@ fd00::11`}
                           aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      )}
                     </>
                   ) : (
                     <>
+                      {showVsphereIpiApiVips && (
                       <FieldLabelWithInfo
                         label="API VIPs (comma-separated)"
                         hint={`Virtual IP address(es) for the Kubernetes API load balancer.
@@ -1426,6 +1446,8 @@ Comma-separated if multiple (rare)
                           placeholder={vipPlaceholders.apiVip}
                         />
                       </FieldLabelWithInfo>
+                      )}
+                      {showVsphereIpiIngressVips && (
                       <FieldLabelWithInfo
                         label="Ingress VIPs (comma-separated)"
                         hint={`Virtual IP address(es) for the default Ingress controller load balancer.
@@ -1454,11 +1476,13 @@ Comma-separated if multiple (rare)
                           placeholder={vipPlaceholders.ingressVip}
                         />
                       </FieldLabelWithInfo>
+                      )}
                     </>
                   )
                 ) : showVsphereAgentVips ? (
                   ipStackMode === 'dual-stack' ? (
                     <>
+                      {showVsphereAgentApiVips && (
                       <div className="vip-group">
                         <h5 className="vip-group-header">API Virtual IP</h5>
                         <FieldLabelWithInfo
@@ -1516,6 +1540,8 @@ fd00::1`}>
                           />
                         </FieldLabelWithInfo>
                       </div>
+                      )}
+                      {showVsphereAgentIngressVips && (
                       <div className="vip-group">
                         <h5 className="vip-group-header">Ingress Virtual IP</h5>
                         <FieldLabelWithInfo
@@ -1573,9 +1599,11 @@ fd00::2`}>
                           />
                         </FieldLabelWithInfo>
                       </div>
+                      )}
                     </>
                   ) : ipStackMode === 'ipv6' ? (
                     <>
+                      {showVsphereAgentApiVips && (
                       <FieldLabelWithInfo
                         label="API VIP"
                         hint={`Virtual IP address for the Kubernetes API server load balancer (IPv6-only).
@@ -1605,6 +1633,8 @@ fd00::1`}
                           aria-invalid={fieldErrors.apiVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      )}
+                      {showVsphereAgentIngressVips && (
                       <FieldLabelWithInfo
                         label="Ingress VIP"
                         hint={`Virtual IP address for the default ingress router load balancer (IPv6-only).
@@ -1634,9 +1664,11 @@ fd00::2`}
                           aria-invalid={fieldErrors.ingressVipV6 ? "true" : "false"}
                         />
                       </FieldLabelWithInfo>
+                      )}
                     </>
                   ) : (
                     <>
+                      {showVsphereAgentApiVips && (
                       <FieldLabelWithInfo
                         label="API VIP"
                         hint={metaApiVipsVsphere?.description || `Virtual IP address for the Kubernetes API server load balancer (IPv4).
@@ -1665,6 +1697,8 @@ Single IPv4 address
                           placeholder={vipPlaceholders.apiVip}
                         />
                       </FieldLabelWithInfo>
+                      )}
+                      {showVsphereAgentIngressVips && (
                       <FieldLabelWithInfo
                         label="Ingress VIP"
                         hint={metaIngressVipsVsphere?.description || `Virtual IP address for the default ingress router load balancer (IPv4).
@@ -1693,6 +1727,7 @@ Single IPv4 address
                           placeholder={vipPlaceholders.ingressVip}
                         />
                       </FieldLabelWithInfo>
+                      )}
                     </>
                   )
                 ) : showBareMetalVips ? (
@@ -1708,7 +1743,7 @@ Single IPv4 address
 When dual-stack is enabled, add API VIP (IPv6) in the next field
 
 **Generator behavior:**
-Emitted apiVIPs order is IPv4 then IPv6 (4.20 doc alignment)
+Emitted apiVIPs order is IPv4 then IPv6 (per install-config specification)
 
 **Example:**
 10.90.0.1`}
@@ -1740,7 +1775,7 @@ Only for dual-stack (IPv4 + IPv6)
 IPv4-only single-stack
 
 **Important:**
-IPv6-only bare metal is not verified in the reviewed 4.20 agent docs - use dual-stack or IPv4-only unless your own doc review confirms otherwise
+IPv6-only bare metal is not verified in the reviewed agent docs - use dual-stack or IPv4-only unless your own doc review confirms otherwise
 
 **Example:**
 fd00::1`}

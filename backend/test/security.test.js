@@ -11,21 +11,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert";
-import http from "node:http";
 import { app } from "../src/index.js";
-
-function createTestServer() {
-  return new Promise((resolve) => {
-    const server = http.createServer(app);
-    server.listen(0, "127.0.0.1", () => {
-      const port = server.address().port;
-      resolve({ server, port, baseUrl: `http://127.0.0.1:${port}` });
-    });
-  });
-}
+import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
 
 test("Path Traversal: should block access to /etc/passwd", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls?path=/etc/passwd`);
     assert.strictEqual(res.status, 403);
@@ -33,12 +23,41 @@ test("Path Traversal: should block access to /etc/passwd", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeTestServer(server);
+  }
+});
+
+test("Path Traversal: a sibling of an allowed root is not inside it", async () => {
+  // `/tmpfoo` and `/datax` share a string prefix with the allowed roots but
+  // are not children of them. A bare startsWith admitted both.
+  const { server, baseUrl } = await createTestServer(app);
+  try {
+    for (const target of ["/tmpfoo", "/tmp-evil", "/datax"]) {
+      const res = await fetch(`${baseUrl}/api/fs/ls?path=${encodeURIComponent(target)}`);
+      assert.strictEqual(res.status, 403, `${target} must not be treated as an allowed root`);
+      const data = await res.json();
+      assert.ok(data.error.includes("Access denied"));
+    }
+  } finally {
+    await closeTestServer(server);
+  }
+});
+
+test("Path Traversal: a genuine child of an allowed root is still permitted", async () => {
+  // The tightening must not break the feature it guards.
+  const { server, baseUrl } = await createTestServer(app);
+  try {
+    const res = await fetch(`${baseUrl}/api/fs/ls?path=${encodeURIComponent("/tmp")}`);
+    assert.notStrictEqual(res.status, 403, "/tmp itself must remain listable");
+    const nested = await fetch(`${baseUrl}/api/fs/ls?path=${encodeURIComponent("/tmp/any-nested-path")}`);
+    assert.notStrictEqual(nested.status, 403, "a path under /tmp must remain listable");
+  } finally {
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should block access to /etc directory", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls?path=/etc`);
     assert.strictEqual(res.status, 403);
@@ -46,12 +65,12 @@ test("Path Traversal: should block access to /etc directory", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should block access to /root directory", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls?path=/root`);
     assert.strictEqual(res.status, 403);
@@ -59,12 +78,12 @@ test("Path Traversal: should block access to /root directory", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should block path traversal attempts with ../", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls?path=/tmp/../../etc/passwd`);
     assert.strictEqual(res.status, 403);
@@ -72,12 +91,12 @@ test("Path Traversal: should block path traversal attempts with ../", async () =
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should block path traversal from /data with ../", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls?path=/data/../../../etc`);
     assert.strictEqual(res.status, 403);
@@ -85,58 +104,58 @@ test("Path Traversal: should block path traversal from /data with ../", async ()
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should allow access to /tmp", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls?path=/tmp`);
     // Should succeed (200) or fail with read error (400), but NOT 403
     assert.notStrictEqual(res.status, 403);
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should allow access to DATA_DIR", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const dataDir = process.env.DATA_DIR || "/data";
     const res = await fetch(`${baseUrl}/api/fs/ls?path=${encodeURIComponent(dataDir)}`);
     // Should succeed (200) or fail with read error (400), but NOT 403
     assert.notStrictEqual(res.status, 403);
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should allow access to subdirectories within DATA_DIR", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const dataDir = process.env.DATA_DIR || "/data";
     const res = await fetch(`${baseUrl}/api/fs/ls?path=${encodeURIComponent(dataDir + "/subdir")}`);
     // Should succeed (200) or fail with read error (400), but NOT 403
     assert.notStrictEqual(res.status, 403);
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should allow access to subdirectories within /tmp", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls?path=/tmp/subdir`);
     // Should succeed (200) or fail with read error (400), but NOT 403
     assert.notStrictEqual(res.status, 403);
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should block access to /home directory", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls?path=/home`);
     assert.strictEqual(res.status, 403);
@@ -144,12 +163,12 @@ test("Path Traversal: should block access to /home directory", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should block access to /var directory", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls?path=/var`);
     assert.strictEqual(res.status, 403);
@@ -157,12 +176,12 @@ test("Path Traversal: should block access to /var directory", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should block access to /proc directory", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls?path=/proc`);
     assert.strictEqual(res.status, 403);
@@ -170,12 +189,12 @@ test("Path Traversal: should block access to /proc directory", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should block access to /sys directory", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls?path=/sys`);
     assert.strictEqual(res.status, 403);
@@ -183,12 +202,12 @@ test("Path Traversal: should block access to /sys directory", async () => {
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should block URL-encoded path traversal attempts", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls?path=/tmp/%2e%2e/%2e%2e/etc`);
     assert.strictEqual(res.status, 403);
@@ -196,12 +215,12 @@ test("Path Traversal: should block URL-encoded path traversal attempts", async (
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("Path Traversal: should handle default path (root) by blocking it", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/fs/ls`);
     // Default is "/" which should be blocked
@@ -210,7 +229,7 @@ test("Path Traversal: should handle default path (root) by blocking it", async (
     assert.ok(data.error);
     assert.ok(data.error.includes("Access denied"));
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
@@ -231,7 +250,7 @@ test("Temp Auth Files: should create auth files with secure permissions (0o600)"
 });
 
 test("SSH Algorithm Validation: should reject invalid algorithm", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/ssh/keypair`, {
       method: "POST",
@@ -249,12 +268,12 @@ test("SSH Algorithm Validation: should reject invalid algorithm", async () => {
       assert.ok(data.details.some(d => d.path === "algorithm"));
     }
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("SSH Algorithm Validation: should accept ed25519", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/ssh/keypair`, {
       method: "POST",
@@ -264,12 +283,12 @@ test("SSH Algorithm Validation: should accept ed25519", async () => {
     // Should succeed or fail with generation error, but NOT 400 validation error
     assert.notStrictEqual(res.status, 400);
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("SSH Algorithm Validation: should accept rsa", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/ssh/keypair`, {
       method: "POST",
@@ -279,12 +298,12 @@ test("SSH Algorithm Validation: should accept rsa", async () => {
     // Should succeed or fail with generation error, but NOT 400 validation error
     assert.notStrictEqual(res.status, 400);
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });
 
 test("SSH Algorithm Validation: should accept ecdsa", async () => {
-  const { server, baseUrl } = await createTestServer();
+  const { server, baseUrl } = await createTestServer(app);
   try {
     const res = await fetch(`${baseUrl}/api/ssh/keypair`, {
       method: "POST",
@@ -294,6 +313,6 @@ test("SSH Algorithm Validation: should accept ecdsa", async () => {
     // Should succeed or fail with generation error, but NOT 400 validation error
     assert.notStrictEqual(res.status, 400);
   } finally {
-    server.close();
+    await closeTestServer(server);
   }
 });

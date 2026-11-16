@@ -1,9 +1,17 @@
 /**
  * OpenShift Airgap Architect - Tools Drawer Component
  *
- * Right-side overlay drawer for global tools: dark mode toggle, export/import run,
- * start over, and about information. Job logs are on the Operations step (sidebar).
+ * Right-side overlay drawer for global tools: Home, dark mode toggle, export/import
+ * run, start over, and about information. Job logs are on the Operations step (sidebar).
  * Portaled to document.body with backdrop, Escape key close, and focus trap.
+ *
+ * SHARED ACROSS WORKFLOWS (v2.2.0 M3). Install and Mirroring open the same
+ * drawer from the same header position; an Upgrade workflow can reuse it.
+ * Common sections (Navigation, Appearance, About) are always present and behave
+ * identically. Workflow-specific sections appear only when the host supplies
+ * their handlers: Install passes Export/Import Run and Start Over; Mirroring
+ * does not, because those act on the Install run. `workflowLabel` names the
+ * workflow the drawer was opened from.
  *
  * @author Bill Strauss
  *
@@ -15,8 +23,51 @@ import Switch from "./Switch.jsx";
 import OptionRow from "./OptionRow.jsx";
 import Button from "./Button.jsx";
 import AboutModal from "./AboutModal.jsx";
+import { UPDATE_STATUS, updateStatusOf, verifiedLatestRelease } from "../../../shared/updateStatus.js";
 
 const DRAWER_Z = 10060;
+
+const checkedSuffix = (updateInfo) =>
+  updateInfo.checkedAt ? ` (checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : "";
+
+/**
+ * About-card update line.
+ *
+ * Driven by the shared update status: a published, stable GitHub Release newer
+ * than the installed version is the only thing that offers an update. The Git
+ * SHA is not involved, so an unknown revision does not disable this. Any status
+ * this build does not recognise (for example from a newer or older backend)
+ * reads as unavailable — never as "Up to date".
+ */
+function renderUpdateLine(updateInfo) {
+  const guideHref = `https://github.com/${updateInfo.repo || "bstrauss84/openshift-airgap-architect"}/blob/main/docs/UPDATING.md`;
+  const installed = updateInfo.installedVersion && updateInfo.installedVersion !== "unknown"
+    ? updateInfo.installedVersion
+    : null;
+
+  switch (updateStatusOf(updateInfo)) {
+    case UPDATE_STATUS.DISABLED:
+      return "Update checks disabled.";
+    case UPDATE_STATUS.OFFLINE:
+      return `Update check unavailable${updateInfo.checkedAt ? ` (last checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`;
+    case UPDATE_STATUS.UNKNOWN:
+      return "The installed version cannot be identified, so update checks are unavailable.";
+    case UPDATE_STATUS.UP_TO_DATE:
+      return `Up to date${installed ? `: no published release is newer than ${installed}` : ""}${checkedSuffix(updateInfo)}.`;
+    case UPDATE_STATUS.PUBLISHED_SUPPORTED_UPDATE: {
+      const latest = verifiedLatestRelease(updateInfo.releaseIdentity);
+      return (
+        <a href={guideHref} target="_blank" rel="noopener noreferrer">
+          {latest ? `Update available: version ${latest.version}` : "Update available"}
+          {latest && installed ? ` (installed ${installed})` : ""}
+          {" — export your run before updating"}
+        </a>
+      );
+    }
+    default:
+      return "Update status unavailable.";
+  }
+}
 
 function FocusTrap({ children, onClose, className }) {
   const ref = useRef(null);
@@ -64,6 +115,8 @@ export default function ToolsDrawer({
   onExportRun,
   onImportClick,
   onStartOver,
+  onHome = null,
+  workflowLabel = "Install",
   logAction,
   buildInfo = null,
   updateInfo = null
@@ -123,9 +176,34 @@ export default function ToolsDrawer({
               </button>
             </div>
             <p className="subtle" style={{ marginTop: 0, marginBottom: 20 }}>
-              Theme, run export/import, and start over. Background jobs and logs are on the{" "}
-              <strong>Operations</strong> step in the sidebar.
+              {onStartOver ? (
+                <>
+                  Theme, run export/import, and start over. Background jobs and logs are on the{" "}
+                  <strong>Operations</strong> step in the sidebar.
+                </>
+              ) : (
+                <>Theme and navigation for the {workflowLabel} workflow.</>
+              )}
             </p>
+
+            {onHome ? (
+              <section className="card" style={{ marginBottom: 16 }}>
+                <h3 className="card-title" style={{ marginTop: 0 }}>Navigation</h3>
+                <p className="card-subtitle" style={{ marginTop: 0 }}>
+                  Return to the landing page. Nothing is reset: your {workflowLabel} work is kept for this session and
+                  running operations continue. Choose {workflowLabel} again to pick up where you left off.
+                </p>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    onClose();
+                    onHome();
+                  }}
+                >
+                  Home
+                </Button>
+              </section>
+            ) : null}
 
             <section className="card" style={{ marginBottom: 16 }}>
               <h3 className="card-title" style={{ marginTop: 0 }}>Appearance</h3>
@@ -141,6 +219,7 @@ export default function ToolsDrawer({
               </OptionRow>
             </section>
 
+            {onExportRun || onImportClick ? (
             <section className="card" style={{ marginBottom: 16 }}>
               <h3 className="card-title" style={{ marginTop: 0 }}>Run state</h3>
               <div className="tools-actions" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -152,10 +231,15 @@ export default function ToolsDrawer({
                 </Button>
               </div>
               <p className="note" style={{ marginTop: 12, marginBottom: 0 }}>
-                Export saves your current selections and run state to a JSON file. Import restores from a previously exported file.
+                Export saves your current selections and run state to a JSON file — save one before
+                updating the app. Import restores from a previously exported file. Credentials are
+                deliberately excluded and must be re-entered. This is not the generated bundle ZIP,
+                and it does not back up job history, downloaded binaries or server data volumes.
               </p>
             </section>
+            ) : null}
 
+            {onStartOver ? (
             <section className="card" style={{ marginBottom: 16 }}>
               <h3 className="card-title" style={{ marginTop: 0 }}>Start over</h3>
               <p className="card-subtitle" style={{ marginTop: 0 }}>
@@ -171,6 +255,7 @@ export default function ToolsDrawer({
                 Start Over
               </Button>
             </section>
+            ) : null}
 
             <section className="card tools-about-section">
               <div className="about-header">
@@ -185,22 +270,33 @@ export default function ToolsDrawer({
               </div>
               {buildInfo && (
                 <div className="about-build-info">
-                  <span className="about-version">Build {(buildInfo.gitSha || "unknown").slice(0, 7)}</span>
-                  <span className="about-separator">•</span>
-                  <span className="about-time">{buildInfo.buildTime || "unknown"}</span>
-                  <span className="about-separator">•</span>
-                  <span className="about-branch">{buildInfo.branch || "main"}</span>
+                  {/* The version is always known (package.json). The revision is
+                      shown only when APP_GIT_SHA was genuinely supplied, and is
+                      otherwise omitted rather than guessed. APP_BRANCH is NOT
+                      shown: it is configuration (Compose sets it to "main"), not
+                      the branch this build came from. */}
+                  <span className="about-version">
+                    {buildInfo.version && buildInfo.version !== "unknown"
+                      ? `Version ${buildInfo.version}`
+                      : "Version unavailable"}
+                  </span>
+                  {buildInfo.gitSha && buildInfo.gitSha.trim() && buildInfo.gitSha !== "unknown" && (
+                    <>
+                      <span className="about-separator">•</span>
+                      <span className="about-revision">{`Revision ${buildInfo.gitSha.trim().slice(0, 7)}`}</span>
+                    </>
+                  )}
+                  {buildInfo.buildTime && buildInfo.buildTime !== "unknown" && (
+                    <>
+                      <span className="about-separator">•</span>
+                      <span className="about-time">{buildInfo.buildTime}</span>
+                    </>
+                  )}
                 </div>
               )}
               {updateInfo && (
                 <div className="about-update-info">
-                  {updateInfo.enabled === false
-                    ? "Update checks disabled."
-                    : updateInfo.error
-                      ? `Update check unavailable${updateInfo.checkedAt ? ` (last checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`
-                      : updateInfo.isOutdated
-                        ? <a href={`https://github.com/${updateInfo.repo || "bstrauss84/openshift-airgap-architect"}/blob/main/docs/UPDATING.md`} target="_blank" rel="noopener noreferrer">Update available</a>
-                        : `Up to date${updateInfo.checkedAt ? ` (checked: ${new Date(updateInfo.checkedAt).toLocaleString()})` : ""}.`}
+                  {renderUpdateLine(updateInfo)}
                 </div>
               )}
               <div className="about-reward-note">

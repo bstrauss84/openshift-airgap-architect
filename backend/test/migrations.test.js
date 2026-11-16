@@ -143,11 +143,24 @@ describe("Migration System", () => {
     it("should rollback on migration failure", async () => {
       const db = createTestDb();
 
-      // Create a temporary bad migration
-      const migrationsDir = path.join(__dirname, "../src/migrations");
-      const badMigrationPath = path.join(migrationsDir, "999_bad_migration.js");
+      // Create a temporary migrations directory for this test
+      const testMigrationsDir = path.join(__dirname, "test-migrations-tmp");
+      fs.mkdirSync(testMigrationsDir, { recursive: true });
 
-      const badMigrationContent = `
+      try {
+        // Copy existing migrations to test directory
+        const realMigrationsDir = path.join(__dirname, "../src/migrations");
+        const realMigrations = fs.readdirSync(realMigrationsDir);
+        for (const file of realMigrations) {
+          fs.copyFileSync(
+            path.join(realMigrationsDir, file),
+            path.join(testMigrationsDir, file)
+          );
+        }
+
+        // Create a bad migration in the test directory
+        const badMigrationPath = path.join(testMigrationsDir, "999_bad_migration.js");
+        const badMigrationContent = `
 export const up = (db) => {
   throw new Error("Intentional migration failure");
 };
@@ -156,15 +169,27 @@ export const down = (db) => {
   // Nothing to rollback
 };
 `;
+        fs.writeFileSync(badMigrationPath, badMigrationContent);
 
-      fs.writeFileSync(badMigrationPath, badMigrationContent);
+        try {
+          await runMigrations(db, testMigrationsDir);
+          assert.fail("Should have thrown error on bad migration");
+        } catch (error) {
+          assert.ok(error.message.includes("999_bad_migration"), "Error should reference bad migration");
+          assert.ok(error.message.includes("Intentional migration failure"), "Error should include original message");
+        }
 
-      try {
-        await runMigrations(db);
-        assert.fail("Should have thrown error on bad migration");
-      } catch (error) {
-        assert.ok(error.message.includes("999_bad_migration"), "Error should reference bad migration");
-        assert.ok(error.message.includes("Intentional migration failure"), "Error should include original message");
+        // Check that bad migration was NOT recorded
+        const migrations = db.prepare("SELECT name FROM migrations WHERE name LIKE '%999%'").all();
+        assert.strictEqual(migrations.length, 0, "Bad migration should not be recorded");
+
+        db.close();
+        cleanupTestDb();
+      } finally {
+        // Clean up test migrations directory
+        if (fs.existsSync(testMigrationsDir)) {
+          fs.rmSync(testMigrationsDir, { recursive: true, force: true });
+        }
       }
 
       // Check that bad migration was NOT recorded
@@ -176,6 +201,7 @@ export const down = (db) => {
 
       db.close();
       cleanupTestDb(db);
+
     });
   });
 
@@ -191,14 +217,26 @@ export const down = (db) => {
       const beforeCount = beforeMigrations.length;
       assert.ok(beforeCount >= 2, "Should have at least 2 migrations applied");
 
-      // Rollback last migration
+      // Rollback the last migration: 004 (v2.2.0 M7 verified catalog identity).
+      const rolledBack004 = await rollbackMigration(db);
+      assert.ok(rolledBack004?.includes("004"), "Should rollback 004_operator_catalog_identity first");
+      const tables004 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((t) => t.name);
+      assert.ok(!tables004.includes("operator_catalog_identity"), "operator_catalog_identity should be dropped");
+
+      // Then 003 (v2.2.0 M5 operator package details).
+      const rolledBack003 = await rollbackMigration(db);
+      assert.ok(rolledBack003?.includes("003"), "Should rollback 003_operator_package_details first");
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((t) => t.name);
+      assert.ok(!tables.includes("operator_package_details"), "operator_package_details should be dropped");
+
+      // Then 002.
       const rolledBack = await rollbackMigration(db);
       assert.ok(rolledBack, "Should return name of rolled back migration");
       assert.ok(rolledBack.includes("002"), "Should rollback 002_add_jobs_metadata migration");
 
       // Check migration count decreased
       const afterMigrations = db.prepare("SELECT name FROM migrations").all();
-      assert.strictEqual(afterMigrations.length, beforeCount - 1, "Should have one fewer migration");
+      assert.strictEqual(afterMigrations.length, beforeCount - 3, "Should have three fewer migrations");
 
       // Check metadata_json column was removed
       const columns = db.prepare("PRAGMA table_info(jobs)").all();
@@ -299,7 +337,7 @@ export const down = (db) => {
       assert.ok(status.total >= 2, "Should have at least 2 total migrations");
       assert.ok(status.appliedCount >= 1, "Should have at least 1 applied migration");
       assert.strictEqual(status.pendingCount, 1, "Should have 1 pending migration");
-      assert.ok(status.pending[0].includes("002"), "Pending migration should be 002");
+      assert.ok(status.pending[0].includes("004"), "Pending migration should be the last one, 004");
 
       db.close();
       cleanupTestDb(db);

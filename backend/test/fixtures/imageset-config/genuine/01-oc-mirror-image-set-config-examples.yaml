@@ -1,0 +1,12 @@
+apiVersion: mirror.openshift.io/v1alpha2
+kind: ImageSetConfiguration
+storageConfig:
+  local:
+    path: /home/user/metadata
+mirror:
+  platform:
+    channels:
+      - name: stable-4.12
+        minVersion: 4.11.37
+        maxVersion: 4.12.15
+        shortestPath: true

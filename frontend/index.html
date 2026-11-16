@@ -7,6 +7,15 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      Deployment-time configuration, loaded before the bundle.
+      `vite build` inlines import.meta.env at BUILD time, so the production
+      image cannot read VITE_API_BASE from its environment. The container
+      regenerates this file on every start (see frontend/container/) which is
+      what keeps VITE_API_BASE a runtime setting in docker-compose.yml and in
+      the frontend Deployment's ConfigMap. Must load before the module.
+    -->
+    <script src="/runtime-config.js"></script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

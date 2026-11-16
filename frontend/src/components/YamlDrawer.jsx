@@ -29,7 +29,31 @@ export default function YamlDrawer({
   showIncompleteWarning = false,
   loading = false,
   error = "",
-  resetSizing = false
+  /* DOC-227: per-artifact generation errors keyed by output filename. An
+     error here belongs to ONE document and is routed to that document's pane
+     only. `error` stays the global signal — nothing generated at all — and is
+     the only thing that may affect every pane. */
+  fileErrors = {},
+  stale = false,
+  resetSizing = false,
+  /* Returns the EXPORT-policy bytes for one file (same inclusion rules as the
+     bundle). The preview content above is generated with credentials forced
+     in so "Show sensitive values" can reveal them, and must never be what a
+     Download writes. Without this callback, Download fails closed. */
+  fetchExportFile = null,
+  /* v2.2.0 Mirroring: an explicit mode instead of a faked step id. "imageset"
+     shows the ImageSetConfiguration pane only, labelled with `sourceLabel`
+     (e.g. the profile name) and `emptyMessage` when nothing is generated. The
+     defaults leave every Install pane exactly as it was. */
+  mode = null,
+  sourceLabel = "Generated",
+  emptyMessage = null,
+  /* v2.2.0 M4 (imageset mode): what the shown file has and has not been
+     checked against, e.g. structure vs live catalog availability. */
+  statusNote = null,
+  /* v2.2.0 R-UX09 (imageset mode): the shown file is a DRAFT of a profile
+     that is not ready. A notice (node) explains why; Download is disabled. */
+  draftNotice = null
 }) {
   // State for drawer width (persisted to localStorage, reset on close)
   const [drawerWidth, setDrawerWidth] = useState(() => {
@@ -40,6 +64,7 @@ export default function YamlDrawer({
 
   // State for showing sensitive values toggle
   const [showSensitive, setShowSensitive] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
 
   // State for agent-based split view ratio (persisted to localStorage, reset on close)
   const [splitRatio, setSplitRatio] = useState(() => {
@@ -170,8 +195,29 @@ export default function YamlDrawer({
 
   if (!isOpen) return null;
 
-  // Download file helper
-  const downloadFile = (content, filename) => {
+  /* Per-file Download. Writes the export-policy version of the file, never the
+     preview bytes: those carry credentials, the SSH key and proxy userinfo
+     regardless of the Export Options, because the reveal toggle needs them.
+     Any failure downloads nothing and says so. */
+  const downloadFile = async (filename) => {
+    // A draft is never handed over as a file (R-UX09), whatever enabled the button.
+    if (draftNotice) return;
+    setDownloadError("");
+    try {
+      if (typeof fetchExportFile !== "function") {
+        throw new Error("export-policy download is unavailable");
+      }
+      const exported = await fetchExportFile(filename);
+      if (typeof exported !== "string" || !exported) {
+        throw new Error(`${filename} could not be generated for download`);
+      }
+      saveFile(exported, filename);
+    } catch (e) {
+      setDownloadError(`${filename} was not downloaded: ${String(e?.message || e)}`);
+    }
+  };
+
+  const saveFile = (content, filename) => {
     const blob = new Blob([content], { type: 'text/yaml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -181,31 +227,89 @@ export default function YamlDrawer({
     URL.revokeObjectURL(url);
   };
 
+  /* DOC-227. Resolve the error that applies to ONE document.
+     - its own per-artifact error, if its generator failed; otherwise
+     - the global error, which only exists when nothing generated at all.
+     A sibling artifact's failure resolves to nothing here, which is the whole
+     point: an NMState problem in agent-config.yaml never labels
+     imageset-config.yaml stale or disables its Download. */
+  const errorFor = (filename) => {
+    const own = fileErrors?.[filename];
+    if (own) return typeof own === "string" ? own : String(own?.message || own);
+    return error || "";
+  };
+
+  /* A document whose own generation failed is showing its last successful
+     content by definition (Tranche 7C.4), so it is superseded regardless of
+     the global `stale` flag. */
+  const staleFor = (filename) => (fileErrors?.[filename] ? true : stale);
+
+  /* Banner shown when the current state does not generate.
+     DOC-160 refined (Tranche 7C.4): the document is no longer thrown away, so
+     this must say plainly that what is on screen is the previous successful
+     generation and not the current entry. Download remains disabled throughout,
+     so stale YAML still cannot leave the app as current output.
+     DOC-227: scoped to one document — `paneError`/`paneStale` are that
+     document's own, not the drawer's. */
+  const renderGenerationNotice = (hasContent, paneError, paneStale) => {
+    if (!paneError) return null;
+    return (
+      <div
+        className="note warning"
+        role="status"
+        data-preview-superseded={hasContent && paneStale ? "true" : "false"}
+        style={{ marginBottom: 8 }}
+      >
+        <strong>Preview not updated:</strong> {paneError}
+        {hasContent && (
+          <div className="subtle" style={{ marginTop: 4 }}>
+            Showing the last configuration that generated successfully — it does not
+            reflect your current entry. Download stays disabled until this is fixed.
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /* The <pre> is rendered whenever there is content, including while a new
+     generation is in flight. Gating it on `!loading` unmounted it on every
+     regeneration; the scroll container then collapsed and the browser reset
+     scrollTop to 0, which is why the preview jumped back to the top each time a
+     field was edited and blurred. Keeping it mounted preserves the user's
+     scroll position without any timer or artificial delay. */
+
   // Render single config (install-config or imageset-config)
   const renderSingleConfig = (filename) => {
     const content = previewFiles[filename] || '';
     const displayContent = obfuscateYaml(content, showSensitive);
+    const paneError = errorFor(filename);
+    const paneStale = staleFor(filename);
 
     // NOTE: useMemo removed to fix React Hooks violation
     // Highlighting is now done inline without memoization
     const highlightedHtml = displayContent ? Prism.highlight(displayContent, Prism.languages.yaml, 'yaml') : '';
 
     return (
-      <div className="yaml-config-pane" style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+      <div className="yaml-config-pane" data-artifact={filename} style={{ flex: 1, overflow: 'auto', padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <h3 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600 }}>{filename}</h3>
           <button
             type="button"
             className="ghost small"
-            onClick={() => downloadFile(content, filename)}
-            disabled={!content}
+            onClick={() => downloadFile(filename)}
+            /* Fail closed, per document: while THIS artifact failed to
+               generate, its content describes a state the user has moved away
+               from and must not be handed over as current output. A sibling
+               artifact's failure is not grounds to disable this one — that was
+               the DOC-227 defect. */
+            disabled={!content || !!paneError || loading}
           >
             Download
           </button>
         </div>
-        {loading && <p className="subtle">Generating...</p>}
-        {error && <p className="error">{error}</p>}
-        {!loading && !error && content && (
+        {renderGenerationNotice(Boolean(content), paneError, paneStale)}
+        {loading && !content && <p className="subtle">Generating...</p>}
+        {content && (
           <pre className="yaml-preview language-yaml" style={{
             background: 'var(--code-bg, #f5f5f5)',
             color: 'var(--code-color, #333)',
@@ -222,7 +326,7 @@ export default function YamlDrawer({
             />
           </pre>
         )}
-        {!loading && !error && !content && (
+        {!loading && !paneError && !content && (
           <p className="subtle">No configuration available yet.</p>
         )}
       </div>
@@ -233,6 +337,13 @@ export default function YamlDrawer({
   const renderSplitView = () => {
     const installContent = previewFiles['install-config.yaml'] || '';
     const agentContent = previewFiles['agent-config.yaml'] || '';
+    /* DOC-227: the two panes carry independent verdicts. The global notice
+       above them is rendered only for a global failure (nothing generated),
+       so a single error is never duplicated across panes. */
+    const installOwnError = fileErrors?.['install-config.yaml'] || '';
+    const agentOwnError = fileErrors?.['agent-config.yaml'] || '';
+    const installError = errorFor('install-config.yaml');
+    const agentError = errorFor('agent-config.yaml');
     const installDisplay = obfuscateYaml(installContent, showSensitive);
     // Show skeleton YAML while waiting for agent-config API response
     const agentDisplay = agentContent ?
@@ -248,24 +359,37 @@ metadata:
     const installHighlighted = installDisplay ? Prism.highlight(installDisplay, Prism.languages.yaml, 'yaml') : '';
     const agentHighlighted = agentDisplay ? Prism.highlight(agentDisplay, Prism.languages.yaml, 'yaml') : '';
 
+    /* This view once had no error gate at all, so a failed generation left the
+       previous agent-based YAML on screen looking current and its per-pane
+       Download handed that stale text over. It then swung the other way and
+       replaced both documents with the error text. Neither is right: the
+       notice below states plainly that the documents are superseded, and both
+       Downloads are disabled while the current state does not generate — so
+       nothing stale can leave the app, and the drawer stays a YAML preview. */
     return (
       <div ref={splitContainerRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {error && (
+          <div style={{ padding: '12px 16px 0' }}>
+            {renderGenerationNotice(Boolean(installContent || agentContent), error, stale)}
+          </div>
+        )}
         {/* Install config pane */}
-        <div style={{ flex: splitRatio, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div data-artifact="install-config.yaml" style={{ flex: splitRatio, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600 }}>install-config.yaml</h3>
               <button
                 type="button"
                 className="ghost small"
-                onClick={() => downloadFile(installContent, 'install-config.yaml')}
-                disabled={!installContent}
+                onClick={() => downloadFile('install-config.yaml')}
+                disabled={!installContent || !!installError || loading}
               >
                 Download
               </button>
             </div>
           </div>
           <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+            {installOwnError && renderGenerationNotice(Boolean(installContent), installOwnError, true)}
             <pre className="yaml-preview language-yaml" style={{
               background: 'var(--code-bg, #f5f5f5)',
               color: 'var(--code-color, #333)',
@@ -307,21 +431,22 @@ metadata:
         />
 
         {/* Agent config pane */}
-        <div style={{ flex: 1 - splitRatio, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div data-artifact="agent-config.yaml" style={{ flex: 1 - splitRatio, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px 8px', borderBottom: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600 }}>agent-config.yaml</h3>
               <button
                 type="button"
                 className="ghost small"
-                onClick={() => downloadFile(agentContent, 'agent-config.yaml')}
-                disabled={!agentContent}
+                onClick={() => downloadFile('agent-config.yaml')}
+                disabled={!agentContent || !!agentError || loading}
               >
                 Download
               </button>
             </div>
           </div>
           <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+            {agentOwnError && renderGenerationNotice(Boolean(agentContent), agentOwnError, true)}
             <pre className="yaml-preview language-yaml" style={{
               background: 'var(--code-bg, #f5f5f5)',
               color: 'var(--code-color, #333)',
@@ -347,6 +472,8 @@ metadata:
   const renderImageSetWithSwitching = () => {
     const content = previewFiles['imageset-config.yaml'] || '';
     const displayContent = obfuscateYaml(content, showSensitive);
+    const paneError = errorFor('imageset-config.yaml');
+    const paneStale = staleFor('imageset-config.yaml');
 
     // NOTE: useMemo removed to fix React Hooks violation
     // Highlighting is now done inline without memoization
@@ -354,10 +481,10 @@ metadata:
 
     // TODO: When uploaded ImageSet config is stored in state, prioritize it over generated
     // Check state.ocMirror?.uploadedImageSetConfig or similar field
-    const source = 'Generated'; // Will be 'Uploaded' when user provides their own
+    const source = sourceLabel; // "Generated" for Install; the profile for Mirroring
 
     return (
-      <div className="yaml-config-pane" style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+      <div className="yaml-config-pane" data-artifact="imageset-config.yaml" style={{ flex: 1, overflow: 'auto', padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <h3 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 600 }}>imageset-config.yaml</h3>
@@ -371,19 +498,22 @@ metadata:
             }}>
               {source}
             </span>
+            {draftNotice ? <span className="yaml-draft-badge">DRAFT</span> : null}
           </div>
           <button
             type="button"
             className="ghost small"
-            onClick={() => downloadFile(content, 'imageset-config.yaml')}
-            disabled={!content}
+            onClick={() => downloadFile('imageset-config.yaml')}
+            disabled={!content || !!paneError || loading || Boolean(draftNotice)}
+            title={draftNotice ? 'A draft cannot be downloaded: resolve the blockers first.' : undefined}
           >
             Download
           </button>
         </div>
-        {loading && <p className="subtle">Generating...</p>}
-        {error && <p className="error">{error}</p>}
-        {!loading && !error && content && (
+        {draftNotice ? <div className="note warning yaml-draft-notice" role="status" style={{ marginBottom: 8 }}>{draftNotice}</div> : null}
+        {renderGenerationNotice(Boolean(content), paneError, paneStale)}
+        {loading && !content && <p className="subtle">Generating...</p>}
+        {content && (
           <pre className="yaml-preview language-yaml" style={{
             background: 'var(--code-bg, #f5f5f5)',
             color: 'var(--code-color, #333)',
@@ -400,11 +530,11 @@ metadata:
             />
           </pre>
         )}
-        {!loading && !error && !content && (
+        {!loading && !paneError && !content && (
           <div className="note" style={{ marginTop: 16 }}>
             <p><strong>No ImageSet configuration available yet.</strong></p>
             <p className="subtle" style={{ marginTop: 8, marginBottom: 0 }}>
-              Complete the Operators tab to generate an ImageSet configuration, or upload your own on the Run oc-mirror tab.
+              {emptyMessage || "Complete the Operators tab to generate an ImageSet configuration, or upload your own on the Run oc-mirror tab."}
             </p>
           </div>
         )}
@@ -414,6 +544,11 @@ metadata:
 
   // Main config rendering logic
   const renderConfigs = () => {
+    // Mirroring profile: the ImageSetConfiguration only.
+    if (mode === 'imageset') {
+      return renderImageSetWithSwitching();
+    }
+
     // Operators tab: show ImageSet only
     if (activeStepId === 'operators') {
       return renderSingleConfig('imageset-config.yaml');
@@ -492,6 +627,7 @@ metadata:
         <h2 id="yaml-drawer-title" className="card-title" style={{ margin: 0, flex: 1 }}>
           YAML Preview
         </h2>
+        {mode !== 'imageset' && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.875rem', cursor: 'pointer' }}>
           <input
             type="checkbox"
@@ -501,6 +637,7 @@ metadata:
           />
           <span>Show sensitive values</span>
         </label>
+        )}
         <button
           type="button"
           className="ghost icon-button"
@@ -510,6 +647,20 @@ metadata:
           ✕
         </button>
       </div>
+      <p className="note subtle" style={{ margin: '8px 20px 0' }} data-download-policy-note="true">
+        {mode === 'imageset'
+          ? <>An ImageSetConfiguration holds no credentials, so there is nothing to reveal. Download saves exactly this file, generated again at that moment.</>
+          : <>Revealing values only changes what is shown here. Download saves each file using your
+            Export Options on Assets &amp; Guide — the same rules as the bundle.</>}
+      </p>
+      {mode === 'imageset' && statusNote ? (
+        <p className="note subtle" style={{ margin: '8px 20px 0' }} data-validation-note="true">{statusNote}</p>
+      ) : null}
+      {downloadError ? (
+        <div className="note warning" role="alert" style={{ margin: '8px 20px 0' }} data-download-error="true">
+          {downloadError}
+        </div>
+      ) : null}
 
       {/* Incomplete warning */}
       {showIncompleteWarning && (

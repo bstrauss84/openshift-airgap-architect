@@ -13,7 +13,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, API_BASE } from "../api.js";
 import { useApp, getStateForPersistence } from "../store.jsx";
 import { validateStep } from "../validation.js";
-import { getExportRunFilename } from "../exportRunFilename.js";
 import { logAction } from "../logger.js";
 import Switch from "../components/Switch.jsx";
 import OptionRow from "../components/OptionRow.jsx";
@@ -22,28 +21,40 @@ import Banner from "../components/Banner.jsx";
 import Button from "../components/Button.jsx";
 import { canonicalizeExportOptions, resolveSecretInclusion } from "../exportInclusion.js";
 
+/**
+ * FIPS_EXPORT_BINARY_NOTE - do not narrow the FIPS download list using cluster text.
+ *
+ * `installerUseFips` + `installerPlatformArch` select which **openshift-install client
+ * binary** to download into the exported bundle. That is the EXPORT/DOWNLOAD TOOL
+ * BINARY architecture axis. It is NOT the target-cluster architecture axis, and the two
+ * must not be conflated (see docs/minor-release/4.22/PLATFORM_METHOD_ARCH_MATRIX_4.22.md
+ * section 1).
+ *
+ * Red Hat's statement that FIPS 140-2/140-3 validated RHEL crypto applies "on only the
+ * x86_64, ppc64le, and s390x architectures" concerns CLUSTER NODES running RHEL/RHCOS.
+ * It says nothing about which client binaries Red Hat publishes.
+ *
+ * Verified against the official client artifact inventories (each minor's own
+ * sha256sum.txt) on 2026-10-07 - `openshift-install-rhel9-<arch>.tar.gz` is published
+ * for ALL FOUR architectures at 4.20.40, 4.21.35 and 4.22.16:
+ *
+ *   amd64 . arm64 . ppc64le . s390x
+ *
+ * The arm64 artifact was additionally downloaded, SHA256-verified against the mirror's
+ * own checksum file, and confirmed to extract to an `ELF 64-bit LSB executable, ARM
+ * aarch64` named `openshift-install-fips`.
+ *
+ * An earlier revision of this file removed the ARM64 FIPS option on the strength of the
+ * cluster-node sentence alone. That was an axis-conflation error, and it hid a binary
+ * Red Hat does ship. Regression coverage: tests/fips-installer-architectures.test.jsx.
+ */
+
 const DEFAULT_PREVIEW_HEIGHT = 320;
 const MIN_PREVIEW_HEIGHT = 120;
 const MAX_PREVIEW_HEIGHT = 800;
 
 const PULLSECRET_PLACEHOLDER_LINE = "pullSecret: '{\"auths\":{}}'";
 const SENSITIVE_REDACTED = "*** REDACTED (click Show sensitive values to reveal) ***";
-const DOWNLOAD_REVOKE_DELAY_MS = 60 * 60 * 1000;
-
-function triggerBrowserDownload(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.style.display = "none";
-  document.body.appendChild(anchor);
-  anchor.click();
-  window.setTimeout(() => {
-    URL.revokeObjectURL(url);
-    anchor.remove();
-  }, DOWNLOAD_REVOKE_DELAY_MS);
-}
-
 /** Masks or replaces pullSecret value in install-config YAML. For obscured preview use replacement; for placeholder use replacement. */
 function replacePullSecretInYaml(yamlContent, replacementLine) {
   if (!yamlContent || typeof yamlContent !== "string") return yamlContent;
@@ -194,6 +205,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
   const [docsUpdating, setDocsUpdating] = useState(false);
   const [blockReason, setBlockReason] = useState("");
   const [generateError, setGenerateError] = useState("");
+  const [docsError, setDocsError] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [showCredentialsConfirm, setShowCredentialsConfirm] = useState(false);
   const [credentialsConfirmedThisSession, setCredentialsConfirmedThisSession] = useState(false);
@@ -333,15 +345,18 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
 
   const updateDocs = async () => {
     setDocsUpdating(true);
-    await apiFetch("/api/docs/update", { method: "POST" });
-    await refresh();
-    setDocsUpdating(false);
-  };
-
-  const exportRun = async () => {
-    const data = await apiFetch("/api/run/export");
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    triggerBrowserDownload(blob, getExportRunFilename(state));
+    setDocsError("");
+    try {
+      await apiFetch("/api/docs/update", { method: "POST" });
+      await refresh();
+    } catch (error) {
+      // DOC-203: the backend refuses rather than inventing a version, so its
+      // reason (e.g. no version selected) must reach the user, and a failure
+      // must not leave the menu stuck on "Updating Docs…".
+      setDocsError(`Documentation links were not updated: ${String(error?.message || error)}`);
+    } finally {
+      setDocsUpdating(false);
+    }
   };
 
   const importRun = async (file) => {
@@ -524,7 +539,10 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                 aria-label="Include SSH public key"
               />
             </OptionRow>
-            <OptionRow title="Proxy values" description="Include proxy endpoints in generated files/guides.">
+            <OptionRow
+              title="Proxy values"
+              description="Include proxy endpoints in the exported bundle (install-config.yaml, Field Manual and any high-side runtime package). When off, each configured value is replaced with a REPLACE_WITH_… marker to fill in before installing."
+            >
               <Switch
                 checked={inclusion.proxyValues}
                 onChange={(checked) =>
@@ -612,7 +630,13 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
                   >
                     <option value="">Default (match backend)</option>
                     {exportOptions.installerUseFips ? (
-                      // FIPS variants (Linux RHEL 9 only)
+                      // FIPS variants (Linux RHEL 9 only).
+                      //
+                      // All four architectures are offered because Red Hat publishes
+                      // openshift-install-rhel9-<arch>.tar.gz for amd64, arm64, ppc64le
+                      // AND s390x. This list is the EXPORT/DOWNLOAD TOOL BINARY axis and
+                      // must not be narrowed using cluster-node FIPS validation text:
+                      // see FIPS_EXPORT_BINARY_NOTE.
                       <>
                         <option value="linux-amd64">Linux x86_64 (RHEL 9 FIPS)</option>
                         <option value="linux-arm64">Linux ARM64 (RHEL 9 FIPS)</option>
@@ -710,6 +734,7 @@ const ReviewStep = ({ incompleteStepLabels = [], onRequestStartOver }) => {
             Failed to generate assets. {generateError}
           </Banner>
         ) : null}
+        {docsError ? <Banner variant="warning">{docsError}</Banner> : null}
         {!blocked && hasWarnings ? (
           <Banner variant="warning">
             <strong>Draft / not fully validated.</strong>

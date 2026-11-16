@@ -11,8 +11,11 @@
  */
 import React, { useEffect } from "react";
 import { useApp } from "../store.jsx";
-import { getScenarioId, getParamMeta } from "../catalogResolver.js";
+import { getScenarioId, getParamMeta, getCatalogForScenario } from "../catalogResolver.js";
+import { isParamVisibleForVersion } from "../catalogFieldMeta.js";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import Banner from "../components/Banner.jsx";
+import CommaListInput from "../components/CommaListInput.jsx";
 import Button from "../components/Button.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 import PreloadedConfigBanner from "../components/PreloadedConfigBanner.jsx";
@@ -46,6 +49,21 @@ function deriveRegistryFqdnFromPullSecret(pullSecretJson) {
 export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors = {} }) {
   const { state, updateState } = useApp();
   const scenarioId = getScenarioId(state);
+  // No baseline substitution: this used to read `|| "4.20"`, which silently
+  // presented 4.20 parameter metadata for a run whose minor was not known. With
+  // no selected minor there is no catalog to read, so the parameter set is
+  // empty — see catalogPaths.getCatalogForScenario, which now refuses a missing
+  // minor outright rather than defaulting.
+  const selectedMinor = getOpenShiftMinorFromState(state);
+  const catalogParams = (selectedMinor ? getCatalogForScenario(scenarioId, selectedMinor) : null) || [];
+
+  const isCatalogFieldVisible = (path, outputFile) => {
+    const param = catalogParams.find(
+      (entry) => entry.path === path && entry.outputFile === outputFile
+    );
+    return isParamVisibleForVersion(param, selectedMinor);
+  };
+
   const strategy = state.globalStrategy || {};
   const mirroring = strategy.mirroring || {};
   const sources = Array.isArray(mirroring.sources) && mirroring.sources.length > 0
@@ -143,10 +161,12 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
     updateMirroring({ registryFqdn: nextFqdn, sources: updatedSources });
   };
 
-  const metaImageDigest = getParamMeta(scenarioId, "imageDigestSources", INSTALL_CONFIG);
-  const metaNtp = getParamMeta(scenarioId, "additionalNTPSources", AGENT_CONFIG);
+  const metaImageDigest = getParamMeta(scenarioId, "imageDigestSources", INSTALL_CONFIG, state);
+  const metaNtp = getParamMeta(scenarioId, "additionalNTPSources", AGENT_CONFIG, state);
   const isAwsGovCloud = scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi";
   const showNtpSection = !isAwsGovCloud;
+  const showImageDigest = isCatalogFieldVisible("imageDigestSources", INSTALL_CONFIG);
+  const showNtpField = isCatalogFieldVisible("additionalNTPSources", AGENT_CONFIG);
 
   return (
     <div className="step">
@@ -168,7 +188,7 @@ export default function ConnectivityMirroringStep({ highlightErrors, fieldErrors
             </div>
           </Banner>
         ) : null}
-        {showMirroringConfig ? (
+        {showMirroringConfig && showImageDigest ? (
           <section className={`card ${fieldErrors.mirrorSources ? "highlight-errors" : ""}`}>
             <div className="card-header">
               <div>
@@ -274,7 +294,12 @@ registry.corp.local:5000`}
                         next[idx] = {
                           ...next[idx],
                           mirrors: e.target.value.split(",").map((m) => m.trim())
-                        };
+                        };                    <CommaListInput
+                      value={source.mirrors || []}
+                      separator=","
+                      onCommit={(mirrors) => {
+                        const next = [...sources];
+                        next[idx] = { ...next[idx], mirrors };
                         updateMirroring({ sources: next });
                       }}
                       disabled={mirrorConfigPreloaded}
@@ -314,7 +339,7 @@ registry.corp.local:5000`}
           </section>
         ) : null}
 
-        {showNtpSection ? (
+        {showNtpSection && showNtpField ? (
         <section className="card">
           <div className="card-header">
             <div>

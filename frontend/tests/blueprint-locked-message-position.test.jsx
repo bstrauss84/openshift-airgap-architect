@@ -20,7 +20,7 @@ const stateLocked = {
     confirmed: true,
     confirmationTimestamp: Date.now()
   },
-  release: { channel: "4.15", patchVersion: "4.15.0", confirmed: true },
+  release: { channel: "4.20", patchVersion: "4.20.0", confirmed: true },
   version: { versionConfirmed: true },
   methodology: { method: "Agent-Based Installer" },
   operators: {},
@@ -40,8 +40,8 @@ describe("Blueprint: locked message position", () => {
   beforeEach(() => {
     vi.mocked(apiFetch).mockImplementation((path) => {
       if (path === "/api/state") return Promise.resolve(stateLocked);
-      if (path === "/api/cincinnati/channels") return Promise.resolve({ channels: ["4.15"] });
-      if (path === "/api/cincinnati/patches") return Promise.resolve({ versions: ["4.15.0"] });
+      if (path === "/api/cincinnati/channels") return Promise.resolve({ channels: ["4.20"] });
+      if (path === "/api/cincinnati/patches") return Promise.resolve({ versions: ["4.20.0"] });
       return Promise.resolve({});
     });
   });
@@ -74,8 +74,8 @@ describe("Blueprint: locked message position", () => {
     localStorage.removeItem("airgap-architect-state");
     vi.mocked(apiFetch).mockImplementation((path) => {
       if (path === "/api/state") return Promise.resolve(stateUnlocked);
-      if (path === "/api/cincinnati/channels") return Promise.resolve({ channels: ["4.15"] });
-      if (path === "/api/cincinnati/patches") return Promise.resolve({ versions: ["4.15.0"] });
+      if (path === "/api/cincinnati/channels") return Promise.resolve({ channels: ["4.20"] });
+      if (path === "/api/cincinnati/patches") return Promise.resolve({ versions: ["4.20.0"] });
       return Promise.resolve({});
     });
     render(<App />);

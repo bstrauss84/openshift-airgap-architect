@@ -10,9 +10,12 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { nanoid } from "nanoid";
 import { db, dataDir } from "./db.js";
 import logger from "./logger.js";
+import { trackTempArtifact, untrackTempArtifact } from "./tempArtifacts.js";
+import { isTerminalJobStatus } from "./jobStatus.js";
 import { recordJobStart, recordJobComplete, recordJobError, stateOperationsTotal } from "./metrics.js";
 
 const now = () => Date.now();
@@ -154,9 +157,66 @@ const updateJobMetadata = (id, patch) => {
 
 const getJob = (id) => db.prepare("SELECT * FROM jobs WHERE id = ?").get(id);
 
+/**
+ * Parsed job metadata, or {} when the job has none or it is unreadable.
+ *
+ * `getJob` returns the raw row, which carries `metadata_json` as a STRING and
+ * has no `metadata` property at all. Several call sites in index.js read
+ * `getJob(id)?.metadata`, which is therefore always `undefined`:
+ *
+ *   - the oc-mirror signature smart-retry resolved its config path from it, so
+ *     the retry could only ever work when the caller had passed an explicit
+ *     `configPath` — i.e. never for a generated ImageSetConfig, whose path is
+ *     recorded only in metadata. It logged "Cannot retry: no config path
+ *     available" and gave up. The whole feature was inert.
+ *   - a retry's duration was computed against `metadata.startedAt`, so it was
+ *     always reported as 0 ms.
+ *   - two metadata updates spread `...getJob(id)?.metadata` before their patch,
+ *     intending a merge and in fact spreading nothing.
+ *
+ * This reads the same column `updateJobMetadata` already writes and parses, so
+ * it introduces no new storage and no new disclosure. What is stored there is
+ * credential-stripped at the writer (`sanitizeCredentialFields`); parsing it
+ * here must never become a reason to put raw request bodies back.
+ */
+const getJobMetadata = (id) => {
+  const row = db.prepare("SELECT metadata_json FROM jobs WHERE id = ?").get(id);
+  if (!row || !row.metadata_json) return {};
+  try {
+    const parsed = JSON.parse(row.metadata_json);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (err) {
+    logger.debug({ err, jobId: id }, "Job metadata JSON parse failed");
+    return {};
+  }
+};
+
+/**
+ * Write a job's outcome only if it does not already have one.
+ *
+ * Opt-in at the writer rather than inside `updateJob`, which must stay able
+ * to amend a finished job (progress ticks, message rewrites). Use this
+ * wherever a LATE callback could land after the job's fate was already
+ * recorded — a child's `error`/`close` arriving after a stop or a shutdown
+ * wrote `cancelled`, which otherwise comes back as `failed` because a
+ * SIGTERMed child reports `code === null`.
+ *
+ * Returns the row it wrote, or null when it declined.
+ */
+const updateJobUnlessTerminal = (id, patch) => {
+  const current = getJob(id);
+  if (current && isTerminalJobStatus(current.status)) return null;
+  return updateJob(id, patch);
+};
+
 const listJobs = () => db.prepare("SELECT * FROM jobs ORDER BY created_at DESC").all();
 
 const listJobsByType = (type) => db.prepare("SELECT * FROM jobs WHERE type = ?").all(type);
+
+/** Newest jobs of one workflow (metadata `workflow`), without their output. */
+const listWorkflowJobSummaries = (workflow, limit = 200) => db
+  .prepare("SELECT id, type, status, message, progress, created_at, updated_at, metadata_json FROM jobs WHERE metadata_json LIKE ? ORDER BY created_at DESC LIMIT ?")
+  .all(`%"workflow":${JSON.stringify(String(workflow))}%`, limit);
 
 /** Delete jobs in terminal state (completed, failed, cancelled). Returns number deleted. */
 const deleteCompletedJobs = () => {
@@ -178,9 +238,16 @@ const cleanupOldJobs = (options = {}) => {
   const retentionDays = options.retentionDays ?? 7;
   const maxCount = options.maxCount ?? 100;
 
-  // Calculate cutoff timestamp (jobs older than this will be deleted)
+  // Calculate cutoff timestamp (jobs older than this will be deleted).
+  //
+  // Compared as a NUMBER. `updated_at` is `INTEGER NOT NULL` in every schema
+  // version and is written as `Date.now()`, but this cutoff used to be
+  // converted with `.toISOString()`. SQLite sorts every INTEGER before every
+  // TEXT value, so `updated_at < '<iso string>'` was unconditionally true and
+  // the retention window was never applied: each sweep deleted the operator's
+  // ENTIRE completed/failed/cancelled job history instead of the part older
+  // than `retentionDays`. Found by the Tranche 8C lifecycle probe.
   const cutoffTime = Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
-  const cutoffIso = new Date(cutoffTime).toISOString();
 
   // Delete jobs that are:
   // 1. In terminal state (completed, failed, cancelled)
@@ -189,7 +256,7 @@ const cleanupOldJobs = (options = {}) => {
     `DELETE FROM jobs
      WHERE status IN ('completed', 'failed', 'cancelled')
      AND updated_at < ?`
-  ).run(cutoffIso);
+  ).run(cutoffTime);
 
   const ageDeleted = ageBasedDelete.changes;
 
@@ -253,11 +320,61 @@ const ensureTempDir = () => {
   return dir;
 };
 
+/**
+ * Where a run's temporary registry auth file is written: memory-backed when
+ * possible, so a credential never reaches the persistent data volume.
+ *   1. OAA_SECRET_TMPDIR, when set (administrator's choice; must be ours, 0700);
+ *   2. /dev/shm/oaa-secrets-<uid>-<hash of DATA_DIR> (tmpfs; unique to this
+ *      instance, so the boot sweep never touches another instance's files);
+ *   3. DATA_DIR/tmp (persistent) when neither is usable — reported by the
+ *      preflight, never silent.
+ * A directory is used only when it is a real directory (not a link), owned by
+ * this process's user and not accessible to others.
+ */
+let secretDirCache = null;
+const privateDir = (dir) => {
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const st = fs.lstatSync(dir);
+    const uid = typeof process.getuid === "function" ? process.getuid() : null;
+    if (!st.isDirectory() || st.isSymbolicLink() || (uid !== null && st.uid !== uid)) return false;
+    if ((st.mode & 0o077) !== 0) fs.chmodSync(dir, 0o700);
+    return true;
+  } catch {
+    return false;
+  }
+};
+const secretTempLocation = () => {
+  if (secretDirCache) return secretDirCache;
+  const configured = process.env.OAA_SECRET_TMPDIR;
+  const uid = typeof process.getuid === "function" ? process.getuid() : "u";
+  const tag = crypto.createHash("sha256").update(path.resolve(dataDir)).digest("hex").slice(0, 12);
+  const candidates = [
+    ...(configured && path.isAbsolute(configured) ? [{ dir: path.resolve(configured), memoryBacked: null, source: "OAA_SECRET_TMPDIR" }] : []),
+    { dir: `/dev/shm/oaa-secrets-${uid}-${tag}`, memoryBacked: true, source: "/dev/shm" }
+  ];
+  for (const c of candidates) {
+    if (privateDir(c.dir)) { secretDirCache = c; return c; }
+  }
+  secretDirCache = { dir: ensureTempDir(), memoryBacked: false, source: "DATA_DIR/tmp" };
+  logger.warn({ tag: "credentials", dir: secretDirCache.dir }, "No memory-backed directory for temporary registry credentials; using DATA_DIR/tmp");
+  return secretDirCache;
+};
+const secretTempDir = () => secretTempLocation().dir;
+// Leave no empty private directory behind on a normal exit (files are released by their owners).
+process.once("exit", () => {
+  if (!secretDirCache || secretDirCache.source === "DATA_DIR/tmp") return;
+  try { if (!fs.readdirSync(secretDirCache.dir).length) fs.rmdirSync(secretDirCache.dir); } catch { /* best effort */ }
+});
+
 const writeTempAuth = (contents) => {
-  const dir = ensureTempDir();
+  const dir = secretTempDir();
   const filePath = path.join(dir, `registry-auth-${nanoid()}.json`);
-  fs.writeFileSync(filePath, contents, { mode: 0o600, encoding: "utf8" });
-  return filePath;
+  fs.writeFileSync(filePath, contents, { mode: 0o600, encoding: "utf8", flag: "wx" });
+  // Its owner unlinks it from the child's `close` handler, which a
+  // terminating process never reaches, so shutdown needs to know it exists;
+  // the boot sweep removes any that survived a crash.
+  return trackTempArtifact(filePath, "file", "registry-auth");
 };
 
 const mergePullSecrets = (a, b) => {
@@ -269,8 +386,20 @@ const mergePullSecrets = (a, b) => {
 const safeUnlink = (filePath) => {
   try {
     fs.unlinkSync(filePath);
-  } catch {
-    // Intentionally suppressed - best-effort cleanup; file may already be deleted
+    // Gone, so nothing is left for shutdown to clean. Deregistering here is
+    // what keeps every existing owner-side cleanup path accurate without
+    // touching any of its call sites; it is a no-op for untracked paths.
+    untrackTempArtifact(filePath);
+  } catch (err) {
+    // ENOENT means something else already removed it — also gone.
+    if (err?.code === "ENOENT") {
+      untrackTempArtifact(filePath);
+      return;
+    }
+    // Any other failure (EACCES, EPERM, EBUSY) means the file is STILL ON
+    // DISK. Best-effort cleanup may give up, but tracking must not: a
+    // registry pull secret that outlived its owner has to stay registered so
+    // shutdown gets another attempt at it.
   }
 };
 
@@ -288,10 +417,13 @@ export {
   setCache,
   createJob,
   updateJob,
+  updateJobUnlessTerminal,
   updateJobMetadata,
   getJob,
+  getJobMetadata,
   listJobs,
   listJobsByType,
+  listWorkflowJobSummaries,
   deleteCompletedJobs,
   cleanupOldJobs,
   getJobsCount,
@@ -300,6 +432,8 @@ export {
   setState,
   redactJobOutputForStorage,
   writeTempAuth,
+  secretTempDir,
+  secretTempLocation,
   mergePullSecrets,
   safeUnlink,
   appendJobOutput

@@ -31,28 +31,54 @@ describe("trustBundlePolicy helpers", () => {
     expect(hasEffectiveTrustBundle({ mirrorRegistryCaPem: "garbage", proxyCaPem: "" })).toBe(false);
   });
 
-  it("getTrustBundlePolicySupport: 4.20 explicit, 4.21 forward, unsupported outside OCP4 range", () => {
+  it("getTrustBundlePolicySupport: every supported minor is explicit, unsupported outside the range", () => {
     expect(getTrustBundlePolicySupport("4.20.5").source).toBe("explicit");
     expect(getTrustBundlePolicySupport("4.21.9")).toEqual({
       policies: ["Proxyonly", "Always"],
-      source: "forward",
+      source: "explicit",
       minorVersion: "4.21"
     });
+    // S7: 4.22 carries its own row now that it is supported. Relying on the
+    // >=4.17 forward rule would return the right policies but mark the source
+    // "forward", which drives a "not yet fully reflected" caveat that would be
+    // false for a supported minor.
+    expect(getTrustBundlePolicySupport("4.22.0")).toEqual({
+      policies: ["Proxyonly", "Always"],
+      source: "explicit",
+      minorVersion: "4.22"
+    });
+    // The forward rule itself is unchanged and still covers unlisted >=4.17 minors.
+    expect(getTrustBundlePolicySupport("4.23.0").source).toBe("forward");
     expect(getTrustBundlePolicySupport("4.16.1").source).toBe("unsupported");
     expect(getTrustBundlePolicySupport("3.11.1").source).toBe("unsupported");
   });
 
   it("getForwardOpenShiftMinorDocNotice uses minor only and generic wording", () => {
-    const n = getForwardOpenShiftMinorDocNotice("4.21.9");
-    expect(n).toContain("OpenShift 4.21");
-    expect(n).not.toContain("4.21.9");
+    // Every SUPPORTED minor is explicit, so none of them carries the caveat.
+    expect(getForwardOpenShiftMinorDocNotice("4.21.9")).toBeNull();
     expect(getForwardOpenShiftMinorDocNotice("4.20.1")).toBeNull();
+    expect(getForwardOpenShiftMinorDocNotice("4.22.0")).toBeNull();
+    // 4.23 is unlisted and still gets the forward notice.
+    const n = getForwardOpenShiftMinorDocNotice("4.23.0");
+    expect(n).toContain("OpenShift 4.23");
+    expect(n).not.toContain("4.23.0");
   });
 
-  it("getTrustPolicyOptionsForScenario prefers catalog over empty version policy", () => {
-    const opts = getTrustPolicyOptionsForScenario("bare-metal-agent", "");
+  it("getTrustPolicyOptionsForScenario prefers the catalog's allowed list", () => {
+    // Tranche 7C: the version is now explicit. Passing "" used to fall through
+    // to a `|| '4.20'` default and read a catalog for a minor nobody selected,
+    // which crashed once catalogs became lazy-loaded.
+    const opts = getTrustPolicyOptionsForScenario("bare-metal-agent", "4.20");
     expect(opts).toContain("Proxyonly");
     expect(opts).toContain("Always");
+  });
+
+  it("getTrustPolicyOptionsForScenario reads no catalog without a version", () => {
+    // No version selected is a real state on a cold start. There is no catalog
+    // to consult, so the answer falls through to the version-policy list
+    // rather than inventing a baseline minor.
+    expect(() => getTrustPolicyOptionsForScenario("bare-metal-agent", "")).not.toThrow();
+    expect(Array.isArray(getTrustPolicyOptionsForScenario("bare-metal-agent", ""))).toBe(true);
   });
 
   it("trustBundleInferTier classifies mirror vs proxy-only", () => {
@@ -73,7 +99,7 @@ describe("trustBundlePolicy helpers", () => {
       { mirrorRegistryCaPem: MOCK_PEM, additionalTrustBundlePolicy: "" },
       { proxyEnabled: false },
       "bare-metal-agent",
-      "4.15.0"
+      "4.20.0"
     );
     expect(out.additionalTrustBundlePolicy).toBe("Always");
   });
@@ -116,11 +142,11 @@ describe("validateStep review + trust bundle (regression)", () => {
     expect(trustPolicyErrors).toHaveLength(0);
   });
 
-  it("validateStep trust-proxy: OpenShift 4.21 + PEM adds forward underscrubbed warning", () => {
+  it("validateStep trust-proxy: OpenShift 4.20 + PEM validation passes", () => {
     const base = stateWithBlueprintCompleteMethodologyIncomplete();
     const state = {
       ...base,
-      release: { channel: "stable-4.21", patchVersion: "4.21.9", confirmed: true },
+      release: { channel: "stable-4.20", patchVersion: "4.20.9", confirmed: true },
       trust: {
         mirrorRegistryCaPem: MOCK_PEM,
         additionalTrustBundlePolicy: "Always"
@@ -128,9 +154,6 @@ describe("validateStep review + trust bundle (regression)", () => {
       globalStrategy: { ...base.globalStrategy, proxyEnabled: false }
     };
     const result = validateStep(state, "trust-proxy");
-    expect(result.warnings.some((w) => w.includes("not yet fully reflected"))).toBe(true);
-    expect(result.warnings.some((w) => w.includes("OpenShift 4.21"))).toBe(true);
-    expect(result.warnings.some((w) => w.includes("4.21.9"))).toBe(false);
     expect(result.errors.filter((e) => e.includes("additionalTrustBundlePolicy"))).toHaveLength(0);
   });
 });

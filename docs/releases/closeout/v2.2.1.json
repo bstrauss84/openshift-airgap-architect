@@ -1,0 +1,69 @@
+{
+  "schema": "oaa.release.closeout/v1",
+  "version": "2.2.1",
+  "tag": {
+    "name": "v2.2.1",
+    "object": "54071794946cc3a326c5bed84f8949f98045baa9",
+    "commit": "15bd7064736fc0745dc90b974057c1fdc6c60c49",
+    "date": "2026-11-06",
+    "signature": "verified"
+  },
+  "checkedAt": "2026-11-06T18:17:09.866Z",
+  "remotes": [
+    {
+      "name": "additional-remote-1",
+      "main": "9c8f35b2721c00e74674a12a39e3781545828dfb",
+      "develop": "9c8f35b2721c00e74674a12a39e3781545828dfb",
+      "tag": "54071794946cc3a326c5bed84f8949f98045baa9"
+    },
+    {
+      "name": "origin",
+      "main": "9c8f35b2721c00e74674a12a39e3781545828dfb",
+      "develop": "9c8f35b2721c00e74674a12a39e3781545828dfb",
+      "tag": "54071794946cc3a326c5bed84f8949f98045baa9"
+    }
+  ],
+  "ci": [
+    {
+      "branch": "main",
+      "workflow": "CI",
+      "state": "SUCCESS",
+      "runId": 42268187639
+    },
+    {
+      "branch": "main",
+      "workflow": "Versioned Copy Guard",
+      "state": "SUCCESS",
+      "runId": 42268187637
+    },
+    {
+      "branch": "develop",
+      "workflow": "CI",
+      "state": "SUCCESS",
+      "runId": 42268187466
+    },
+    {
+      "branch": "develop",
+      "workflow": "Versioned Copy Guard",
+      "state": "SUCCESS",
+      "runId": 42268187492
+    }
+  ],
+  "release": {
+    "url": "https://github.com/bstrauss84/openshift-airgap-architect/releases/tag/v2.2.1",
+    "tagName": "v2.2.1",
+    "draft": false,
+    "prerelease": false,
+    "publishedAt": "2026-11-06T18:07:18Z",
+    "assets": 16,
+    "sha256sumsDigest": "8fb48fef9ad6afd87b23e134babb959d9e8bf7e2c5f5149ae3e694d952d67347"
+  },
+  "docs": {
+    "phase": "post",
+    "ok": true,
+    "errors": []
+  },
+  "ok": true,
+  "head": "9c8f35b2721c00e74674a12a39e3781545828dfb",
+  "repo": "bstrauss84/openshift-airgap-architect"
+}

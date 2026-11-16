@@ -1,42 +1,70 @@
 # Data and Frontend Copies — Single Standard Location
 
-**Purpose:** One canonical place for “where repo data lives” and “where the frontend keeps its copies” so we avoid scattering and keep Docker/build consistent.
+**Purpose:** One canonical place for "where repo data lives" and "where the frontend keeps its copies", so data does not scatter and Docker/build stay consistent.
 
 ---
 
 ## Canonical source of truth (repo root)
 
-- **`data/params/<version>/*.json`** — Parameter catalogs per scenario. Source of truth for required/allowed/default/type. Validated by `node scripts/validate-catalog.js data/params/<version>`. See `docs/PARAMS_CATALOG_RULES.md`.
-- **`data/docs-index/<version>.json`** — Scenario → doc links. Source of truth for which docs are shown per scenario. Validated by `node scripts/validate-docs-index.js`. See `docs/DOC_INDEX_RULES.md` and `docs/CONTRIBUTING.md` § Doc index.
+- **`data/params/<version>/*.json`** — Parameter catalogs, one file per scenario per minor. Source of truth for path/type/required/allowed/default/outputFile. Validated by `node scripts/validate-catalog.js data/params/<version>`. See `docs/PARAMS_CATALOG_RULES.md`.
+- **`data/docs-index/<version>.json`** — Scenario → doc links. Source of truth for which docs are shown per scenario. Validated by `node scripts/validate-docs-index.js`. See `docs/DOC_INDEX_RULES.md`.
 
 **Do not** have the frontend import or read these paths at runtime (e.g. `../../../data/...`). In Docker the frontend container only has the frontend tree; `data/` is not there.
 
 ---
 
-## Frontend copies — single standard location
+## Frontend copies — generated mirrors
 
-**All frontend copies of repo data live under `frontend/src/data/`.**
+**All frontend copies of repo data live under `frontend/src/data/`, versioned by minor.**
 
-| Purpose | Frontend path | Canonical source | When to sync |
-|--------|----------------|-------------------|--------------|
-| **Param catalogs** (scenario params for UI/validation) | `frontend/src/data/catalogs/*.json` | `data/params/<version>/<scenario-id>.json` | When canonical params change or a new scenario is added to the UI. **Copy only the scenario files the UI actually uses** (e.g. bare-metal-agent, bare-metal-ipi, nutanix-ipi, ibm-cloud-ipi). Do not copy all scenarios upfront; add a catalog when an agent implements support for that scenario (see § For agents and contributors). |
-| **Docs index** (scenario header doc links) | `frontend/src/data/docs-index/<version>.json` | `data/docs-index/<version>.json` | When canonical docs index changes (e.g. new version or updated doc URLs). |
+| Purpose | Frontend path (generated) | Canonical source | Regenerate with |
+|---|---|---|---|
+| **Param catalogs** | `frontend/src/data/catalogs/<version>/<scenario-id>.json` | `data/params/<version>/<scenario-id>.json` | `npm run sync-catalogs` |
+| **Docs index** | `frontend/src/data/docs-index/<version>.json` | `data/docs-index/<version>.json` | `npm run sync-docs-index` |
 
-- **Do not** add new ad-hoc locations (e.g. a second “catalogs” folder under `public/` or elsewhere). Use one of these two subdirs.
-- Code that needs param catalogs: import from `./data/catalogs/` (or `../data/catalogs/` from components). Code that needs the docs index: import from `./data/docs-index/` (or `../data/docs-index/` from components).
-- Syncing is manual: copy from canonical into `frontend/src/data/` and run validators on the canonical files. **CI enforces parity:** `node scripts/validate-param-authority.js` (see `docs/PARAM_AUTHORITY.md`) requires each `frontend/src/data/catalogs/<scenario>.json` to match `data/params/4.20/<scenario>.json` after stable sort of `parameters`, and each `frontend/src/data/docs-index/<version>.json` to match `data/docs-index/<version>.json` after stable normalization.
+Three properties of these mirrors:
+
+1. **They are generated.** Never hand-edit one. Never author a new parameter or doc link into one.
+2. **The direction is one-way.** Canonical → mirror, always. Never copy a mirror back over canonical, and never read a mirror as a data source in tooling.
+3. **They mirror the whole directory.** The sync scripts copy every catalog for every minor. Do not maintain a partial mirror.
+
+> **Corrections in this revision.** Earlier text gave the frontend paths without
+> the `<version>` segment — a layout removed by the ADR-001/ADR-005 migration —
+> and advised copying "only the scenario files the UI actually uses", which
+> contradicts both the sync scripts and the parity validator's set-equality
+> check. It also stated a CI parity guarantee that did not hold at the time,
+> because the parity validator was itself reading the obsolete flat path and
+> matching zero files. All three are fixed, and the guarantee below is now true.
+
+---
+
+## Enforcement
+
+Drift is caught in CI, independent of whether any developer has a hook installed:
+
+| Command | What it does |
+|---|---|
+| `npm run sync-catalogs:check` | Reports catalog mirror drift. Writes nothing. |
+| `npm run sync-docs-index:check` | Reports docs-index mirror drift. Writes nothing. |
+| `node scripts/validate-catalog-frontend-parity.js <minor>` | Asserts mirror ≡ canonical after stable normalization, per minor. |
+| `node scripts/validate-docs-index-frontend-parity.js <minor>` | Same, for the docs index. |
+| `node scripts/validate-param-authority.js` | Runs the parity checks for **every** supported minor. |
+
+The parity validators take the minor explicitly and fail if it is omitted; they
+no longer default to a single minor and report success for the repository.
 
 ---
 
 ## Who uses what
 
-- **`frontend/src/data/catalogs/*.json`** — Used by `catalogPaths.js` and `catalogFieldMeta.js` (Host Inventory v2 and catalog-driven UI). Only include the scenario catalogs the app actually uses (e.g. bare-metal-agent, bare-metal-ipi, ibm-cloud-ipi).
-- **`frontend/src/data/docs-index/<version>.json`** — Used by `ScenarioHeaderPanel.jsx` for the segmented-flow scenario header (doc links and version label).
+- **`frontend/src/data/catalogs/<version>/*.json`** — loaded by `frontend/src/catalogPaths.js` via `import.meta.glob`, and by `catalogFieldMeta.js`. Catalog resolution is version-aware and throws `UnsupportedVersionError` for any minor outside `SUPPORTED_MINORS` — there is no fallback to another minor.
+- **`frontend/src/data/docs-index/<version>.json`** — used by `ScenarioHeaderPanel.jsx` for the scenario header doc links and version label.
 
 ---
 
 ## For agents and contributors
 
-- When adding a **new scenario** to the UI that needs a param catalog: copy `data/params/<version>/<scenario-id>.json` to `frontend/src/data/catalogs/<scenario-id>.json` and add the import and mapping in `catalogPaths.js` and `catalogFieldMeta.js`.
-- When adding or updating the **docs index**: copy `data/docs-index/<version>.json` to `frontend/src/data/docs-index/<version>.json` and ensure `ScenarioHeaderPanel` (or any consumer) imports the correct version path.
-- Do **not** change canonical `data/params/**` or `data/docs-index/**` unless the plan explicitly allows it (e.g. catalog-building phases or PM/RC instruction). Frontend agents only change `frontend/src/**` and `frontend/tests/**` and update copies under `frontend/src/data/` when needed.
+- Adding or changing a parameter: edit `data/params/<version>/<scenario-id>.json`, run `node scripts/validate-catalog.js data/params/<version>`, then `npm run sync-catalogs`.
+- Adding or changing a doc link: edit `data/docs-index/<version>.json`, run `node scripts/validate-docs-index.js`, then `npm run sync-docs-index`.
+- Adding a **new minor**: follow `docs/minor-release/MINOR_ONBOARDING_RUNBOOK.md`. Do not clone another minor's catalogs or citations.
+- Do **not** change canonical `data/params/**` or `data/docs-index/**` unless the current plan explicitly allows it. Frontend agents change `frontend/src/**` and `frontend/tests/**`, and regenerate the mirrors with the sync scripts rather than editing them.

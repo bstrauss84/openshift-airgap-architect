@@ -17,6 +17,27 @@ import { apiFetch } from "../src/api.js";
 
 vi.mock("../src/api.js", () => ({ apiFetch: vi.fn() }));
 
+/**
+ * Wait for the app's hidden import file input and return it.
+ *
+ * The input is only rendered once the store has loaded state and the wizard is
+ * showing. Waiting on "Loading" having disappeared is not equivalent: when the
+ * mocked state resolves quickly that text may never render at all, so the
+ * assertion passes before the wizard exists and the subsequent synchronous
+ * querySelectorAll finds nothing. Wait for the element the test actually needs.
+ * The fixtures start with ui.showLanding === false, so no landing click is
+ * required; dismiss it defensively if a future fixture changes that.
+ */
+async function openWizardAndGetFileInput() {
+  return waitFor(() => {
+    const startButton = screen.queryByText(/Start new install/i);
+    if (startButton) fireEvent.click(startButton);
+    const inputs = document.querySelectorAll('input[type="file"]');
+    expect(inputs.length).toBeGreaterThan(0);
+    return inputs[0];
+  });
+}
+
 // Polyfill File.prototype.text() for jsdom environment
 if (typeof File !== "undefined" && !File.prototype.text) {
   File.prototype.text = function() {
@@ -131,7 +152,7 @@ describe("Import Reload Override", () => {
     // Find the file input (it's hidden but should exist)
     const fileInputs = document.querySelectorAll('input[type="file"]');
     expect(fileInputs.length).toBeGreaterThan(0);
-    const fileInput = fileInputs[0];
+    const fileInput = fileInputs[0];    const fileInput = await openWizardAndGetFileInput();
 
     // Create a mock file
     const mockFile = new File(
@@ -200,11 +221,7 @@ describe("Import Reload Override", () => {
 
     render(<App />);
 
-    await waitFor(() => {
-      expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument();
-    });
-
-    const fileInput = document.querySelectorAll('input[type="file"]')[0];
+    const fileInput = await openWizardAndGetFileInput();
     const mockFile = new File(
       [JSON.stringify({ state: importedState, schemaVersion: 2 })],
       "test-run.json",

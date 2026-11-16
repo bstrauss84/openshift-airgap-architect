@@ -1,0 +1,126 @@
+backend/src/fieldGuide/v4.20/aws.js:2: * OpenShift Airgap Architect - Field Guide v4.20 AWS GovCloud Compartments
+backend/src/fieldGuide/v4.20/aws.js:5: * Covers IPI and UPI installation methods for OCP 4.20 on AWS GovCloud.
+backend/src/fieldGuide/v4.20/aws.js:14:  version: "4.20",
+backend/src/fieldGuide/v4.20/aws.js:22:    { label: "Installing a cluster on AWS (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-aws" },
+backend/src/fieldGuide/v4.20/aws.js:23:    { label: "AWS GovCloud — disconnected install", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-aws#installing-restricted-networks-aws-installer-provisioned" },
+backend/src/fieldGuide/v4.20/aws.js:24:    { label: "AWS IPI install-config reference", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-aws#installation-aws-config-yaml_installing-aws" },
+backend/src/fieldGuide/v4.20/aws.js:29:    { text: "Verify IAM permissions. The installer needs extensive AWS permissions (EC2, Route53, ELB, IAM, S3, etc.). See the OCP 4.20 AWS IPI required permissions list in the docs." },
+backend/src/fieldGuide/v4.20/aws.js:35:    { text: "Obtain the RHCOS AMI ID for {{awsRegion}}. GovCloud regions require a custom AMI — check the OCP 4.20 AMI list in the installer or Red Hat docs.", cmd: "# List RHCOS AMIs in GovCloud:\naws ec2 describe-images --region {{awsRegion}} --owners 531415883065 \\\n  --filters 'Name=name,Values=rhcos-*4.20*' --query 'Images[*].{ID:ImageId,Name:Name}'" },
+backend/src/fieldGuide/v4.20/aws.js:47:  version: "4.20",
+backend/src/fieldGuide/v4.20/aws.js:55:    { label: "Installing a cluster on AWS — create cluster (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-aws#installing-aws" },
+backend/src/fieldGuide/v4.20/aws.js:76:  version: "4.20",
+backend/src/fieldGuide/v4.20/aws.js:84:    { label: "Installing a cluster on AWS with UPI (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-aws#installing-aws-user-infra" },
+backend/src/fieldGuide/v4.20/aws.js:104:  version: "4.20",
+backend/src/fieldGuide/v4.20/aws.js:112:    { label: "AWS UPI — cluster installation steps (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-aws#installation-aws-user-infra-installation_installing-aws-user-infra" },
+backend/src/fieldGuide/v4.20/azure.js:2: * OpenShift Airgap Architect - Field Guide v4.20 Azure Government Compartments
+backend/src/fieldGuide/v4.20/azure.js:5: * Covers IPI and UPI installation methods for OCP 4.20 on Azure Government.
+backend/src/fieldGuide/v4.20/azure.js:14:  version: "4.20",
+backend/src/fieldGuide/v4.20/azure.js:22:    { label: "Installing a cluster on Azure Government (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-azure" },
+backend/src/fieldGuide/v4.20/azure.js:23:    { label: "Azure install-config reference (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-azure#installation-azure-config-yaml_installing-azure" },
+backend/src/fieldGuide/v4.20/azure.js:43:  version: "4.20",
+backend/src/fieldGuide/v4.20/azure.js:51:    { label: "Installing a cluster on Azure — create cluster (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-azure#installing-azure" },
+backend/src/fieldGuide/v4.20/azure.js:72:  version: "4.20",
+backend/src/fieldGuide/v4.20/azure.js:80:    { label: "Installing a cluster on Azure with UPI (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-azure#installing-azure-user-infra" },
+backend/src/fieldGuide/v4.20/azure.js:99:  version: "4.20",
+backend/src/fieldGuide/v4.20/azure.js:107:    { label: "Azure UPI — cluster installation steps (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-azure#installation-azure-user-infra-installation_installing-azure-user-infra" },
+backend/src/fieldGuide/v4.20/baremetal.js:2: * OpenShift Airgap Architect - Field Guide v4.20 Bare Metal Compartments
+backend/src/fieldGuide/v4.20/baremetal.js:5: * Covers Agent-based, IPI, and UPI installation methods for OCP 4.20.
+backend/src/fieldGuide/v4.20/baremetal.js:14:  version: "4.20",
+backend/src/fieldGuide/v4.20/baremetal.js:22:    { label: "Agent-based Installer on bare metal (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-with-agent-based-installer" },
+backend/src/fieldGuide/v4.20/baremetal.js:23:    { label: "Agent-based Installer — preparing the agent-config.yaml", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-with-agent-based-installer#agent-config-yaml-reference" },
+backend/src/fieldGuide/v4.20/baremetal.js:50:  version: "4.20",
+backend/src/fieldGuide/v4.20/baremetal.js:58:    { label: "Agent-based Installer — creating and booting the cluster (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-with-agent-based-installer#installing-ocp-agent_installing-with-agent-based-installer" },
+backend/src/fieldGuide/v4.20/baremetal.js:82:  version: "4.20",
+backend/src/fieldGuide/v4.20/baremetal.js:90:    { label: "Installing a cluster on bare metal with IPI (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-bare-metal#installing-bare-metal-network-requirements_installing-bare-metal" },
+backend/src/fieldGuide/v4.20/baremetal.js:91:    { label: "Bare metal IPI — configuring host inventory", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-bare-metal#configuring-host-inventory_installing-bare-metal" },
+backend/src/fieldGuide/v4.20/baremetal.js:110:    { text: "Review the OCP 4.20 IPI bare metal release notes for any known hardware compatibility issues with your server models and BMC firmware versions." },
+backend/src/fieldGuide/v4.20/baremetal.js:117:  version: "4.20",
+backend/src/fieldGuide/v4.20/baremetal.js:125:    { label: "Installing cluster on bare metal IPI — cluster creation (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-bare-metal#installing-bare-metal" },
+backend/src/fieldGuide/v4.20/baremetal.js:149:  version: "4.20",
+backend/src/fieldGuide/v4.20/baremetal.js:157:    { label: "Installing a cluster on bare metal with UPI (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-bare-metal#installing-bare-metal-upi" },
+backend/src/fieldGuide/v4.20/baremetal.js:172:    { text: "Review OCP 4.20 UPI bare metal documentation for the complete node boot sequence and expected provisioning flow." },
+backend/src/fieldGuide/v4.20/baremetal.js:180:  version: "4.20",
+backend/src/fieldGuide/v4.20/baremetal.js:188:    { label: "Bare metal UPI — cluster creation steps (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-bare-metal#installing-bare-metal-upi" },
+backend/src/fieldGuide/v4.20/global.js:2: * OpenShift Airgap Architect - Field Guide v4.20 Global Compartments
+backend/src/fieldGuide/v4.20/global.js:4: * Always-included and common-condition sections for OCP 4.20.
+backend/src/fieldGuide/v4.20/global.js:14:  version: "4.20",
+backend/src/fieldGuide/v4.20/global.js:19:    { label: "OCP 4.20 installation overview", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/index" },
+backend/src/fieldGuide/v4.20/global.js:20:    { label: "Preparing to install on bare metal", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-bare-metal" },
+backend/src/fieldGuide/v4.20/global.js:23:    { text: "Ensure the installer host runs RHEL 8.6+ or RHEL 9 (RHEL 9 is recommended for OCP 4.20)." },
+backend/src/fieldGuide/v4.20/global.js:37:    { text: "Review the release notes for OCP {{version}} for any known issues or prerequisites specific to this patch:", cmd: "# https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/release_notes/index" },
+backend/src/fieldGuide/v4.20/global.js:43:  version: "4.20",
+backend/src/fieldGuide/v4.20/global.js:48:    { label: "Configuring a proxy during installation (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-with-a-proxy" },
+backend/src/fieldGuide/v4.20/global.js:64:  version: "4.20",
+backend/src/fieldGuide/v4.20/global.js:69:    { label: "Support for FIPS cryptography in OCP 4.20", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-fips-validated-modules" },
+backend/src/fieldGuide/v4.20/global.js:88:  version: "4.20",
+backend/src/fieldGuide/v4.20/global.js:93:    { label: "Configuring chrony time service for OCP nodes", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/post-installation_configuration/post-install-machine-configuration-tasks#nodes-nodes-working-setting-timeouts-for-termination_post-install-machine-configuration-tasks" },
+backend/src/fieldGuide/v4.20/global.js:109:  version: "4.20",
+backend/src/fieldGuide/v4.20/global.js:114:    { label: "Configuring a custom PKI / additionalTrustBundle (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-disconnected-environments#installation-configure-proxy_installing-disconnected-environments" },
+backend/src/fieldGuide/v4.20/global.js:130:  version: "4.20",
+backend/src/fieldGuide/v4.20/global.js:135:    { label: "Downloading OpenShift CLI tools", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/cli_tools/openshift-cli-oc#cli-getting-started" },
+backend/src/fieldGuide/v4.20/global.js:136:    { label: "oc-mirror v2 overview", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_installation_mirroring/mirroring-images-disconnected-install-oc-mirror-v2" },
+backend/src/fieldGuide/v4.20/global.js:157:  version: "4.20",
+backend/src/fieldGuide/v4.20/global.js:162:    { label: "OCP 4.20 installation validation", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/overview-of-installation-methods" },
+backend/src/fieldGuide/v4.20/global.js:185:  version: "4.20",
+backend/src/fieldGuide/v4.20/global.js:190:    { label: "Verifying node health (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/nodes/working-with-nodes" },
+backend/src/fieldGuide/v4.20/global.js:191:    { label: "Understanding cluster operators", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/operators/understanding-operators" },
+backend/src/fieldGuide/v4.20/global.js:214:  version: "4.20",
+backend/src/fieldGuide/v4.20/global.js:219:    { label: "Post-installation configuration (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/post-installation_configuration/index" },
+backend/src/fieldGuide/v4.20/global.js:220:    { label: "Managing user workloads and RBAC", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/authentication_and_authorization/index" },
+backend/src/fieldGuide/v4.20/ibmcloud.js:2: * OpenShift Airgap Architect - Field Guide v4.20 IBM Cloud Compartments
+backend/src/fieldGuide/v4.20/ibmcloud.js:5: * Covers IPI installation method for OCP 4.20 on IBM Cloud.
+backend/src/fieldGuide/v4.20/ibmcloud.js:14:  version: "4.20",
+backend/src/fieldGuide/v4.20/ibmcloud.js:23:      label: "Installing on IBM Cloud (OCP 4.20)",
+backend/src/fieldGuide/v4.20/ibmcloud.js:24:      url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/index"
+backend/src/fieldGuide/v4.20/ibmcloud.js:28:      url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+backend/src/fieldGuide/v4.20/ibmcloud.js:32:    { text: "Confirm installer-provisioned IBM Cloud install method (UPI is not supported for this platform in OCP 4.20)." },
+backend/src/fieldGuide/v4.20/ibmcloud.js:45:  version: "4.20",
+backend/src/fieldGuide/v4.20/ibmcloud.js:55:      url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_ibm_cloud/installing-ibm-cloud-restricted"
+backend/src/fieldGuide/v4.20/mirror.js:2: * OpenShift Airgap Architect - Field Guide v4.20 Mirror Compartments
+backend/src/fieldGuide/v4.20/mirror.js:4: * Mirror registry setup and oc-mirror workflows for OCP 4.20.
+backend/src/fieldGuide/v4.20/mirror.js:14:  version: "4.20",
+backend/src/fieldGuide/v4.20/mirror.js:19:    { label: "mirror-registry for Red Hat OpenShift (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_installation_mirroring/installing-mirroring-installation-images" },
+backend/src/fieldGuide/v4.20/mirror.js:20:    { label: "Using the mirror registry for disconnected installations", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_installation_mirroring/installing-mirroring-disconnected-v2" },
+backend/src/fieldGuide/v4.20/mirror.js:43:  version: "4.20",
+backend/src/fieldGuide/v4.20/mirror.js:48:    { label: "oc-mirror v2: mirroring to disk", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_installation_mirroring/mirroring-images-disconnected-install-oc-mirror-v2#oc-mirror-creating-mirror-to-disk_oc-mirror-v2" },
+backend/src/fieldGuide/v4.20/mirror.js:49:    { label: "ImageSetConfiguration reference (v2)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_installation_mirroring/mirroring-images-disconnected-install-oc-mirror-v2#oc-mirror-v2-imageset-config-ref" },
+backend/src/fieldGuide/v4.20/mirror.js:73:  version: "4.20",
+backend/src/fieldGuide/v4.20/mirror.js:78:    { label: "Preparing for a disconnected install (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_installation_mirroring/index" },
+backend/src/fieldGuide/v4.20/mirror.js:94:  version: "4.20",
+backend/src/fieldGuide/v4.20/mirror.js:99:    { label: "oc-mirror v2: mirroring from disk to registry", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_installation_mirroring/mirroring-images-disconnected-install-oc-mirror-v2#oc-mirror-disk-to-mirror_oc-mirror-v2" },
+backend/src/fieldGuide/v4.20/mirror.js:122:  version: "4.20",
+backend/src/fieldGuide/v4.20/mirror.js:127:    { label: "Applying cluster resources after mirroring (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_installation_mirroring/mirroring-images-disconnected-install-oc-mirror-v2#oc-mirror-v2-apply-cluster-resources" },
+backend/src/fieldGuide/v4.20/nutanix.js:2: * OpenShift Airgap Architect - Field Guide v4.20 Nutanix Compartments
+backend/src/fieldGuide/v4.20/nutanix.js:5: * Covers IPI installation method for OCP 4.20 on Nutanix.
+backend/src/fieldGuide/v4.20/nutanix.js:14:  version: "4.20",
+backend/src/fieldGuide/v4.20/nutanix.js:22:    { label: "Installing a cluster on Nutanix (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-nutanix" },
+backend/src/fieldGuide/v4.20/nutanix.js:23:    { label: "Nutanix IPI install-config reference (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-nutanix#installation-nutanix-config-yaml_installing-nutanix" },
+backend/src/fieldGuide/v4.20/nutanix.js:26:    { text: "Confirm Nutanix AOS version is 6.5.2 LTS or later (Prism Central 2023.x+ is required for OCP 4.20 IPI). Verify from Prism Central UI or API:", cmd: "curl -sk https://{{nutanixEndpoint}}:9440/api/nutanix/v3/clusters/list \\\n  -X POST -H 'Content-Type: application/json' \\\n  -d '{\"kind\":\"cluster\"}' | python3 -m json.tool | grep 'software_version'" },
+backend/src/fieldGuide/v4.20/nutanix.js:46:  version: "4.20",
+backend/src/fieldGuide/v4.20/nutanix.js:54:    { label: "Installing a cluster on Nutanix — cluster creation (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-nutanix#installing-nutanix" },
+backend/src/fieldGuide/v4.20/index.js:2: * OpenShift Airgap Architect - Field Guide v4.20 Compartments
+backend/src/fieldGuide/v4.20/index.js:4: * All v4.20 compartments, re-exported as a single flat array.
+backend/src/fieldGuide/v4.20/vsphere.js:2: * OpenShift Airgap Architect - Field Guide v4.20 vSphere Compartments
+backend/src/fieldGuide/v4.20/vsphere.js:5: * Covers IPI, UPI, and Agent-based installer methods for OCP 4.20.
+backend/src/fieldGuide/v4.20/vsphere.js:14:  version: "4.20",
+backend/src/fieldGuide/v4.20/vsphere.js:22:    { label: "Preparing to install on vSphere — IPI (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-vsphere#preparing-to-install-on-vsphere" },
+backend/src/fieldGuide/v4.20/vsphere.js:23:    { label: "vSphere IPI install-config parameters", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-vsphere#installation-vsphere-config-yaml_installing-vsphere" },
+backend/src/fieldGuide/v4.20/vsphere.js:24:    { label: "Required vCenter permissions for IPI", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-vsphere#installation-vsphere-required-permissions_installing-vsphere" },
+backend/src/fieldGuide/v4.20/vsphere.js:27:    { text: "Confirm vSphere/ESXi version is 7.0 Update 2 or later (8.x is also supported for OCP 4.20). Check from vCenter:", cmd: "# vSphere UI: Home → vCenter → Summary → Version\n# Or via API:\ncurl -sk https://{{vcenter}}/rest/appliance/system/version | python3 -m json.tool | grep version" },
+backend/src/fieldGuide/v4.20/vsphere.js:50:  version: "4.20",
+backend/src/fieldGuide/v4.20/vsphere.js:58:    { label: "Installing a cluster on vSphere with IPI (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-vsphere#installing-vsphere" },
+backend/src/fieldGuide/v4.20/vsphere.js:82:  version: "4.20",
+backend/src/fieldGuide/v4.20/vsphere.js:90:    { label: "Installing a cluster on vSphere with UPI (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-vsphere#installing-vsphere-installer-provisioned" },
+backend/src/fieldGuide/v4.20/vsphere.js:91:    { label: "vSphere UPI infrastructure requirements", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-vsphere#upi-vsphere-infrastructure" },
+backend/src/fieldGuide/v4.20/vsphere.js:114:  version: "4.20",
+backend/src/fieldGuide/v4.20/vsphere.js:122:    { label: "vSphere UPI — cluster completion steps (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-on-vsphere#installation-installing-bare-metal_installing-vsphere-installer-provisioned" },
+backend/src/fieldGuide/v4.20/vsphere.js:142:  version: "4.20",
+backend/src/fieldGuide/v4.20/vsphere.js:150:    { label: "Installing with the Agent-based Installer on vSphere (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-with-agent-based-installer#installing-with-agent-based-installer" },
+backend/src/fieldGuide/v4.20/vsphere.js:151:    { label: "Agent-based Installer prerequisites", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-with-agent-based-installer#prerequisites-agent-based-installer" },
+backend/src/fieldGuide/v4.20/vsphere.js:174:  version: "4.20",
+backend/src/fieldGuide/v4.20/vsphere.js:199:  version: "4.20",
+backend/src/fieldGuide/v4.20/vsphere.js:207:    { label: "Installing with Agent-based Installer — cluster creation (OCP 4.20)", url: "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/installing-with-agent-based-installer#installing-ocp-agent_installing-with-agent-based-installer" },
+backend/src/fieldGuide/assembler.js:11:import { compartments_v420 } from "./v4.20/index.js";
+backend/src/fieldGuide/assembler.js:20:  // if (minor === "4.21") return compartments_v421;
+backend/src/fieldGuide/context.js:35:  const version = release.patchVersion || "4.20.0";
+backend/src/fieldGuide/context.js:37:  const versionMajorMinor = versionParts.length >= 2 ? `${versionParts[0]}.${versionParts[1]}` : "4.20";

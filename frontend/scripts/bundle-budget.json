@@ -1,0 +1,49 @@
+{
+  "_purpose": "Thresholds for frontend/scripts/check-bundle-size.js. Kept beside the script, not inside it, so the numbers and their justification are reviewable in a diff.",
+
+  "_doNotRaiseToGoGreen": "If a change pushes a metric over its limit, the question is what grew and why. Raising a limit is a deliberate, justified edit to this file with the derivation updated below — never a way to unblock a build. The previous single-number budget was never enforced anywhere, and the bundle drifted 43% past it unnoticed; that is the failure this file exists to prevent.",
+
+  "eagerAppJsCssKb": 1320,
+  "largestLazyChunkKb": 150,
+
+  "derivation": {
+    "measuredOn": "2026-10-07",
+    "commitContext": "Tranche 1.5, immediately after the FQ-10 per-minor lazy-loading change",
+    "supportedMinorsAtMeasurement": ["4.20", "4.21"],
+
+    "A_eagerAppJsCss": {
+      "beforeKb": 2698,
+      "beforeComposition": "a single 2,662 KB JS chunk containing every supported minor's complete catalog set, plus 98 KB CSS",
+      "afterKb": 1146,
+      "afterComposition": "1,048 KB entry JS + 98 KB CSS; per-minor catalog and docs-index data moved to on-demand chunks",
+      "reductionKb": 1552,
+      "limitKb": 1320,
+      "headroomKb": 174,
+      "headroomPct": 15,
+      "why": "The eager budget must be INSENSITIVE to the number of supported minors. Per-minor data now loads on demand, so adding 4.22 adds lazy chunks and only a few hundred bytes of glob keys to the entry. The 15% headroom is therefore sized for ordinary application-code growth across a release, not for version growth. It is deliberately tight enough that re-eagerizing the catalogs (which would add roughly 1,550 KB) fails immediately rather than being absorbed.",
+      "whatWouldLegitimatelyRaiseThis": "A substantial new dependency or feature area in the always-loaded shell. Not a new OpenShift minor — if adding a minor moves this number materially, the lazy-loading architecture has regressed and that is the bug."
+    },
+
+    "B_largestLazyChunk": {
+      "measuredKb": 96,
+      "measuredChunk": "the 4.21 vsphere-agent catalog, the largest single scenario catalog",
+      "limitKb": 150,
+      "headroomPct": 56,
+      "why": "Gated PER CHUNK rather than cumulatively. Supported minors are cumulative by design (R8), so a cumulative lazy budget would fail for the sole reason that the product supports more OpenShift versions, which is not a defect. A single scenario catalog passing 150 KB instead indicates either a data problem or a scenario that should be split, and that is worth stopping for. 4.22's catalogs are expected to be somewhat larger than 4.21's, which the headroom accommodates."
+    },
+
+    "C_totalDist": {
+      "measuredKb": 3577,
+      "gating": false,
+      "why": "Reported, never gating. It includes 879 KB of static artwork (three PNGs, 24.5% of the total) which is not executable weight and does not affect time-to-interactive the way the eager bundle does. Gating on it would conflate packaging size with performance and would punish adding a supported minor, since every minor's catalog data ships in dist/ whether or not it is eagerly loaded. Kept visible because transfer and image size still matter for a disconnected-install tool."
+    },
+
+    "excludedFromGates": {
+      "what": "PNG and other non-code assets",
+      "sizeKb": 879,
+      "why": "Prompt requirement and correct on the merits: artwork is not executable bundle weight. Separately worth noting for whoever picks it up — info-icon.png is 243 KB, which is large for an icon. That is an asset-optimisation item, not a bundle-architecture one, and is not addressed here."
+    }
+  },
+
+  "_relatedEvidence": "docs/minor-release/4.22/FQ10_BUNDLE_BUDGET_EVIDENCE.md"
+}

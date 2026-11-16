@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Output export statements for APP_GIT_SHA and APP_BUILD_TIME. Optional for Compose
-# (Compose backend image gets them from .git at build time). Use for docker run or
-# OpenShift when you need to set these at container start (e.g. eval "$(bash scripts/set-build-env.sh)").
+# Output export statements for APP_GIT_SHA and APP_BUILD_TIME.
+# Compose builds receive APP_GIT_SHA via build-arg (see docker-compose.yml).
+# Use this script for docker run or OpenShift when you need to set these at
+# container start (e.g. eval "$(bash scripts/set-build-env.sh)").
 set -e
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"

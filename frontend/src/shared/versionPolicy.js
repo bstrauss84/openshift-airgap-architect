@@ -9,20 +9,22 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-const SUPPORTED_MINORS = ["4.17", "4.18", "4.19", "4.20"];
+
+import { parseMinorVersionCore } from './openShiftMinor.js';
+import { compareVersions } from '../../../shared/versionUtils.js';
+
+// Application-supported OpenShift minors (requires audited catalogs, Field Guide, validation, generation contract)
+// Cincinnati availability is NOT the same as application support
+const SUPPORTED_MINORS = Object.freeze(["4.20", "4.21", "4.22"]);
 
 const TRUST_BUNDLE_POLICY_ALLOWLIST = {
-  "4.17": ["Proxyonly", "Always"],
-  "4.18": ["Proxyonly", "Always"],
-  "4.19": ["Proxyonly", "Always"],
-  "4.20": ["Proxyonly", "Always"]
+  "4.20": ["Proxyonly", "Always"],
+  "4.21": ["Proxyonly", "Always"],
+  "4.22": ["Proxyonly", "Always"]
 };
 
 const getMinorVersion = (version) => {
-  if (!version || typeof version !== "string") return null;
-  const parts = version.split(".");
-  if (parts.length < 2) return null;
-  return `${parts[0]}.${parts[1]}`;
+  return parseMinorVersionCore(version);
 };
 
 const isSupportedMinor = (minor) => SUPPORTED_MINORS.includes(minor);
@@ -79,11 +81,21 @@ const getForwardOpenShiftMinorDocNotice = (version) => {
   return `OpenShift ${minor} is not yet fully reflected in this tool's version-scrubbed docs index and catalogs. Confirm generated assets against the official Red Hat OpenShift Container Platform ${minor} documentation before using them in production.`;
 };
 
+/**
+ * Get the newest supported minor version.
+ * Uses compareVersions instead of ad hoc version comparisons.
+ * @returns {string} Newest supported minor (e.g., "4.21")
+ */
+const getNewestSupportedMinor = () => {
+  return [...SUPPORTED_MINORS].sort((a, b) => compareVersions(b, a))[0];
+};
+
 export {
   SUPPORTED_MINORS,
   getMinorVersion,
   isSupportedMinor,
   getTrustBundlePolicies,
   getTrustBundlePolicySupport,
-  getForwardOpenShiftMinorDocNotice
+  getForwardOpenShiftMinorDocNotice,
+  getNewestSupportedMinor
 };

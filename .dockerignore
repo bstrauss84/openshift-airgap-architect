@@ -1,8 +1,8 @@
-# Used when building backend with context . (repo root). Keeps .git and backend/ for build-info and backend image.
+# Used when building from repo root context (backend + frontend images)
 node_modules/
 **/node_modules/
-frontend/
 .gitignore
+.gitattributes
 *.log
 **/*.log
 .cursor/
@@ -12,10 +12,12 @@ frontend/
 docs/
 *.md
 !backend/README.md
+!frontend/README.md
 LOCAL_BACKLOG.md
 AGENTS.md
 backend/data/
 backend/.tmp/
+frontend/dist/
 dist/
 # Large local directories that should not be in build context
 local-docs/
@@ -25,3 +27,32 @@ local-docs/
 e2e/
 playwright-report/
 test-results/
+# Test files and coverage
+**/*.test.js
+**/*.test.jsx
+**/*.spec.js
+**/*.spec.jsx
+__tests__/
+coverage/
+**/coverage/
+jest.config.*
+playwright.config.*
+# CI/CD and development tools
+.github/
+.gitlab-ci.yml
+.travis.yml
+.vscode/
+.idea/
+*.code-workspace
+# Git internals
+.git/
+# Trust material and keys never enter the build context (v2.2.0 M7): a
+# corporate CA belongs in a build secret (oaa_build_ca), never in a layer.
+*.pem
+**/*.pem
+*.crt
+**/*.crt
+*.key
+**/*.key
+*.p12
+**/*.p12

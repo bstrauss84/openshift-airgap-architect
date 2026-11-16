@@ -1,0 +1,201 @@
+# OpenShift Airgap Architect — production static serving.
+#
+# Included by the UBI nginx image at `include /opt/app-root/etc/nginx.d/*.conf`
+# (http context), so this adds a server block alongside the image's default one
+# rather than replacing /etc/nginx/nginx.conf. Keeping the stock config intact
+# is what preserves the image's arbitrary-UID handling and log wiring.
+#
+# PORT 5173 IS A CONTRACT, not a leftover from the dev server. It is referenced
+# by docker-compose.yml, manifests/base/frontend-service.yaml,
+# manifests/base/frontend-deployment.yaml (containerPort plus the liveness and
+# readiness probes on `/`), and manifests/openshift/route-frontend.yaml via the
+# named `http` port. Changing it means changing all of those together.
+#
+# ───────────────────────────────────────────────────────────────────────────
+# THE LISTEN ADDRESS IS RENDERED, AND IN THE AUTHENTICATED TOPOLOGY IT IS
+# LOOPBACK. THIS IS THE AUTHENTICATION BOUNDARY, NOT A TUNING KNOB.
+#
+# This block used to `listen 5173` on every interface — including the pod IP.
+# It also forwards the caller's X-Forwarded-User/-Email/-Groups downstream and
+# attaches the backend's shared secret. Together those mean a request sent
+# DIRECTLY to the frontend pod IP on 5173, with an invented X-Forwarded-User,
+# was proxied to the backend with the proxy's own credential attached: full
+# authenticated access with no OAuth, minted by nginx on the attacker's
+# behalf. The shared secret is no defence in that path — nginx is the thing
+# adding it — so NetworkPolicy was the only thing in the way, and a cluster
+# whose plugin does not enforce NetworkPolicy applies those objects silently.
+#
+# oauth-proxy's upstream is `http://localhost:5173` — the same pod, over
+# loopback, which is the only path that is supposed to exist. Binding
+# 127.0.0.1 makes that the only path that DOES exist, enforced by the kernel
+# in the pod's own network namespace rather than by an object another
+# component may ignore. Compose keeps 0.0.0.0, where the container boundary
+# plays the same role.
+#
+# The entrypoint refuses to render a non-loopback address when
+# OAA_REQUIRE_PROXY_SECRET is set, so the authenticated deployment cannot be
+# configured back into the bypass.
+server {
+OAA_LISTEN_DIRECTIVES
+    server_name  _;
+    root         /opt/app-root/src;
+    index        index.html;
+
+    # Deployment-time API endpoint. A Vite production build inlines
+    # `import.meta.env.VITE_API_BASE` at BUILD time, which would have silently
+    # broken the documented runtime override: docker-compose.yml sets
+    # VITE_API_BASE as a service environment variable and
+    # manifests/base/frontend-deployment.yaml sources it from a ConfigMap, both
+    # of which are read when the container STARTS. The entrypoint writes this
+    # file from the environment on every start, so that contract survives the
+    # move off the dev server. Never cached, or a stale endpoint would outlive
+    # a ConfigMap change.
+    location = /runtime-config.js {
+        alias          /tmp/oaa-runtime/runtime-config.js;
+        default_type   application/javascript;
+        add_header     Cache-Control "no-store" always;
+    }
+
+    # Hashed build assets are immutable by construction.
+    location /assets/ {
+        try_files $uri =404;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+    }
+
+    # index.html must never be cached, or a user keeps an old bundle reference
+    # after an upgrade.
+    location = /index.html {
+        add_header Cache-Control "no-store" always;
+    }
+
+    # ---------------------------------------------------------------------
+    # SAME-ORIGIN API PROXY
+    #
+    # This is what makes authenticated deployment possible. Previously the
+    # browser called the backend directly at an absolute VITE_API_BASE, so
+    # the UI and the API were two different origins. An oauth-proxy session
+    # is a cookie scoped to one origin, so a cross-origin XHR would simply
+    # not carry it — and the backend had to be published on its own public
+    # Route for the browser to reach at all, which is the exposure being
+    # closed.
+    #
+    # With this block the UI and the API share one origin, one Route and one
+    # authenticated session. `manifests/openshift/route-backend.yaml` is
+    # removed from the overlay in the same change; a proxy that can be
+    # bypassed by calling the backend Route directly would not be a boundary.
+    #
+    # The backend origin is substituted at container start (the placeholder
+    # token is deliberately not repeated in this comment, or the renderer
+    # would substitute it here too),
+    # defaulting to the in-cluster Service DNS name. nginx resolves upstream
+    # names ONCE at startup when written literally, which is wrong for a
+    # Service whose ClusterIP can change across a redeploy, so the address is
+    # held in a variable and re-resolved per request.
+    #
+    # THE RESOLVER IS DERIVED FROM THIS POD'S OWN /etc/resolv.conf at container
+    # start. It used to be hard-coded to `kube-dns.kube-system.svc.cluster.local`
+    # — an upstream-Kubernetes name that DOES NOT EXIST on OpenShift, whose
+    # cluster DNS Service is `dns-default` in `openshift-dns`. nginx resolves a
+    # resolver given as a name through the SYSTEM resolver when it loads the
+    # configuration, so the one name supplied was the one name that could not
+    # be looked up: config load fails and the pod CrashLoopBackOffs. Reading
+    # resolv.conf is correct on OpenShift, on vanilla Kubernetes and under
+    # Compose alike, because the kubelet and the container engine both write
+    # the right answer into it. OAA_NGINX_RESOLVER still overrides it.
+    location /api/ {
+        OAA_RESOLVER_DIRECTIVE
+        set $oaa_backend        "OAA_BACKEND_ORIGIN";
+        proxy_pass              $oaa_backend$request_uri;
+
+        proxy_http_version      1.1;
+        proxy_set_header        Host              $host;
+        proxy_set_header        X-Real-IP         $remote_addr;
+        proxy_set_header        X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header        X-Forwarded-Proto $scheme;
+
+        # Identity, forwarded from oauth-proxy. These are passed THROUGH, not
+        # minted here. The backend does not trust them on their own: it also
+        # requires the shared secret below, because any pod in the namespace
+        # could otherwise set these headers and reach the backend Service
+        # directly. See backend/src/accessControl.js.
+        #
+        # Safe to forward because openshift/oauth-proxy REPLACES both on an
+        # authenticated request: `addHeadersForProxying` calls
+        # `setRequestHeader`, which strips the incoming value before setting
+        # its own. A client's invented X-Forwarded-User never survives the
+        # authenticating hop.
+        proxy_set_header        X-Forwarded-User   $http_x_forwarded_user;
+        proxy_set_header        X-Forwarded-Email  $http_x_forwarded_email;
+
+        # X-Forwarded-Groups IS CLEARED, not forwarded. openshift/oauth-proxy
+        # neither sets nor strips it — it is absent from `setRequestHeader`'s
+        # callers — so whatever the client sent would arrive here unchanged
+        # and be forwarded as though the proxy had vouched for it. The
+        # backend ignores it too (groups are always empty there); both halves
+        # are deliberate, because one of them will eventually be edited by
+        # someone who does not know about the other.
+        proxy_set_header        X-Forwarded-Groups "";
+
+        # Proof that this request came through the authenticating hop.
+        # Substituted at container start from a mounted Secret, never baked
+        # into the image.
+        proxy_set_header        X-OAA-Proxy-Auth  "OAA_PROXY_SHARED_SECRET";
+
+        # A client must not be able to smuggle its own identity in and have
+        # it survive. Clearing after the set above is deliberate: nginx
+        # applies proxy_set_header in order, so the values this block
+        # assigned stand, and any OTHER identity-shaped header the client
+        # invented is dropped here.
+        proxy_set_header        X-Forwarded-Client-Cert "";
+
+        # Streaming endpoints. /api/jobs/:id/stream is Server-Sent Events and
+        # oc-mirror runs for a long time; buffering would withhold the log
+        # until completion and the default 60s read timeout would sever it.
+        proxy_buffering         off;
+        proxy_cache             off;
+        proxy_read_timeout      3600s;
+        proxy_send_timeout      3600s;
+
+        # Bundle downloads and run imports. The backend caps JSON at 10 MB;
+        # exported bundles are far larger and must not be buffered to disk.
+        client_max_body_size    0;
+        proxy_request_buffering off;
+    }
+
+    # SPA fallback. The app has no client-side router today, so this mainly
+    # guarantees that a reload or a mistyped path returns the application
+    # instead of nginx's 404 page — the behaviour the dev server had.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+# ---------------------------------------------------------------------------
+# PROBE-ONLY LISTENER. Exists because the serving port can be loopback-bound.
+#
+# The kubelet connects to the POD IP, never to the pod's loopback, so once
+# 5173 is bound to 127.0.0.1 in the authenticated overlay the base manifests'
+# liveness and readiness probes on `/` can no longer reach it and the pod
+# never becomes Ready. Rather than re-opening 5173 — the whole point of the
+# change — or probing oauth-proxy and guessing at its internal paths, this
+# block answers exactly one request on a separate port.
+#
+# IT IS NOT A SECOND WAY IN. There is no root, no SPA fallback, no /api
+# proxy, no identity forwarding and no shared secret here; /healthz returns a
+# fixed string and every other path returns 404. Nothing reachable through it
+# discloses anything a connection refusal would not.
+server {
+    listen       0.0.0.0:8081;
+    listen       [::]:8081;
+    server_name  _;
+    access_log   off;
+
+    location = /healthz {
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location / {
+        return 404;
+    }
+}

@@ -1,0 +1,2456 @@
+{
+  "version": "4.22",
+  "scenarioId": "bare-metal-ipi",
+  "parameters": [
+    {
+      "path": "additionalTrustBundle",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "PEM-encoded X.509 bundle",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "PEM-encoded X.509 certificate bundle added to nodes' trust store; used when proxy is configured.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "additionalTrustBundlePolicy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Proxyonly",
+        "Always"
+      ],
+      "default": "Proxyonly",
+      "required": false,
+      "description": "Policy for when to reference user-ca-bundle in Proxy trustedCA: Proxyonly when proxy configured, or Always. Optional.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "apiVersion",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "v1 (current)",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "API version for install-config.yaml content. Current version is v1.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-derived",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "arbiter",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "MachinePool object for arbiter nodes",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Arbiter machine pool configuration for compact three-node bare-metal clusters. Arbiter nodes provide etcd quorum without running workloads, enabling high availability with minimal compute resources. Only valid for bare-metal platform.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.Arbiter",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "arbiter.name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "e.g. arbiter",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name for arbiter nodes.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "arbiter.replicas",
+      "outputFile": "install-config.yaml",
+      "type": "integer",
+      "allowed": 1,
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Number of arbiter nodes. Cannot be greater than 1.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "baseDomain",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "fully-qualified domain or subdomain",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Base domain for cluster; used with metadata.name for routes. Full DNS name is <metadata.name>.<baseDomain>.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "capabilities",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Controls installation of optional core cluster components.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "capabilities.additionalEnabledCapabilities",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "string array",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Additional capabilities beyond baselineCapabilitySet.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "capabilities.baselineCapabilitySet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "None",
+        "v4.11",
+        "v4.12",
+        "v4.20",
+        "vCurrent"
+      ],
+      "default": "vCurrent",
+      "required": false,
+      "description": "Initial set of optional capabilities to enable.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "compute",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "MachinePool objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for compute (worker) machines.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "compute[].architecture",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Instruction set architecture for the machine pool. All pools must match.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "compute[].hyperthreading",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Enabled",
+        "Disabled"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Enable or disable simultaneous multithreading on compute machines.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "compute[].name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "worker",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name of the machine pool. Required if compute is used.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "compute[].platform",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "baremetal",
+        "vsphere",
+        "{}"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cloud provider for worker machines. Must match controlPlane.platform.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "compute[].replicas",
+      "outputFile": "install-config.yaml",
+      "type": "integer",
+      "allowed": "integer >= 2",
+      "default": 3,
+      "required": false,
+      "description": "Number of compute (worker) machines to provision.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "MachinePool objects",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for control plane machines.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane.diskSetup",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "Array of Disk objects (etcd, swap, user-defined)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Disk partitioning and setup configuration for control plane machines. Configures dedicated disks for etcd data, swap space, or custom user-defined partitions. Applied via MachineConfigs during installation.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.DiskSetup",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/machinepools.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane.fencing",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "Fencing object with mode, agents configuration",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Fencing configuration for bare-metal control plane nodes. Configures IPMI/BMC-based node fencing for high availability and failure recovery. Only valid for control plane machines on bare-metal platform. Provides hardware-level node isolation during failures.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Fencing",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/machinepools.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane.platform",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "MachinePoolPlatform object",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Platform-specific configuration for control plane machine pool.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Platform",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/machinepools.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane.platform.baremetal",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "baremetal.MachinePool object",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Bare-metal-specific configuration for control plane machines. Use for per-pool overrides. Overrides global platform.baremetal settings for control plane only.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePoolPlatform.BareMetal",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/machinepools.go"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane.replicas",
+      "outputFile": "install-config.yaml",
+      "type": "integer",
+      "allowed": "Integer machine count for the control plane pool",
+      "default": 3,
+      "required": false,
+      "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Replicas",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/machinepools.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane[].architecture",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "amd64",
+        "arm64",
+        "ppc64le",
+        "s390x"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Instruction set architecture for control plane pool.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane[].hyperthreading",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Enabled",
+        "Disabled"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Enable or disable simultaneous multithreading on control plane machines.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane[].name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "master",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name of the machine pool. Required if controlPlane is used.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane[].platform",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "baremetal",
+        "vsphere",
+        "{}"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cloud provider for control plane. Must match compute.platform.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "controlPlane[].replicas",
+      "outputFile": "install-config.yaml",
+      "type": "integer",
+      "allowed": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Number of control plane machines. 3, 4, 5, or 1 for single-node.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "cpuPartitioningMode",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "None",
+        "AllNodes"
+      ],
+      "default": "None",
+      "required": false,
+      "description": "Enables workload partitioning to isolate cluster services to reserved CPUs. Only at install.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "credentialsMode",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Mint",
+        "Passthrough",
+        "Manual",
+        ""
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cloud Credential Operator (CCO) mode.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "featureGates",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "Array of strings in format 'FeatureGateName=true|false'",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Custom feature gate configuration for enabling/disabling specific cluster features. Only valid when featureSet is 'CustomNoUpgrade'. Each entry is 'FeatureGateName=true' to enable or 'FeatureGateName=false' to disable. Example: ['ExperimentalFeature=true', 'OldFeature=false']. Clusters with custom feature gates cannot upgrade.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.FeatureGates",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "featureSet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "e.g. TechPreviewNoUpgrade",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Feature set to enable (features not enabled by default).",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "fips",
+      "outputFile": "install-config.yaml",
+      "type": "boolean",
+      "allowed": [
+        true,
+        false
+      ],
+      "default": false,
+      "required": false,
+      "description": "Enable or disable FIPS mode. RHCOS uses FIPS-validated crypto when true.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "imageContentSources[].mirrors",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "One or more repositories that may contain the same images.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "imageContentSources[].source",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Repository users refer to (e.g. in image pull specs). Required if imageContentSources used.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "imageDigestSources",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "objects with source and mirrors",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Replacement for soon-to-be-deprecated imageContentSources; same sub-field structure (mirrors, source). Specifies the sources or repositories for the release-image content.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.ImageDigestSources",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "imageDigestSources[].mirrors",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "array of strings",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Same as imageContentSources[].mirrors. One or more mirror registry URLs that may contain the same images (e.g. registry.example.com:5000/ocp4/openshift4).",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Mirrors",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "imageDigestSources[].source",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Same as imageContentSources[].source. Source repository for release-image content (e.g. quay.io/openshift-release-dev/ocp-release). Required if imageDigestSources used.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Source",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "metadata",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Kubernetes ObjectMeta; only name is consumed.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "metadata.name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "lowercase letters, hyphens, periods",
+      "default": "agent-cluster when not provided",
+      "required": false,
+      "description": "Cluster name. DNS records are subdomains of {{.metadata.name}}.{{.baseDomain}}. Ignored in agent-config if set in install-config.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-derived",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for the cluster network. Cannot be changed after installation.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.clusterNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "not specified in docs",
+      "default": "10.128.0.0/14 hostPrefix 23",
+      "required": false,
+      "description": "IP address blocks for pods. Multiple blocks must not overlap.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.clusterNetwork[].cidr",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR notation",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "IP address block for pods. IPv4 prefix 0-32, IPv6 0-128.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.clusterNetwork[].hostPrefix",
+      "outputFile": "install-config.yaml",
+      "type": "integer",
+      "allowed": "subnet prefix",
+      "default": "23 IPv4, 64 IPv6",
+      "required": false,
+      "description": "Subnet prefix length per node. hostPrefix 23 gives 510 pod IPs per node.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.clusterNetworkMTU",
+      "outputFile": "install-config.yaml",
+      "type": "integer",
+      "allowed": "not specified in docs",
+      "default": 8951,
+      "required": false,
+      "description": "MTU for cluster network (pod-to-pod traffic). Defaults to 8951 for OVN-Kubernetes (Geneve overhead), 1450 for OpenShiftSDN.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Networking.ClusterNetworkMTU",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.machineNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "not specified in docs",
+      "default": "10.0.0.0/16 (varies by platform)",
+      "required": false,
+      "description": "IP address blocks for machines. Must match CIDR of preferred NIC.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.machineNetwork[].cidr",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR notation",
+      "default": "10.0.0.0/16 (platform-dependent)",
+      "required": false,
+      "description": "IP network block for machines in CIDR notation.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.networkType",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "OVNKubernetes",
+      "default": "OVNKubernetes",
+      "required": false,
+      "description": "Red Hat OpenShift Networking network plugin. Default is OVNKubernetes.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.ovnKubernetesConfig",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "OVNKubernetesConfig object with ipv4, ipv6, policyAuditConfig fields",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration for OVN-Kubernetes CNI plugin (the default network plugin for OpenShift Container Platform). Only applies when networking.networkType is OVNKubernetes.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Networking.OVNKubernetesConfig",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.ovnKubernetesConfig.ipv4.internalJoinSubnet",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR notation",
+      "default": "100.64.0.0/16",
+      "required": false,
+      "description": "IPv4 join subnet used internally by ovn-kubernetes. Must not overlap node network. Cannot change after install.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "networking.serviceNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "CIDR array",
+      "default": "172.30.0.0/16",
+      "required": false,
+      "description": "IP address block for services. OVNKubernetes supports single block or dual-stack.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.2. Network configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "baremetal, external, none, vsphere, nutanix",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Configuration for the platform for installation.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "baremetal.Platform object with apiVIPs, ingressVIPs, hosts, etc.",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Bare-metal platform configuration for installer-provisioned infrastructure. Includes API/ingress VIPs, provisioning network, host inventory (BMC addresses, boot MAC addresses, root device hints). Required when platform.type is 'baremetal'.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Platform.BareMetal",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.apiVIPs",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "list of IPv4 and/or IPv6 addresses",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "API virtual IP(s). List format (4.12+ canonical). Single-stack: one element; dual-stack: two (order = primary, secondary). Omit when using user-managed load balancer.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-ipi",
+          "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
+          "sectionHeading": "3.3.15.1. Additional installation configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_bare_metal/installer-provisioned-infrastructure"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.bootstrapOSImage",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "URL of RHCOS image for bootstrap node. Optional when using default from release payload.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.DeprecatedBootstrapOSImage",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/platform.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null,
+      "deprecated": false,
+      "versionNotes": "Installer source marks this Deprecated: at 4.22 (symbol DeprecatedBootstrapOSImage, pkg/types/baremetal/platform.go) with the note that the OS image is now part of the OpenShift release; openshift-install 4.22.16 still accepts the field and 4.22 logs an informational \"no longer required\" message when it is set. Red Hat 4.22 product documentation does NOT list bootstrapOSImage as deprecated, so no user-facing deprecation is asserted."
+    },
+    {
+      "path": "platform.baremetal.clusterOSImage",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "URL of RHCOS image for cluster nodes. Optional when using default from release payload.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.DeprecatedClusterOSImage",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/platform.go"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null,
+      "deprecated": false,
+      "versionNotes": "Installer source marks this Deprecated: at 4.22 (symbol DeprecatedClusterOSImage, pkg/types/baremetal/platform.go) with the note that the OS image is now part of the OpenShift release; openshift-install 4.22.16 still accepts the field and 4.22 logs an informational \"no longer required\" message when it is set. Red Hat 4.22 product documentation does NOT list clusterOSImage as deprecated, so no user-facing deprecation is asserted."
+    },
+    {
+      "path": "platform.baremetal.clusterProvisioningIP",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "IPv4 or IPv6 address",
+      "default": "third IP of provisioning subnet",
+      "required": false,
+      "description": "IP within cluster where provisioning services run.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.4. Additional bare metal configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.defaultMachinePlatform",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "baremetal.MachinePool object",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Default machine platform configuration for bare-metal machines.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.DefaultMachinePlatform",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/platform.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.externalBridge",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "Name of an existing network bridge on the provisioning host",
+      "default": "baremetal",
+      "required": false,
+      "description": "External network bridge name for baremetal network.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.ExternalBridge",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/platform.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Bare metal hosts (name, role, bmc, bootMACAddress) for IPI.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-ipi",
+          "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
+          "sectionHeading": "3.3.15.1. Additional installation configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_bare_metal/installer-provisioned-infrastructure"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts.bootMode",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "UEFI",
+        "UEFISecureBoot",
+        "legacy"
+      ],
+      "default": "UEFI",
+      "required": false,
+      "description": "Boot mode for bare-metal host. UEFI (default) = modern UEFI boot, UEFISecureBoot = UEFI with secure boot enabled, legacy = BIOS boot. Must match server firmware configuration.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Host.BootMode",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/platform.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts.hardwareProfile",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "unknown",
+        "default",
+        "libvirt",
+        "dell",
+        "dell-raid"
+      ],
+      "default": "unknown",
+      "required": false,
+      "description": "Hardware profile for bare-metal host. Defines RAID configuration and firmware settings. Profiles: 'unknown' (default, no automated config), 'default' (generic), 'libvirt' (virtual), 'dell' (Dell servers), 'dell-raid' (Dell with RAID).",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Host.HardwareProfile",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/platform.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts.role",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "master",
+        "worker"
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Role assignment for bare-metal host (master or worker). Determines which machine pool this host belongs to. If unset, installer assigns automatically based on host count and cluster topology.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Host.Role",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/platform.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts.rootDeviceHints.wwnVendorExtension",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "Vendor-specific WWN extension",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Vendor extension portion of World Wide Name (WWN) identifier. Used in combination with wwn field for precise disk identification on bare-metal hosts.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/rootdevice.go - RootDeviceHints.WWNVendorExtension",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/rootdevice.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts.rootDeviceHints.wwnWithExtension",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "WWN identifier with vendor extension",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "World Wide Name (WWN) identifier for target disk including vendor extension. More specific than wwn field. Used to uniquely identify boot disk on bare-metal host when multiple disks present.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/rootdevice.go - RootDeviceHints.WWNWithExtension",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/rootdevice.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].bmc",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "BMC config object",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Configuration to connect to host baseboard management controller (BMC).",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.4. Additional bare metal configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].bmc.address",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "URL (e.g. redfish+http://...)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "URL for BMC. Protocol in address (e.g. redfish).",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.4. Additional bare metal configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].bmc.disableCertificateVerification",
+      "outputFile": "install-config.yaml",
+      "type": "boolean",
+      "allowed": [
+        true,
+        false
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "True when using self-signed certificate for BMC. Required for redfish/redfish-virtualmedia.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.4. Additional bare metal configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].bmc.password",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "BMC password.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.4. Additional bare metal configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].bmc.username",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "BMC username.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.4. Additional bare metal configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].bootMACAddress",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "MAC address",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "MAC address of NIC used for provisioning the host.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.4. Additional bare metal configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].name",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name of the host.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.4. Additional bare metal configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].networkConfig",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "NMState YAML configuration object for static network addressing",
+      "default": "not specified - DHCP used if not provided",
+      "required": false,
+      "description": "Optional NMState configuration for static IP addressing on cluster nodes. Defines interfaces, IP addresses, DNS servers, routes, VLANs, and bonding. Use when DHCP is not available or static IPs are required by policy. If not provided, nodes use DHCP for network configuration.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "ocp-4.22-baremetal-ipi",
+          "docTitle": "Installing OpenShift Container Platform 4.22 on bare metal (IPI)",
+          "sectionHeading": "3.3.15.1.1. Hosts",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_bare_metal/installer-provisioned-infrastructure"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].rootDeviceHints",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "key-value pairs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Provision RHCOS to a particular device. First discovered device that matches all provided hints is used.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.4.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].rootDeviceHints.deviceName",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "Linux device name (for example, /dev/disk/by-path/...)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Exact-match device path for installation target.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.4.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].rootDeviceHints.hctl",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "SCSI address (for example, 0:0:0:0)",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Exact-match SCSI bus address for installation target.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.4.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].rootDeviceHints.minSizeGigabytes",
+      "outputFile": "install-config.yaml",
+      "type": "integer",
+      "allowed": "integer >= 0",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Minimum device size in gigabytes.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.4.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].rootDeviceHints.model",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "substring match",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Device model hint (substring match).",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.4.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].rootDeviceHints.rotational",
+      "outputFile": "install-config.yaml",
+      "type": "boolean",
+      "allowed": [
+        true,
+        false
+      ],
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Require rotating media (true) or non-rotating media (false).",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.4.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].rootDeviceHints.serialNumber",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "exact device serial number",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Exact serial number hint for installation target.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.4.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].rootDeviceHints.vendor",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "substring match",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Device vendor hint (substring match).",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.4.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.hosts[].rootDeviceHints.wwn",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "exact world wide name",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Exact WWN hint for installation target.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-agent",
+          "docTitle": "Installing an on-premise cluster with the Agent-based Installer",
+          "sectionHeading": "1.4.2. About root device hints",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer#root-device-hints_preparing-to-install-with-agent-based-installer"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.ingressVIPs",
+      "outputFile": "install-config.yaml",
+      "type": "array",
+      "allowed": "list of IPv4 and/or IPv6 addresses",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Ingress virtual IP(s). List format (4.12+ canonical). Single-stack: one element; dual-stack: two (order = primary, secondary). Omit when using user-managed load balancer.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-ipi",
+          "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
+          "sectionHeading": "3.3.15.1. Additional installation configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_bare_metal/installer-provisioned-infrastructure"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.libvirtURI",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "libvirt connection URI",
+      "default": "qemu:///system",
+      "required": false,
+      "description": "Libvirt connection URI for bare-metal provisioning host.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.LibvirtURI",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/platform.go"
+        }
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.provisioningDHCPRange",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "IP address range",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "IP range for nodes on provisioning network (e.g. 172.22.0.10,172.22.0.254).",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.4. Additional bare metal configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.provisioningMACAddress",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "MAC address",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "MAC address where provisioning services run.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.4. Additional bare metal configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.provisioningNetwork",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Managed",
+        "Unmanaged",
+        "Disabled"
+      ],
+      "default": "Managed",
+      "required": false,
+      "description": "Provisioning network mode for Bare Metal IPI.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-bare-metal-ipi",
+          "docTitle": "Installing on bare metal with installer-provisioned infrastructure",
+          "sectionHeading": "3.3.15.1. Additional installation configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_bare_metal/installer-provisioned-infrastructure"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.provisioningNetworkCIDR",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "CIDR",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "CIDR for provisioning network. Required when not using default range.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.4. Additional bare metal configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.provisioningNetworkGateway",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "IPv4 or IPv6 address",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "IP address of the default gateway for the provisioning network. WHAT: the gateway handed to bare-metal hosts over DHCP so they can route to external networks during inspection and provisioning. WHEN: optional, and only honoured when platform.baremetal.provisioningNetwork is Managed (installer-managed DHCP); it is accepted but ignored when provisioningNetwork is Unmanaged or Disabled. FORMAT: a single IPv4 or IPv6 address. IMPORTANT: Red Hat documents three constraints — the gateway must be within platform.baremetal.provisioningNetworkCIDR, must be outside platform.baremetal.provisioningDHCPRange, and must not be the same address as the provisioning IP. EXAMPLE: 172.22.0.254 for a provisioningNetworkCIDR of 172.22.0.0/24 with a provisioningDHCPRange of 172.22.0.10,172.22.0.100. New in OpenShift 4.22.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "conditionals": {
+        "requires": "platform.baremetal.provisioningNetwork set to Managed",
+        "omitWhen": "platform.baremetal.provisioningNetwork is Unmanaged or Disabled — openshift-install 4.22.16 accepts the field in that case but ignores it, so emitting it would be misleading",
+        "visibility": "Optional; only meaningful when the provisioning network is installer-managed",
+        "note": "Red Hat documents that the gateway must be within provisioningNetworkCIDR, outside provisioningDHCPRange, and different from the provisioning IP. These are documented product constraints; the installer's DHCP-overlap check is inert against the shipped 4.22.16 binary (delta ledger D1), so no UI validation may claim the installer rejects an overlapping value."
+      },
+      "citations": [
+        {
+          "docId": "provisioning-apis-provisioning",
+          "docTitle": "Provisioning [metal3.io/v1alpha1]",
+          "sectionHeading": "13.1.1. .spec",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/provisioning_apis/provisioning-metal3-io-v1alpha1"
+        },
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.ProvisioningNetworkGateway",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/platform.go"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.22",
+      "maxVersion": null,
+      "versionNotes": "Introduced at 4.22. Mechanically: pkg/types/baremetal/platform.go Platform.ProvisioningNetworkGateway, string, omitempty, +optional, +kubebuilder:validation:Format=ip, with NO feature gate; absent from the exact 4.21.35 release source, and the 4.22.16 release carries \"OCPBUGS-78151: Add provisioningNetworkGateway field to install-config\". Documented by Red Hat at 4.22 in Provisioning APIs Chapter 13 \"Provisioning [metal3.io/v1alpha1]\" §13.1.1 .spec: \"ProvisioningNetworkGateway is the IP address of the default gateway for the provisioning network. This gateway is provided to baremetal hosts via DHCP to enable routing to external networks during inspection and provisioning. This field is optional and only used when ProvisioningNetwork is set to Managed. The gateway IP must be within the ProvisioningNetworkCIDR but outside of the ProvisioningDHCPRange and must not be the same as ProvisioningIP.\" The same chapter at 4.20 and 4.21 does not contain the field, which is why minVersion is 4.22. Exact-binary behaviour against openshift-install 4.22.16: accepted with provisioningNetwork: Managed; \"not-an-ip\" REJECTED as not a valid IP; accepted and ignored with provisioningNetwork: Disabled. DO NOT present the DHCP-range overlap rule as installer-enforced: the installer's own check (pkg/types/baremetal/validation/platform.go) is INERT against the shipped 4.22.16 binary — a gateway inside the allocated DHCP range was accepted, and the pre-existing clusterProvisioningIP check of the same code shape is equally inert, so this is a shared mechanism rather than a 4.22 regression (mechanical delta ledger D1). The within-CIDR, network-address and broadcast-address checks were not individually binary-probed and must likewise not be claimed as installer-enforced. The three constraints above are recorded as DOCUMENTED Red Hat product semantics, which is what they are."
+    },
+    {
+      "path": "platform.baremetal.provisioningNetworkInterface",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "not specified in docs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Name of node network interface connected to provisioning network.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.4. Additional bare metal configuration parameters for the Agent-based Installer",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.dnsRecordsType",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "Internal, External, or omitted",
+      "default": "Internal",
+      "required": false,
+      "description": "Determines whether DNS records for api, api-int, and ingress are provided by the internal DNS service or externally. When set to 'Internal' (or omitted), records are provided by the internal infrastructure. When set to 'External', records must be configured by the user on a DNS server outside the cluster; External requires the OnPremDNSRecords feature gate to be enabled and loadBalancer.type=UserManaged. External mode is not currently configured by this application.",
+      "applies_to": [
+        "bare-metal-ipi",
+        "bare-metal-upi",
+        "bare-metal-agent"
+      ],
+      "notes": "Cataloged for documentation completeness. The OnPremDNSRecords feature gate can be enabled via TechPreviewNoUpgrade, DevPreviewNoUpgrade, or CustomNoUpgrade with an explicit featureGates entry. External mode also requires loadBalancer.type=UserManaged. This application omits the field entirely (defaulting to Internal) because it does not configure the required feature gate or loadBalancer.type selection.",
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.DNSRecordsType",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/platform.go"
+        }
+      ],
+      "supportStatus": "docs-only-not-supported",
+      "minVersion": "4.21",
+      "maxVersion": null
+    },
+    {
+      "path": "platform.baremetal.bmcVerifyCA",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "PEM-encoded CA certificate content",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Optional CA certificate or certificate bundle (PEM-encoded) used to verify BMC TLS certificates during bare metal provisioning. When provided, the OpenShift installer creates a TLS asset file (bmc-ca/verify_ca.crt) and a ConfigMap (openshift-machine-api/bmc-verify-ca) with data key verify_ca.crt.",
+      "applies_to": [
+        "bare-metal-ipi",
+        "bare-metal-upi",
+        "bare-metal-agent"
+      ],
+      "notes": "Optional multiline CA certificate content; available beginning with OpenShift 4.21. Used by the installer to verify BMC TLS certificates. When non-empty, the installer writes bmc-ca/verify_ca.crt and creates ConfigMap openshift-machine-api/bmc-verify-ca with data key verify_ca.crt. The upstream installer does not perform explicit PEM-format validation; the application provides advisory format guidance.",
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/baremetal/platform.go - Platform.BMCVerifyCA",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/baremetal/platform.go"
+        },
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/asset/manifests/bmcverifycaconfigmap.go",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/asset/manifests/bmcverifycaconfigmap.go"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.21",
+      "maxVersion": null,
+      "versionNotes": "4.22: pkg/asset/tls/bmcverifyca.go no longer exists in the 4.22.16 release source; the BMC verify-CA asset is carried by pkg/asset/manifests/bmcverifycaconfigmap.go. The field itself is unchanged in pkg/types/baremetal/platform.go. The removed-file citation was dropped rather than re-pointed."
+    },
+    {
+      "path": "proxy",
+      "outputFile": "install-config.yaml",
+      "type": "object",
+      "allowed": "Proxy object with httpProxy, httpsProxy, noProxy fields",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Cluster-wide proxy configuration for external HTTP/HTTPS connections. Configure if cluster nodes access Red Hat services, container registries, or external resources through a proxy server. If unset, cluster does not use a proxy.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.Proxy",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/installconfig.go"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "proxy.httpProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "http or https URL",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Proxy URL for HTTP connections outside the cluster. URL scheme must be http.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "proxy.httpsProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "http or https URL",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Proxy URL for HTTPS connections outside the cluster.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "proxy.noProxy",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "comma-separated domains, IPs, CIDRs",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "Comma-separated list of destinations to exclude from proxying. Prefix domain with . for subdomains only; use * to bypass proxy for all.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installing-platform-agnostic",
+          "docTitle": "Installing a cluster (platform-agnostic)",
+          "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_any_platform/installing-platform-agnostic"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "publish",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "Internal",
+        "External"
+      ],
+      "default": "External",
+      "required": false,
+      "description": "How to publish cluster endpoints (Kubernetes API, routes). Internal not supported on non-cloud.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "pullSecret",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "JSON auths object",
+      "default": "not specified in docs",
+      "required": true,
+      "description": "Pull secret from Red Hat OpenShift Cluster Manager to authenticate image pulls from Quay.io etc.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.1. Required configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "sshKey",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": "SSH public key",
+      "default": "not specified in docs",
+      "required": false,
+      "description": "SSH key to authenticate access to cluster machines. Recommend for production.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "citations": [
+        {
+          "docId": "installation-config-parameters-agent",
+          "docTitle": "Installation configuration parameters for the Agent-based Installer",
+          "sectionHeading": "9.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_an_on-premise_cluster_with_the_agent-based_installer/installation-config-parameters-agent"
+        }
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
+    },
+    {
+      "path": "osImageStream",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "rhel-9",
+        "rhel-10"
+      ],
+      "default": "rhel-9",
+      "required": false,
+      "description": "Global OS image stream for every machine in the cluster. NOT EXPOSED by OpenShift Airgap Architect and never emitted. New at OpenShift 4.22 and gated by the OSStreams feature gate, which openshift/api enables only under TechPreviewNoUpgrade or DevPreviewNoUpgrade; openshift-install 4.22.16 rejects the field outright without that feature set. Red Hat documents RHEL 10 as a Technology Preview base image at 4.22, and Technology Preview is not covered by production service level agreements, so this is recorded for provenance rather than offered as a choice.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "deprecated": false,
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.OSImageStream",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/installconfig.go"
+        },
+        {
+          "docId": "ocp-4.22-release-notes",
+          "docTitle": "OpenShift Container Platform 4.22 release notes",
+          "sectionHeading": "1.9.5. Installation Technology Preview features",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/release_notes/ocp-4-22-release-notes"
+        }
+      ],
+      "supportStatus": "docs-only-not-supported",
+      "minVersion": "4.22",
+      "maxVersion": null,
+      "versionNotes": "Introduced at 4.22 (pkg/types/installconfig.go InstallConfig.OSImageStream, enum rhel-9|rhel-10). Binary-verified rejection: \"Forbidden: this field is protected by the OSStreams feature gate which must be enabled through either the TechPreviewNoUpgrade or CustomNoUpgrade feature set\". Architect does not offer TechPreviewNoUpgrade, so emitting this field could only ever produce a rejected install-config. rhel-10 is additionally forbidden on SCOS/OKD builds."
+    },
+    {
+      "path": "controlPlane.management",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "ClusterAPI",
+        "MachineAPI"
+      ],
+      "default": "ClusterAPI",
+      "required": false,
+      "description": "Machine-management API for control-plane machines. NOT EXPOSED by OpenShift Airgap Architect and never emitted. New at OpenShift 4.22 and absent from Red Hat OpenShift Container Platform 4.22 documentation, including the Technology Preview tables.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "deprecated": false,
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Management",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/machinepools.go"
+        }
+      ],
+      "supportStatus": "hidden-not-applicable",
+      "minVersion": "4.22",
+      "maxVersion": null,
+      "versionNotes": "Introduced at 4.22 (pkg/types/machinepools.go MachinePool.Management, +kubebuilder:default=ClusterAPI), gated by ClusterAPIControlPlaneInstall, which openshift/api enables under DevPreviewNoUpgrade only — not even TechPreviewNoUpgrade. Binary-verified rejection: \"controlPlane.management: Forbidden: this field is protected by the ClusterAPIControlPlaneInstall feature gate\". The gate fires only when the value is explicitly set; an omitted field defaults to ClusterAPI later in the pipeline without tripping it, so omitting is both correct and safe. The installer doc comment says \"Supported platforms: aws\"."
+    },
+    {
+      "path": "compute[].management",
+      "outputFile": "install-config.yaml",
+      "type": "string",
+      "allowed": [
+        "ClusterAPI",
+        "MachineAPI"
+      ],
+      "default": "ClusterAPI",
+      "required": false,
+      "description": "Machine-management API for compute machines. NOT EXPOSED by OpenShift Airgap Architect and never emitted. New at OpenShift 4.22 and absent from Red Hat OpenShift Container Platform 4.22 documentation, including the Technology Preview tables.",
+      "applies_to": [
+        "bare-metal-ipi"
+      ],
+      "deprecated": false,
+      "citations": [
+        {
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.22 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Management",
+          "url": "https://github.com/openshift/installer/blob/release-4.22/pkg/types/machinepools.go"
+        }
+      ],
+      "supportStatus": "hidden-not-applicable",
+      "minVersion": "4.22",
+      "maxVersion": null,
+      "versionNotes": "Introduced at 4.22 (pkg/types/machinepools.go MachinePool.Management, +kubebuilder:default=ClusterAPI), gated by ClusterAPIComputeInstall, which openshift/api enables under DevPreviewNoUpgrade only — not even TechPreviewNoUpgrade. The gate fires only when the value is explicitly set; an omitted field defaults to ClusterAPI later in the pipeline without tripping it, so omitting is both correct and safe. The installer doc comment says \"Supported platforms: aws\"."
+    }
+  ]
+}

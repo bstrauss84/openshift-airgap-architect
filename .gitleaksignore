@@ -4,3 +4,8 @@
 # Test fixtures - not real secrets
 backend/test/mirrorRegistryConfigLoader.test.js:*:General Secret
 backend/test/fixtures/mirror-registry-config.json:*
+# E2E test helpers use fake/mock credentials (dGVzdDp0ZXN0=test:test, bWlycm9yOnRlc3Q==mirror:test)
+e2e/helpers/mock-data.js:*
+e2e/fixtures/scenarios.js:*
+# Proxy test uses httpuser:password@ in a template literal (fake, never committed as real)
+backend/test/scan-failure-reason.test.js:*:URL User and Password

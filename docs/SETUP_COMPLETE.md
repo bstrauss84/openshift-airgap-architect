@@ -1,7 +1,31 @@
-# ✅ Catalog Auto-Sync Setup Complete!
+# ⚠️ SUPERSEDED — Historical Record (2026-05-09)
+
+> **Do not follow the instructions in this document.** It records the catalog
+> auto-sync setup as it existed on 2026-05-09. Four things it describes are no
+> longer true, and following them now would reintroduce defects that v2.1
+> Tranche 0A-1 removed:
+>
+> | This document says | Current reality |
+> |---|---|
+> | Catalogs live at `frontend/src/data/catalogs/<scenario>.json` | Versioned: `frontend/src/data/catalogs/<minor>/<scenario>.json` (ADR-001/ADR-005) |
+> | An untracked `.git/hooks/pre-commit` syncs and **auto-stages** files | The tracked hook is **read-only**: it checks and instructs, and never modifies or stages. See `.pre-commit-config.yaml` |
+> | "If you edited frontend first, copy it back to `data/params/`" | **Never copy a mirror back over canonical.** Fix canonical, then `npm run sync-catalogs` |
+> | `sync-catalogs:check` uses `--dry-run` | `--dry-run` is a preview that exits 0 even on drift. The gate is `--check` |
+> | `validate-catalogs` globs `frontend/src/data/catalogs/*.json` | That glob matched zero files after the versioned migration; it now validates `data/params` |
+>
+> **Authoritative documents instead:**
+> `docs/PARAM_AUTHORITY.md` · `docs/CATALOG_SYNC_GUIDE.md` ·
+> `docs/DATA_AND_FRONTEND_COPIES.md` ·
+> `docs/minor-release/MINOR_ONBOARDING_RUNBOOK.md`
+>
+> Retained unaltered below as the provenance record of what was set up and when.
+
+---
+
+# ✅ Catalog Auto-Sync Setup Complete! *(historical, 2026-05-09)*
 
 **Date:** 2026-05-09  
-**Status:** Fully Implemented and Tested
+**Status:** Historical — superseded. See the banner above.
 
 ---
 

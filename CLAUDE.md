@@ -1,272 +1,212 @@
-# OpenShift Airgap Architect - AI Agent Instructions
+# OpenShift Airgap Architect — Claude Agent Instructions
 
-**Purpose:** This file establishes the documentation hierarchy and authority for AI agents working on this codebase.
-
----
-
-## Documentation Hierarchy (Single Source of Truth)
-
-### 1. Canonical Status Registry: `/docs/BACKLOG_STATUS.md`
-
-**Authority:** Single source of truth for ALL status claims  
-**Items:** DOC-001 through DOC-056+  
-**Purpose:** Evidence-first reconciliation of all work completed, in progress, and planned
-
-**Before making status claims:**
-1. Check `/docs/BACKLOG_STATUS.md` first
-2. Provide code/commit evidence for any updates
-3. Use canonical status vocabulary ONLY (see below)
-4. If updating status, add a row to the BACKLOG_STATUS.md table with evidence
-
-**Status vocabulary (canonical):**
-- `active`: planned and in-scope
-- `deferred`: intentionally postponed
-- `blocked`: cannot progress until blocker resolved
-- `done_pending_verification`: implemented, verification incomplete
-- `verified_done`: implemented and verified against code/tests
-- `obsolete`: no longer relevant
-- `superseded`: replaced by another item
-
-**Priority vocabulary:**
-- `p0`: urgent correctness/security impact
-- `p1`: high product impact
-- `p2`: normal planned work
-- `p3`: low-priority improvement
-
-### 2. Active Execution Plan: `/docs/IMPLEMENTATION_ROADMAP_2026-05-14.md`
-
-**Authority:** Current phased implementation roadmap (semantic versioning)  
-**Created:** 2026-05-14 (replaces REVISED_PHASED_PLAN_2026-05-10.md)  
-**Current Version:** v1.1.3 (released 2026-05-14)  
-**Current Phase:** v1.2.0 Phase 1 - ✅ **100% COMPLETE** (4/4 items done)  
-**Purpose:** Semantic versioning roadmap with release history and phased features
-
-**What it contains:**
-- Semantic versioning strategy (patch/minor/major)
-- Release history (v1.1.0 through v1.1.3)
-- Phased roadmap (v1.2.0 through v2.0.0)
-- Success criteria per phase
-- Dependency tracking
-
-**When to update:**
-- Mark items complete with dates + commit evidence
-- Update phase completion percentages
-- Track version bumps and releases
-- Cross-reference BACKLOG_STATUS.md for detailed status
-
-**Current focus:** v1.2.0 Phase 3 COMPLETE (AWS Platform Specifics, FIPS binary selection, Node drawer redesign)  
-**Additional work complete:** DOC-082 Parameter Canonicalization Audit (Phase 2, outside roadmap, 2026-05-21)  
-**Next phase:** v1.3.0 (Testing & Validation)
-
-### 3. Historical Work Plan: `/docs/COMPREHENSIVE_MASTER_PLAN.md`
-
-**Authority:** Detailed historical phase/batch tracking (Phases 1-2 tooltip work)  
-**Status:** Phases 1-2 COMPLETE (100% tooltip coverage)  
-**Purpose:** Reference for tooltip standards and completed tooltip expansion work
-
-**Use for:**
-- Tooltip formatting standards (gold standard reference)
-- Historical batch completion tracking
-- Quality checklist for FieldLabelWithInfo components
-- Evidence of Phases 1-2 completion
-
-**Do NOT use for:** Current work planning (use REVISED_PHASED_PLAN instead)
-
-### 4. Local Backlog: `/LOCAL_BACKLOG.md` (not committed)
-
-**Authority:** User's personal tracking (in .gitignore)  
-**Purpose:** Lower-priority items, experimental work, deferred features  
-**Scope:** NOT canonical - check BACKLOG_STATUS.md for any claims
+This file provides durable rules and current status for AI agents working on this codebase.
 
 ---
 
-## Evidence Requirements
+## Product Scope
 
-For any status update to BACKLOG_STATUS.md:
+**OpenShift Airgap Architect v2.1 (in progress)** supports exactly:
 
-**Required fields:**
-1. **Commit SHA** or **file path** - Concrete code evidence
-2. **Test files** - Link to passing tests (if applicable)
-3. **Source documentation** - Reference planning docs or user requests
-4. **Next action** - What remains if not `verified_done`
+- **4.20** (baseline — the version-awareness baseline, deliberately unmoved)
+- **4.21**
+- **4.22** (current)
 
-**Example row:**
-```markdown
-| DOC-049 | Comprehensive Tooltip Expansion | verified_done | p1 | `docs/COMPREHENSIVE_MASTER_PLAN.md` | Commits 0e3fe69-596fc2a, `frontend/tests/hint-syntax.test.js` passing | Tooltip expansion complete. |
-```
+4.22 was onboarded by the v2.1 Tranche 5 atomic support flip. **4.23 is unsupported.**
+Cincinnati availability does not equal product support.
 
----
+No fallback from an unsupported version to a supported one is allowed for catalogs, validation, preview, generated artifacts, bundle preparation, or bundle downloads.
 
-## Work Session Protocol
+Adding a minor is **cumulative** and never removes one. Retiring a supported minor is a standalone, human-authorized decision, never a side effect of onboarding a newer minor.
 
-### At End of Work Session
+### Tool version is not target support
 
-1. **Update docs/COMPREHENSIVE_MASTER_PLAN.md progress (if tooltip work)**
-   - Mark completed phases/batches
-   - Update completion percentages
-   - Add completion dates
+A CLI binary distributed from a newer Red Hat client stream does **not** extend Architect's target OpenShift support. Architect may ship or execute an `oc-mirror` labelled newer than any supported target while still supporting only the targets listed above.
 
-2. **Add completed items to docs/BACKLOG_STATUS.md with evidence**
-   - Follow canonical status vocabulary
-   - Provide commit SHAs or file paths
-   - Link to tests if applicable
+Target-version rejection must remain enforced independently of tool versions, at every boundary: release selection, imported state, catalog selection, generated configuration, preview, validation, Field Guide behavior, persisted state, and the operator workflow.
 
-3. **Archive session notes to `.archive/session-notes-YYYY-MM-DD/`**
-   - Move temporary working files
-   - Delete `.bak` files
-   - Create README.md index in archive directory
-
-4. **Update this file if patterns change**
-   - New documentation files added
-   - Authority structure changes
-   - Process improvements discovered
+Never relax a target-version guard because a tool binary came from a newer stream.
 
 ---
 
-## Tooltip Standards (Phases 1-2 Complete)
+## Version State Invariants
 
-All FieldLabelWithInfo tooltips must use gold standard formatting:
+The canonical v3 state schema version fields are:
 
-### Required Format
+- `version.selectedMinor` (e.g., "4.21")
+- `version.selectedPatch` (e.g., "4.21.20")
+- `version.selectedChannel` (e.g., "stable-4.21")
+- `version.locked` (boolean)
 
-```jsx
-<FieldLabelWithInfo
-  label="Field Name"
-  hint={`Brief one-line description.
+`release` is backward compatibility only.
 
-**What is this:**
-Explanation of the concept or field purpose.
-
-**When needed:**
-Scenarios where this is required or optional.
-
-**Format:**
-Expected input format, data type, constraints.
-
-**How it's used:**
-Where this appears in generated configs or how it affects deployment.
-
-**Important:**
-⚠️ Critical warnings, immutability notes, security considerations.
-
-**Example:**
-Concrete real-world example values.`}
-  required={isRequired}
->
-```
-
-### Quality Checklist
-
-- ✅ Template literal syntax `{`...`}`
-- ✅ **Bold** section headers (renders as yellow highlighting)
-- ✅ Comprehensive WHAT/WHY/WHEN/FORMAT/EXAMPLE sections
-- ✅ Beginner-friendly language, no unexplained jargon
-- ✅ Real-world examples with actual values
-- ✅ Security warnings (⚠️) where applicable
-- ✅ Immutability noted ("cannot be changed after installation")
+Unknown or future schema versions (`_schemaVersion > 3`) block.
 
 ---
 
-## File Organization
+## Version-Aware Rules
 
-### Keep (Living Documents)
-- `docs/BACKLOG_STATUS.md` - Canonical status registry (single source of truth)
-- `docs/IMPLEMENTATION_ROADMAP_2026-05-14.md` - **ACTIVE execution plan** (replaces REVISED_PHASED_PLAN)
-- `docs/HANDOFF_PACKET.md` - Handoff packet for new Claude sessions (quick reference)
-- `docs/COMPREHENSIVE_MASTER_PLAN.md` - Historical plan (Phases 1-2 tooltip work, quality standards)
-- `docs/DISCONNECTED_SCENARIO_MATRIX.md` - Disconnected deployment support (all 12 scenarios)
-- `docs/PLATFORM_NONE_SUPPORT_BOUNDARIES.md` - Platform: none usage rules
-- `docs/UPI_PREP_GUIDES/` - UPI preparation guides (bare-metal, vSphere, AWS, Azure)
-- `docs/HIGH_SIDE_FEATURES_BACKLOG.md` - High-side feature roadmap
-- `LOCAL_BACKLOG.md` - User's personal backlog (not committed)
-- `docs/TOOLTIP_EXPANSION_MASTER_PLAN.md` - Tooltip audit data reference
-- `docs/SETUP_COMPLETE.md` - Catalog sync reference guide
-- `UI_STANDARDS.md` - UI design and implementation standards
-- `docs/CATALOG_SYNC_GUIDE.md` - Catalog synchronization procedures
+### No Fallback Rule
 
-### Archive (Session Notes)
-Create `.archive/session-notes-YYYY-MM-DD/` directories for:
-- Temporary working files
-- Session status reports
-- Audit findings
-- Implementation notes
+If the user selects 4.23 (or any unsupported version):
 
-Include a README.md index listing all archived files.
+- Return HTTP 422 UNSUPPORTED_VERSION
+- Display recovery UI with a clear "Switch to <newest supported minor>" button
+- Do not silently fall back to a supported version in any pipeline
 
-### Delete (Temporary Artifacts)
-- `.bak` files after validation
-- Temporary test output
-- Build artifacts not in `.gitignore`
+### Shared Utilities Only
+
+Use `shared/versionUtils.js`, `frontend/src/shared/catalogVersion.js`, and `frontend/src/shared/versionHelpers.js` for all version parsing and comparison.
+
+**Do not** add ad hoc version parsers (split("."), substring, local regex) in production logic.
+
+### Schema Migration Rule
+
+Unknown schemas block at all boundaries:
+
+- Backend: `shared/stateMigration.js` throws on `_schemaVersion > 3`
+- Frontend: `frontend/src/shared/versionHelpers.js detectUnknownSchema` blocks
+- API: `/api/state` validates migration before persist
 
 ---
 
-## Git Workflow
+## External tool version policy
 
-### Commit Message Format
+`oc` and `oc-mirror` follow **deliberately different** rules. Do not collapse them during future maintenance.
 
-Follow existing patterns in the repository:
+| Tool | Policy | Channel |
+|---|---|---|
+| `oc-mirror` | Latest available release **globally**, independent of target minor | `clients/ocp/latest` |
+| `oc` | Latest patch **within the selected supported target minor** | `clients/ocp/latest-<minor>` |
 
-```
-Brief summary (70 chars or less)
+Rationale: Red Hat directs users to the latest `oc-mirror` v2 regardless of which OpenShift versions are mirrored, whereas `oc` carries a client/server compatibility expectation tied to the target cluster release. Operator discovery additionally *requires* a recent `oc-mirror`: `--v2 list operators` does not exist in 4.21.x.
 
-Optional longer description:
-- Bullet points for multiple changes
-- Reference DOC-XXX items when applicable
-- Explain WHY not just WHAT
+Both tools must always be:
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
-```
+1. Resolved from the official Red Hat mirror (never a hardcoded z-stream default)
+2. Verified against that channel's own `sha256sum.txt` **before** use or packaging
+3. Recorded with exact resolved version, SHA256, architecture, and source URL
+
+Fail closed on download failure, missing/unparseable checksum metadata, checksum mismatch, or unsupported architecture. Never silently fall back to an older cached binary, to `--v1`, or to unverified bytes. A later rebuild legitimately resolving a newer `oc-mirror` is **intentional**, not a reproducibility defect.
+
+Do not rewrite Field Guide guidance to claim arbitrary future `oc` clients are supported against older clusters; Field Guide target-release compatibility guidance remains authoritative.
+
+---
+
+## OAA Implementation-Agent Execution Contract
+
+Follow this for any non-trivial implementation tranche.
+
+1. **Requirement Ledger before edits.** For each requirement record: current behavior → authoritative evidence → planned change → deterministic test → manual verification.
+2. **Identifiers are immutable.** Keep the user's requirement IDs (R1, R2, …) exactly as given. Never rename, renumber, merge, or reconstruct them from memory.
+3. **Verify external CLI/API behavior twice.** Check authoritative upstream docs/source **and** the exact binary actually shipped or executed. Documentation alone is not evidence that the bundled binary implements the documented contract.
+4. **Hypothesis ≠ root cause.** Label unproven mechanisms as hypotheses and say so.
+5. **"Edited" is not "fixed."** Only claim a fix after the real user-facing path is exercised and passes.
+6. **Behavior-level tests** for user-facing behavior wherever practical, not just string assertions.
+7. **Findings Queue.** Record unrelated discoveries for the backlog instead of silently expanding scope.
+8. **Reconcile docs last.** README and `docs/BACKLOG_STATUS.md` updates happen only after final tested behavior.
+9. **No final report while background work is running.** Wait for every shell/agent task to finish.
+10. **Final report maps:** requirement → implementation → test → manual verification → remaining work.
+11. **Never invent or reuse backlog IDs** without reading canonical `docs/BACKLOG_STATUS.md` first.
+12. **The human controls Git mutations** unless explicitly instructed otherwise.
+13. **When vendor behavior varies across versions**, exact-binary validation is mandatory.
+
+If a requirement conflicts with another requirement or with proven upstream behavior, **stop and report the conflict before editing**.
+
+### Backlog-item relevance review (before implementing ANY canonical item)
+
+1. Read the item's original requirement, history, evidence and existing tests.
+2. Inspect current code, UI, generated outputs and the supported OCP minors.
+3. Search for existing, newer or equivalent implementation.
+4. Decide whether the original problem is still relevant and actually persists.
+5. Reproduce what remains, or give concrete behavioral/code evidence — an untested hypothesis is not established.
+6. Classify it explicitly: **still needed** · **partially implemented; narrow remaining gap** · **already implemented; verification only** · **obsolete/superseded** · **needs further evidence or owner decision**.
+7. Implement only confirmed remaining work; prefer zero product-code changes when the existing implementation is already correct.
+8. Preserve stronger existing architecture, security, version gates, accessibility and UX.
+9. Provide regression evidence that fails on the relevant defective baseline.
+10. Never change canonical statuses or create duplicate IDs merely to show progress.
+
+### Owner UX acceptance walkthrough (every user-visible tranche)
+
+Any tranche that changes visible UI, navigation, validation, imported/exported content, workflows or
+user-facing generated documentation ships ONE brief, consolidated walkthrough for the whole tranche:
+
+`Where to go | What to do | Previous behavior | Expected new behavior | PASS/CHANGE NEEDED`
+
+- Group related changes; prefer representative checks over exhaustive matrices.
+- Give exact steps and safe synthetic example data; cover light/dark and responsive appearance where material.
+- Separate automated verification from owner approval, and name every untested scenario.
+- Owner QA is complete only on the owner's actual feedback — never mark it complete otherwise.
+
+---
+
+## Evidence and Testing Discipline
+
+- Mark work `done_pending_verification` until tests pass and manual checks complete
+- Move to `verified_done` only after evidence is committed to git
+- Cite commit SHAs, file paths, test results, and manual verification
+- Never claim completion without code evidence
+
+---
+
+## Documentation Authority Hierarchy
+
+1. **`docs/BACKLOG_STATUS.md`** — Single source of truth for all status claims
+2. **`CLAUDE.md`** (this file) — Durable agent rules and current immediate task
+3. **`docs/IMPLEMENTATION_ROADMAP_2026-05-14.md`** — Versioned roadmap
+
+> A previous revision listed `docs/HANDOFF_PACKET.md` at position 3. That file
+> has never been tracked in this repository, and `docs/LOCAL_IGNORED_DOCS_TRIAGE.md`
+> classifies it as a local handoff note, "non-canonical by design", triaged
+> `archive_now`. The dangling entry is removed rather than replaced: no
+> substitute document is invented to satisfy a stale link.
+
+**UI contract:** `docs/DESIGN_SYSTEM.md` is the canonical UI consistency contract.
+Before adding or modifying version-gated UI fields, read `docs/VERSION_AWARE_UI_FIELD_CHECKLIST.md`.
+
+When docs conflict, trust the order above.
+
+---
+
+## Git Safety Rules
 
 ### Before Committing
 
-1. Review git status and diff
+1. Review `git status` and `git diff`
 2. Stage specific files (avoid `git add -A`)
 3. Write meaningful commit message
 4. Ensure tests pass
-5. Check for sensitive data (.env, credentials)
+5. Check for sensitive data (`.env`, credentials)
 
-### Branch Strategy
+### Destructive Operations Require User Approval
 
-- **main:** Production-ready code
-- **develop:** Active development (default target)
-- Feature branches: For experimental work
+- `git reset --hard`, `git push --force`, `git checkout --` (on files)
+- Deleting branches, dropping database tables, killing processes
+- Force-pushing, amending published commits
+- Removing or downgrading packages
+- Modifying CI/CD pipelines
+
+Run `git status` before any command that could discard uncommitted work. Stop and ask the user how to proceed.
+
+### Never Skip Hooks
+
+Do not use `--no-verify` or `--no-gpg-sign` unless explicitly requested. If a hook fails, investigate and fix.
 
 ---
 
-## Container Runtime Preference
+## Claude Session Rules
 
-**ALWAYS use Podman over Docker**
+### Do Not Stage or Commit Unless Requested
 
-When working with containers for building, testing, or generating artifacts:
+The user controls the commit workflow. Provide exact `git add` and `git commit` commands in your response, but do not execute them.
 
-### Why Podman:
-- **Rootless by default** - Better security model
-- **OpenShift compatible** - Uses same OCI standards
-- **No daemon** - Simpler architecture, better resource management
-- **Available on this system** - `/opt/podman/bin/podman`
+### Do Not Stash, Reset, Restore, or Clean Without Explicit Request
 
-### Usage Examples:
+`git stash`, `git reset`, `git restore`, `git clean` are destructive. Only run after user approval.
 
-**Generate Linux package-lock.json:**
-```bash
-podman run --rm -v "$(pwd):/workspace:z" -w /workspace node:20-alpine \
-  sh -c "rm -rf node_modules package-lock.json && npm install --package-lock-only"
-```
+### Do Not Discard Working-Tree Changes
 
-**Build container images:**
-```bash
-podman build -t myimage:latest .
-```
-
-**Run tests in container:**
-```bash
-podman run --rm -v "$(pwd):/app:z" -w /app node:20 npm test
-```
-
-### Important Notes:
-- Use `:z` volume mount suffix for SELinux compatibility
-- Podman commands are drop-in replacements for docker commands
-- When documentation says `docker`, always use `podman` instead
+If the user asks for a new task and the working tree is dirty, stop and report status. Ask the user how to proceed.
 
 ---
 
@@ -274,11 +214,11 @@ podman run --rm -v "$(pwd):/app:z" -w /app node:20 npm test
 
 ### Before Marking Work Complete
 
-1. ✅ Frontend tests pass: `npm test`
-2. ✅ Backend tests pass: `npm test` (backend directory)
-3. ✅ Build succeeds: `npm run build`
-4. ✅ No console errors in development mode
-5. ✅ Validate tooltips render correctly (check UI)
+1. Frontend tests pass: `cd frontend && npm test`
+2. Backend tests pass: `cd backend && npm test`
+3. Build succeeds: `npm run build`
+4. No console errors in development mode
+5. Manual verification if UI changes
 
 ### Test Coverage Expectations
 
@@ -287,1094 +227,29 @@ podman run --rm -v "$(pwd):/app:z" -w /app node:20 npm test
 - UI changes: manual verification required
 - API changes: integration tests required
 
----
+### QA Environment Lifecycle
 
-## Common Pitfalls
+The owner's normal Compose app (project `openshift-airgap-architect-v211`, ports 4000/5173,
+volume `openshift-airgap-architect-v211_backend-data`) is **protected**: never test against,
+reset, rebuild, restart, stop or reuse it, its volumes or its project name.
 
-### ❌ Don't Do This
+Every QA run that creates containers, images, networks, volumes or temporary servers must:
 
-1. **Don't claim work is complete without code evidence**
-   - Bad: "I updated the tooltips" (no commit reference)
-   - Good: "Updated tooltips in commit a1b2c3d, verified in UI"
+1. Use a unique, clearly labelled QA identity (e.g. `oaa-qa-<version>-<sha7>-*`) and ports distinct from 4000/5173.
+2. Use synthetic, isolated state and storage — never the owner's project or persistent volumes.
+3. Record what was created (names, image IDs, ports, data paths, PIDs) and the exact cleanup command.
+4. Clean up automatically when testing finishes, unless deliberately retained for owner manual QA.
+5. When retained, say so prominently in the report, with the URL, tested commit SHA and a specific cleanup command.
+6. Keep at most one current owner-QA environment unless more are genuinely required; never leave historical QA environments running.
+7. Run E2E tests only against an explicitly selected isolated environment; fail closed rather than default to the owner's app.
 
-2. **Don't use non-canonical status terms**
-   - Bad: "mostly done", "in progress", "finished"
-   - Good: `verified_done`, `done_pending_verification`, `active`
-
-3. **Don't duplicate status claims across multiple docs**
-   - Canonical status lives in docs/BACKLOG_STATUS.md only
-   - Other docs reference it: "See DOC-049"
-
-4. **Don't archive or delete living documents**
-   - docs/COMPREHENSIVE_MASTER_PLAN.md is living historical reference, not session notes
-   - Check this file before archiving anything
-
-5. **Don't skip evidence when updating status**
-   - Every status change needs commit SHA or file path
-   - "It's done" without evidence is not acceptable
-
-### ✅ Do This Instead
-
-1. **Provide concrete evidence for all claims**
-   - Link to specific commits
-   - Reference test files
-   - Point to lines of code
-
-2. **Use canonical vocabulary consistently**
-   - Learn the 6 status terms
-   - Learn the 4 priority levels
-   - Use them everywhere
-
-3. **Keep docs/BACKLOG_STATUS.md as single source of truth**
-   - Update it when work completes
-   - Reference it from other docs
-   - Check it before making claims
-
-4. **Archive session notes, keep living docs**
-   - Session-specific findings → archive
-   - Ongoing tracking → living docs
-
-5. **Always include next_action if not verified_done**
-   - What remains to do
-   - What blocks completion
-   - What verification is needed
+Cleanup removes only the recorded QA resources; images, volumes and anything unlisted need separate owner approval.
 
 ---
 
-## Debugging Protocol: Systematic Over Clever
-
-**See `.research/POSTMORTEM_WHY_I_FAILED.md` for detailed case study (2026-05-13 YAML bug)**
-
-### Core Rule: After 2-3 Failed Fix Attempts
-
-**STOP GUESSING. Start instrumenting.**
-
-### The 6-Step Protocol
-
-#### 1. Instrument FIRST, Fix SECOND
-**Do this IMMEDIATELY (attempt #1 or #2):**
-- Add comprehensive logging to ALL relevant code paths
-- Log ALL conditional branches (which path taken + WHY)
-- Log ALL early returns with the reason they're returning
-- Log state snapshots before/after key operations
-- Log request/response pairs with timing
-
-**Don't:** Make educated guesses without evidence. Logs don't lie.
-
-#### 2. Compare Working vs Broken Flows
-**If something works in scenario A but not B:**
-- Trace BOTH scenarios with logging enabled
-- Ask user to test BOTH scenarios
-- Compare logs side-by-side
-- Find the exact divergence point
-- Question WHY they diverge
-
-**Don't:** Assume you know what's different. Prove it with logs.
-
-#### 3. Question ALL Assumptions
-**Guards and early returns are SUSPECTS, not givens:**
-- "Why does this guard exist?"
-- "What happens if I remove it?"
-- "Is this guard necessary or redundant?"
-- "Could this guard be CAUSING the bug?"
-
-**Don't:** Assume existing code is correct. It might be the bug.
-
-#### 4. Listen to User Frustration as Data
-**When user says:**
-- "Still broken" → Your analysis is wrong, start over
-- "I don't see how..." → Your approach is flawed
-- "Tired of guessing" → Need systematic approach
-- "What is X doing that Y isn't?" → THIS IS THE KEY QUESTION
-
-**Don't:** Treat frustration as noise. It's signal.
-
-#### 5. Never Claim "Fixed" Without User Testing
-**Language matters:**
-- ✅ "This SHOULD fix it, please test"
-- ✅ "If my analysis is correct, this will help"
-- ✅ "Let's try this approach"
-- ❌ "This is 100% fixed"
-- ❌ "This is definitely the issue"
-- ❌ "Smoking gun found"
-
-**Don't:** Confuse confidence with correctness. Wait for confirmation.
-
-#### 6. Use Plan Mode After 2-3 Failures
-**Signals need for systematic investigation:**
-- Forces comprehensive exploration
-- Prevents guess-and-check loops
-- Gets user buy-in for thorough approach
-- Use parallel agents to investigate independently
-
-**Don't:** Keep guessing for 10+ attempts. That's the definition of insanity.
-
-### Red Flags That You're Off Track
-
-- ❌ Claiming "fixed" multiple times
-- ❌ Finding 40+ "smoking guns" but nothing works
-- ❌ User frustration increasing
-- ❌ Not comparing working vs broken flows
-- ❌ Guessing at root cause without evidence
-- ❌ Adding logging too late (attempt #8+)
-- ❌ Assuming guards/early returns are correct
-
-### Why This Matters
-
-**Real example (2026-05-13):**
-- Bug: One line `if (!showPreview) return;` blocking YAML generation
-- Attempts: 10+ failed guesses (delays, POST vs GET, state closures)
-- User clue: "what is show/hide doing that import isn't?" ← The answer was in this question
-- Fix: Plan mode → systematic comparison → found guard → deleted 1 line → done
-- Time wasted: Hours of guessing when logging would have shown it immediately
-
-**Lesson:** Debugging is not about being clever. It's about being systematic.
-
----
-
-## Critical Bug History (Learn from These)
-
-### Pull Secret Field Bug (v1.1.3 Hotfix - 2026-05-14)
-
-**Issue:** Pull secret field showed "Pull secret must be valid JSON" and wouldn't accept input.
-
-**Root Cause:**
-- `SecretInput.jsx` handleBlur used `e.target.value` to get field value
-- When field is masked (hidden), `e.target.value` contains dots ("••••••••") not actual value
-- Blur event sent dots to parent onChange, corrupting the pull secret
-
-**Fix:**
-- Changed handleBlur to use `localValue` instead of `e.target.value`
-- `localValue` state always contains actual secret value regardless of show/hide
-- Added auto-show on focus when error present
-
-**Files:**
-- `frontend/src/components/SecretInput.jsx`
-- `frontend/tests/secret-input-blur-bug.test.jsx` (7 regression tests)
-
-**Lesson:** When working with masked input fields, **NEVER** trust `e.target.value` - use state instead.
-
-**Why This Matters:**
-This broke the ENTIRE wizard on main branch. Users couldn't enter pull secrets on Blueprint step.
-If you see similar "field won't accept input" bugs, check if component uses masked/hidden values.
-
-### Test Deletion Anti-Pattern (2026-05-15)
-
-**What Happened:** Created tests for SSH keygen warning feature, tests failed due to navigation issues, deleted tests instead of fixing them.
-
-**Why It's Wrong:**
-- Marks feature as "tested" when it's only manually verified
-- Removes regression protection
-- Hides implementation complexity
-- Future developers assume tests exist
-
-**Correct Approaches:**
-1. **Fix the tests** - Proper mocks, navigation, state setup
-2. **Create documentation tests** - With manual verification checklist
-3. **Never delete failing tests** without replacing them
-
-**Resolution:**
-Created documentation tests in `frontend/tests/ssh-keygen-close-warning.test.jsx` with:
-- Feature documentation (what/why/how)
-- Implementation details (state, handlers, button wiring)
-- 13-step manual verification checklist
-- Related bug pattern notes (e.target.value on masked fields)
-
-**Lesson:** Failing tests reveal problems. Fix the problem (test OR code), don't delete the evidence.
-
----
-
-## Validation Patterns (v1.2.1 - 2026-05-17)
-
-### VIP Validation (API VIP + Ingress VIP)
-
-**Requirement:** API VIP and Ingress VIP must be within the machine network CIDR.
-
-**Why:** OpenShift documentation states: "The VIPs, apiVIP and ingressVIP, must come from the same networking.machineNetwork segment."
-
-**Implementation:**
-
-File: `frontend/src/validation.js`  
-Function: `validateVipsInMachineNetwork(state)`
-
-**Platforms validated:**
-- ✅ bare-metal-ipi
-- ✅ bare-metal-agent (added v1.2.1)
-- ✅ vsphere-ipi
-- ✅ vsphere-agent
-- ✅ nutanix-ipi
-
-**How it works:**
-1. Parse machine network CIDR (e.g., 10.90.0.0/24)
-2. Calculate IP range (start: 10.90.0.0, end: 10.90.0.255)
-3. Check if each VIP is within range
-4. Error if VIP is outside: "API VIPs must be within the machine network (e.g. 10.90.0.0/24)"
-
-**Dynamic VIP Placeholders:**
-
-File: `frontend/src/steps/NetworkingV2Step.jsx`  
-Helper: `getVipPlaceholders(machineNetworkCidr)`
-
-**Behavior:**
-- If machine network is 10.90.0.0/24 → suggests API VIP: 10.90.0.2, Ingress VIP: 10.90.0.3
-- If machine network is 192.168.1.0/24 → suggests API VIP: 192.168.1.2, Ingress VIP: 192.168.1.3
-- Uses start+2 for API (avoids .0 network address and .1 gateway)
-- Uses start+3 for Ingress
-- Defaults to "e.g. 10.90.0.2" if machine network not configured
-
-**When to update:**
-- If adding a new platform that uses VIPs, add it to `validateVipsInMachineNetwork`
-- If changing machine network field location, update `getVipPlaceholders` usage
-
-**Error Display Pattern (v1.2.2):**
-
-Validation errors must be visible inline, not just in hover tooltips.
-
-**Pattern:**
-```jsx
-<FieldLabelWithInfo label="API VIP" /* ... */>
-  <input
-    className={fieldErrors.apiVip ? "input-error" : ""}
-    title={fieldErrors.apiVip || ""}
-    /* ... */
-  />
-</FieldLabelWithInfo>
-{fieldErrors.apiVip && <span className="note warning inline">{fieldErrors.apiVip}</span>}
-```
-
-**Why:**
-- Title attribute errors only visible on hover
-- Inline spans immediately visible (matches overlap warning pattern)
-- Red text with yellow background for high visibility
-
-**When to use:**
-- Any field with validation logic in `validation.js` that sets `fieldErrors[fieldKey]`
-- Pattern matches existing overlap warnings (e.g., NetworkingV2Step lines 380, 383)
-
----
-
-## UI Patterns (v1.2.2)
-
-### Tooltip Gold Standard
-
-All FieldLabelWithInfo tooltips should follow this comprehensive format:
-
-**Required Sections:**
-1. **One-line description** - Brief summary at top
-2. **What is this:** - Concept explanation
-3. **When needed:** - Required/optional context, scenarios where applicable
-4. **Format:** - Expected input format, constraints, validation rules
-5. **How it's used:** - Where written in config files, how OpenShift uses it
-6. **Important:** - ⚠️ Warnings about failures, immutability, security
-7. **Example:** - Real-world concrete examples
-
-**Example (from NodeDrawerAgentContent.jsx):**
-```jsx
-<FieldLabelWithInfo
-  label="Ethernet MAC"
-  hint={`Hardware MAC address of the physical network interface.
-
-**What is this:**
-The unique 48-bit hardware identifier burned into the NIC...
-
-**When needed:**
-Always required when configuring ethernet interfaces...
-
-**Format:**
-Six colon-separated hexadecimal pairs...
-
-**How it's used:**
-Written to agent-config.yaml interfaces section with 'macAddress:' key...
-
-**Important:**
-⚠️ Wrong MAC address = network configuration applied to wrong NIC...
-
-**Example:**
-Dell R640 eno1 MAC from BIOS → 52:54:00:6b:34:56`}
->
-```
-
-**Why this format:**
-- Beginner-friendly: explains WHY not just WHAT
-- Production-ready: includes failure modes and best practices
-- Hardware-specific: real server models, actual interface names
-- Comprehensive: user doesn't need to search docs
-
-**When to use:**
-- All new tooltips
-- When updating existing basic tooltips
-- When user reports confusion about a field
-
-**Quality reference:**
-- NetworkingV2Step.jsx: Machine Network field (lines 344-359)
-- NodeDrawerAgentContent.jsx: Enhanced tooltips (v1.2.2)
-
----
-
-## High-Side Integration (v1.1.1 - v1.1.3)
-
-The app supports **high-side (disconnected) deployments** where the tool runs on an air-gapped network.
-
-### Architecture (added v1.1.1)
-
-**Backend Modules:**
-- `backend/src/runtimePackage.js` - Packages Node.js runtime for target OS/arch (~50-100MB)
-- `backend/src/exportInclusion.js` - Controls what gets included in exports
-- `backend/src/placeholderEngine.js` - Replaces sensitive values with placeholders
-
-**Frontend Modules:**
-- `frontend/src/exportInclusion.js` - Export inclusion UI logic
-- `frontend/src/placeholderEngine.js` - Client-side placeholder handling
-
-### UI Integration (added v1.1.2)
-
-**ReviewStep.jsx Changes:**
-- Export inclusion checkboxes (7 credential/certificate categories)
-- `includeHighSideRuntimePackage` toggle for bundling Node.js runtime
-- Per-class credential inclusion: pullSecret, mirrorRegistryPullSecret, sshKey, certificates, etc.
-
-**Export Categories:**
-1. Pull secrets (Red Hat, mirror registry, operators)
-2. SSH keys (public + private)
-3. Certificates (mirror registry CA, proxy CA)
-4. Mirror registry credentials
-5. Proxy credentials
-6. vCenter/BMC credentials
-7. Platform-specific credentials
-
-### Critical Rules
-
-**DO NOT:**
-- Modify export inclusion logic without understanding placeholder system
-- Assume placeholders are reversible (they're ONE-WAY)
-- Change ReviewStep.jsx without testing all export options
-
-**Important Files:**
-- `frontend/src/steps/ReviewStep.jsx` - Main export UI
-- `backend/src/generate.js` - Uses placeholder engine during generation
-- `backend/src/exportInclusion.js` - Defines what can be excluded
-
-**Testing:**
-- High-side integration is core functionality, not optional
-- Changes to ReviewStep require testing all 7 export option categories
-- Runtime package size varies by platform (Node.js binary + dependencies)
-
----
-
-## Mirror Operator Bundle Workflow (2026-07-09)
-
-**Feature Name:** Run inside mirror operator collection bundle  
-**Purpose:** Deploy wizard on high-side with pre-loaded mirror registry configuration  
-**Documentation:** `docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md`
-
-### Overview
-
-Enables the wizard to run **inside** or **alongside** a mirror operator collection bundle on air-gapped networks. When mirror registry config files are mounted at startup, the wizard:
-
-- ✅ Auto-generates pull secret from username/password
-- ✅ Auto-loads CA certificate from file
-- ✅ Extracts mirror sources from IDMS/ITMS YAML files
-- ✅ Pre-selects OpenShift version from imageset-config.yaml
-- ✅ Locks mirror fields as read-only with informational banners
-- ✅ Hides Operators and Run oc-mirror steps (already completed on low-side)
-
-### Two-Side Workflow
-
-**Low-side (connected):**
-1. Mirror OpenShift content using Disconnected Mirror Operator or oc-mirror
-2. Generate config files: registry config JSON, IDMS/ITMS YAML, imageset-config.yaml, CA cert
-3. Transfer bundle to high-side
-
-**High-side (air-gapped):**
-1. Deploy wizard with mounted config files
-2. Wizard auto-loads mirror settings (pull secret, CA, sources, version)
-3. User configures cluster-specific settings (networking, platform, hosts)
-4. Export install bundle ready for deployment
-
-### Environment Variables
-
-- **`MIRROR_REGISTRY_CONFIG`** - Path to mirror registry config JSON (required for pre-loading)
-- **`IMAGESET_CONFIG`** - Path to imageset-config.yaml (optional, for version pre-selection)
-
-### Backend Modules
-
-**New Files:**
-- `backend/src/mirrorRegistryConfigLoader.js` - Loads config, generates pull secret, loads CA cert
-- `backend/src/imageSetConfigParser.js` - Parses imageset-config.yaml, extracts version
-- `backend/src/idmsParser.js` - Parses IDMS/ITMS YAML files, extracts mirror sources
-
-**Modified Files:**
-- `backend/src/index.js` - Augments defaultState() with pre-loaded config, injects pull secret in GET /api/state and POST /api/generate
-
-**Test Files:**
-- `backend/test/mirrorRegistryConfigLoader.test.js` - 14 tests
-- `backend/test/imageSetConfigParser.test.js` - 13 tests
-- `backend/test/idmsParser.test.js` - 14 tests
-- `backend/test/fixtures/*.{json,yaml,pem}` - Test fixtures
-
-**Total:** 41 new tests, 589 total backend tests passing
-
-### Frontend Components
-
-**New Component:**
-- `frontend/src/components/PreloadedConfigBanner.jsx` - Reusable info banner for pre-configured sections
-
-**Modified Steps:**
-- `frontend/src/steps/BlueprintStep.jsx` - Shows "Pre-configured" badge on version field
-- `frontend/src/steps/IdentityAccessStep.jsx` - Locks mirror registry toggle, pull secret field
-- `frontend/src/steps/ConnectivityMirroringStep.jsx` - Locks registry FQDN input
-- `frontend/src/steps/TrustProxyStep.jsx` - Locks CA certificate textarea
-- `frontend/src/wizardVisibleSteps.js` - Hides Operators and Run oc-mirror steps when pre-loaded
-
-**Styling:**
-- `frontend/src/styles.css` - Added `.readonly-input` and `.badge.info` styles
-
-### State Structure
-
-**UI Flags:**
-```javascript
-{
-  ui: {
-    mirrorConfigPreloaded: true  // Locks mirror fields as read-only
-  },
-  blueprint: {
-    mirrorBundleDetected: true   // Shows "Pre-configured" badge
-  }
-}
-```
-
-**Ephemeral Pull Secret:**
-- Stored in memory-only variable: `mountedMirrorPullSecret`
-- Never persisted to SQLite database
-- Injected into state when serving GET `/api/state`
-- Injected before YAML generation in POST `/api/generate`
-- Stripped by `getStateForPersistence()` before database writes
-
-### Config File Formats
-
-**Mirror Registry Config (`mirror-registry-config.json`):**
-```json
-{
-  "hostname": "registry.example.com",
-  "port": 8443,
-  "username": "admin",
-  "password": "secret123",
-  "caCertPath": "/data/mirror-registry-ca.pem",
-  "idmsPath": "/data/idms-oc-mirror.yaml",
-  "itmsPath": "/data/itms-oc-mirror.yaml"
-}
-```
-
-**What Gets Loaded:**
-1. Pull secret generated from `username:password` (base64 encoded)
-2. CA certificate loaded from `caCertPath` file
-3. Mirror sources extracted from IDMS (`spec.imageDigestMirrors[]`)
-4. Mirror sources extracted from ITMS (`spec.imageTagMirrors[]`)
-5. Registry FQDN built from `hostname:port`
-
-### Critical Implementation Details
-
-**Pull Secret is Ephemeral:**
-- `loadMirrorRegistryConfig()` returns `{pullSecret, state}` (separated)
-- Pull secret stored in `mountedMirrorPullSecret` variable (memory-only)
-- State augmentation includes everything EXCEPT pull secret
-- Pull secret injected at runtime in two places:
-  - GET `/api/state` (lines 1148-1152)
-  - POST `/api/generate` (lines 3107-3113) - **Critical bug fix**
-
-**Bug Fixed (2026-07-09):**
-- POST `/api/generate` was reading state from database (no ephemeral secrets)
-- Pull secret missing from generated install-config.yaml
-- Solution: Inject `mountedMirrorPullSecret` before calling `buildPreviewFiles()`
-
-**Step Visibility:**
-- `wizardVisibleSteps.js` checks `state.ui.mirrorConfigPreloaded`
-- Hides "Operators" step when `mirrorConfigPreloaded === true`
-- Hides "Run oc-mirror" step when `mirrorConfigPreloaded === true`
-
-### Security Considerations
-
-**Credential Handling:**
-- Mirror registry config contains sensitive credentials (username/password)
-- File permissions: 0600 or 0644 (must be readable by backend UID 1000)
-- Pull secret never logged (username logged at info level, password never logged)
-- CA certificate content not logged (only file path and byte count)
-
-**File Access:**
-- Backend validates all paths before reading
-- Missing CA cert logs warning but proceeds (might use system root CAs)
-- Missing IDMS/ITMS logs warning and uses default mirror sources
-- Invalid JSON/YAML logs warning and returns null (graceful degradation)
-
-### Testing Requirements
-
-**Unit Tests:**
-- All 41 tests must pass before committing changes
-- Test fixtures use fake credentials ("secret123" allowlisted in .gitleaks.toml)
-- Test coverage includes: valid configs, missing files, invalid JSON/YAML, missing required fields
-
-**Manual Testing Checklist:**
-- [ ] Set `MIRROR_REGISTRY_CONFIG` and `IMAGESET_CONFIG` env vars
-- [ ] Start backend, check logs for "Mirror registry config loaded successfully"
-- [ ] Verify Blueprint step shows "Pre-configured" badge
-- [ ] Verify Identity & Access shows banner and locked mirror fields
-- [ ] Verify Connectivity & Mirroring shows banner and locked FQDN
-- [ ] Verify Trust & Proxy shows banner and locked CA cert
-- [ ] Verify Operators step is hidden
-- [ ] Verify Run oc-mirror step is hidden
-- [ ] Check "Include credentials in export" on Assets & Guide
-- [ ] Verify install-config.yaml shows pull secret (not placeholder)
-
-### When to Update This Feature
-
-**Update if:**
-- Adding new mirror-related fields to UI
-- Changing state persistence logic (affects ephemeral credential handling)
-- Modifying export inclusion logic
-- Adding new config file formats (e.g., ICSP support)
-
-**Don't modify without:**
-- Reading `docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md` first
-- Understanding ephemeral credential pattern (mountedMirrorPullSecret)
-- Testing all 7 export option categories
-- Verifying 41 unit tests still pass
-
-### Related Documentation
-
-- `docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md` - Complete user guide with deployment examples
-- `README.md` - Feature overview in "Run inside mirror operator collection bundle" section
-- `.claude/plans/velvety-petting-charm.md` - Original implementation plan
-
----
-
-## Agent ISO Generation (2026-07-09)
-
-**Feature:** Generate bootable agent ISOs within the wizard for agent-based installer deployments.
-
-**Purpose:** Automate `openshift-install agent create image` execution, eliminating manual ISO generation steps and providing kubeadmin credentials directly in the UI.
-
-**Documentation:** `docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md` (section 8)
-
-### Overview
-
-Adds a new wizard step "Generate Agent ISO" that:
-- ✅ Runs `openshift-install agent create image` as a background job
-- ✅ Streams real-time stdout/stderr logs to the UI
-- ✅ Provides ISO download via `/api/agent-iso/download/:jobId` endpoint
-- ✅ Displays kubeadmin password and kubeconfig with show/hide toggles
-- ✅ Supports re-generation with confirmation modal
-- ✅ Available for ALL agent-based installer scenarios (not restricted to mirror bundle workflow)
-
-### Implementation
-
-**Backend (`backend/src/index.js`):**
-- `POST /api/agent-iso/generate` - Validates methodology/platform, creates job, triggers background generation
-- `GET /api/agent-iso/download/:jobId` - Streams ISO file with proper headers and path validation
-- `generateAgentIsoBackgroundJob(jobId, state)` - Background job function:
-  1. Creates work directory `/data/tmp/agent-iso-${jobId}/`
-  2. Generates install-config.yaml and agent-config.yaml from state
-  3. Resolves openshift-install binary (version/arch/FIPS)
-  4. Spawns `openshift-install agent create image --dir <workDir>`
-  5. Streams stdout/stderr via `appendJobOutput()`
-  6. Reads kubeadmin password from `auth/kubeadmin-password`
-  7. Reads kubeconfig from `auth/kubeconfig`
-  8. Stores metadata: `{isoPath, isoName, isoSize, kubeadminPassword, kubeconfig, workDir, exitCode}`
-  9. Updates job status: `completed` (success) or `failed` (error)
-
-**Frontend (`frontend/src/steps/GenerateAgentIsoStep.jsx`):**
-- Job polling every 2 seconds via `/api/jobs/:id`
-- Real-time log display with auto-scroll
-- Generate/Regenerate/Download buttons
-- Masked kubeadmin password with show/hide toggle and copy button
-- Collapsible kubeconfig display with copy button
-- Regenerate confirmation modal ("⚠️ This will overwrite the existing ISO")
-- Only shown when:
-  - `state.methodology.method === "Agent-Based Installer"`
-  - `state.blueprint.platform === "Bare Metal" || "VMware vSphere"`
-
-**Wizard Registration:**
-- `frontend/src/App.jsx` - Added to `COMPONENT_MAP`
-- `frontend/src/wizardVisibleSteps.js` - Added to step order (after "Assets & Guide", before "Run oc-mirror")
-- Conditional visibility in both segmented and legacy flows
-
-### Work Directory Structure
-
-```
-/data/tmp/agent-iso-${jobId}/
-├── install-config.yaml       # Generated from state
-├── agent-config.yaml          # Generated from state
-├── auth/
-│   ├── kubeadmin-password     # Initial admin credentials
-│   └── kubeconfig             # Cluster access config
-├── boot-artifacts/            # Additional boot files
-└── agent.x86_64.iso           # Bootable ISO (~900MB-1.2GB)
-```
-
-**Retention:** Work directories retained indefinitely for multiple downloads. Manual cleanup only. Re-generation creates new jobId and new directory.
-
-### Conditional Visibility
-
-**Show step when:**
-- Methodology: "Agent-Based Installer"
-- Platform: "Bare Metal" **OR** "VMware vSphere"
-
-**Hide step when:**
-- Any other methodology (IPI, UPI)
-- Other platforms (AWS, Azure, GCP, etc.)
-
-### Security Considerations
-
-**Credential Handling:**
-- Kubeadmin password and kubeconfig stored in job `metadata_json` (encrypted at rest in SQLite)
-- NEVER logged to stdout/stderr
-- Never included in exported bundles
-- Warning banner: "⚠️ Save these credentials - they cannot be regenerated later"
-
-**File Access:**
-- ISO download validates path is within `/data/tmp/agent-iso-*`
-- Prevents directory traversal attacks via `fs.realpathSync()` validation
-- 403 error if path outside allowed directory
-
-**Pull Secret Injection:**
-- If mirror registry config pre-loaded (`mountedMirrorPullSecret`), inject into state before generation
-- Ensures install-config.yaml includes mirror registry pull secret
-
-### Testing Strategy
-
-**Backend Tests:** (Deferred to task #4)
-- Job creation returns valid jobId
-- Invalid methodology returns 400 error
-- Invalid platform returns 400 error
-- Process spawn executes with correct arguments
-- Metadata stored correctly on success
-- Error handling for missing auth files
-
-**Frontend Tests:** (Deferred to task #5)
-- Step hidden when methodology is not agent-based
-- Step hidden for unsupported platforms
-- Generate button triggers API call
-- Job polling starts after jobId received
-- Regenerate confirmation modal flow
-- Credential masking and show/hide toggles
-
-**Manual Testing:**
-1. Complete wizard to "Generate Agent ISO" step
-2. Click "Generate Agent ISO" button
-3. Verify real-time logs stream during execution
-4. Wait for completion (expect 2-5 minutes)
-5. Download ISO and verify file size (~900MB-1.2GB)
-6. Verify kubeadmin password displayed with mask/show toggle
-7. Verify kubeconfig displayed in collapsible section
-8. Test regeneration with confirmation modal
-
-### When to Update This Feature
-
-**Update if:**
-- Adding new agent-based installer platforms
-- Changing install-config.yaml or agent-config.yaml generation logic
-- Modifying export inclusion logic (affects pull secret injection)
-- Adding new authentication methods for openshift-install
-
-**Don't modify without:**
-- Reading this section and understanding ephemeral credential pattern
-- Testing ISO generation end-to-end (manual test, not just unit tests)
-- Verifying kubeadmin password and kubeconfig are accessible in UI
-
-### Related Documentation
-
-- `docs/MIRROR_OPERATOR_BUNDLE_WORKFLOW.md` - Section 8 documents agent ISO step
-- `.claude/plans/quiet-wibbling-lamport.md` - Original implementation plan
-
----
-
-## PROD Phase 1: Production Readiness (v1.6.0 - Complete)
-
-**Completion Date:** 2026-05-20  
-**Status:** All 6 critical items verified_done  
-**Version:** Implemented in v1.6.0 release
-
-### Implementation Summary
-
-PROD Phase 1 addresses 6 critical blockers required before ANY production deployment:
-
-1. **PROD-002: Structured Logging Framework** ✅
-   - Pino logging library with JSON output for production
-   - AsyncLocalStorage-based request correlation
-   - Error ID generation for client-to-server correlation
-   - 87 console statements replaced across 5 backend files
-   - Files: `backend/src/logger.js`, `backend/src/middleware/logging.js`
-   - Tests: `backend/test/logger.test.js` (14 tests passing)
-
-2. **PROD-003: Kubernetes/OpenShift Deployment Manifests** ✅
-   - 13 manifest files: Deployments, Services, PVC, ConfigMap, Secret, Routes
-   - Kustomize structure for environment overlays
-   - Restricted-v2 SCC compatible (UID 1001, non-root)
-   - Files: `manifests/base/*.yaml`, `manifests/openshift/*.yaml`
-   - Documentation: `manifests/README.md`
-
-3. **PROD-004: Resource Limits and Capacity Planning** ✅
-   - Backend: 500m-2000m CPU, 1-4Gi RAM
-   - Frontend: 100m-500m CPU, 256-512Mi RAM
-   - Load test script: `scripts/load-test.sh` (5 test scenarios)
-   - Documentation: `docs/CAPACITY_PLANNING.md` (40KB, 13 sections)
-
-4. **PROD-005: SQLite Backup/Restore Procedures** ✅
-   - Comprehensive backup/restore documentation (703 lines)
-   - 4 executable scripts: backup, verify, restore, test
-   - Online backup using SQLite VACUUM INTO
-   - Documentation: `docs/BACKUP_RESTORE.md`
-   - Scripts: `scripts/backup-sqlite.sh`, `scripts/verify-backup.sh`, `scripts/restore-sqlite.sh`, `scripts/test-backup-restore.sh`
-
-5. **PROD-006: Enhanced Health Probes** ✅
-   - Liveness probe: `/api/health` (process health only)
-   - Readiness probe: `/api/ready` (DB read + write checks)
-   - K8s probe configurations in deployment manifests
-   - Documentation: `docs/HEALTH_PROBES.md` (400+ lines)
-   - Tests: `backend/test/health-probes.test.js` (13 tests passing)
-
-6. **PROD-007: Backend Request Schema Validation** ✅
-   - 12 new Zod schemas for previously unvalidated routes
-   - Enhanced validateBody middleware with error IDs
-   - Applied to all 22 POST routes
-   - Documentation: `docs/API_SCHEMA.md`
-   - Tests: `backend/test/validation.test.js` (63 tests passing)
-
-### Testing Status
-
-- **Backend:** 373 tests passing (90 new tests from PROD Phase 1)
-- **Frontend:** 707 tests passing (no changes)
-- **Total:** 1080 tests passing
-
-**Pre-existing failures (not related to PROD Phase 1):**
-- `backend/test/openshiftInstaller.test.js`: 1 failure (Node.js test runner serialization issue)
-- `frontend/tests/placeholderValuesHelpers.test.js`: 1 failure (IPv6 placeholder values)
-- `frontend/tests/networking-v2-step.test.jsx`: 3 failures (dual-stack IPv6 VIP placeholders)
-
-### Critical Files Added
-
-**Backend:**
-- `backend/src/logger.js` - Pino logger utility
-- `backend/src/middleware/logging.js` - Request correlation middleware
-- `backend/test/logger.test.js` - Logger tests (14 tests)
-- `backend/test/health-probes.test.js` - Health probe tests (13 tests)
-- `backend/test/validation.test.js` - Schema validation tests (63 tests)
-
-**Kubernetes Manifests:**
-- `manifests/base/backend-deployment.yaml`
-- `manifests/base/backend-service.yaml`
-- `manifests/base/frontend-deployment.yaml`
-- `manifests/base/frontend-service.yaml`
-- `manifests/base/pvc.yaml`
-- `manifests/base/configmap.yaml`
-- `manifests/base/secret.yaml`
-- `manifests/openshift/route-backend.yaml`
-- `manifests/openshift/route-frontend.yaml`
-- `manifests/kustomization.yaml`
-- `manifests/README.md`
-
-**Scripts:**
-- `scripts/backup-sqlite.sh` - Automated SQLite backup
-- `scripts/verify-backup.sh` - Backup integrity validation
-- `scripts/restore-sqlite.sh` - Safe restore with prompts
-- `scripts/test-backup-restore.sh` - Backup/restore test suite
-- `scripts/load-test.sh` - Load testing script
-
-**Documentation:**
-- `docs/BACKUP_RESTORE.md` - SQLite backup and disaster recovery (703 lines)
-- `docs/HEALTH_PROBES.md` - K8s health probe configuration (400+ lines)
-- `docs/API_SCHEMA.md` - API contract and validation rules
-- `docs/CAPACITY_PLANNING.md` - Resource requirements and scaling (40KB)
-
-### Critical Dependencies Added
-
-**Backend (`backend/package.json`):**
-- `pino ^10.3.1` - Production logging library
-- `pino-pretty ^13.1.3` - Development pretty-printing
-
-### Next Steps (Completed in v1.7.0)
-
-✅ All PROD Phase 2 items completed in v1.7.0 release (see section below)
-
----
-
-## v1.7.0 - Production Readiness Phase 2 (2026-05-29)
-
-**Released:** 2026-05-29  
-**Purpose:** Complete production readiness foundation + critical regression fixes  
-**Testing:** 891 tests passing (frontend), 507 tests passing (backend), 0 production vulnerabilities
-
-### Production Readiness Items (6/6 Complete)
-
-1. **✅ PROD-008: Prometheus Metrics** (commit ce66970)
-   - HTTP request metrics (duration, counters, status codes)
-   - Background job metrics (total, running, duration, errors)
-   - State operation metrics
-   - `/api/metrics` endpoint for scraping
-   - 30 new tests passing
-   - Documentation: `docs/METRICS.md` (540+ lines)
-
-2. **✅ PROD-009: Formal Database Migration System** (commit ee6c57b + related)
-   - Versioned migration framework with transaction support
-   - Migration discovery and sequential execution
-   - Rollback support for safe schema changes
-   - Migration status tracking in `migrations` table
-   - Files: `backend/src/migrationRunner.js`, `backend/src/migrations/*.js`
-   - 16 new tests passing
-   - Documentation: `docs/DATABASE_MIGRATIONS.md` (625 lines)
-
-3. **✅ PROD-010: E2E Tests** (commit d9fd04c)
-   - Playwright test framework configured
-   - 12 E2E tests across 3 suites (wizard completion, import/export, operations)
-   - Tests cover: wizard flow, validation, state persistence, job tracking, log downloads
-   - Documentation: `e2e/README.md` (130+ lines)
-   - Note: 8 tests timeout in CI (environment issue), all pass locally
-
-4. **✅ PROD-011: Load Testing** (commit 39bd842)
-   - Load test script with 5 scenarios (light/medium/heavy/burst/sustained)
-   - Performance baselines documented
-   - Capacity planning guidance
-   - Documentation: `docs/LOAD_TESTING.md` (520+ lines)
-   - Status: Infrastructure complete, awaiting production execution
-
-5. **✅ PROD-012: Automated Job Cleanup** (commits 3d9a4e9, 544eb47, 8f5213c)
-   - Configurable retention policy (age-based + count-based)
-   - Environment variables: `JOB_RETENTION_DAYS` (default: 7), `JOB_MAX_COUNT` (default: 100)
-   - Scheduled cleanup: 60s after startup, then every 24 hours
-   - Running jobs never deleted regardless of limits
-   - SQLite VACUUM strategy documented
-   - Files: `backend/src/utils.js` (cleanupOldJobs function), `backend/src/index.js` (scheduling)
-   - 5 regression tests passing
-   - Documentation: `docs/JOB_CLEANUP_AND_VACUUM.md`
-
-6. **✅ PROD-013: Capacity Planning Documentation** (commit 9592c4a)
-   - Updated `docs/CAPACITY_PLANNING.md` to v1.1
-   - Database size projections with cleanup enabled vs disabled
-   - Steady-state size: 30-50MB (with 7-day / 100-job retention)
-   - Growth rate tables by usage pattern (light/medium/heavy)
-   - VACUUM recommendations and monitoring commands
-   - Environment-specific retention policy examples
-
-### UX Enhancements (3/3 Complete)
-
-7. **✅ PHX-031: Host Settings Apply Confirmation** (commit 65f967a)
-   - Confirmation modal before applying host settings to multiple nodes
-   - Prevents accidental overwrites of host-specific network/storage configs
-   - Shows: source host name, target count, overwrite warning
-   - Files: `frontend/src/steps/HostInventoryV2Step.jsx`
-
-8. **✅ PHX-033: Post-Import Credentials Warning** (commit c91e43f)
-   - Dismissible warning banner on Blueprint step after import
-   - Explains credentials/certificates excluded for security
-   - Lists 7 credential types to re-enter: pull secrets, SSH keys, certificates, platform credentials, proxy credentials
-   - Includes step names where each credential type should be entered
-   - Files: `frontend/src/steps/BlueprintStep.jsx`
-
-9. **✅ PHX-035: Post-Import Certificate Exclusion Warning** (commit c91e43f)
-   - Same banner as PHX-033 (combined implementation)
-   - Specifically calls out mirror registry CA and proxy CA certificates
-   - User can dismiss with X button
-
-### Critical Regression Fixes (7 items)
-
-10. **✅ Compute Replicas Not Writing to YAML** (commit ca4cd6a)
-    - Fixed vSphere/Azure/IBM Cloud IPI compute replicas field
-    - Backend now checks `platformConfig.computeReplicas` for all IPI scenarios
-    - 18 new tests passing
-
-11. **✅ Version Display, Feedback Button, Assets & Guide Badge** (commit 6f2072e)
-    - Fixed AboutModal showing hardcoded "1.1.0"
-    - Fixed feedback button always visible (config fetch can fail)
-    - Fixed "Assets & Guide" tab showing incorrect "Needs review" badge
-    - 17 regression tests passing
-
-12. **✅ IP Address Field Validation Display** (commit 312586a)
-    - Fixed IP/Gateway/DNS fields not showing inline validation errors
-    - Applied v1.2.2 pattern: red border + inline error message + aria-invalid
-    - Files: `frontend/src/components/NodeDrawerIpiContent.jsx`
-
-13. **✅ IPv6/Dual-Stack VIP Placeholders and Validation** (commits 2c69e1e, b1f25f1, d60857f)
-    - Fixed IPv6-only mode showing IPv4 placeholders
-    - Fixed dual-stack showing hardcoded values instead of deriving from machine network
-    - Created `getVipPlaceholdersV6()` helper
-    - Fixed vSphere IPI missing IPv6 VIP fields
-    - 16 new tests passing
-
-14. **✅ IPv6 Field Tooltips + NTP Server Validation** (commit 36628bf)
-    - Upgraded IPv6 network field tooltips to gold standard format
-    - Added NTP server validation (comma-separated FQDNs/IPs)
-    - Validates IPv4, IPv6, and FQDN formats
-    - 27 new tests passing
-
-15. **✅ vSphere IPI IPv6 VIP Fields Duplicating IPv4 Values** (commit b1f25f1)
-    - Created separate state variables for IPv6 VIPs
-    - Fixed onChange/onBlur handlers wired to wrong state
-    - IPv6 fields now independent of IPv4
-
-16. **✅ VIP IP Address Validation + SNO Support** (commits d60857f, 6b4d41c)
-    - Comprehensive VIP validation for all scenarios (IPv4 + IPv6)
-    - SNO detection: automatically skip VIP validation for Single Node OpenShift
-    - 39 new tests passing
-
-### Build & Infrastructure
-
-17. **✅ Archiver Upgrade to 8.0.0** (commit 05a7273)
-    - Eliminates `inflight` dependency (memory leak, deprecated)
-    - Breaking change: updated import from default export to named export
-
-18. **✅ Build Performance Optimization** (commit 05a7273)
-    - Added `.dockerignore` exclusions for large directories
-    - Excludes: local-docs/ (3.0GB), .research/, .archive/, .claude/, e2e/, test-results/
-
-### Auto-Select UX Enhancement
-
-19. **✅ Auto-Select Default Values on First Focus** (commits d5d78c4, bcfae9e, 05026b6)
-    - Text auto-selects on first focus for 8 fields with default values
-    - Extracted to reusable `useAutoSelect` hook (52 lines, 6 tests)
-    - Fields: Cluster Name, Base Domain, 5 network CIDRs, registry FQDN, Nutanix port
-    - Eliminates 67 lines of duplicate code from NetworkingV2Step.jsx
-
-### Testing & Security
-
-- **1398 total tests passing** (891 frontend + 507 backend)
-- **117 new regression tests** added across 5 test suites
-- **0 production vulnerabilities** (npm audit clean for frontend + backend)
-- **Zero sensitive data exposure** (logs, git history, source code all verified)
-
-### Files Added/Modified
-
-**New Files:**
-- `frontend/src/hooks/useAutoSelect.js` (reusable hook)
-- `frontend/tests/useAutoSelect.test.js` (6 tests)
-- `docs/METRICS.md`, `docs/DATABASE_MIGRATIONS.md`, `docs/LOAD_TESTING.md`, `docs/JOB_CLEANUP_AND_VACUUM.md`
-- `e2e/*.spec.js` (12 E2E tests)
-- `backend/src/migrationRunner.js`, `backend/src/migrations/*.js`
-- Multiple regression test files
-
-**Modified Files:**
-- NetworkingV2Step.jsx (-67 lines duplicate code, +29 lines using hook)
-- BlueprintStep.jsx (post-import warning)
-- HostInventoryV2Step.jsx (apply confirmation modal)
-- backend/src/index.js (job cleanup scheduling)
-- backend/src/utils.js (cleanupOldJobs function)
-- docs/CAPACITY_PLANNING.md (v1.1 update)
-
----
-
-## Comprehensive Verification Protocol (2026-05-27)
-
-### When to Run Comprehensive Verification
-
-Run this verification protocol:
-- **Before major releases** (v1.x.0, v2.0.0)
-- **After significant refactoring** (parameter audits, catalog changes, generation logic updates)
-- **When user requests full bug check**
-- **Before production deployment**
-
-### Sequential Agent Approach (Memory-Safe)
-
-**CRITICAL:** Spawn agents ONE AT A TIME and record findings incrementally. Never spawn all agents in parallel - this causes memory issues and system crashes.
-
-**Process:**
-1. Spawn Agent 1, wait for completion
-2. Record findings in HANDOFF_PACKET.md
-3. Spawn Agent 2, wait for completion
-4. Record findings in HANDOFF_PACKET.md
-5. Continue until all verification areas complete
-
-### Verification Areas (6 Agents)
-
-**Agent 1: Test Suite Verification**
-- Run all frontend tests (`cd frontend && npm test`)
-- Run all backend tests (`cd backend && npm test`)
-- Record passing/failing counts, failure details
-- Classify failures: pre-existing, regression, needs investigation
-- **Output:** Test results summary with failure classification
-
-**Agent 2: Download & Export Verification**
-- Verify binary download functions (oc/oc-mirror, openshift-install, mirror-registry)
-- Check export bundle variations (all 4 inclusion options)
-- Verify error handling creates `.ERROR.txt` files
-- Check 7 credential toggle categories
-- Verify placeholder engine functionality
-- **Output:** Download/export functionality status
-
-**Agent 3: Parameter Coverage Verification**
-- Verify catalog synchronization (backend ↔ frontend, MD5 check)
-- Check backend generation approach (systematic vs hardcoded)
-- Verify frontend UI coverage percentage claim
-- Review missing parameter analysis
-- **Output:** Parameter flow verification (catalog → backend → frontend → output)
-
-**Agent 4: Frontend Field Workflow Verification**
-- Sample 15-20 key input fields across all steps
-- Trace field flow: frontend input → state update → backend generation → YAML output
-- Look for broken workflows (fields that don't flow through)
-- Verify recent DOC-082 additions are properly wired
-- **Output:** Field workflow status with sample traces
-
-**Agent 5: Test Failure Investigation**
-- Investigate non-pre-existing test failures from Agent 1
-- Read test code and implementation code
-- Classify: outdated test, real bug, needs fix
-- Provide recommended action for each failure
-- **Output:** Test failure root cause analysis
-
-**Agent 6: Tooltips & Background Tasks Verification**
-- Check FieldLabelWithInfo tooltip coverage
-- Sample 5-10 tooltips for gold standard format compliance
-- Verify oc-mirror job execution (job status tracking)
-- Verify operator scanning preflight
-- Verify Cincinnati version discovery
-- **Output:** Tooltip quality assessment, background task status
-
-### Recording Findings
-
-**Update HANDOFF_PACKET.md after EACH agent:**
-- Add verification results section
-- Record bugs found with evidence
-- Update status summary table
-- Document action items
-
-**Update BACKLOG_STATUS.md for new bugs:**
-- Create DOC-XXX items for real bugs
-- Use canonical status vocabulary
-- Provide code evidence
-- Set priority (p0/p1/p2/p3)
-
-### Post-Verification Actions
-
-1. **Fix Critical Bugs (p0/p1):** Address immediately before release
-2. **Update Tests:** Fix outdated test assertions
-3. **Document Known Issues:** Pre-existing failures in CLAUDE.md
-4. **Create Roadmap Items:** P2/P3 bugs deferred to future versions
-
-### Verification Checklist
-
-- [ ] All 6 agents completed successfully
-- [ ] Findings recorded in HANDOFF_PACKET.md
-- [ ] Bugs tracked in BACKLOG_STATUS.md
-- [ ] Test failures classified and documented
-- [ ] Critical bugs fixed or blockers created
-- [ ] CLAUDE.md updated with verification notes
-- [ ] User notified of findings and next steps
-
----
-
-## Questions?
-
-If you're unsure about:
-- **Status vocabulary:** Check BACKLOG_STATUS.md header
-- **What to archive:** Check "File Organization" section above
-- **Commit format:** Check git log for recent examples
-- **Testing requirements:** Check "Testing Requirements" section above
-
-**When in doubt:** Ask the user before making assumptions about:
-- Status of incomplete work
-- Whether to archive or keep a file
-- Priority of new work
-- Scope of a feature request
-
----
-
-**Last Updated:** 2026-05-29  
-**Revision:** v1.7.0 release (2026-05-29) - Added comprehensive v1.7.0 section documenting all 19 completed items (PROD-008 through PROD-013, PHX-031/033/035, 7 regression fixes, auto-select UX, build optimizations). Includes production readiness items, UX enhancements, critical bug fixes, and 117 new regression tests. 1398 total tests passing, 0 production vulnerabilities, zero sensitive data exposure verified.
+**Last Updated:** 2026-10-08
+**Revision:** v2.1 Tranche 5 — OpenShift 4.22 atomic support flip candidate. Product
+scope and the No Fallback Rule were updated here because they named 4.22 explicitly and
+would otherwise contradict the candidate. Everything else is unchanged: the baseline is
+still 4.20, tool version is still not target support, and the unsupported-version guard
+is unchanged in strength — only the boundary moved.

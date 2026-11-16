@@ -5,6 +5,7 @@
 - **`docs/DESIGN_SYSTEM.md`** is the tracked UI contract for this project.
 - If a change conflicts with it, the change must **STOP** and propose an alternative.
 - No new tabs or steps should be added unless they map to the documented workflow.
+- For version-gated parameter fields, complete every item in **`docs/VERSION_AWARE_UI_FIELD_CHECKLIST.md`** before opening a PR.
 
 ## Run and build
 
@@ -15,7 +16,7 @@
 
 On **Apple Silicon or other non-x86_64 hosts**, follow **README** (“Platform and architecture”) as the product source of truth for current runtime behavior. Use **`docs/OPERATOR_SCAN_ARCHITECTURE_PLAN.md`** as historical/working context.
 
-If you use `compose down --remove-orphans` followed by `image prune --force` before `compose up --build`, prune may report *image is in use by a container*. That usually means another container (or Podman’s reference) still uses that image; you can ignore it or run `podman container prune -f` (or `docker container prune -f`) first. The app will still run. In the frontend container, *Re-optimizing dependencies because lockfile has changed* is normal when the lockfile or mounts differ from Vite’s cache and is safe to ignore.
+Rebuild with `scripts/deploy/oaa-deploy.sh build && scripts/deploy/oaa-deploy.sh up --recreate` (or `compose build` then `compose up -d`). Do not prune or reset Podman as part of a rebuild: `podman image prune`, `podman container prune` and especially `podman system reset` act on **every** project of that user, not just this one. In the frontend container, *Re-optimizing dependencies because lockfile has changed* is normal when the lockfile or mounts differ from Vite’s cache and is safe to ignore.
 
 ## Verify before pushing
 
@@ -38,6 +39,55 @@ cd backend && npm ci && npm test
 - **Other:** [gitleaks releases](https://github.com/gitleaks/gitleaks/releases) (place the binary in your PATH)
 
 CI always runs gitleaks on push/PR; the local script is for pre-push checks.
+
+## Preparing a release
+
+Before a release is tagged, complete the **mandatory release-time backlog reconciliation** in
+[`docs/BACKLOG_STATUS.md`](BACKLOG_STATUS.md#release-time-backlog-reconciliation-mandatory): every non-closed item
+(including unnumbered entries and `FQ-*` findings) is reconciled against the exact release candidate, statuses the
+evidence contradicts are corrected with citations, and new release-run findings are recorded without inventing IDs.
+A release whose notes or CHANGELOG claim closure of an item the backlog still shows open is not ready to tag.
+
+Release documentation follows a fixed lifecycle, checked by `scripts/check-release-doc-status.mjs`:
+
+1. **Before tagging:** `docs/releases/v<version>.md` and a `## [<version>]` CHANGELOG section exist, and
+   `node scripts/check-release-doc-status.mjs --phase pre` passes. Pre-release wording ("Coming in", "not yet
+   released", an undated CHANGELOG heading) is correct at this stage; the check lists it as what the closeout must
+   switch. The tagged commit is never edited afterwards.
+2. **After the GitHub Release is public:** a separate docs-only commit switches that wording, dates the CHANGELOG
+   heading with the tag date, and adds the version to the README release-notes list, documentation table and
+   "At a glance". `node scripts/check-release-doc-status.mjs --phase post --tag-date <YYYY-MM-DD>` must pass.
+3. **Closeout:** that commit is on `main` and `develop` on every remote, with CI green, before the release is
+   recorded as closed. The backlog reconciliation updates ship in the same post-release commit.
+   With that commit checked out (clean), run
+   `node scripts/release/verify-release-closeout.mjs --allowed-signers <release allowed-signers file> --write`.
+   It checks live: the post-release documentation check, the tag on every remote (and its signature), `main` and
+   `develop` equal to that commit on every remote, CI and Versioned Copy Guard green for it on both branches, and
+   the GitHub Release published with every asset digest matching its `SHA256SUMS`. Only when everything passes does
+   it write `docs/releases/closeout/v<version>.json`; a remote that is not the public repository is recorded
+   without its name. Commit that record together with the statement that the release is closed.
+   `check-release-doc-status.mjs` (both phases, and the tooling tests in CI) fails on any document that records a
+   release as closed without a passing record.
+
+### Build methods tested for every release
+
+Every release candidate is built and run with **every supported build method**, not only the certification
+build, and the results are recorded with the release evidence. The minimum matrix, run from the exact
+candidate source in isolated container storage, with its own project names and ports (never the
+maintainer's running app or its images):
+
+| Method | Build | Must show |
+|---|---|---|
+| `podman compose up --build -d` | both images | backend and frontend answer HTTP; `/api/build-info` shows the candidate version |
+| `scripts/deploy/oaa-deploy.sh all` | both images | "Deployment started and verified" |
+| `podman build -f <role>/Containerfile .` (certification, `scripts/release/buildImages.mjs`) | both images | the `containers` axis passes, including the application-user probes |
+| local npm (`npm ci` in root, backend, frontend; `node src/index.js`; `vite`; `npm run build`) | — | backend and UI answer HTTP; the frontend build succeeds |
+
+For each method's backend, a real mirror to disk of a small public image, Prepare transfer and Install
+generation must succeed. For each container-built backend, the application-user probes (read, hash and execute
+`oc-mirror` and `oc`; backend resolve-and-hash) must pass. `docker compose` is tested where Docker is
+available; otherwise it is recorded as not tested. OpenShift / Kubernetes in-cluster builds are not part of
+this matrix.
 
 ## Data and frontend copies
 
@@ -126,7 +176,7 @@ Testing guardrails:
 
 ## Project rules
 
-See `.cursor/rules/` and `AGENTS.md` for AI/agent guidance. Align to official OpenShift docs for the selected version (4.17–4.20); do not store or export credentials by default.
+See `.cursor/rules/` and `AGENTS.md` for AI/agent guidance. Align to official OpenShift docs for the selected version (4.20–4.21); do not store or export credentials by default.
 
 ## Governance docs map
 

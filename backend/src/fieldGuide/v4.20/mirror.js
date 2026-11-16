@@ -101,8 +101,8 @@ export const ocMirrorHighSide = {
   items: [
     { text: "On the high-side host, ensure the mirror registry ({{registryFqdn}}) is running and reachable:", cmd: "curl -Is https://{{registryFqdn}}/v2/ | head -2" },
     { text: "Ensure REGISTRY_AUTH_FILE is set to credentials with write access to {{registryFqdn}}:", cmd: "export REGISTRY_AUTH_FILE=/path/to/mirror-pull-secret.json\npodman login {{registryFqdn}}" },
-    { text: "Run oc-mirror v2 disk-to-mirror to push content from the archive into the registry:", cmd: "oc-mirror --config {{imageSetConfig}} --from {{archivePath}} docker://{{registryFqdn}} --v2" },
-    { text: "Monitor progress — disk-to-mirror is typically faster than mirror-to-disk since it's a local read. Expect 15–60 minutes.", cmd: "oc-mirror --config {{imageSetConfig}} --from {{archivePath}} docker://{{registryFqdn}} --v2 2>&1 | tee oc-mirror-highside.log" },
+    { text: "Run oc-mirror v2 disk-to-mirror to push content from the archive into the registry:", cmd: "oc-mirror --config {{imageSetConfig}} --from file://{{archivePath}} docker://{{registryFqdn}} --v2" },
+    { text: "Monitor progress — disk-to-mirror is typically faster than mirror-to-disk since it's a local read. Expect 15–60 minutes.", cmd: "oc-mirror --config {{imageSetConfig}} --from file://{{archivePath}} docker://{{registryFqdn}} --v2 2>&1 | tee oc-mirror-highside.log" },
     { text: "After completion, verify the workspace results directory contains the cluster-resources manifests:", cmd: "ls {{workspacePath}}/working-dir/cluster-resources/\n# Expect: imageDigestMirrorSet.yaml, imageTagMirrorSet.yaml, catalogSource-*.yaml" },
     { text: "Verify the OCP release image is present in the registry:", cmd: "oc image info {{registryFqdn}}/openshift/release-images:{{version}}-x86_64 2>&1 | head -5" },
     { text: "If oc-mirror reported errors for specific images, check the log and re-push if necessary. Partial pushes may cause installer failures." },

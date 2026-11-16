@@ -1,0 +1,41 @@
+{
+  "$comment": [
+    "Opaque baseline for the reachable-history secret scan.",
+    "",
+    "Consumed by scripts/security/historyScanBaseline.mjs. This file is NOT a scanner",
+    "allowlist: the scanner still detects every finding, and the reconciler accounts for",
+    "all of them against the digests below. Detection visibility is preserved on purpose.",
+    "",
+    "Every value here is a SHA-256 digest of something that must be independently",
+    "re-derived from the scan at verification time. The file therefore carries no path,",
+    "commit, detector name or other descriptive metadata, and it cannot be widened by",
+    "editing a string: a digest that does not match re-derived input simply fails.",
+    "",
+    "An entry is non-blocking only when its status is verified-inactive AND it carries a",
+    "recognised evidenceClass and an evidenceDigest. Detailed supporting evidence is",
+    "retained outside this repository.",
+    "",
+    "Anything unregistered, changed, added or miscounted returns RED. See the",
+    "scan-baseline section of docs/SECURITY_NOTES.md."
+  ],
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "baseline-001",
+      "status": "verified-inactive",
+      "expectedOccurrenceCount": 6,
+      "findingIdentities": [
+        { "identityHash": "sha256:0434505dd7f94e5525c63da294b0ef1361652f29e36b90185016176e167b9560", "count": 1 },
+        { "identityHash": "sha256:2a9d335a80d4f6266f50cdb00ff248214cbd01093dae06b9c1bd67eed40b9818", "count": 1 },
+        { "identityHash": "sha256:3ac260b6094ff055be476514e9b51d1f6e3b76b5cb5199e865beb4f86fb4c53b", "count": 2 },
+        { "identityHash": "sha256:d12433f0b32e59680c0b0878267c25fd488c981c686c7f506b7e96d18c9262bf", "count": 2 }
+      ],
+      "contentIdentityHash": "sha256:e8239f038f2376f28f9792f7630463e33bd5fcf39cba27fa916ef135f1882425",
+      "evidenceClass": "human-attested-lifecycle-invalidation",
+      "evidenceDigest": "sha256:e3962cf19b48c4c5c2c5ebf09c31dd6e006e582de3f752351849884e5d75956f"
+    }
+  ],
+  "disallowedPathHashes": [
+    "sha256:4476ee15257d576d547482fb304a0e9c9b2f827e4ba55449edfc28e695919220"
+  ]
+}

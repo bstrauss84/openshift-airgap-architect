@@ -685,9 +685,19 @@ kubectl patch pvc airgap-architect-data -p '{"spec":{"resources":{"requests":{"s
 
 ## Related Documentation
 
-- [Production Deployment Guide](PRODUCTION_DEPLOYMENT.md) - PROD-001
-- [Disaster Recovery SLAs](DISASTER_RECOVERY_SLAS.md) - PROD-006
-- [Database Health Monitoring](HEALTH_MONITORING.md) - PROD-007
+- [Deploying on OpenShift and Kubernetes](../manifests/README.md) — manifests,
+  the authenticated overlay, and the storage the restore procedure writes to.
+- [Capacity planning](CAPACITY_PLANNING.md) — sizing the volume these backups
+  are taken from.
+- [Metrics](METRICS.md) — the health and readiness endpoints referenced above.
+
+> Three links here previously pointed at `PRODUCTION_DEPLOYMENT.md`,
+> `DISASTER_RECOVERY_SLAS.md` and `HEALTH_MONITORING.md` (PROD-001, PROD-006,
+> PROD-007). **None of those documents has ever existed in this repository.**
+> They are replaced above with the documents that do cover the ground, rather
+> than with new placeholders: a dangling link to an invented file is worse
+> than an honest absence. The productization items themselves remain open and
+> are tracked in [`BACKLOG_STATUS.md`](BACKLOG_STATUS.md).
 
 ---
 

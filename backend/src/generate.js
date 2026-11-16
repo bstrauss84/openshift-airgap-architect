@@ -12,10 +12,47 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import yaml from "js-yaml";
-import { getTrustBundlePolicies } from "./versionPolicy.js";
+import { getTrustBundlePolicies, assertSupportedOpenShiftMinorForGeneration, isSupportedMinor, buildUnsupportedVersionError } from "./versionPolicy.js";
 import { buildFieldGuide } from "./fieldGuide/index.js";
 import { resolveReducedBundleOrThrow } from "./trustAnalysis/index.js";
 import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
+import { isVersionGTE, getMinorVersion } from "../../shared/versionUtils.js";
+import { validateBmcVerifyCA, MAX_BMC_VERIFY_CA_BYTES } from "../../shared/bmcVerifyCA.js";
+import { validateProvisioningNetworkGateway } from "../../shared/provisioningNetworkGateway.js";
+import { resolveArchitectureSupport, ARCHITECTURES } from "../../shared/archSupport.js";
+import { getScenarioId } from "../../shared/scenarioId.js";
+import { loadArchSupportDataset } from "./archSupportData.js";
+import { validateAzureByoVnet } from "../../shared/azureByoVnet.js";
+import {
+  PRIMARY_NAME_FALLBACKS,
+  resolveBaseInterfaceName,
+  resolveVlanInterfaceName,
+  resolveEffectiveInterfaceName
+} from "../../shared/interfaceNaming.js";
+import { stripProxyCredentials } from "../../shared/stateSanitizer.js";
+import { resolveSecretInclusion } from "./exportInclusion.js";
+
+function validateAwsRootVolumeThroughput(value, volumeType) {
+  if (value == null || value === "") return { valid: true, blank: true };
+  const num = Number(value);
+  if (!Number.isFinite(num)) throw new Error("rootVolumeThroughput must be a finite number, got: " + String(value));
+  if (!Number.isInteger(num)) throw new Error("rootVolumeThroughput must be an integer, got: " + value);
+  if (num < 125) throw new Error("rootVolumeThroughput must be at least 125, got: " + num);
+  if (num > 2000) throw new Error("rootVolumeThroughput must be at most 2000, got: " + num);
+  const effectiveType = (volumeType || "gp3").toLowerCase();
+  if (effectiveType !== "gp3") throw new Error("rootVolumeThroughput is only valid for gp3 volumes, got volume type: " + (volumeType || "(blank)"));
+  return { valid: true, value: num };
+}
+
+const VALID_CONFIDENTIAL_COMPUTE_POLICIES = ["Disabled", "AMDEncryptedVirtualizationNestedPaging"];
+
+function validateAwsConfidentialCompute(value) {
+  if (value === undefined || value === null) return { valid: true, blank: true };
+  if (typeof value !== "string") throw new Error("controlPlane.platform.aws.cpuOptions.confidentialCompute must be a string, got " + typeof value + ": " + JSON.stringify(value));
+  if (value === "") return { valid: true, blank: true };
+  if (!VALID_CONFIDENTIAL_COMPUTE_POLICIES.includes(value)) throw new Error("controlPlane.platform.aws.cpuOptions.confidentialCompute must be one of: " + VALID_CONFIDENTIAL_COMPUTE_POLICIES.join(", ") + "; got: " + JSON.stringify(value));
+  return { valid: true, value };
+}
 
 const MIRROR_OPERATOR_ADDITIONAL_IMAGES = [
   "amazon/aws-cli:latest",
@@ -63,6 +100,201 @@ const buildRootDeviceHints = (node) => {
     if (normalized === "true" || normalized === "false") hints.rotational = normalized === "true";
   }
   return Object.keys(hints).length > 0 ? hints : undefined;
+};
+
+/**
+ * Blueprint target-cluster architecture -> the spelling generated artifacts use.
+ *
+ * The Blueprint stores `x86_64 | aarch64 | ppc64le | s390x`. Both consumers of this
+ * mapping want the same output spelling:
+ *   - install-config `compute[].architecture` / `controlPlane.architecture`
+ *   - imageset-config `mirror.platform.architectures[]`, whose accepted values are
+ *     `amd64 | arm64 | multi | ppc64le | s390x` (oc-mirror v2 ImageSetConfiguration).
+ *
+ * Shared rather than duplicated because the two artifacts disagreeing about the
+ * target architecture is exactly the defect this consolidates away: an aarch64
+ * install-config paired with an amd64 mirror payload.
+ *
+ * @param {string|undefined} arch Blueprint architecture value
+ * @returns {string|undefined} artifact spelling, or undefined when unset
+ */
+/**
+ * platform.baremetal.provisioningNetworkGateway (OpenShift 4.22+).
+ *
+ * Emitted only when the target minor carries the field AND the provisioning
+ * network is Managed.
+ *
+ * DO NOT RELAX THE MANAGED GATE. openshift-install does accept the key with
+ * Unmanaged or Disabled and ignore it, but that is not the end of the story:
+ * the installer copies the value verbatim into the Provisioning CR with no
+ * mode gating (pkg/asset/manifests/openshift.go), and
+ * cluster-baremetal-operator then REJECTS it —
+ * api/v1alpha1/provisioning_validation.go: "provisioningNetworkGateway is only
+ * supported for Managed provisioning network". The result is a Degraded
+ * `baremetal` ClusterOperator after an otherwise successful install. Emitting
+ * this key outside Managed mode is therefore a cluster fault, not cosmetic
+ * noise. Verified against openshift/installer and cluster-baremetal-operator
+ * at the pinned 4.22 release commit.
+ *
+ * The documented relationships are enforced before emission because the shipped
+ * 4.22.16 binary does not enforce them (shared/provisioningNetworkGateway.js).
+ */
+/**
+ * Emit `platform.baremetal.provisioningNetworkGateway` when, and only when, the
+ * field is applicable.
+ *
+ * APPLICABILITY IS CHECKED BEFORE VALIDITY, and the two inapplicability kinds
+ * are treated identically:
+ *
+ *   - wrong target minor  (< 4.22 — the field does not exist there)
+ *   - wrong provisioning mode (not Managed — openshift-install accepts the
+ *     field and IGNORES it, per the OCP Provisioning APIs chapter: "only used
+ *     when ProvisioningNetwork is set to Managed")
+ *
+ * An earlier ordering validated first and checked applicability second. That
+ * was internally inconsistent — the version gate already returned before
+ * validating — and it had a user-visible consequence once 4.22 became
+ * supported: the UI renders this control only in Managed mode and PRESERVES the
+ * value when the mode changes, so a user who entered a bad gateway and then
+ * switched to Unmanaged/Disabled hit a hard generation failure naming a field
+ * they could no longer see or correct without switching back.
+ *
+ * Preserving the value on a mode change is deliberate and unchanged — the same
+ * choice the version transition makes, because silently destroying user input
+ * is worse. What changes is that an ignored field no longer blocks generation.
+ *
+ * Managed-mode relational validation (CIDR containment, DHCP-range overlap,
+ * provisioning-IP collision, address family) is untouched.
+ */
+const applyProvisioningNetworkGateway = (baremetal, hi, selectedMinor) => {
+  if (!isVersionGTE(selectedMinor, "4.22")) return;
+  const result = validateProvisioningNetworkGateway({
+    gateway: hi.provisioningNetworkGateway,
+    provisioningNetwork: hi.provisioningNetwork,
+    cidr: hi.provisioningNetworkCIDR,
+    dhcpRange: hi.provisioningDHCPRange,
+    clusterProvisioningIP: hi.clusterProvisioningIP,
+  });
+
+  // A non-string value is a state-integrity fault, not an applicability
+  // question. The validator reports it with no `value`, and it is refused in
+  // every provisioning mode rather than quietly ignored.
+  if (!result.valid && result.value === undefined && !result.blank) {
+    throw new Error(result.errors[0]);
+  }
+
+  if (!result.applicable || result.blank) return;
+  if (!result.valid) throw new Error(result.errors[0]);
+  baremetal.provisioningNetworkGateway = result.value;
+};
+
+/**
+ * Target-cluster architecture support guard (D3 / DOC-156, finding G2).
+ *
+ * WHY THIS EXISTS. Tranche 3 made `data/arch-support/<minor>.json` the runtime
+ * authority for target-cluster architecture — but only on the UI surface,
+ * because generation had no architecture gate to migrate. Tranche 4 proved the
+ * consequence: a state carrying an architecture the matrix CLOSES still
+ * generated. `vsphere-ipi` + `aarch64` is hidden at every minor, yet it emitted
+ * `architecture: arm64` into install-config and `architectures: [arm64]` into
+ * the mirror payload.
+ *
+ * That is reachable without the UI: a state saved by v2.0.0, whose
+ * PLATFORM_ARCH_SUPPORT table DID offer vSphere aarch64 and AWS GovCloud
+ * aarch64, imports cleanly and generates.
+ *
+ * Holds no table of its own: the decision is `shared/archSupport.js` over the
+ * canonical data.
+ *
+ * REJECTS, never repairs. No silent rewrite, no amd64 fallback, no dropping the
+ * architecture — any of those would hand the user a cluster they did not ask
+ * for, which is worse than a clear refusal.
+ *
+ * Scope: target-cluster architecture only. The installer/download binary
+ * architecture (`exportOptions.installerPlatformArch`) and the Architect
+ * runtime architecture are different axes and are untouched.
+ */
+const buildUnsupportedArchitectureError = (details) => {
+  const where = details.scenarioId
+    ? `${details.scenarioId} on OpenShift ${details.minor}`
+    : `OpenShift ${details.minor}`;
+  const err = new Error(
+    `Target cluster architecture "${details.architecture}" is not supported for ${where}. ${details.summary}`
+  );
+  err.code = "UNSUPPORTED_ARCHITECTURE";
+  // Identifying fields only — never the state.
+  err.requestedArchitecture = details.architecture;
+  err.selectedMinor = details.minor;
+  err.platform = details.platform ?? null;
+  err.installMethod = details.installMethod ?? null;
+  err.scenarioId = details.scenarioId ?? null;
+  err.disposition = details.disposition;
+  return err;
+};
+
+/**
+ * Blueprint spelling is `x86_64 | aarch64 | ppc64le | s390x`, but state in the
+ * wild also carries the install-config spelling (`amd64`, `arm64`) — the
+ * pass-through in `normalizeBlueprintArch` has always emitted those correctly,
+ * and `installer.js` / `ocMirrorRuntime.js` already treat the pairs as aliases.
+ * They denote the same architecture, so the support question must be asked of
+ * the canonical spelling. Accepting the alias is not a weakening; rejecting it
+ * would refuse configurations that generate correct output today.
+ */
+const ARCH_ALIASES = Object.freeze({ amd64: "x86_64", arm64: "aarch64" });
+const canonicalTargetArch = (arch) =>
+  typeof arch === "string" ? ARCH_ALIASES[arch.trim()] ?? arch.trim() : arch;
+
+const assertTargetArchitectureSupported = (state, selectedMinor) => {
+  const requested = state?.blueprint?.arch;
+  // No architecture selected means none is emitted. Nothing to validate.
+  if (!requested) return;
+  const architecture = canonicalTargetArch(requested);
+
+  const platform = state?.blueprint?.platform;
+  const installMethod = state?.methodology?.method;
+  const scenarioId = getScenarioId(platform, installMethod);
+  const dataset = loadArchSupportDataset();
+
+  if (scenarioId) {
+    const cell = resolveArchitectureSupport({ dataset, minor: selectedMinor, scenarioId, architecture });
+    if (cell.offered) return;
+    throw buildUnsupportedArchitectureError({
+      architecture: requested, minor: selectedMinor, platform, installMethod, scenarioId,
+      disposition: cell.disposition, summary: cell.summary,
+    });
+  }
+
+  // The scenario is not resolvable — the state carries no platform/method pair
+  // this product models. The matrix cannot be consulted per-scenario, so fall
+  // back to the WEAKER but still closed question: does ANY scenario at this
+  // minor offer the architecture? This is not a default; it is the broadest
+  // statement the authority supports, and it still rejects an architecture the
+  // product offers nowhere.
+  if (!ARCHITECTURES.includes(architecture)) {
+    throw buildUnsupportedArchitectureError({
+      architecture: requested, minor: selectedMinor, platform, installMethod, scenarioId: null,
+      disposition: "unknown", summary: "It is not a target-cluster architecture this product models.",
+    });
+  }
+  const doc = dataset?.[selectedMinor];
+  const offeredAnywhere = (doc?.matrix ?? []).some(
+    (row) => row.architectures?.[architecture]?.disposition === "supported"
+  );
+  if (!offeredAnywhere) {
+    throw buildUnsupportedArchitectureError({
+      architecture: requested, minor: selectedMinor, platform, installMethod, scenarioId: null,
+      disposition: "hidden",
+      summary: `No scenario offers ${architecture} on OpenShift ${selectedMinor}.`,
+    });
+  }
+};
+
+const normalizeBlueprintArch = (arch) => {
+  if (!arch) return undefined;
+  if (arch === "x86_64") return "amd64";
+  if (arch === "aarch64") return "arm64";
+  return arch; // ppc64le, s390x pass through unchanged
 };
 
 /**
@@ -131,6 +363,9 @@ const effectiveHostname = (node, baseDomain) => {
 
 // Deferred items are tracked in docs/BACKLOG_STATUS.md: featureSet, arbiter.*, credentialsMode/publish for bare metal (cloud-only in generate).
 const buildInstallConfig = (state) => {
+  const selectedMinor = assertSupportedOpenShiftMinorForGeneration(state);
+  assertTargetArchitectureSupported(state, selectedMinor);
+
   const mirror = state.globalStrategy?.mirroring || {};
   const RELEASE_SOURCE_PREFIX = "quay.io/openshift-release-dev/";
   const seen = new Set();
@@ -205,8 +440,6 @@ const buildInstallConfig = (state) => {
     // General controlPlaneReplicas override for platforms with host inventory (v1.7.0)
     masters = cpReplicasOverride;
   }
-  const rendezvousIP = sortedNodes.find((node) => node.role === "master")?.primary?.ipv4Cidr?.split("/")?.[0] || "192.168.1.10";
-
   const networkingState = state.globalStrategy?.networking || {};
   const isAwsGovCloud = state.blueprint?.platform === "AWS GovCloud" && ["IPI", "UPI"].includes(state.methodology?.method);
 
@@ -258,12 +491,7 @@ const buildInstallConfig = (state) => {
   const pullSecret = normalizePullSecretString(rawPullSecret);
 
   // Blueprint carry-over: architecture (x86_64→amd64, aarch64→arm64) and platform (Bare Metal→baremetal, etc.)
-  const archForInstallConfig = (arch) => {
-    if (!arch) return undefined;
-    if (arch === "x86_64") return "amd64";
-    if (arch === "aarch64") return "arm64";
-    return arch; // ppc64le, s390x pass through
-  };
+  const archForInstallConfig = normalizeBlueprintArch;
   const platformKey = normalizePlatformKey(state.blueprint?.platform);
 
   const clusterNetwork = buildClusterNetwork(networkingState, effectiveIpStackMode);
@@ -302,6 +530,13 @@ const buildInstallConfig = (state) => {
     pullSecret,
     sshKey: state.credentials?.sshPublicKey || ""
   };
+  // The "SSH public key" export switch ("Include install-config sshKey") had no
+  // consumer. sshKey is an OPTIONAL install-config parameter (Red Hat lists it
+  // under optional configuration parameters), so omitting it when the user
+  // switched it off leaves a valid configuration.
+  if (resolveSecretInclusion(state.exportOptions || {}).sshPublicKey === false) {
+    delete installConfig.sshKey;
+  }
 
   if (state.blueprint?.platform === "Bare Metal") {
     const isUPI = state.methodology?.method === "UPI";
@@ -342,6 +577,14 @@ const buildInstallConfig = (state) => {
         if (hi.provisioningDHCPRange) baremetal.provisioningDHCPRange = hi.provisioningDHCPRange;
         if (hi.clusterProvisioningIP) baremetal.clusterProvisioningIP = hi.clusterProvisioningIP;
         if (hi.provisioningMACAddress) baremetal.provisioningMACAddress = hi.provisioningMACAddress;
+        // provisioningNetworkGateway is deliberately NOT emitted here. The OCP
+        // Agent-based Installer parameter chapter lists the additional
+        // platform.baremetal fields it accepts and does not include it (verified
+        // absent from the whole Agent book at 4.20, 4.21 and 4.22), and §9.1.4
+        // frames that family as Day-2 content "not used during the initial
+        // provisioning of the cluster". The shared baremetal Go struct would
+        // accept the key; that is not a reason to write it. The bare-metal-agent
+        // catalog records it as hidden-not-applicable to match.
         const baremetalBaseDomain = state.blueprint?.baseDomain;
         const hosts = (hi.nodes || []).map((node) => {
           // §9.1.4 install-config hosts: name, bootMACAddress, bmc only (role/rootDeviceHints → agent-config).
@@ -362,6 +605,11 @@ const buildInstallConfig = (state) => {
         });
         baremetal.hosts = hosts;
       }
+      if (isVersionGTE(selectedMinor, "4.21")) {
+        const bmcCAResult = validateBmcVerifyCA(hi.bmcVerifyCA);
+        if (!bmcCAResult.valid) throw new Error(bmcCAResult.error);
+        if (!bmcCAResult.blank) baremetal.bmcVerifyCA = bmcCAResult.value;
+      }
       installConfig.platform.baremetal = baremetal;
     } else {
       // Bare Metal IPI: full platform.baremetal with apiVIPs, ingressVIPs, hosts, provisioning*.
@@ -375,11 +623,38 @@ const buildInstallConfig = (state) => {
       if (hi.provisioningNetwork && ["Managed", "Unmanaged", "Disabled"].includes(hi.provisioningNetwork)) {
         baremetal.provisioningNetwork = hi.provisioningNetwork;
       }
+      /* Provisioning-mode applicability (Tranche 7C.4). Verified against the
+         pinned installer commits for 4.20/4.21/4.22 and the Red Hat bare-metal
+         book; see docs/minor-release/4.22/PROVISIONING_MODE_APPLICABILITY.md.
+         Values are kept in state across a mode change — only emission is gated,
+         so returning to a mode restores the user's input.
+
+           provisioningNetworkCIDR   — emitted in EVERY mode. Red Hat: "If you
+             configure this setting, it must have a valid CIDR address even if
+             the provisioning network is Disabled." The installer itself
+             defaults it in Disabled mode from the machine network.
+           provisioningNetworkInterface — omitted when Disabled. Red Hat:
+             "Omit the provisioningInterface configuration setting if the
+             provisioning network is Disabled."
+           provisioningDHCPRange     — Managed only. Red Hat: "This setting is
+             only applicable to a Managed provisioning network. Omit this
+             configuration setting if the provisioning network is Disabled."
+             cluster-baremetal-operator forcibly clears it for any non-Managed
+             mode, so emitting it elsewhere is dead text in the user's file.
+           clusterProvisioningIP     — emitted in every mode; in Disabled it is
+             how the user supplies the bare-metal-network address the
+             provisioning services use. */
+      const provisioningMode = hi.provisioningNetwork;
       if (hi.provisioningNetworkCIDR) baremetal.provisioningNetworkCIDR = hi.provisioningNetworkCIDR;
-      if (hi.provisioningNetworkInterface) baremetal.provisioningNetworkInterface = hi.provisioningNetworkInterface;
-      if (hi.provisioningDHCPRange) baremetal.provisioningDHCPRange = hi.provisioningDHCPRange;
+      if (hi.provisioningNetworkInterface && provisioningMode !== "Disabled") {
+        baremetal.provisioningNetworkInterface = hi.provisioningNetworkInterface;
+      }
+      if (hi.provisioningDHCPRange && provisioningMode === "Managed") {
+        baremetal.provisioningDHCPRange = hi.provisioningDHCPRange;
+      }
       if (hi.clusterProvisioningIP) baremetal.clusterProvisioningIP = hi.clusterProvisioningIP;
       if (hi.provisioningMACAddress) baremetal.provisioningMACAddress = hi.provisioningMACAddress;
+      applyProvisioningNetworkGateway(baremetal, hi, selectedMinor);
 
       // Bare metal IPI: libvirtURI and externalBridge (v1.7.0: DOC-082 MISSING-V1.7-019, MISSING-V1.7-020)
       if ((hi.libvirtURI || "").trim()) baremetal.libvirtURI = hi.libvirtURI.trim();
@@ -459,6 +734,11 @@ const buildInstallConfig = (state) => {
         return host;
       });
       baremetal.hosts = hosts;
+      if (isVersionGTE(selectedMinor, "4.21")) {
+        const bmcCAResult = validateBmcVerifyCA(hi.bmcVerifyCA);
+        if (!bmcCAResult.valid) throw new Error(bmcCAResult.error);
+        if (!bmcCAResult.blank) baremetal.bmcVerifyCA = bmcCAResult.value;
+      }
       installConfig.platform.baremetal = baremetal;
     }
   }
@@ -510,28 +790,27 @@ const buildInstallConfig = (state) => {
   }
 
   if (state.globalStrategy?.proxyEnabled) {
+    // Proxy URLs may embed `user:password`. That userinfo is a CREDENTIAL and obeys the
+    // same opt-in rule as every other credential class here (pull secret, BMC, vSphere,
+    // Nutanix): excluded unless the user explicitly asked for credential inclusion.
+    //
+    // Proxy was previously the only credential class that ignored `includeCredentials`,
+    // so a default export carried the proxy password. The endpoint itself is non-secret
+    // configuration and is always preserved - only the userinfo is removed.
+    const proxyValue = (raw) => {
+      if (!raw) return raw;
+      return includeCredentials ? raw : stripProxyCredentials(raw);
+    };
     installConfig.proxy = {
-      httpProxy: state.globalStrategy?.proxies?.httpProxy,
-      httpsProxy: state.globalStrategy?.proxies?.httpsProxy,
+      httpProxy: proxyValue(state.globalStrategy?.proxies?.httpProxy),
+      httpsProxy: proxyValue(state.globalStrategy?.proxies?.httpsProxy),
       noProxy: state.globalStrategy?.proxies?.noProxy
     };
   }
 
-  // Mirror-source key pivot: 4.14+ uses imageDigestSources; 4.13 and below use imageContentSources.
-  const parsedVersion = String(state.blueprint?.version || "").match(/^(\d+)\.(\d+)/);
-  const major = parsedVersion ? Number(parsedVersion[1]) : NaN;
-  const minor = parsedVersion ? Number(parsedVersion[2]) : NaN;
-  const useImageDigestSources = !Number.isFinite(major)
-    ? true
-    : (major > 4 || (major === 4 && Number.isFinite(minor) && minor >= 14));
-
-  // Only emit mirror mapping into install-config when mirror registry is actually in use.
+  // All supported minors (4.20+) use imageDigestSources exclusively.
   if (useMirrorPath && Array.isArray(imageDigestSources) && imageDigestSources.length > 0) {
-    if (useImageDigestSources) {
-      installConfig.imageDigestSources = imageDigestSources;
-    } else {
-      installConfig.imageContentSources = imageDigestSources;
-    }
+    installConfig.imageDigestSources = imageDigestSources;
   }
 
   if (state.blueprint?.platform === "AWS GovCloud" || state.blueprint?.platform === "Azure Government") {
@@ -604,31 +883,44 @@ const buildInstallConfig = (state) => {
       }
     }
 
-    if (state.methodology?.method === "IPI" && (platformConfig.aws?.controlPlaneInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn)) {
+    const awsThroughputResult = isVersionGTE(selectedMinor, "4.21") && state.methodology?.method === "IPI"
+      ? validateAwsRootVolumeThroughput(platformConfig.aws?.rootVolumeThroughput, (platformConfig.aws?.rootVolumeType || "").trim() || undefined)
+      : { valid: true, blank: true };
+    const awsThroughputEligible = awsThroughputResult.valid && !awsThroughputResult.blank;
+    const awsConfidentialComputeResult = isVersionGTE(selectedMinor, "4.21") && state.methodology?.method === "IPI"
+      ? validateAwsConfidentialCompute(platformConfig.aws?.cpuOptions?.confidentialCompute)
+      : { valid: true, blank: true };
+    const awsConfidentialComputeEligible = awsConfidentialComputeResult.valid && !awsConfidentialComputeResult.blank;
+    if (state.methodology?.method === "IPI" && (platformConfig.aws?.controlPlaneInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn || awsThroughputEligible || awsConfidentialComputeEligible)) {
       const cpPlatform = typeof installConfig.controlPlane.platform === "object" && installConfig.controlPlane.platform !== null
         ? { ...installConfig.controlPlane.platform } : {};
       cpPlatform.aws = { ...(cpPlatform.aws || {}) };
       if (platformConfig.aws.controlPlaneInstanceType) cpPlatform.aws.type = platformConfig.aws.controlPlaneInstanceType;
-      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType || platformConfig.aws.rootVolumeIops || platformConfig.aws.rootVolumeKmsKeyArn) {
+      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType || platformConfig.aws.rootVolumeIops || platformConfig.aws.rootVolumeKmsKeyArn || awsThroughputEligible) {
         cpPlatform.aws.rootVolume = {};
         if (platformConfig.aws.rootVolumeSize != null && Number(platformConfig.aws.rootVolumeSize) > 0) cpPlatform.aws.rootVolume.size = Number(platformConfig.aws.rootVolumeSize);
         if ((platformConfig.aws.rootVolumeType || "").trim()) cpPlatform.aws.rootVolume.type = (platformConfig.aws.rootVolumeType || "").trim();
         if (platformConfig.aws.rootVolumeIops != null && Number(platformConfig.aws.rootVolumeIops) > 0) cpPlatform.aws.rootVolume.iops = Number(platformConfig.aws.rootVolumeIops);
+        if (awsThroughputEligible) cpPlatform.aws.rootVolume.throughput = awsThroughputResult.value;
         if ((platformConfig.aws.rootVolumeKmsKeyArn || "").trim()) cpPlatform.aws.rootVolume.kmsKeyARN = (platformConfig.aws.rootVolumeKmsKeyArn || "").trim();
         if (Object.keys(cpPlatform.aws.rootVolume).length === 0) delete cpPlatform.aws.rootVolume;
       }
+      if (awsConfidentialComputeEligible) {
+        cpPlatform.aws.cpuOptions = { confidentialCompute: awsConfidentialComputeResult.value };
+      }
       installConfig.controlPlane.platform = cpPlatform;
     }
-    if (state.methodology?.method === "IPI" && (platformConfig.aws?.workerInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn)) {
+    if (state.methodology?.method === "IPI" && (platformConfig.aws?.workerInstanceType || platformConfig.aws?.rootVolumeSize || platformConfig.aws?.rootVolumeType || platformConfig.aws?.rootVolumeIops || platformConfig.aws?.rootVolumeKmsKeyArn || awsThroughputEligible)) {
       const compPlatform = typeof installConfig.compute[0].platform === "object" && installConfig.compute[0].platform !== null
         ? { ...installConfig.compute[0].platform } : {};
       compPlatform.aws = { ...(compPlatform.aws || {}) };
       if (platformConfig.aws.workerInstanceType) compPlatform.aws.type = platformConfig.aws.workerInstanceType;
-      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType || platformConfig.aws.rootVolumeIops || platformConfig.aws.rootVolumeKmsKeyArn) {
+      if (platformConfig.aws.rootVolumeSize != null || platformConfig.aws.rootVolumeType || platformConfig.aws.rootVolumeIops || platformConfig.aws.rootVolumeKmsKeyArn || awsThroughputEligible) {
         compPlatform.aws.rootVolume = {};
         if (platformConfig.aws.rootVolumeSize != null && Number(platformConfig.aws.rootVolumeSize) > 0) compPlatform.aws.rootVolume.size = Number(platformConfig.aws.rootVolumeSize);
         if ((platformConfig.aws.rootVolumeType || "").trim()) compPlatform.aws.rootVolume.type = (platformConfig.aws.rootVolumeType || "").trim();
         if (platformConfig.aws.rootVolumeIops != null && Number(platformConfig.aws.rootVolumeIops) > 0) compPlatform.aws.rootVolume.iops = Number(platformConfig.aws.rootVolumeIops);
+        if (awsThroughputEligible) compPlatform.aws.rootVolume.throughput = awsThroughputResult.value;
         if ((platformConfig.aws.rootVolumeKmsKeyArn || "").trim()) compPlatform.aws.rootVolume.kmsKeyARN = (platformConfig.aws.rootVolumeKmsKeyArn || "").trim();
         if (Object.keys(compPlatform.aws.rootVolume).length === 0) delete compPlatform.aws.rootVolume;
       }
@@ -674,6 +966,12 @@ const buildInstallConfig = (state) => {
         ];
       }
       if (server && datacenter && cluster && datastore && network) {
+        // Installer validates failureDomains topology with path patterns:
+        //   computeCluster: ^/(.*?)/host/(.*?)$
+        //   datastore: ^/(.*?)/datastore/(.*?)$
+        // Legacy fields are short names; prepend inventory path if not already absolute.
+        const ccPath = cluster.startsWith("/") ? cluster : `/${datacenter}/host/${cluster}`;
+        const dsPath = datastore.startsWith("/") ? datastore : `/${datacenter}/datastore/${datastore}`;
         vsphere.failureDomains = [
           {
             name: "fd-0",
@@ -682,8 +980,8 @@ const buildInstallConfig = (state) => {
             server,
             topology: {
               datacenter,
-              computeCluster: cluster,
-              datastore,
+              computeCluster: ccPath,
+              datastore: dsPath,
               networks: [network],
               ...(vs.folder ? { folder: vs.folder } : {}),
               ...(vs.resourcePool ? { resourcePool: vs.resourcePool } : {})
@@ -705,7 +1003,6 @@ const buildInstallConfig = (state) => {
             ...(networksArray.length ? { networks: networksArray } : {}),
             ...(top.folder != null && top.folder !== "" ? { folder: top.folder } : {}),
             ...(top.resourcePool != null && top.resourcePool !== "" ? { resourcePool: top.resourcePool } : {}),
-            // topology.template: IPI only per doc 9.1.4; suppress when clusterOSImage is set (mutually exclusive).
             ...(isVsphereIpi && top.template != null && String(top.template).trim() !== "" && !(vs.clusterOSImage && String(vs.clusterOSImage).trim() !== "") ? { template: String(top.template).trim() } : {})
           };
           return {
@@ -901,6 +1198,43 @@ const buildInstallConfig = (state) => {
       azure.baseDomainResourceGroupName = platformConfig.azure.baseDomainResourceGroupName;
     }
 
+    if (isVersionGTE(selectedMinor, "4.21")) {
+      const rawSharedKey = platformConfig.azure?.allowSharedKeyAccess;
+      if (rawSharedKey !== undefined && rawSharedKey !== null) {
+        if (typeof rawSharedKey !== "boolean") {
+          throw new Error("platform.azure.allowSharedKeyAccess must be a boolean (true or false), got " + typeof rawSharedKey + ": " + JSON.stringify(rawSharedKey));
+        }
+        azure.allowSharedKeyAccess = rawSharedKey;
+      }
+    }
+
+    if (platformConfig.azure?.vnetMode === "existing-vnet") {
+      const byoResult = validateAzureByoVnet(platformConfig.azure, selectedMinor);
+      if (!byoResult.valid) {
+        const err = new Error("Azure BYO VNet configuration is invalid: " + byoResult.errors.join(" "));
+        err.code = "CONFIGURATION_VALIDATION";
+        throw err;
+      }
+
+      const vnet = platformConfig.azure.virtualNetwork.trim();
+      const netRg = platformConfig.azure.networkResourceGroupName.trim();
+      const cpSubnet = platformConfig.azure.controlPlaneSubnet.trim();
+      const nodeSubnets = platformConfig.azure.nodeSubnets.map(s => s.trim());
+
+      azure.virtualNetwork = vnet;
+      azure.networkResourceGroupName = netRg;
+
+      if (isVersionGTE(selectedMinor, "4.21")) {
+        azure.subnets = [
+          { name: cpSubnet, role: "control-plane" },
+          ...nodeSubnets.map(ns => ({ name: ns, role: "node" })),
+        ];
+      } else {
+        azure.controlPlaneSubnet = cpSubnet;
+        azure.computeSubnet = nodeSubnets[0];
+      }
+    }
+
     // Azure defaultMachinePlatform (v1.7.0: DOC-082 MISSING-V1.7-007, MISSING-V1.7-008)
     if ((Array.isArray(platformConfig.azure?.defaultMachinePlatformZones) && platformConfig.azure.defaultMachinePlatformZones.length > 0) || platformConfig.azure?.defaultMachinePlatformOsDiskSizeGB) {
       azure.defaultMachinePlatform = {};
@@ -1001,8 +1335,7 @@ const buildInstallConfig = (state) => {
   const trustBundle = resolveTrustBundleForGeneration(state);
   if (trustBundle) {
     installConfig.additionalTrustBundle = trustBundle;
-    const versionForPolicy = (state.release?.patchVersion || state.version?.selectedVersion || "").trim();
-    const versionPolicies = getTrustBundlePolicies(versionForPolicy);
+    const versionPolicies = getTrustBundlePolicies(selectedMinor);
     const allowedPolicies = versionPolicies.length ? versionPolicies : FALLBACK_TRUST_BUNDLE_POLICIES;
     const requested = normalizeAdditionalTrustBundlePolicy(trust.additionalTrustBundlePolicy);
     const mirrorPemBlocks = extractPemBlocks(trust.mirrorRegistryCaPem);
@@ -1033,7 +1366,7 @@ const buildInstallConfig = (state) => {
   const header = [
     "# install-config.yaml",
     "# Generated by OpenShift Airgap Architect",
-    "# https://github.com/billstrauss/openshift-airgap-architect",
+    "# https://github.com/bstrauss84/openshift-airgap-architect",
     "# Developed by Bill Strauss with AI assistance from Claude (Anthropic) and Cursor AI",
     "#",
     "# IMPORTANT: Validate all configuration values against official Red Hat OpenShift",
@@ -1063,10 +1396,22 @@ const normalizePlatformKey = (platform) => {
   }
 };
 
+/* DOC-219. rendezvousIP must be an address the rendezvous host will actually
+   have. It was always read from the IPv4 field, so in an IPv6-only cluster it
+   was either an imported leftover IPv4 address that buildNmState discards (the
+   ISO then points at an address no host holds) or the generic fallback. The
+   field is now chosen from the family the cluster enables; dual-stack keeps the
+   IPv4 address, exactly as before. The generic fallback itself is unchanged. */
+const pickRendezvousIp = (sortedNodes, ipStackMode) => {
+  const primary = sortedNodes.find((node) => node.role === "master")?.primary || {};
+  const cidr = (ipStackMode || "ipv4") === "ipv6" ? primary.ipv6Cidr : primary.ipv4Cidr;
+  return (typeof cidr === "string" ? cidr.split("/")[0].trim() : "") || "192.168.1.10";
+};
+
 const buildAgentConfig = (state) => {
   const baseDomain = state.blueprint?.baseDomain;
   const sortedNodes = sortNodes(state.hostInventory?.nodes || []);
-  const rendezvousIP = sortedNodes.find((node) => node.role === "master")?.primary?.ipv4Cidr?.split("/")?.[0] || "192.168.1.10";
+  const rendezvousIP = pickRendezvousIp(sortedNodes, state.hostInventory?.ipStackMode);
   const hosts = sortedNodes.map((node) => {
     const nmState = buildNmState({ ...node, inventoryIpStackMode: state.hostInventory?.ipStackMode });
     const interfaces = collectPhysicalInterfaces(node);
@@ -1098,7 +1443,7 @@ const buildAgentConfig = (state) => {
   const header = [
     "# agent-config.yaml",
     "# Generated by OpenShift Airgap Architect",
-    "# https://github.com/billstrauss/openshift-airgap-architect",
+    "# https://github.com/bstrauss84/openshift-airgap-architect",
     "# Developed by Bill Strauss with AI assistance from Claude (Anthropic) and Cursor AI",
     "#",
     "# IMPORTANT: Validate all configuration values against official Red Hat OpenShift",
@@ -1262,9 +1607,48 @@ const buildNmState = (node) => {
     return Number.isNaN(next) ? undefined : next;
   };
 
-  const addIpConfig = (iface, mode, addrV4, prefixV4, addrV6, prefixV6) => {
+  /* Which address families each emitted interface ends up with. Routes are
+     validated against THEIR OWN next-hop interface, which is what nmstate
+     actually enforces, so this has to be recorded as interfaces are built. */
+  const ipFamiliesByInterface = new Map();
+  /** Extra routes, held until every interface exists. See flushExtraRoutes. */
+  const pendingExtraRoutes = [];
+
+  /**
+   * Apply IPv4/IPv6 addressing to one interface.
+   *
+   * `allowV4` / `allowV6` are PARAMETERS, not closure reads, because the two
+   * call paths have genuinely different contracts (Tranche 7C.4A):
+   *
+   *   PRIMARY cluster/node endpoint path — cluster-stack-coupled. The host must
+   *   hold an address in every machine network (assisted-service
+   *   `belongs-to-machine-cidr`), and node-IP selection derives from the
+   *   default-route/VIP-routing interface with a cluster-derived `preferIPv6`
+   *   (baremetal-runtimecfg `node-ip.go`). So the cluster stack mode governs
+   *   here, and callers pass the cluster-derived flags.
+   *
+   *   ADDITIONAL / SECONDARY interfaces — independent. `hosts[].networkConfig`
+   *   is delegated wholesale to NMState by Red Hat ("The configuration must
+   *   match the Host Network Management API defined in the Declarative Network
+   *   API", ABI 4.20/4.21/4.22 §9.2.2 Table 9.8). `interfaces[].ipv4` and
+   *   `interfaces[].ipv6` are independent per-interface sub-objects; nothing in
+   *   the installer, assisted-service or the docs requires a secondary
+   *   interface to match the cluster stack, and Red Hat itself requires a
+   *   separate storage network for iSCSI boot (ABI §7.1) with no family
+   *   constraint. Verified empirically: an IPv4 primary with an IPv6-only
+   *   secondary ethernet and VLAN passes `nmstatectl gc` — the same binary the
+   *   installer shells out to in `ValidateStaticConfigParams`.
+   *
+   *   An earlier revision closed over the cluster flags for BOTH paths and
+   *   silently discarded a storage/management address that differed from the
+   *   cluster stack. That was a capability regression, not a Red Hat contract.
+   */
+  const addIpConfig = (iface, mode, addrV4, prefixV4, addrV6, prefixV6, allowV4, allowV6, isPrimaryL3 = false) => {
+    const permitV4 = allowV4 === undefined ? enableIpv4 : allowV4;
+    const permitV6 = allowV6 === undefined ? enableIpv6 : allowV6;
+
     // IPv4 configuration
-    if (enableIpv4) {
+    if (permitV4) {
       if (mode === "dhcp") {
         iface.ipv4 = { enabled: true, dhcp: true };
       } else if (addrV4) {
@@ -1277,10 +1661,63 @@ const buildNmState = (node) => {
     }
 
     // IPv6 configuration
-    if (enableIpv6 && addrV6) {
+    if (permitV6 && addrV6) {
       iface.ipv6 = { enabled: true, dhcp: false, address: [{ ip: addrV6, "prefix-length": prefixV6 }] };
     } else {
       iface.ipv6 = { enabled: false };
+    }
+
+    /* INCOMPLETE IS NOT THE SAME AS DISABLED.
+     *
+     * `enabled: false` is a statement of intent — "this interface
+     * deliberately carries no address of this family" — and NMState treats it
+     * that way: per the Declarative Network API, `enabled: false` removes the
+     * address, and for IPv6 the link-local address too.
+     *
+     * A static interface whose required address has simply not been typed yet
+     * is a DIFFERENT state. Falling through to `enabled: false` for both
+     * families silently rewrote "static IPv6 selected, address still missing"
+     * as "IPv6 intentionally off", and emitted a confident-looking document
+     * describing a node with no address of any family. That is how a
+     * vlan-on-bond primary in an IPv6-only cluster produced `bond0.90` with
+     * both families disabled, which in turn made every IPv4 route out of it
+     * un-appliable — a downstream symptom of the false state, not a separate
+     * fault.
+     *
+     * The repository's established contract for a current state that cannot
+     * be generated is to fail generation and let the preview keep the last
+     * valid document under an explicit banner (DOC-160 as refined, now
+     * per-artifact under DOC-227). `buildNmState` already does exactly this
+     * for an empty interface name. Do the same here rather than inventing a
+     * third representation.
+     *
+     * Note this is a completeness check, not a family check: ONE family is
+     * enough. A dual-stack host with only an IPv4 address is fine, and so is
+     * a secondary interface carrying only IPv6.
+     *
+     * SCOPED TO THE PRIMARY L3 CARRIER ON PURPOSE. The IP-assignment control
+     * offers only DHCP and Static — there is no "none" — so an unaddressed
+     * SECONDARY interface is the only way to express a legitimate L2-only NIC
+     * (one that exists for MTU, SR-IOV or as a bond carrier). For a secondary,
+     * `enabled: false` genuinely is the right NMState representation and
+     * refusing it would remove a capability. For the primary it is not: that
+     * interface carries the node address and must be in the machine network
+     * (assisted-service `belongs-to-machine-cidr`), so an unaddressed primary
+     * is unambiguously incomplete, never intentional.
+     */
+    if (isPrimaryL3 && mode === "static" && iface.ipv4.enabled !== true && iface.ipv6.enabled !== true) {
+      const wanted = permitV6 && !permitV4 ? "IPv6" : !permitV6 && permitV4 ? "IPv4" : "IPv4 or IPv6";
+      throw new Error(
+        `Interface "${iface?.name || "(unnamed)"}" is set to static addressing but has no ` +
+          `${wanted} address. Enter one, or set this interface to DHCP.`
+      );
+    }
+
+    if (iface?.name) {
+      ipFamiliesByInterface.set(iface.name, {
+        ipv4: iface.ipv4?.enabled === true,
+        ipv6: iface.ipv6?.enabled === true
+      });
     }
   };
 
@@ -1308,21 +1745,130 @@ const buildNmState = (node) => {
     });
   }
 
-  const extraRoutes = primary.advanced?.routes || [];
-  extraRoutes.forEach((route) => {
-    if (!route?.destination || !route?.nextHopAddress) return;
-    config.routes.config.push({
-      destination: route.destination,
-      "next-hop-address": route.nextHopAddress,
-      "next-hop-interface": route.nextHopInterface || primaryIfaceName,
-      "table-id": 254
-    });
-  });
+  /**
+   * Address family of a user-entered extra route.
+   *
+   * NMState routes are family-specific: a route whose next hop is reached over
+   * a family the interface has `enabled: false` for is not a no-op, it is an
+   * invalid desired state. `addIpConfig` disables IPv4 outright when the
+   * cluster IP stack mode is IPv6-only (and vice versa), so an extra route in
+   * the other family must not be emitted against it.
+   *
+   * The destination decides the family; the next hop is consulted only when the
+   * destination is unparseable, because the two must agree and the destination
+   * is the field NMState keys the route on. A ":" is sufficient to discriminate
+   * — it cannot appear in an IPv4 destination or address.
+   */
+  const routeAddressFamily = (route) => {
+    const destination = String(route?.destination ?? "");
+    const nextHop = String(route?.nextHopAddress ?? "");
+    if (destination.includes(":")) return "ipv6";
+    if (destination.includes(".")) return "ipv4";
+    return nextHop.includes(":") ? "ipv6" : "ipv4";
+  };
 
+  /**
+   * Emit the user's extra static routes for one interface.
+   *
+   * `defaultNextHopInterface` is that interface's own effective name, so a
+   * route left without an explicit next-hop interface attaches to the interface
+   * it was authored under rather than to the primary.
+   *
+   * NOTE — deliberately NOT gated on `mode === "static"`. A static route on a
+   * DHCP interface is a legitimate NMState desired state (DHCP supplies the
+   * default route; the extra route reaches somewhere DHCP does not advertise),
+   * and dropping routes the user explicitly entered would be the same silent
+   * data loss this change is removing. Out-of-FAMILY routes are dropped because
+   * they cannot be expressed at all; the UI reports those as validation errors
+   * rather than letting them disappear unexplained.
+   */
+  const addExtraRoutes = (routes, defaultNextHopInterface) => {
+    (routes || []).forEach((route) => {
+      const destination = String(route?.destination ?? "").trim();
+      const nextHopAddress = String(route?.nextHopAddress ?? "").trim();
+      if (!destination || !nextHopAddress) return;
+      const family = routeAddressFamily({ destination, nextHopAddress });
+      const nextHopInterface =
+        String(route?.nextHopInterface ?? "").trim() || defaultNextHopInterface;
+      if (!nextHopInterface) return;
+      /* nmstate rejects a route only when its family is disabled on the route's
+         OWN next-hop interface — `rust/src/lib/route.rs`: "The next hop
+         interface of desired Route '...' has been marked as IPv6 disabled".
+         It has no opinion about the cluster stack mode. An earlier revision
+         filtered on the cluster families, which silently dropped a legitimate
+         route out of a secondary storage/management interface. Only drop when
+         we KNOW the family is disabled on that interface; a free-text
+         next-hop naming an interface we did not emit is left to validation,
+         which checks the name against the generated interface set. */
+      pendingExtraRoutes.push({ destination, nextHopAddress, nextHopInterface, family });
+    });
+  };
+
+  /**
+   * Emit the queued extra routes once every interface exists.
+   *
+   * Route emission is DEFERRED because the family test above is per next-hop
+   * interface, and the primary's routes are collected before any interface has
+   * been built. Testing at collection time would always find an empty map and
+   * fail open, emitting a route nmstate will reject.
+   */
+  const flushExtraRoutes = () => {
+    for (const route of pendingExtraRoutes) {
+      const families = ipFamiliesByInterface.get(route.nextHopInterface);
+      // Unknown interface: not ours to judge. Validation checks the name
+      // against the generated interface set and reports it there.
+      if (families && families[route.family] !== true) continue;
+      config.routes.config.push({
+        destination: route.destination,
+        "next-hop-address": route.nextHopAddress,
+        "next-hop-interface": route.nextHopInterface,
+        "table-id": 254
+      });
+    }
+  };
+
+  addExtraRoutes(primary.advanced?.routes, primaryIfaceName);
+
+  /**
+   * Add an ethernet interface to the NMState document.
+   *
+   * SR-IOV NESTING. NMState places SR-IOV under the interface's `ethernet`
+   * object: `interfaces[].ethernet.sr-iov.total-vfs`. This is confirmed by the
+   * upstream NMState YAML API and, for the Day-1 Agent surface specifically, by
+   * Red Hat's own "Bonds and SR-IOV dual-NIC node network configuration"
+   * example at OCP 4.20, 4.21 and 4.22 alike (§1.9 in each).
+   *
+   * An earlier version assigned a TOP-LEVEL `entry.sriov` instead. That key does
+   * not exist in the schema, and NMState's deserializer is strict — an unknown
+   * property aborts the parse, so the whole host networkConfig was rejected
+   * rather than merely losing the SR-IOV setting.
+   *
+   * The assignment merges into any existing `ethernet` object rather than
+   * replacing it, so a future ethernet-level field cannot be clobbered by
+   * ordering.
+   */
   const addEthernet = (name, mtu, sriov) => {
     const entry = { name, type: "ethernet", state: "up" };
     if (mtu) entry.mtu = mtu;
-    if (sriov) entry.sriov = sriov;
+    // COPY the sr-iov block per interface. `sriovConfig` is built once per host
+    // and handed to every bond member, so assigning the reference directly made
+    // two interfaces share one object. js-yaml serialises a repeated object
+    // identity as a YAML anchor and alias, which produced:
+    //
+    //     ethernet:
+    //       sr-iov: &ref_0
+    //         total-vfs: 12
+    //     ...
+    //     ethernet:
+    //       sr-iov: *ref_0
+    //
+    // That parses to the right thing — aliases are resolved before any consumer
+    // sees them — but generated installation config should be explicit and
+    // diffable, and an unexplained anchor invites exactly the "is this the
+    // DOC-192 bug again?" question it got during manual QA. Copying here fixes
+    // it at the point the shared value becomes per-interface state, rather than
+    // by changing YAML serialisation globally for every generated document.
+    if (sriov) entry.ethernet = { ...entry.ethernet, "sr-iov": { ...sriov } };
     config.interfaces.push(entry);
     return entry;
   };
@@ -1345,15 +1891,46 @@ const buildNmState = (node) => {
     return entry;
   };
 
-  const addVlan = (vlan, mtu) => {
-    const baseIface = vlan.baseIface;
-    const id = Number(vlan.id);
-    const name = vlan.name || (baseIface && vlan.id ? `${baseIface}.${vlan.id}` : "");
+  /* A bond member the user has added but not yet named is an incomplete row,
+     not malformed data. Feeding its empty name to addEthernet tripped the
+     end-of-function NMState name invariant, which threw and failed the whole
+     document — so the UI kept rendering the last successful preview and the
+     newly added member appeared to be missing from agent-config.yaml.
+     Incomplete repeatable rows are skipped here, matching how extraRoutes
+     above already ignores entries missing a destination or next hop. The
+     member is still reported by validation ("Bond member interface name is
+     required."), and addBond's port list already filtered blanks. */
+  const addBondMemberEthernets = (bond, mtu, sriov) => {
+    (bond?.slaves || []).forEach((slave) => {
+      const name = String(slave?.name || "").trim();
+      if (!name) return;
+      addEthernet(name, mtu, sriov);
+    });
+  };
+
+  /**
+   * Add the VLAN interface for a row whose base interface has already been
+   * emitted.
+   *
+   * `emittedBaseName` is the name the base interface was ACTUALLY written with
+   * (after the primary's eth0/bond0 substitution), so the VLAN's `base-iface`
+   * can never name an interface that is not in the document.
+   *
+   * Naming is delegated to shared/interfaceNaming.js — the same function the
+   * node editor calls to render "VLAN Interface Name (auto)". Deriving it here
+   * a second time is what let the UI show `eno2.100` for a VLAN the generator
+   * named `bond0.100`.
+   */
+  const addVlan = (iface, emittedBaseName, mtu) => {
+    const fallbacks = { ethernet: emittedBaseName, bond: emittedBaseName };
     const entry = {
-      name,
+      name: resolveVlanInterfaceName(iface, fallbacks),
       type: "vlan",
       state: "up",
-      vlan: { "base-iface": baseIface, id }
+      vlan: {
+        "base-iface": resolveBaseInterfaceName(iface, fallbacks),
+        id: Number(iface?.vlan?.id)
+      }
     };
     if (mtu) entry.mtu = mtu;
     config.interfaces.push(entry);
@@ -1366,108 +1943,166 @@ const buildNmState = (node) => {
 
   if (primary.type === "ethernet") {
     const eth = addEthernet(primary.ethernet?.name || "eth0", baseMtu, sriovConfig);
-    addIpConfig(eth, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix);
+    addIpConfig(eth, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix, undefined, undefined, true);
   }
 
   if (primary.type === "bond") {
-    (primary.bond?.slaves || []).forEach((slave) => {
-      addEthernet(slave.name, baseMtu, sriovConfig);
-    });
+    addBondMemberEthernets(primary.bond, baseMtu, sriovConfig);
     const bond = addBond(primary.bond || {}, baseMtu);
-    addIpConfig(bond, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix);
+    addIpConfig(bond, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix, undefined, undefined, true);
   }
 
   if (primary.type === "vlan-on-ethernet") {
     const eth = addEthernet(primary.ethernet?.name || "eth0", baseMtu, sriovConfig);
-    const vlan = addVlan(
-      { ...primary.vlan, baseIface: primary.vlan.baseIface || eth.name },
-      baseMtu
-    );
-    addIpConfig(vlan, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix);
+    const vlan = addVlan(primary, eth.name, baseMtu);
+    addIpConfig(vlan, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix, undefined, undefined, true);
   }
 
   if (primary.type === "vlan-on-bond") {
-    (primary.bond?.slaves || []).forEach((slave) => {
-      addEthernet(slave.name, baseMtu, sriovConfig);
-    });
+    addBondMemberEthernets(primary.bond, baseMtu, sriovConfig);
     const bond = addBond(primary.bond || {}, baseMtu);
-    const vlan = addVlan(
-      { ...primary.vlan, baseIface: primary.vlan.baseIface || bond.name },
-      baseMtu
-    );
-    addIpConfig(vlan, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix);
+    const vlan = addVlan(primary, bond.name, baseMtu);
+    addIpConfig(vlan, primary.mode, primaryIpv4, primaryIpv4Prefix, primaryIpv6, primaryIpv6Prefix, undefined, undefined, true);
   }
 
-  const vrfEnabled = primary.advanced?.vrf?.enabled;
-  if (vrfEnabled) {
-    const ports = (primary.advanced?.vrf?.ports || "")
+  const addVrfInterface = (vrfConfig, logicalIfaceName) => {
+    if (!vrfConfig?.enabled) return;
+    const effectiveName = (vrfConfig.name || "").trim();
+    if (!effectiveName) {
+      throw new Error("Enabled VRF interface name must not be blank.");
+    }
+    const rawTableId = String(vrfConfig.tableId ?? "").trim();
+    if (!rawTableId || !Number.isInteger(Number(rawTableId))) {
+      throw new Error(
+        `VRF "${effectiveName}" table ID "${vrfConfig.tableId}" is not a valid integer.`
+      );
+    }
+    const ports = (vrfConfig.ports || "")
       .split(",")
       .map((entry) => entry.trim())
       .filter(Boolean);
-    const vrfPorts = ports.length ? ports : [primaryIfaceName];
+    const vrfPorts = ports.length ? ports : [logicalIfaceName];
     config.interfaces.push({
-      name: primary.advanced?.vrf?.name || "vrf0",
+      name: effectiveName,
       type: "vrf",
       state: "up",
       vrf: {
-        "route-table-id": toNumber(primary.advanced?.vrf?.tableId) || 100,
+        "route-table-id": Number(rawTableId),
         port: vrfPorts
       }
     });
-  }
+  };
+
+  addVrfInterface(primary.advanced?.vrf, primaryIfaceName);
+
+  /* Same incomplete-row rule as addBondMemberEthernets: an additional
+     interface whose identifying name is still blank cannot be expressed in
+     NMState, and letting it through tripped the name/duplicate invariants
+     below — failing the whole document and freezing the preview on its last
+     good render. (A blank additional bond was the worse case: addBond
+     substituted the default "bond0", which then collided with the primary
+     bond.) Skip it; validation already reports "Additional ethernet interface
+     name is required." / "Additional bond name is required.". A genuine
+     conflict — two interfaces the user actually named the same thing — is a
+     different situation and still throws. */
+  const hasResolvableIdentity = (iface) => {
+    if (iface?.type === "ethernet" || iface?.type === "vlan-on-ethernet") {
+      return String(iface?.ethernet?.name || "").trim() !== "";
+    }
+    if (iface?.type === "bond" || iface?.type === "vlan-on-bond") {
+      return String(iface?.bond?.name || "").trim() !== "";
+    }
+    return true;
+  };
 
   const extraIfaces = node.additionalInterfaces || [];
   extraIfaces.forEach((iface) => {
+    if (!hasResolvableIdentity(iface)) return;
     const mode = iface.mode || "dhcp";
     const ipv4Addr = iface.ipv4Cidr?.split("/")?.[0];
     const ipv4Prefix = Number(iface.ipv4Cidr?.split("/")?.[1] || 24);
     const ipv6Addr = iface.ipv6Cidr?.split("/")?.[0];
     const ipv6Prefix = Number(iface.ipv6Cidr?.split("/")?.[1] || 64);
+    /* Secondary interfaces are NOT cluster-stack-coupled (see addIpConfig).
+       What the user configured is the request: an address enables its family,
+       no address disables it. `true, true` hands that decision to the existing
+       per-address logic below instead of to the cluster stack mode. */
+    const EXTRA_ALLOW_V4 = true;
+    const EXTRA_ALLOW_V6 = true;
     const baseMtu = toNumber(iface.advanced?.mtu);
     const sriovEnabled = iface.advanced?.sriov?.enabled && toNumber(iface.advanced?.sriov?.totalVfs);
     const sriovConfig = sriovEnabled ? { "total-vfs": toNumber(iface.advanced?.sriov?.totalVfs) } : null;
+    let logicalIfaceName = null;
 
     if (iface.type === "ethernet") {
       const eth = addEthernet(iface.ethernet?.name, baseMtu, sriovConfig);
-      addIpConfig(eth, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
+      addIpConfig(eth, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix, EXTRA_ALLOW_V4, EXTRA_ALLOW_V6);
+      logicalIfaceName = eth.name;
     }
     if (iface.type === "bond") {
-      (iface.bond?.slaves || []).forEach((slave) => addEthernet(slave.name, baseMtu, sriovConfig));
+      addBondMemberEthernets(iface.bond, baseMtu, sriovConfig);
       const bond = addBond(iface.bond || {}, baseMtu);
-      addIpConfig(bond, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
+      addIpConfig(bond, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix, EXTRA_ALLOW_V4, EXTRA_ALLOW_V6);
+      logicalIfaceName = bond.name;
     }
     if (iface.type === "vlan-on-ethernet") {
       const eth = addEthernet(iface.ethernet?.name, baseMtu, sriovConfig);
-      const vlan = addVlan(
-        { ...iface.vlan, baseIface: iface.vlan.baseIface || eth.name },
-        baseMtu
-      );
-      addIpConfig(vlan, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
+      const vlan = addVlan(iface, eth.name, baseMtu);
+      addIpConfig(vlan, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix, EXTRA_ALLOW_V4, EXTRA_ALLOW_V6);
+      logicalIfaceName = vlan.name;
     }
     if (iface.type === "vlan-on-bond") {
-      (iface.bond?.slaves || []).forEach((slave) => addEthernet(slave.name, baseMtu, sriovConfig));
+      addBondMemberEthernets(iface.bond, baseMtu, sriovConfig);
       const bond = addBond(iface.bond || {}, baseMtu);
-      const vlan = addVlan(
-        { ...iface.vlan, baseIface: iface.vlan.baseIface || bond.name },
-        baseMtu
-      );
-      addIpConfig(vlan, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix);
+      const vlan = addVlan(iface, bond.name, baseMtu);
+      addIpConfig(vlan, mode, ipv4Addr, ipv4Prefix, ipv6Addr, ipv6Prefix, EXTRA_ALLOW_V4, EXTRA_ALLOW_V6);
+      logicalIfaceName = vlan.name;
+    }
+    if (logicalIfaceName) {
+      addVrfInterface(iface.advanced?.vrf, logicalIfaceName);
+      /* `additionalInterfaces[].advanced.routes` existed in state (seeded by
+         createInterfaceConfig) and was read by nothing: anything an imported
+         run carried there was discarded at generation without a word. It is
+         emitted here, keyed to this interface's own effective name, which is
+         the only next hop that is guaranteed to exist in the document. */
+      addExtraRoutes(iface.advanced?.routes, logicalIfaceName);
     }
   });
+
+  flushExtraRoutes();
+
+  const seen = new Set();
+  for (const iface of config.interfaces) {
+    const name = String(iface?.name || "").trim();
+    if (!name) {
+      throw new Error("NMState interface name must not be empty.");
+    }
+    if (seen.has(name)) {
+      throw new Error(`Duplicate NMState interface name "${name}".`);
+    }
+    seen.add(name);
+  }
 
   return config;
 };
 
+/**
+ * The name of the primary interface that carries L3 — used as the default
+ * `next-hop-interface` for the default route and for any extra route the user
+ * did not pin to an interface.
+ *
+ * Delegates to shared/interfaceNaming.js so this agrees with `addVlan` and with
+ * the node editor by construction. One behaviour changed in doing so: a
+ * `vlan-on-bond` primary whose bond name is blank now falls back to **bond0**,
+ * not eth0. buildNmState emits that bond as `bond0`, so the old fallback
+ * produced a route pointing at an interface the document does not contain.
+ */
 const getPrimaryInterfaceName = (primary) => {
-  if (!primary) return "eth0";
-  if (primary.type === "vlan-on-ethernet" || primary.type === "vlan-on-bond") {
-    const base = primary.vlan?.baseIface
-      || (primary.type === "vlan-on-bond" ? primary.bond?.name : primary.ethernet?.name)
-      || "eth0";
-    return primary.vlan?.name || (primary.vlan?.id ? `${base}.${primary.vlan.id}` : base);
-  }
-  if (primary.type === "bond") return primary.bond?.name || "bond0";
-  return primary.ethernet?.name || "eth0";
+  if (!primary) return PRIMARY_NAME_FALLBACKS.ethernet;
+  return (
+    resolveEffectiveInterfaceName(primary, PRIMARY_NAME_FALLBACKS)
+    || PRIMARY_NAME_FALLBACKS.ethernet
+  );
 };
 
 const collectPhysicalInterfaces = (node) => {
@@ -1512,10 +2147,62 @@ const sortNodes = (nodes) => {
   });
 };
 
-const buildImageSetConfig = (state) => {
+/**
+ * Build `imageset-config.yaml` for oc-mirror v2.
+ *
+ * Schema authority is the oc-mirror v2 `ImageSetConfiguration` API
+ * (`internal/pkg/api/v2alpha1/type_config.go`), which is GLOBAL and independent of
+ * the target OpenShift minor. See docs/minor-release/4.22/DOC166_OC_MIRROR_V2_AUTHORITY.md.
+ * oc-mirror decodes with `DisallowUnknownFields`, so any key not in that API is a
+ * hard parse failure, not a tolerated extra.
+ *
+ * `options.content` (v2.2.0 Mirroring) selects which content groups to emit:
+ * `{ platform, operators, additionalImages }`. When it is absent the output is
+ * the Install workflow's combined configuration, byte-for-byte unchanged.
+ * With it:
+ * - platform content keeps the supported-minor and architecture guards;
+ * - operator content needs a supported catalog minor (`options.catalogMinor`,
+ *   or the platform minor when platform content is also selected) and fails
+ *   closed without one — the catalog minor is independent of the platform
+ *   release, so a mismatch between them is allowed here;
+ * - additional-images-only content needs no OpenShift version, and none is
+ *   invented for it.
+ */
+const assertSupportedCatalogMinor = (minor) => {
+  let parsed = null;
+  try { parsed = typeof minor === "string" ? getMinorVersion(minor) : null; } catch { parsed = null; }
+  if (!parsed || parsed !== minor) throw buildUnsupportedVersionError(null);
+  if (!isSupportedMinor(parsed)) throw buildUnsupportedVersionError(parsed);
+  return parsed;
+};
+
+const buildImageSetConfig = (state, options = {}) => {
+  const content = options.content || null;
+  const includePlatform = content ? content.platform === true : true;
+  const includeOperators = content ? content.operators === true : true;
+  const includeAdditional = content ? content.additionalImages === true : true;
+  if (!includePlatform && !includeOperators && !includeAdditional) {
+    throw new Error("ImageSetConfiguration needs at least one content group.");
+  }
   const version = state.release?.patchVersion;
-  const catalogMinor = getOpenShiftMinorFromState(state) || "4.20";
-  const operators = state.operators?.selected || [];
+  // Fail closed at the GENERATION BOUNDARY, using the same policy buildInstallConfig
+  // applies: throws UNSUPPORTED_VERSION for an unresolvable minor AND for a resolvable
+  // but unsupported one (4.23 today; 4.22 became supported in the v2.1 flip).
+  //
+  // Not delegated to callers. Route-level guards are necessary but not sufficient — a
+  // caller that forgets one must not be able to produce an unsupported configuration,
+  // and before this the generator's `|| "4.20"` default turned exactly that mistake
+  // into a silently wrong mirror config rather than a refusal (CLAUDE.md "No Fallback
+  // Rule"; `POST /api/ocmirror/run` was the call site that had no guard).
+  let platformMinor = null;
+  if (includePlatform) {
+    platformMinor = assertSupportedOpenShiftMinorForGeneration(state);
+    assertTargetArchitectureSupported(state, platformMinor);
+  }
+  const catalogMinor = content && includeOperators
+    ? assertSupportedCatalogMinor(options.catalogMinor ?? platformMinor)
+    : platformMinor;
+  const operators = includeOperators ? state.operators?.selected || [] : [];
   const cfg = state.imagesetConfig || {};
   const includeGraph = cfg.graph !== false;
   const additionalImages = (cfg.additionalImages || "").split("\n").map((s) => s.trim()).filter(Boolean);
@@ -1526,6 +2213,12 @@ const buildImageSetConfig = (state) => {
   }
   const archiveSize = cfg.archiveSize ? Number(cfg.archiveSize) : null;
   const kubeVirtContainer = Boolean(cfg.kubeVirtContainer);
+  // When `architectures` is absent, oc-mirror's config defaulting
+  // (`completeReleaseArchitectures`) substitutes `amd64`, so omitting it for a
+  // non-x86 cluster mirrors the wrong release payload while the configuration still
+  // parses cleanly. Verified against oc-mirror 4.22.17: with no architectures it
+  // requests `...graph?arch=amd64`; with `[arm64]` it requests `arch=arm64`.
+  const mirrorArch = normalizeBlueprintArch(state.blueprint?.arch);
 
   const platformChannels = Array.isArray(state.platformChannels) && state.platformChannels.length > 0
     ? state.platformChannels
@@ -1536,32 +2229,49 @@ const buildImageSetConfig = (state) => {
     kind: "ImageSetConfiguration",
     ...(archiveSize ? { archiveSize } : {}),
     mirror: {
-      platform: {
-        channels: platformChannels,
-        ...(includeGraph ? { graph: true } : {})
-      },
-      operators: [],
-      ...(additionalImages.length ? { additionalImages: additionalImages.map((name) => ({ name })) } : {}),
-      ...(kubeVirtContainer ? { kubeVirtContainer: true } : {})
+      ...(includePlatform ? {
+        platform: {
+          channels: [
+            {
+              name: `stable-${platformMinor}`,
+              minVersion: version,
+              maxVersion: version
+            }
+          ],
+          ...(mirrorArch ? { architectures: [mirrorArch] } : {}),
+          ...(includeGraph ? { graph: true } : {}),
+          ...(kubeVirtContainer ? { kubeVirtContainer: true } : {})
+        }
+      } : {}),
+      ...(includeOperators ? { operators: [] } : {}),
+      ...(includeAdditional && additionalImages.length ? { additionalImages: additionalImages.map((name) => ({ name })) } : {})
     }
   };
   const byCatalog = new Map();
   for (const op of operators) {
+    if (!op.catalogImage || !op.defaultChannel) continue;
+    const tagMatch = op.catalogImage.match(/:v(\d+\.\d+)/);
+    if (tagMatch && tagMatch[1] !== catalogMinor) continue;
     if (!byCatalog.has(op.catalogImage)) {
       byCatalog.set(op.catalogImage, []);
     }
-    const entry = { name: op.name };
-    if (op.defaultChannel) {
-      const channel = { name: op.defaultChannel };
-      if (op.minVersion || op.maxVersion) {
-        channel.includeConfig = {};
-        if (op.minVersion) channel.includeConfig.minVersion = op.minVersion;
-        if (op.maxVersion) channel.includeConfig.maxVersion = op.maxVersion;
-      }
-      entry.defaultChannel = op.defaultChannel;
-      entry.channels = [channel];
-    }
-    byCatalog.get(op.catalogImage).push(entry);
+    const channel = { name: op.defaultChannel };
+    // Version constraints sit DIRECTLY on the channel.
+    //
+    // oc-mirror v2 embeds `IncludeConfig` into `Operator` with `json:",inline"`, and
+    // `IncludeChannel` embeds `IncludeBundle` the same way, so `minVersion`/`maxVersion`
+    // are channel-level keys. `includeConfig` is a Go *type* name, never a YAML key —
+    // it has never existed in v1alpha1, v1alpha2 or v2alpha1. Emitting it produced
+    // `json: unknown field "includeConfig"` and made the artifact unusable (FQ-9).
+    //
+    // Keep these channel-level only: oc-mirror rejects a package that carries both
+    // package-level and channel-level version filters.
+    if (op.minVersion) channel.minVersion = op.minVersion;
+    if (op.maxVersion) channel.maxVersion = op.maxVersion;
+    byCatalog.get(op.catalogImage).push({
+      name: op.name,
+      channels: [channel]
+    });
   }
   if (state.mirrorOperatorPipeline) {
     for (const dep of MIRROR_OPERATOR_DEPENDENT_OPERATORS) {
@@ -1767,9 +2477,8 @@ const _buildFieldManualLegacy = (state, docsLinks) => {
   lines.push(`   - dig +short api.${clusterName}.${baseDomain}  # expect ${apiVip}`);
   lines.push(`   - dig +short api-int.${clusterName}.${baseDomain}  # expect ${apiVip}`);
   lines.push(`   - dig +short test.apps.${clusterName}.${baseDomain}  # expect ${ingressVip} (wildcard *.apps)`);
-  lines.push(`2. VIP reachability (bare metal; ensure load balancer or DNS points here):`);
-  lines.push(`   - ping -c3 ${apiVip}`);
-  lines.push(`   - ping -c3 ${ingressVip}`);
+  lines.push(`2. VIP reservation (DOC-148; an unanswered ping does not prove an address is free):`);
+  lines.push(`   - confirm ${apiVip} and ${ingressVip} are reserved in your IP address management records, outside every DHCP pool`);
   lines.push(`3. Time sync (all nodes and installer host must be in sync):`);
   lines.push(`   - timedatectl status`);
   lines.push(`   - chronyc sources -v`);
@@ -2102,4 +2811,11 @@ export {
   buildDisconnectedPlatform,
   MIRROR_OPERATOR_ADDITIONAL_IMAGES,
   MIRROR_OPERATOR_DEPENDENT_OPERATORS,
+  validateAwsRootVolumeThroughput,
+  validateAwsConfidentialCompute,
+  VALID_CONFIDENTIAL_COMPUTE_POLICIES,
+  validateBmcVerifyCA,
+  MAX_BMC_VERIFY_CA_BYTES,
+  applyProvisioningNetworkGateway,
+  assertTargetArchitectureSupported
 };

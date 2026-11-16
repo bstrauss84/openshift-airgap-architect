@@ -13,6 +13,11 @@ import { buildInstallConfig, buildAgentConfig, buildFieldManual } from "../src/g
 import { getTrustBundlePolicies } from "../src/versionPolicy.js";
 import { baseStates, builders } from "./fixtures/index.js";
 
+const supportedVersionState = (minor = "4.20", patch = "4.20.8") => ({
+  version: { _schemaVersion: 3, selectedMinor: minor, selectedPatch: patch, locked: true },
+  release: { channel: minor, patchVersion: patch, confirmed: true },
+});
+
 test("buildInstallConfig returns install config shape", () => {
   const state = baseStates.minimal();
   const raw = buildInstallConfig(state);
@@ -24,7 +29,10 @@ test("buildInstallConfig returns install config shape", () => {
 });
 
 test("buildInstallConfig handles minimal state", () => {
-  const raw = buildInstallConfig({});
+  const raw = buildInstallConfig({
+    version: { _schemaVersion: 3, selectedMinor: "4.20", selectedPatch: "4.20.8", locked: true },
+    release: { channel: "4.20", patchVersion: "4.20.8", confirmed: true }
+  });
   assert.strictEqual(typeof raw, "string");
   const out = yaml.load(raw);
   assert.ok(out.apiVersion);
@@ -97,13 +105,36 @@ test("buildInstallConfig for bare-metal-ipi emits provisioning network params wh
   assert.strictEqual(out.platform?.baremetal?.provisioningNetwork, "Unmanaged");
   assert.strictEqual(out.platform?.baremetal?.provisioningNetworkCIDR, "172.22.0.0/24");
   assert.strictEqual(out.platform?.baremetal?.provisioningNetworkInterface, "eth1");
-  assert.strictEqual(out.platform?.baremetal?.provisioningDHCPRange, "172.22.0.10,172.22.0.254");
   assert.strictEqual(out.platform?.baremetal?.clusterProvisioningIP, "172.22.0.3");
   assert.strictEqual(out.platform?.baremetal?.provisioningMACAddress, "52:54:00:00:00:01");
+  /* provisioningDHCPRange is NOT expected here. Corrected in Tranche 7C.4:
+     Red Hat documents it as "only applicable to a Managed provisioning
+     network", and cluster-baremetal-operator forcibly clears it for any
+     non-Managed mode, so emitting it under Unmanaged put dead text in the
+     user's install-config. Full mode matrix:
+     test/t7c4-provisioning-network-family.test.js. */
+  assert.strictEqual(out.platform?.baremetal?.provisioningDHCPRange, undefined);
+});
+
+test("buildInstallConfig for bare-metal-ipi emits the DHCP range under Managed", () => {
+  // The positive half of the rule corrected above.
+  const state = baseStates.bareMetalIpi({
+    hostInventory: {
+      provisioningNetwork: "Managed",
+      provisioningNetworkCIDR: "172.22.0.0/24",
+      provisioningNetworkInterface: "eth1",
+      provisioningDHCPRange: "172.22.0.10,172.22.0.254",
+      clusterProvisioningIP: "172.22.0.3"
+    }
+  });
+  const out = yaml.load(buildInstallConfig(state));
+  assert.strictEqual(out.platform?.baremetal?.provisioningDHCPRange, "172.22.0.10,172.22.0.254");
+  assert.strictEqual(out.platform?.baremetal?.provisioningNetworkInterface, "eth1");
 });
 
 test("buildInstallConfig for bare-metal-ipi emits apiVIPs/ingressVIPs (list format per 4.12+)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -122,6 +153,7 @@ test("buildInstallConfig for bare-metal-ipi emits apiVIPs/ingressVIPs (list form
 
 test("buildInstallConfig for bare-metal-ipi accepts comma-separated VIPs and emits arrays", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -140,6 +172,7 @@ test("buildInstallConfig for bare-metal-ipi accepts comma-separated VIPs and emi
 
 test("buildInstallConfig for bare-metal-ipi host name: hostnameUseFqdn avoids doubled baseDomain", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -157,6 +190,7 @@ test("buildInstallConfig for bare-metal-ipi host name: hostnameUseFqdn avoids do
 
 test("buildInstallConfig for bare-metal-upi emits only platform.none per 4.20 UPI doc (no platform.baremetal)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "upi-cluster" },
     methodology: { method: "UPI" },
     globalStrategy: { networking: {} },
@@ -177,6 +211,7 @@ test("buildInstallConfig for bare-metal-upi emits only platform.none per 4.20 UP
 
 test("buildInstallConfig for bare-metal-upi does not emit controlPlane/compute platform (4.20 sample has none)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "upi-cluster" },
     methodology: { method: "UPI" },
     globalStrategy: { networking: {} },
@@ -192,6 +227,7 @@ test("buildInstallConfig for bare-metal-upi does not emit controlPlane/compute p
 
 test("buildInstallConfig for bare-metal-upi includes all required catalog params (Phase 4 completeness)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "upiexample.com", clusterName: "upi-cluster" },
     methodology: { method: "UPI" },
     globalStrategy: { networking: {} },
@@ -209,6 +245,7 @@ test("buildInstallConfig for bare-metal-upi includes all required catalog params
 
 test("buildInstallConfig for bare-metal-upi must NOT emit IPI-only params (scenario-consistency)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "upi-cluster" },
     methodology: { method: "UPI" },
     globalStrategy: { networking: {} },
@@ -229,6 +266,7 @@ test("buildInstallConfig for bare-metal-upi must NOT emit IPI-only params (scena
 
 test("buildInstallConfig for bare-metal-agent multi-node without Day-2 toggle omits hosts and provisioning", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: { networking: { machineNetworkV4: "192.168.1.0/24" } },
@@ -254,6 +292,7 @@ test("buildInstallConfig for bare-metal-agent multi-node without Day-2 toggle om
 
 test("buildInstallConfig for bare-metal-agent multi-node with Day-2 toggle includes hosts and provisioning", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: { networking: { machineNetworkV4: "192.168.1.0/24" } },
@@ -278,6 +317,7 @@ test("buildInstallConfig for bare-metal-agent multi-node with Day-2 toggle inclu
 
 test("buildInstallConfig for bare-metal-agent Day-2 omits role and rootDeviceHints from install-config hosts; agent-config keeps rootDeviceHints", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: { networking: { machineNetworkV4: "192.168.1.0/24" } },
@@ -329,6 +369,7 @@ test("buildInstallConfig for bare-metal-agent Day-2 omits role and rootDeviceHin
 
 test("buildInstallConfig and buildAgentConfig for 2 CP + 1 arbiter (bare-metal-agent) emit correct topology", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: { networking: { machineNetworkV4: "192.168.1.0/24" } },
@@ -457,6 +498,7 @@ test("buildAgentConfig emits additionalNTPSources and bootArtifactsBaseURL when 
 
 test("buildInstallConfig Blueprint carry-over: architecture x86_64→amd64, aarch64→arm64 (Prompt K)", () => {
   const stateX86 = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", arch: "x86_64", baseDomain: "example.com", clusterName: "test" },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: { networking: {} },
@@ -469,6 +511,7 @@ test("buildInstallConfig Blueprint carry-over: architecture x86_64→amd64, aarc
   assert.strictEqual(outX86.controlPlane.architecture, "amd64");
 
   const stateArm = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", arch: "aarch64", baseDomain: "example.com", clusterName: "test" },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: { networking: {} },
@@ -483,6 +526,7 @@ test("buildInstallConfig Blueprint carry-over: architecture x86_64→amd64, aarc
 
 test("buildInstallConfig K follow-up: compute/controlPlane.platform omitted unless required (bare-metal UPI none or AWS instance type)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test" },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: { networking: {} },
@@ -498,6 +542,7 @@ test("buildInstallConfig K follow-up: compute/controlPlane.platform omitted unle
 
 test("buildInstallConfig emits hyperthreading, capabilities, cpuPartitioningMode, ovnInternalJoinSubnet when set (Prompt K)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "test" },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: {
@@ -530,6 +575,7 @@ test("buildInstallConfig emits hyperthreading, capabilities, cpuPartitioningMode
 
 test("buildInstallConfig dual-stack: clusterNetwork and serviceNetwork each have two entries (IPv4 then IPv6) (E2E B-1)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: {
@@ -567,6 +613,7 @@ test("buildInstallConfig dual-stack: clusterNetwork and serviceNetwork each have
 
 test("buildInstallConfig dual-stack with no V6 cluster/service state uses doc defaults (E2E B-1)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Bare Metal", baseDomain: "example.com", clusterName: "agent-cluster" },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: {
@@ -603,6 +650,7 @@ test("buildAgentConfig emits minimalISO when true (Prompt K)", () => {
 
 test("buildInstallConfig for vsphere-ipi emits platform.vsphere with vcenters when vcenter and datacenter set (Prompt J)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -628,6 +676,7 @@ test("buildInstallConfig for vsphere-ipi emits platform.vsphere with vcenters wh
 
 test("buildInstallConfig for vsphere-ipi emits failureDomains when cluster and network also set (Prompt J)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -647,13 +696,14 @@ test("buildInstallConfig for vsphere-ipi emits failureDomains when cluster and n
   const out = yaml.load(raw);
   assert.ok(Array.isArray(out.platform?.vsphere?.failureDomains) && out.platform.vsphere.failureDomains.length === 1);
   assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datacenter, "DC1");
-  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "Cluster1");
-  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "datastore1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "/DC1/host/Cluster1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "/DC1/datastore/datastore1");
   assert.deepStrictEqual(out.platform.vsphere.failureDomains[0].topology.networks, ["VM Network"]);
 });
 
 test("buildInstallConfig for vsphere-ipi includes required catalog params (Prompt J Phase 3)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "vsphere.example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -675,6 +725,7 @@ test("buildInstallConfig for vsphere-ipi includes required catalog params (Promp
 
 test("buildInstallConfig for vsphere-ipi must NOT emit bare-metal-only params (scenario-consistency)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -691,6 +742,7 @@ test("buildInstallConfig for vsphere-ipi must NOT emit bare-metal-only params (s
 
 test("buildInstallConfig for vsphere-upi emits platform.vsphere with vcenters (Prompt J)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-upi-cluster" },
     methodology: { method: "UPI" },
     globalStrategy: { networking: {} },
@@ -709,6 +761,7 @@ test("buildInstallConfig for vsphere-upi emits platform.vsphere with vcenters (P
 
 test("buildInstallConfig for vsphere-upi includes required catalog params and must NOT emit bare-metal (scenario-consistency)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "vsphere-upi.example.com", clusterName: "vsphere-upi-cluster" },
     methodology: { method: "UPI" },
     globalStrategy: { networking: {} },
@@ -726,6 +779,7 @@ test("buildInstallConfig for vsphere-upi includes required catalog params and mu
 
 test("buildInstallConfig for vSphere emits multiple failure domains and vcenters when explicit arrays provided", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -733,8 +787,8 @@ test("buildInstallConfig for vSphere emits multiple failure domains and vcenters
     platformConfig: {
       vsphere: {
         failureDomains: [
-          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vcenter.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"], folder: "/DC1/vm/fd0", resourcePool: "/DC1/host/Cluster1/Resources" } },
-          { name: "fd-1", region: "DC1", zone: "Cluster2", server: "vcenter.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster2", datastore: "ds2", networks: ["VM Network"] } }
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vcenter.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"], folder: "/DC1/vm/fd0", resourcePool: "/DC1/host/Cluster1/Resources" } },
+          { name: "fd-1", region: "DC1", zone: "Cluster2", server: "vcenter.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster2", datastore: "/DC1/datastore/ds2", networks: ["VM Network"] } }
         ]
       }
     }
@@ -747,19 +801,20 @@ test("buildInstallConfig for vSphere emits multiple failure domains and vcenters
   assert.strictEqual(out.platform.vsphere.failureDomains[0].zone, "Cluster1");
   assert.strictEqual(out.platform.vsphere.failureDomains[0].server, "vcenter.example.com");
   assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datacenter, "DC1");
-  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "Cluster1");
-  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "ds1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "/DC1/host/Cluster1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "/DC1/datastore/ds1");
   assert.deepStrictEqual(out.platform.vsphere.failureDomains[0].topology.networks, ["VM Network"]);
   assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.folder, "/DC1/vm/fd0");
   assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.resourcePool, "/DC1/host/Cluster1/Resources");
   assert.strictEqual(out.platform.vsphere.failureDomains[1].name, "fd-1");
-  assert.strictEqual(out.platform.vsphere.failureDomains[1].topology.datastore, "ds2");
+  assert.strictEqual(out.platform.vsphere.failureDomains[1].topology.datastore, "/DC1/datastore/ds2");
   assert.ok(Array.isArray(out.platform.vsphere.vcenters) && out.platform.vsphere.vcenters.length >= 1);
   assert.strictEqual(out.platform.vsphere.vcenters[0].server, "vcenter.example.com");
 });
 
 test("buildInstallConfig for vsphere FD mode emits multiple networks per failure domain (comma-separated UI → array)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -768,7 +823,7 @@ test("buildInstallConfig for vsphere FD mode emits multiple networks per failure
       vsphere: {
         placementMode: "failureDomains",
         failureDomains: [
-          { name: "fd-0", server: "vc.example.com", region: "DC1", zone: "C1", topology: { datacenter: "DC1", computeCluster: "C1", datastore: "ds1", networks: ["VM Network", "DPG-1"] } }
+          { name: "fd-0", server: "vc.example.com", region: "DC1", zone: "C1", topology: { datacenter: "DC1", computeCluster: "/DC1/host/C1", datastore: "/DC1/datastore/ds1", networks: ["VM Network", "DPG-1"] } }
         ]
       }
     }
@@ -780,6 +835,7 @@ test("buildInstallConfig for vsphere FD mode emits multiple networks per failure
 
 test("buildInstallConfig for vsphere-ipi emits diskType when set", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -795,6 +851,7 @@ test("buildInstallConfig for vsphere-ipi emits diskType when set", () => {
 
 test("buildInstallConfig for vsphere-ipi emits apiVIPs and ingressVIPs when set (IPI only)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -817,6 +874,7 @@ test("buildInstallConfig for vsphere-ipi emits apiVIPs and ingressVIPs when set 
 
 test("buildInstallConfig for vsphere-upi must NOT emit apiVIPs or ingressVIPs (regression)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-upi-cluster" },
     methodology: { method: "UPI" },
     globalStrategy: { networking: {} },
@@ -840,6 +898,7 @@ test("buildInstallConfig for vsphere-upi must NOT emit apiVIPs or ingressVIPs (r
 
 test("buildInstallConfig for vsphere-agent SNO emits platform.none", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsno" },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: { networking: {} },
@@ -868,6 +927,7 @@ test("buildInstallConfig for vsphere-agent SNO emits platform.none", () => {
 
 test("buildInstallConfig for vsphere-agent multi-node maps host VIPs to platform.vsphere", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsa" },
     methodology: { method: "Agent-Based Installer" },
     globalStrategy: { networking: {} },
@@ -919,6 +979,62 @@ test("buildInstallConfig for vsphere-agent multi-node maps host VIPs to platform
   assert.strictEqual(out.platform.vsphere.vcenters?.[0]?.server, "vc.example.com");
 });
 
+test("buildInstallConfig for vsphere-agent multi-node emits failure domains without template", () => {
+  const state = {
+    ...supportedVersionState(),
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsa-fd" },
+    methodology: { method: "Agent-Based Installer" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    hostInventory: {
+      apiVip: "192.168.50.10",
+      ingressVip: "192.168.50.11",
+      nodes: [
+        { role: "master", hostname: "m-0", primary: { type: "ethernet", mode: "static", ipv4Cidr: "192.168.50.5/24", ethernet: { name: "ens192", macAddress: "00:11:22:33:44:01" } } },
+        { role: "master", hostname: "m-1", primary: { type: "ethernet", mode: "static", ipv4Cidr: "192.168.50.6/24", ethernet: { name: "ens192", macAddress: "00:11:22:33:44:02" } } },
+        { role: "master", hostname: "m-2", primary: { type: "ethernet", mode: "static", ipv4Cidr: "192.168.50.7/24", ethernet: { name: "ens192", macAddress: "00:11:22:33:44:03" } } }
+      ]
+    },
+    platformConfig: {
+      vsphere: {
+        placementMode: "failureDomains",
+        failureDomains: [{
+          name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+          topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-tmpl" }
+        }]
+      }
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.ok(out.platform?.vsphere, "platform.vsphere for agent FD");
+  assert.strictEqual(out.platform.vsphere.failureDomains?.length, 1, "one failure domain");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "/DC1/host/Cluster1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.template, undefined, "template NOT emitted for Agent-based (IPI only)");
+});
+
+test("buildInstallConfig for vsphere-upi emits failure domains without template", () => {
+  const state = {
+    ...supportedVersionState(),
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsu-fd" },
+    methodology: { method: "UPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        placementMode: "failureDomains",
+        failureDomains: [{
+          name: "fd-0", region: "DC1", zone: "C1", server: "vc.example.com",
+          topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-tmpl" }
+        }]
+      }
+    }
+  };
+  const out = yaml.load(buildInstallConfig(state));
+  assert.ok(out.platform?.vsphere, "platform.vsphere for UPI FD");
+  assert.strictEqual(out.platform.vsphere.failureDomains?.length, 1, "one failure domain");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.template, undefined, "template NOT emitted for UPI");
+});
+
 test("buildAgentConfig works for VMware vSphere Agent-based", () => {
   const state = {
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsa" },
@@ -947,6 +1063,7 @@ test("buildAgentConfig works for VMware vSphere Agent-based", () => {
 
 test("buildInstallConfig for vsphere-ipi emits template in failure domain topology when set (and no clusterOSImage)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -954,7 +1071,7 @@ test("buildInstallConfig for vsphere-ipi emits template in failure domain topolo
     platformConfig: {
       vsphere: {
         failureDomains: [
-          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-template" } }
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-template" } }
         ]
       }
     }
@@ -967,6 +1084,7 @@ test("buildInstallConfig for vsphere-ipi emits template in failure domain topolo
 
 test("buildInstallConfig for vsphere-ipi emits clusterOSImage when set and no template in any FD (mutual exclusivity)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -975,7 +1093,7 @@ test("buildInstallConfig for vsphere-ipi emits clusterOSImage when set and no te
       vsphere: {
         clusterOSImage: "https://mirror.example.com/rhcos.ova",
         failureDomains: [
-          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"] } }
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"] } }
         ]
       }
     }
@@ -988,6 +1106,7 @@ test("buildInstallConfig for vsphere-ipi emits clusterOSImage when set and no te
 
 test("buildInstallConfig for vsphere-ipi suppresses template in FD when clusterOSImage is set (mutual exclusivity)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -996,7 +1115,7 @@ test("buildInstallConfig for vsphere-ipi suppresses template in FD when clusterO
       vsphere: {
         clusterOSImage: "https://mirror.example.com/rhcos.ova",
         failureDomains: [
-          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-template" } }
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"], template: "/DC1/vm/rhcos-template" } }
         ]
       }
     }
@@ -1009,6 +1128,7 @@ test("buildInstallConfig for vsphere-ipi suppresses template in FD when clusterO
 
 test("buildInstallConfig for vsphere-ipi emits machine-pool fields when provided", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -1038,6 +1158,7 @@ test("buildInstallConfig for vsphere-ipi emits machine-pool fields when provided
 
 test("buildInstallConfig for vsphere-ipi emits compute and controlPlane platform.vsphere.zones when ≥2 FDs and provided", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -1045,8 +1166,8 @@ test("buildInstallConfig for vsphere-ipi emits compute and controlPlane platform
     platformConfig: {
       vsphere: {
         failureDomains: [
-          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster1", datastore: "ds1", networks: ["VM Network"] } },
-          { name: "fd-1", region: "DC1", zone: "Cluster2", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "Cluster2", datastore: "ds1", networks: ["VM Network"] } }
+          { name: "fd-0", region: "DC1", zone: "Cluster1", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"] } },
+          { name: "fd-1", region: "DC1", zone: "Cluster2", server: "vc.example.com", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster2", datastore: "/DC1/datastore/ds1", networks: ["VM Network"] } }
         ],
         computeZones: ["fd-0", "fd-1"],
         controlPlaneZones: ["fd-0", "fd-1"]
@@ -1061,6 +1182,7 @@ test("buildInstallConfig for vsphere-ipi emits compute and controlPlane platform
 
 test("buildInstallConfig for vSphere emits publish External when platformConfig.publish is Internal (vSphere does not support Internal)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -1077,6 +1199,7 @@ test("buildInstallConfig for vSphere emits publish External when platformConfig.
 
 test("buildInstallConfig for vsphere-ipi omits credentials when includeCredentials false", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -1094,6 +1217,7 @@ test("buildInstallConfig for vsphere-ipi omits credentials when includeCredentia
 
 test("buildInstallConfig for vsphere respects placementMode legacy: emits only flat path, ignores failureDomains array", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -1122,6 +1246,7 @@ test("buildInstallConfig for vsphere respects placementMode legacy: emits only f
 
 test("buildInstallConfig for vsphere FD mode: emits only failureDomains from state, never legacy flat", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -1151,6 +1276,7 @@ test("buildInstallConfig for vsphere FD mode: emits only failureDomains from sta
 
 test("buildInstallConfig for vsphere FD mode with no FDs: does not emit legacy-derived failureDomains", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "vsphere-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -1172,8 +1298,70 @@ test("buildInstallConfig for vsphere FD mode with no FDs: does not emit legacy-d
   assert.strictEqual(out.platform?.vsphere?.failureDomains, undefined, "must not emit failureDomains from flat when FD mode and no FDs");
 });
 
+// DOC-120: vSphere inventory-path correctness — installer validates failureDomains topology
+// with path patterns: computeCluster ^/(.*?)/host/(.*?)$, datastore ^/(.*?)/datastore/(.*?)$
+test("DOC-120: legacy mode converts short computeCluster/datastore to full inventory paths", () => {
+  const state = {
+    ...supportedVersionState(),
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "test" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "MyDC", datastore: "SAN01", cluster: "ProdCluster", network: "VM Network" }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "/MyDC/host/ProdCluster");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "/MyDC/datastore/SAN01");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datacenter, "MyDC");
+  assert.deepStrictEqual(out.platform.vsphere.failureDomains[0].topology.networks, ["VM Network"]);
+});
+
+test("DOC-120: legacy mode does not double-prefix values already starting with /", () => {
+  const state = {
+    ...supportedVersionState(),
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "test" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: { placementMode: "legacy", vcenter: "vc.example.com", datacenter: "DC1", datastore: "/DC1/datastore/SAN01", cluster: "/DC1/host/ProdCluster", network: "VM Network" }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "/DC1/host/ProdCluster");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "/DC1/datastore/SAN01");
+});
+
+test("DOC-120: failure domain mode passes through full paths unchanged", () => {
+  const state = {
+    ...supportedVersionState(),
+    blueprint: { platform: "VMware vSphere", baseDomain: "example.com", clusterName: "test" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: {} },
+    credentials: {},
+    platformConfig: {
+      vsphere: {
+        failureDomains: [
+          { name: "fd-0", server: "vc.example.com", region: "DC1", zone: "Cluster1", topology: { datacenter: "DC1", computeCluster: "/DC1/host/Cluster1", datastore: "/DC1/datastore/ds1", networks: ["VM Network"], folder: "/DC1/vm/ocp", resourcePool: "/DC1/host/Cluster1/Resources/OCP" } }
+        ]
+      }
+    }
+  };
+  const raw = buildInstallConfig(state);
+  const out = yaml.load(raw);
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.computeCluster, "/DC1/host/Cluster1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.datastore, "/DC1/datastore/ds1");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.folder, "/DC1/vm/ocp");
+  assert.strictEqual(out.platform.vsphere.failureDomains[0].topology.resourcePool, "/DC1/host/Cluster1/Resources/OCP");
+});
+
 test("buildInstallConfig for aws-govcloud-ipi emits platform.aws with region and optional fields (Prompt J)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: {
@@ -1213,6 +1401,7 @@ test("buildInstallConfig for aws-govcloud-ipi emits platform.aws with region and
 
 test("buildInstallConfig for aws-govcloud-ipi emits vpc.subnets with optional roles when subnetEntries and roles set", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: {
@@ -1236,6 +1425,7 @@ test("buildInstallConfig for aws-govcloud-ipi emits vpc.subnets with optional ro
 
 test("buildInstallConfig for aws-govcloud-ipi omits subnets when vpcMode is installer-managed (#41)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: { aws: { region: "us-gov-west-1", subnets: "subnet-a, subnet-b" } }
@@ -1248,6 +1438,7 @@ test("buildInstallConfig for aws-govcloud-ipi omits subnets when vpcMode is inst
 
 test("buildInstallConfig for aws-govcloud-ipi includes required catalog params (Prompt J Phase 3)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: { aws: { region: "us-gov-east-1" } }
@@ -1262,6 +1453,7 @@ test("buildInstallConfig for aws-govcloud-ipi includes required catalog params (
 
 test("buildInstallConfig for aws-govcloud-ipi must NOT emit bare-metal or vsphere-only params (scenario-consistency)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: { aws: { region: "us-gov-west-1" } }
@@ -1275,6 +1467,7 @@ test("buildInstallConfig for aws-govcloud-ipi must NOT emit bare-metal or vspher
 
 test("buildInstallConfig for aws-govcloud-upi emits platform.aws with region and optional fields; no IPI-only instance types (Prompt J)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "upi-gov-cluster" },
     methodology: { method: "UPI" },
     platformConfig: {
@@ -1308,6 +1501,7 @@ test("buildInstallConfig for aws-govcloud-upi emits platform.aws with region and
 
 test("buildInstallConfig for aws-govcloud-upi must NOT emit IPI-only or other-scenario params (scenario-consistency)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-upi" },
     methodology: { method: "UPI" },
     platformConfig: { aws: { region: "us-gov-west-1" } }
@@ -1323,6 +1517,7 @@ test("buildInstallConfig for aws-govcloud-upi must NOT emit IPI-only or other-sc
 
 test("buildInstallConfig for aws-govcloud-ipi uses platformConfig controlPlaneReplicas and computeReplicas when set", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: {
@@ -1339,6 +1534,7 @@ test("buildInstallConfig for aws-govcloud-ipi uses platformConfig controlPlaneRe
 
 test("buildInstallConfig for AWS GovCloud emits IPv4-only networking (4.20 doc: AWS IPv4 only)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: {
@@ -1362,6 +1558,7 @@ test("buildInstallConfig for AWS GovCloud emits IPv4-only networking (4.20 doc: 
 
 test("buildInstallConfig for aws-govcloud-ipi emits hostedZoneRole only when hostedZone and shared VPC are set", () => {
   const stateNoZone = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: { aws: { region: "us-gov-west-1", hostedZoneRole: "arn:aws-us-gov:iam::123:role/HzRole" } }
@@ -1371,6 +1568,7 @@ test("buildInstallConfig for aws-govcloud-ipi emits hostedZoneRole only when hos
   assert.strictEqual(out1.platform?.aws?.hostedZoneRole, undefined, "hostedZoneRole omitted when hostedZone not set");
 
   const stateWithZoneNoShared = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: { aws: { region: "us-gov-west-1", hostedZone: "Z123", hostedZoneRole: "arn:aws-us-gov:iam::123:role/HzRole" } }
@@ -1381,6 +1579,7 @@ test("buildInstallConfig for aws-govcloud-ipi emits hostedZoneRole only when hos
   assert.strictEqual(out2.platform?.aws?.hostedZoneRole, undefined, "hostedZoneRole omitted unless shared VPC (hostedZoneSharedVpc)");
 
   const stateWithZoneAndSharedVpc = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: { aws: { region: "us-gov-west-1", hostedZone: "Z123", hostedZoneSharedVpc: true, hostedZoneRole: "arn:aws-us-gov:iam::123:role/HzRole" } }
@@ -1393,6 +1592,7 @@ test("buildInstallConfig for aws-govcloud-ipi emits hostedZoneRole only when hos
 
 test("buildInstallConfig for aws-govcloud-ipi emits rootVolume when rootVolumeSize/rootVolumeType/rootVolumeIops/rootVolumeKmsKeyArn set", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: {
@@ -1427,6 +1627,7 @@ test("buildInstallConfig for aws-govcloud-ipi emits rootVolume when rootVolumeSi
 
 test("buildInstallConfig for aws-govcloud-ipi emits rootVolume with io2 type and IOPS only (no size)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: {
@@ -1445,6 +1646,7 @@ test("buildInstallConfig for aws-govcloud-ipi emits rootVolume with io2 type and
 
 test("buildInstallConfig for aws-govcloud-ipi emits rootVolume with KMS key ARN only", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: {
@@ -1466,6 +1668,7 @@ test("buildInstallConfig for aws-govcloud-ipi emits rootVolume with KMS key ARN 
 
 test("buildInstallConfig for aws-govcloud-ipi emits platform.aws.serviceEndpoints when set", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: {
@@ -1490,6 +1693,7 @@ test("buildInstallConfig for aws-govcloud-ipi emits platform.aws.serviceEndpoint
 
 test("buildInstallConfig for aws-govcloud-upi emits platform.aws.serviceEndpoints (UPI support)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-upi" },
     methodology: { method: "UPI" },
     platformConfig: {
@@ -1514,6 +1718,7 @@ test("buildInstallConfig for aws-govcloud-upi emits platform.aws.serviceEndpoint
 
 test("buildInstallConfig for aws-govcloud-ipi filters out empty serviceEndpoints entries", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "AWS GovCloud", baseDomain: "gov.example.com", clusterName: "gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: {
@@ -1537,6 +1742,7 @@ test("buildInstallConfig for aws-govcloud-ipi filters out empty serviceEndpoints
 
 test("buildInstallConfig for azure-government-ipi emits platform.azure with cloudName, region, resourceGroupName, baseDomainResourceGroupName (Prompt J)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Azure Government", baseDomain: "gov.example.com", clusterName: "az-gov-cluster" },
     methodology: { method: "IPI" },
     platformConfig: {
@@ -1564,6 +1770,7 @@ test("buildInstallConfig for azure-government-ipi emits platform.azure with clou
 
 test("buildInstallConfig for azure-government-ipi includes required catalog params (Prompt J Phase 3)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Azure Government", baseDomain: "gov.example.com", clusterName: "az-gov" },
     methodology: { method: "IPI" },
     platformConfig: {
@@ -1588,6 +1795,7 @@ test("buildInstallConfig for azure-government-ipi includes required catalog para
 
 test("buildInstallConfig for azure-government-ipi must NOT emit bare-metal or vsphere or aws (scenario-consistency)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Azure Government", baseDomain: "gov.example.com", clusterName: "az-gov" },
     methodology: { method: "IPI" },
     platformConfig: {
@@ -1609,6 +1817,7 @@ test("buildInstallConfig for azure-government-ipi must NOT emit bare-metal or vs
 
 test("buildInstallConfig for nutanix-ipi emits platform.nutanix with prismCentral, subnetUUIDs, optional clusterName (Prompt J)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Nutanix", baseDomain: "nutanix.example.com", clusterName: "nutanix-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -1648,6 +1857,7 @@ test("buildInstallConfig for nutanix-ipi emits platform.nutanix with prismCentra
 
 test("buildInstallConfig for nutanix-ipi includes required catalog params (Prompt J Phase 3)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Nutanix", baseDomain: "nutanix.example.com", clusterName: "nutanix-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -1673,6 +1883,7 @@ test("buildInstallConfig for nutanix-ipi includes required catalog params (Promp
 
 test("buildInstallConfig for nutanix-ipi emits apiVIPs/ingressVIPs lists when machine IPv6 and IPv6 VIPs set", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Nutanix", baseDomain: "nutanix.example.com", clusterName: "nutanix-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: {
@@ -1706,6 +1917,7 @@ test("buildInstallConfig for nutanix-ipi emits apiVIPs/ingressVIPs lists when ma
 
 test("buildInstallConfig for nutanix-ipi must NOT emit bare-metal or vsphere (scenario-consistency)", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "Nutanix", baseDomain: "nutanix.example.com", clusterName: "nutanix-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: {} },
@@ -1734,6 +1946,7 @@ MIIDdzCCAl+gAwIBAgIUFakeMirrorRegistryCA
 MIIDdzCCAI+gAwIBAgIUFakeProxyCA
 -----END CERTIFICATE-----`;
   const state = {
+    ...supportedVersionState(),
     blueprint: { baseDomain: "example.com", clusterName: "test-cluster" },
     globalStrategy: { networking: {} },
     credentials: {},
@@ -1766,6 +1979,7 @@ test("buildInstallConfig defaults additionalTrustBundlePolicy to Proxyonly when 
 MIIDdzCCAl+gAwIBAgIUFakeProxyOnlyCA
 -----END CERTIFICATE-----`;
   const state = {
+    ...supportedVersionState(),
     blueprint: { baseDomain: "example.com", clusterName: "test-cluster" },
     globalStrategy: { networking: {}, proxyEnabled: false },
     credentials: {},
@@ -1904,6 +2118,7 @@ test("buildFieldManual template substitution replaces known variables and preser
 
 test("buildInstallConfig for ibm-cloud-ipi emits platform.ibmcloud existing VPC fields and Manual credentials mode", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "IBM Cloud", baseDomain: "example.com", clusterName: "ibm-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: {
@@ -1958,30 +2173,42 @@ test("buildInstallConfig for ibm-cloud-ipi emits platform.ibmcloud existing VPC 
   assert.strictEqual(out.networking.machineNetwork[0].cidr, "10.90.0.0/16");
 });
 
-test("buildInstallConfig emits imageContentSources for 4.13 and below", () => {
+test("buildInstallConfig rejects 4.13 with UNSUPPORTED_VERSION (version boundary replaces imageContentSources test)", () => {
+  const state = {
+    version: { _schemaVersion: 3, selectedMinor: "4.13", selectedPatch: "4.13.32", locked: true },
+    release: { channel: "4.13", patchVersion: "4.13.32", confirmed: true },
+    blueprint: { platform: "IBM Cloud", version: "4.13.32", clusterName: "legacy", baseDomain: "example.com" },
+    methodology: { method: "IPI" },
+    globalStrategy: { networking: { machineNetworkV4: "10.0.0.0/16" } },
+    credentials: {},
+    platformConfig: {}
+  };
+  assert.throws(
+    () => buildInstallConfig(state),
+    (err) => err.code === "UNSUPPORTED_VERSION" && err.requestedVersion === "4.13"
+  );
+});
+
+test("buildInstallConfig always emits imageDigestSources (never imageContentSources) for supported versions", () => {
   const sources = [{ source: "quay.io/openshift-release-dev/ocp-release", mirrors: ["registry.example.com/ocp4/release"] }];
   const state = {
-    blueprint: { platform: "IBM Cloud", version: "4.13.32", clusterName: "legacy", baseDomain: "example.com" },
+    ...supportedVersionState(),
+    blueprint: { platform: "IBM Cloud", clusterName: "modern", baseDomain: "example.com" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: { machineNetworkV4: "10.0.0.0/16" }, mirroring: { sources } },
     credentials: { usingMirrorRegistry: true, mirrorRegistryPullSecret: '{"auths":{"registry.example.com":{"auth":"aWQ6cGFzcwo="}}}' },
     platformConfig: {
-      ibmcloud: {
-        region: "us-east",
-        networkResourceGroupName: "network-rg",
-        vpcName: "existing-vpc",
-        controlPlaneSubnets: "cp-a,cp-b,cp-c",
-        computeSubnets: "compute-a,compute-b,compute-c"
-      }
+      ibmcloud: { region: "us-east", networkResourceGroupName: "network-rg", vpcName: "existing-vpc", controlPlaneSubnets: "cp-a,cp-b,cp-c", computeSubnets: "compute-a,compute-b,compute-c" }
     }
   };
   const out = yaml.load(buildInstallConfig(state));
-  assert.ok(Array.isArray(out.imageContentSources) && out.imageContentSources.length === 1);
-  assert.strictEqual(out.imageDigestSources, undefined);
+  assert.ok(Array.isArray(out.imageDigestSources) && out.imageDigestSources.length === 1);
+  assert.strictEqual(out.imageContentSources, undefined, "supported versions must never emit imageContentSources");
 });
 
 test("buildInstallConfig for ibm-cloud-ipi defaults publish External when not set", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "IBM Cloud", baseDomain: "example.com", clusterName: "ibm-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: { machineNetworkV4: "10.90.0.0/16" } },
@@ -2003,6 +2230,7 @@ test("buildInstallConfig for ibm-cloud-ipi defaults publish External when not se
 
 test("buildInstallConfig for ibm-cloud-ipi installer-managed VPC path omits existing-VPC fields", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "IBM Cloud", baseDomain: "example.com", clusterName: "ibm-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: { machineNetworkV4: "10.90.0.0/16" } },
@@ -2027,6 +2255,7 @@ test("buildInstallConfig for ibm-cloud-ipi installer-managed VPC path omits exis
 
 test("buildInstallConfig for ibm-cloud-ipi dedicatedHosts emits profile when only profile set", () => {
   const state = {
+    ...supportedVersionState(),
     blueprint: { platform: "IBM Cloud", baseDomain: "example.com", clusterName: "ibm-cluster" },
     methodology: { method: "IPI" },
     globalStrategy: { networking: { machineNetworkV4: "10.90.0.0/16" } },

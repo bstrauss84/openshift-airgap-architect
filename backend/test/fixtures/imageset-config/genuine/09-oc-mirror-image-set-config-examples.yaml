@@ -1,0 +1,18 @@
+kind: ImageSetConfiguration
+apiVersion: mirror.openshift.io/v2alpha1
+mirror:
+  platform:
+    graph: true # Required for the OSUS Operator
+    architectures:
+    - amd64
+    channels:
+    - name: stable-4.12
+      minVersion: '4.12.28'
+      maxVersion: '4.12.28'
+      shortestPath: true
+      type: ocp
+    - name: eus-4.14
+      minVersion: '4.12.28'
+      maxVersion: '4.14.16'
+      shortestPath: true
+      type: ocp

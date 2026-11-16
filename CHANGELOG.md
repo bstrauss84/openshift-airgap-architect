@@ -5,6 +5,561 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-11-06
+
+> Detailed notes: [docs/releases/v2.2.1.md](docs/releases/v2.2.1.md)
+>
+> A PATCH release on top of 2.2.0 that corrects the 2.2.0 known issue. OpenShift support is unchanged (4.20, 4.21,
+> 4.22), and so are dependencies and base images. Rebuild the images with `podman compose up --build -d` /
+> `docker compose up --build -d`.
+>
+> **Certification.** No certification result is stated here. The 2.2.0 verdict and risk acceptance do not carry over.
+
+### Fixed
+
+- **Mirroring runs failed in the backend container (2.2.0 known issue).** `oc-mirror` was installed as `0751` owned by
+  uid 984. The non-root backend user could execute it but not read it, so each run's plan failed with `EACCES`. The
+  image now installs `oc` and `oc-mirror` owned by root with mode `0755`; downloads, checksums and binaries are
+  unchanged.
+- The backend test scripts run on Node 22 as well as Node 20 (they passed a bare directory to `node --test`).
+
+### Added
+
+- A certification gate on the final backend image, run as the application user: read, hash and execute `oc-mirror`
+  and `oc`, and the backend's own resolve-and-hash path.
+- `scripts/release/verify-release-closeout.mjs`: live release-closeout verification. Release documents can record a
+  release as closed only with its passing record (`docs/releases/closeout/`).
+
+### Changed
+
+- The certification `tests` axis runs the suites without the candidate image-name variables.
+
+## [2.2.0] - 2026-11-05
+
+> Detailed notes: [docs/releases/v2.2.0.md](docs/releases/v2.2.0.md)
+>
+> **Known issue (added 2026-11-06):** Mirroring runs fail in the backend container with `EACCES` on
+> `/usr/local/bin/oc-mirror` (the non-root backend user can execute it but not read it). Install and scans are not
+> affected. **Fixed in 2.2.1** (released 2026-11-06); see the release notes.
+>
+> A MINOR feature release on top of 2.1.2: it adds **Mirroring**, a second workflow beside Install that plans and
+> runs oc-mirror v2 without an install. OpenShift support is unchanged (4.20, 4.21, 4.22; later versions are
+> refused). Plain `podman compose up --build -d` / `docker compose up --build -d` is still the supported way to build
+> and run it. Full guide: [docs/MIRRORING_WORKFLOW.md](docs/MIRRORING_WORKFLOW.md#part-a--user-guide).
+>
+> **Lab-tested, not yet customer-accepted.** The three Mirroring workflows passed lab tests with the real oc-mirror
+> 4.22.19 against synthetic registries. Mirroring an OpenShift release payload or real Red Hat operator content end to
+> end, production registries as destinations, and customer RHEL 9 / Podman 4.9.4 / FIPS hosts have not been
+> demonstrated.
+>
+> **Certification.** This file does not state a certification result for 2.2.0. Any verdict belongs to a run bound to
+> the exact released commit and is published with that release's evidence on the Releases page. Earlier verdicts and
+> owner risk acceptances do **not** carry over. The base images are unchanged, so earlier image findings are **not**
+> resolved by this release.
+
+### Added
+
+- **Mirroring workflow**:
+  - **Profiles** — independent profiles, separate from Install, each with its own content, its own locked OpenShift
+    release, its own storage location and its own history.
+  - **Content** — the OpenShift platform release, operators and additional images, in any combination.
+  - **Operators** — catalog discovery (scan of the Red Hat, Certified and Community catalogs) and a live catalog check
+    of the selected packages, channels and version ranges. The same Scenario Quick Picks as Install.
+  - **Import** — existing ImageSetConfiguration files can be imported, with bounded, strict validation.
+- **ImageSetConfiguration preview** — a labelled DRAFT while a profile is incomplete, then the validated file. Install
+  and Mirroring share one oc-mirror v2 structural check.
+- **Three oc-mirror workflows** — mirror to disk, disk to mirror and mirror to mirror. Each sits behind a structured
+  preflight and writes an immutable run plan. One oc-mirror run at a time per server.
+- **Connected → disconnected transfer:**
+  - **Prepare transfer** writes `SHA256SUMS`, the exact configuration and its provenance, and checks archived blobs and
+    catalog pinning.
+  - **Receive transfer** verifies every file before anything is loaded.
+  - **Order checks** — gaps and rollbacks are refused; **Full transfer** repairs a gap.
+  - **Disk to mirror** uses the received configuration byte for byte, with network confinement.
+- **oc-mirror build check on receipt** — compares the disconnected side's oc-mirror with the SHA-256 recorded in the
+  transfer. It is advisory and never blocking, and it is not a FIPS statement. Tools are not bundled into transfers.
+- **Credentials:**
+  - the Red Hat pull secret stays in page memory per profile (or the mounted secret, when switched on);
+  - destination credentials are entered per run, and **Help me generate** builds them in the browser;
+  - anonymous access is available for registries without login;
+  - nothing is stored.
+- **Storage location per profile** — any directory the server can write, with **Browse…**. `OAA_MIRROR_STORAGE_ROOT`
+  sets the default.
+- **Operations** for Mirroring:
+  - every run, transfer, receipt, catalog check and profile-started scan, with outcome, checksums, command (credentials
+    hidden), related operations and log;
+  - **Run the same again** for runs that stopped for a temporary reason, with result checks and scoped signature
+    retries.
+- **Enterprise deployment:**
+  - `docs/ENTERPRISE_PODMAN_DEPLOYMENT.md` and `scripts/deploy/oaa-deploy.sh` (staged preflight, build, up and verify);
+  - an optional `oaa_build_ca` build secret for HTTPS-inspecting proxies;
+  - clearer tool-download failure messages;
+  - an optional Mirroring storage volume in `docker-compose.yml`.
+
+### Changed
+
+- The landing page offers **Mirroring**. The Install recovery screen for an unsupported minor also offers **Open
+  Mirroring**. Install and Mirroring share the Tools drawer and **Home**.
+- Field Manual FIPS checklist: points to Red Hat's FIPS-capable installation program (`openshift-install-fips`) and no
+  longer claims oc-mirror builds are FIPS-capable. Only that sentence changes, and only for FIPS-enabled configurations.
+- Generated SSH public keys carry the neutral comment `openshift-airgap-architect-generated` instead of the server's
+  `user@hostname`. Pasted keys keep their own comment.
+
+### Fixed
+
+- **Run oc-mirror (Install):**
+  - the cache directory is used for every workflow;
+  - `--since` is passed for mirror to disk only, and its hint names the accepted `yyyy-MM-dd` format;
+  - external ImageSetConfiguration files are no longer always blocked by preflight;
+  - parallel images and layers are limited to 1–10.
+- Archive size must be a whole number of GiB, at least 1. oc-mirror refuses fractions.
+- Locking the Install release saves pending selections first, and an incomplete selection is refused.
+- Install Start Over no longer cancels Mirroring runs or touches Mirroring profiles.
+- The Trust & Proxy proxy fields no longer scroll sideways off the screen.
+- Tall dialogs scroll inside themselves.
+
+### Security
+
+- Backend dependency updates for published advisories: `undici` 7.30.1, `zod` 4 (from 3), `body-parser` 1.20.9
+  (override). Request schemas now bound every collection.
+- Catalog downloads verify TLS against the same trust oc-mirror uses and check every manifest and blob against its
+  digest. Mirroring credentials are never persisted.
+
+## [2.1.2] - 2026-10-22 *(provisional date — set at release preparation; confirm it matches the tag)*
+
+> Detailed notes: [docs/releases/v2.1.2.md](docs/releases/v2.1.2.md)
+>
+> A PATCH release on top of 2.1.1: two credential-exposure fixes and seven maintenance
+> fixes. OpenShift support is unchanged (4.20, 4.21, 4.22). Plain
+> `podman compose up --build -d` / `docker compose up --build -d` is still the supported
+> way to build and run it.
+>
+> **Credential exposure in exported files.** Bundles or files exported with 2.1.0 or
+> 2.1.1 in the situations described under *Security* may contain real credentials.
+> Securely delete those copies, including any that were already distributed, and rotate
+> the credentials they contained.
+>
+> **Certification.** This file does not state a certification result for 2.1.2. Any
+> verdict belongs to a run bound to the exact released commit and is published with that
+> release's evidence on the Releases page. The 2.1.1 certification verdict and the owner
+> risk acceptance do **not** carry over to 2.1.2. This patch changes no base images or
+> dependencies, so the earlier image findings are **not** resolved by it.
+
+### Security
+
+- **Per-file Download in the YAML preview ignored Export Options (DOC-230, Medium).**
+  This is reachable in the normal UI. The **Download** button on a single file in the
+  preview drawer saved the file with the pull secret, BMC/vCenter/Nutanix passwords,
+  proxy `user:password` and SSH key included. This happened even with every credential
+  switch off and the values masked on screen. Downloads now follow the same Export Options
+  as the bundle, produce the same bytes as the bundle copy, and fail closed. Affects 2.1.0
+  and 2.1.1.
+- **Proxy credentials in the high-side runtime package (DOC-229, Low).** The runtime
+  package switch is **hidden** in 2.1.x, so this was reachable only through imported or
+  API-supplied state that already had the package enabled. In that case, a
+  `user:password` embedded in a proxy URL was written in plaintext to
+  `runtime-package/payloads/imported-run.bundle.json` in the bundle. It is now removed
+  unless credentials are explicitly included. Affects 2.1.0 and 2.1.1.
+
+### Fixed
+
+- **Export Options "Proxy values" and "SSH public key" switches now take effect**
+  (DOC-177). Turning off Proxy values replaces the configured proxy values in the bundle
+  with `REPLACE_WITH_…` markers. Turning off SSH public key omits the optional `sshKey`.
+  Both switches still default to on.
+- **Imported host addresses in a disabled IP family are reported, not silently
+  dropped** (DOC-219). A warning offers "Remove unused IPv4/IPv6 values". An IPv6-only
+  cluster's `rendezvousIP` now comes from the IPv6 address. Previously it used a
+  leftover IPv4 address or a generic fallback.
+- **No fabricated OpenShift "4.0" documentation links** (DOC-203). Documentation links
+  appear only for a selected, supported version.
+- **The Field Guide no longer treats an unanswered ping as proof that a VIP is free**
+  (DOC-148). It now asks you to confirm the address reservation in your IP address
+  management records, citing Red Hat's guidance.
+- **AWS GovCloud region dropdown stays single-line** after a region is selected
+  (DOC-228).
+- **The post-import notice lists exactly what an imported run must re-enter**, above
+  every step (PHX-033, PHX-035). It replaces a Blueprint-only note that falsely claimed
+  the SSH key and certificates were dropped. Every configured vCenter must now have
+  credentials.
+- **Installer extraction that runs out of disk space now says so.** The message names
+  the directory, instead of showing raw `tar` output such as "Wrote only 2048 of 10240
+  bytes". This affects the AWS AMI lookup, for example.
+
+### Developer
+
+- End-to-end tests refuse to run unless an isolated environment is explicitly
+  selected, so a plain `npm run test:e2e` can no longer reset a running instance on
+  ports 4000/5173.
+- Regression tests for cloud availability-zone entry (DOC-115). No production change.
+
+## [2.1.1] - 2026-10-21 *(provisional date — set at release preparation; confirm it matches the tag)*
+
+> Detailed notes: [docs/releases/v2.1.1.md](docs/releases/v2.1.1.md)
+>
+> A PATCH release on top of 2.1.0. OpenShift support is unchanged (4.20, 4.21, 4.22).
+> Plain `podman compose up --build -d` / `docker compose up --build -d` remains the
+> supported way to build and run it, with no Git revision required for any feature.
+>
+> **Existing v2.1.0 installations may not automatically detect v2.1.1.** Their update
+> check was incomplete and could not raise the update banner. Update manually using
+> [docs/UPDATING.md](docs/UPDATING.md).
+>
+> **Certification.** This file does not state a certification result for 2.1.1. Any
+> verdict for 2.1.1 belongs to a run bound to the exact released commit, and it is
+> published with that release's evidence on the Releases page. The v2.1.0 certification
+> evidence, verdict and owner risk acceptance do **not** carry over to 2.1.1. The patch
+> changes no base images or dependencies, so the v2.1.0 findings (including the failing
+> `image-vulnerabilities` axis) are **not** resolved by it.
+
+### Fixed
+
+- **Update notifications restored.** The installed version is compared with the newest
+  published, stable GitHub Release of `APP_REPO`.
+  - Drafts, prereleases, older or equal releases, and data naming another repository are
+    never offered.
+  - The Git revision and branch heads are not consulted.
+  - Offline, timeout, rate-limit and malformed responses report "unavailable", never
+    "up to date".
+  - `CHECK_UPDATES=false` makes no request.
+  - This trusts GitHub's published-release API state; no signature or checksum
+    verification is performed.
+- **Update banner and Tools → About** name the published and installed versions. The
+  About status no longer disappears inside the wizard. A failed status request reads
+  "unavailable" rather than "disabled".
+- **Truthful build identity.** About and Tools show the application version and build
+  date. The revision appears only when it is known. A missing revision no longer produces
+  "(dev)", "dev build" or "Build unknown". The configured `APP_BRANCH` is no longer shown
+  as the build's branch. The startup banner and feedback issue drafts were corrected to
+  match.
+- **Repository address corrected.** The stale `billstrauss/` URL (a 404) is replaced by
+  `bstrauss84/` in generated `install-config.yaml` / `agent-config.yaml` headers, the
+  Field Guide footer, the banners and the About dialog.
+- **Documentation.** README and `docs/UPDATING.md` no longer present `APP_GIT_SHA` as
+  needed for update checks.
+
+### Changed
+
+- **`GET /api/update-info`:**
+  - New field: `installedVersion`.
+  - `releaseIdentity` now carries the newest eligible release.
+  - The `development-branch-ahead` status is retired.
+  - `latestSha` is always `null`, and `isOutdated` equals `urgent`.
+
+### Known issues
+
+- **AWS GovCloud region dropdown can render too tall** at some widths after a region is
+  selected (DOC-228; also present in 2.1.0). It is cosmetic only.
+
+## [2.1.0] - 2026-10-20 *(provisional date — set at freeze; confirm it matches the tag)*
+
+> Detailed notes: [docs/releases/v2.1.0.md](docs/releases/v2.1.0.md)
+>
+> Delivered as **source plus a Docker/Podman Compose deployment** — build the two
+> images locally and run `docker compose up --build`. No prebuilt images are
+> published.
+>
+> API authentication is now **implemented**: the backend enforces identity, an origin
+> allowlist and CSRF defence, and refuses to start in an unsafe configuration. Local
+> Compose runs unauthenticated and bound to loopback by design — a single-user
+> developer configuration, not something to publish on a network.
+>
+> The Kubernetes and OpenShift manifests under `manifests/` carry a full authenticated
+> topology (built-in OpenShift OAuth in front of a single Route, a same-origin `/api`
+> proxy, no backend Route, a NetworkPolicy and a shared secret so the proxy cannot be
+> skipped). Applying them is **outside this release's delivery scope**; the procedure
+> and the post-deploy checks are in `manifests/README.md`. Clusters configured for
+> direct external OIDC are not supported by that mode and the backend refuses to start
+> rather than failing at login.
+>
+> A review on **2026-10-19** found and closed five defects in that implementation
+> before any of it shipped: the server bound every interface while the guard checked
+> an unused variable; the overlay would have blanked the operator's proxy Secret on
+> re-apply; nginx served the pre-authentication port on the pod IP while attaching the
+> backend's shared secret; a Route annotation named a CA-injection mechanism that does
+> not apply to Routes; and the nginx DNS resolver named a Service that does not exist
+> on OpenShift. Details in
+> [docs/BACKLOG_STATUS.md](docs/BACKLOG_STATUS.md) and the ledger at
+> `docs/releases/evidence/REQUIREMENT_LEDGER_AUTH_CORRECTIONS_20261019.md`.
+>
+> **The shipped images carry unresolved vulnerabilities and the scan reports it.**
+> The `image-vulnerabilities` axis **FAILs**, and that failure is reported rather than
+> waived. The findings split two ways: some are inside Red Hat's `oc` and `oc-mirror`,
+> which this project ships verbatim and cannot patch — owner-accepted inherited risk,
+> recorded per artifact — and the rest are UBI base-image packages, accepted only on a
+> dated no-fix classification. Neither is a clean scan.
+>
+> **The numbers move with the vulnerability database and with the commit being
+> scanned.** The most recent measurement before this freeze, on the earlier candidate
+> `bb9ace88` on 2026-10-20, was backend 1 critical / 110 high and frontend 0 critical /
+> 48 high, of which 56 were vendor-owned. Those are **historical evidence from an
+> earlier candidate, not certified counts for the released image** — the final figures
+> come from the scan bound to the released commit.
+>
+> The raw scanner output, the SBOMs, the vendor risk disposition and a `SHA256SUMS`
+> are the release evidence set. Check the GitHub Releases page for the tag to see
+> whether they have been published and to verify them; see
+> [SBOM and provenance](docs/security/SBOM_AND_PROVENANCE.md).
+>
+> No container images are published — build them locally. No signing exists.
+
+### Added
+
+**OpenShift 4.22 support** — the supported set is now **4.20, 4.21 and 4.22**. 4.23 and
+later are rejected deterministically, as 4.22 previously was.
+
+- Full 4.22 parameter catalogs for all twelve platform and install-method combinations
+- 4.22 Field Guide content and documentation index, with 4.22-correct documentation links
+- 4.22 operator catalog handling and trust-bundle policy support
+- Built and verified against the exact released 4.22.16 installer, checksum-verified before use
+
+**New bare-metal setting:** provisioning network gateway
+(`platform.baremetal.provisioningNetworkGateway`) for installer-provisioned bare-metal
+clusters on 4.22 and later. Applies only when the provisioning network is Managed.
+Validated for IPv4 and IPv6 against Red Hat's documented rules — inside the provisioning
+network, outside the DHCP range, and distinct from the cluster provisioning IP.
+
+**Architecture enforcement at generation.** Unsupported platform/architecture
+combinations are now refused when configuration is generated, not only hidden in the UI.
+This affects configurations saved by v2.0.0 that contain combinations the product does
+not support, such as vSphere on arm64.
+
+### Fixed (upgrade safety)
+
+- **Tools → Export Run no longer exports a stale snapshot.** Export downloads the
+  server's copy of the run, but edits reached the server through a 600 ms debounce,
+  so exporting immediately after an edit produced a file that silently predated it —
+  precisely the file an operator would restore from after updating. The export now
+  flushes any pending save first. Save failures, which were previously swallowed
+  entirely, now surface and **cancel** the export rather than emit a backup that
+  does not match what is on screen.
+
+- **The update banner no longer reports an update that does not exist.** It fired on
+  `isOutdated`, which only means "the configured branch head differs from this
+  build". At the time no GitHub Release had been published and `APP_BRANCH` defaulted
+  to `main`, which still pointed at the v1.7.1 commit — so a running v2.1 build was
+  told to update to something five months *older* than itself. The check now reports a distinct state (`up-to-date`,
+  `development-branch-ahead`, `offline`, `unknown`, `disabled`, or
+  `published-supported-update`), and only a **verified published release** raises
+  the urgent banner. No trusted release-identity source exists yet, so that state
+  is unreachable and the urgent banner is fail-closed by design.
+
+- **The urgent banner now carries the backup guidance it always should have.** It
+  names Tools → Export Run before updating and Tools → Import Run afterwards, states
+  that credentials are excluded and must be re-entered, and distinguishes the run
+  JSON from the generated bundle ZIP. It previously said only "See Tools → About for
+  update steps", and Tools → About contained no update steps.
+
+- **Removed an unreachable second copy of the export path.** `ReviewStep.jsx` carried
+  its own `exportRun()` that called `/api/run/export` without flushing. It was dead —
+  the identifier appeared exactly once, its own declaration — so it was never a live
+  defect, but it was a working copy of the bug waiting to be wired up. It and its
+  now-unused helpers are gone, and a guard test pins that exactly one source file
+  reads that endpoint and that it flushes first.
+
+- **Corrected the documented build-SHA mechanism.** `README.md`, `docs/UPDATING.md`
+  and `docs/API.md` claimed that building from a git clone yields a real build SHA.
+  It does not: `.dockerignore` excludes `.git/`, so `APP_GIT_SHA` must be passed from
+  the host or the SHA is `unknown` and update checks cannot run at all. `docs/API.md`
+  also documented `/api/update-info` response fields that the endpoint has never
+  returned.
+
+### Changed
+
+- **Operator Quick Picks follow the selected OpenShift version.** The ODF presets gain
+  the packages Red Hat's 4.22 documentation adds (`ocs-tls-profiles`, and
+  `odr-volsync-plugin-operator` for disaster recovery).
+- **OpenShift AI preset at 4.22** no longer requests `rhods-prometheus-operator`, which
+  does not exist in Red Hat's 4.22 catalog. 4.20 and 4.21 are unchanged. No replacement
+  was substituted.
+- **Service Mesh preset** no longer requests `jaeger-product`. Red Hat removed the
+  Jaeger operator from its catalog and ended support before any version this tool
+  supports. The preset is now `servicemeshoperator` and `kiali-ossm`; distributed
+  tracing is a separate, optional concern.
+- **Switching OpenShift versions** consistently re-applies the new version across
+  catalogs, documentation, architecture options, operator state and the preview.
+  Settings that exist only in a newer release are retained in your configuration but
+  neither shown nor written out while an older version is selected.
+- Configurations whose version fields contradict each other now produce a readable
+  configuration error instead of a generic server error. Nothing is generated either
+  way.
+
+### Fixed
+
+- Corrected Day-1 SR-IOV host network generation: the virtual-function count is now
+  emitted under the documented `ethernet.sr-iov` structure. It was previously placed at
+  the wrong level, which OpenShift rejects for the whole host network configuration, so
+  an Agent-based install would fail. Saved configurations regenerate correctly with no
+  user action. Affected v2.0.0 equally.
+- A stale provisioning-network-gateway value no longer blocks generation after the
+  provisioning network is switched to Unmanaged or Disabled — modes in which OpenShift
+  ignores the field and the UI hides the control, leaving no way to correct it.
+- Operator presets no longer silently drop packages missing from a catalog; every
+  package a preset names now resolves.
+- The end-to-end test harness verifies which application build it is testing and
+  refuses to run against a mismatched one.
+
+### Security
+
+- Credential handling and export sanitisation re-certified across all three supported
+  versions.
+- Error responses for invalid configurations verified to contain no credentials, server
+  file paths or stack traces.
+- Production dependency audits clean for backend and frontend.
+
+**Removed: `POST /api/bundle.import`** (now `410 ENDPOINT_WITHDRAWN`). The archive
+validation endpoint was an unauthenticated decompression denial of service: the only
+ingress exempt from the 10 MB JSON cap, it accepted 512 MiB and inflated every entry
+into memory synchronously, so a small compressed body cost roughly a gigabyte of RSS
+and seconds of blocked event loop, starving the `/api/health` liveness probe. No UI,
+CLI or documented workflow used it, so there is no user-visible loss. The validator
+itself is unchanged and still covered by tests; re-exposing it is tracked as DOC-127
+and requires much lower limits, a compression-ratio cap and a concurrency bound.
+
+**Removed: `GET /api/secrets/rh-pull-secret/content`** (now `410 ENDPOINT_WITHDRAWN`).
+It returned the operator's full mounted Red Hat pull secret to any caller, and the
+OpenShift overlay publishes the backend on a Route with no authentication. The secret
+is no longer sent to the browser at all. The `{ available: boolean }` probe is kept, so
+the UI still reports that a mounted secret exists; mirror operations authenticate with
+it server-side via `rhAuthSource: "mounted"`.
+
+**Fixed: directory read via bundle export.** `mirrorWorkflow.archivePath` (or
+`.outputPath`) from the request body was archived verbatim into the returned ZIP with no
+boundary check, which could exfiltrate the data directory — where a mounted pull secret
+lives — `/run/secrets`, or a service-account token directory.
+
+The export boundary is now a filesystem boundary rather than a string comparison. Every
+path is canonicalised with `realpath` before comparison, the target must be a strict
+subdirectory of the **application data directory**, and the whole tree is walked: any
+symbolic link and any file whose name looks like credential material is refused. An
+unsafe path now fails the request with a `400` **before any response headers commit**,
+instead of returning a ZIP with a silent omission.
+
+Two deliberate narrowings, which may affect existing setups:
+
+- `/tmp` is no longer an exportable root. It is still browsable, but recursively
+  archiving a world-writable directory into an unauthenticated download is not
+  defensible. Point `mirrorWorkflow.archivePath` at a subdirectory of the data
+  directory (the product default already does).
+- A mirror-output directory that contains credential-shaped filenames is refused
+  outright, naming the offending entry, rather than being exported without it.
+
+The earlier changelog entry for this claimed "arbitrary directory read" was closed by a
+lexical prefix check plus a four-name blacklist. That was not accurate: a symlink
+lexically inside an allowed root, a symlinked parent, and any differently-named
+credential all defeated it. Each is now covered by an end-to-end test that inspects the
+returned bytes.
+
+**Fixed: pull secrets stored in plaintext and served by `/api/jobs`.** The oc-mirror run
+request body was persisted verbatim into job metadata in SQLite — contradicting the
+"pull secrets never persisted to disk" contract — and `GET /api/jobs` and
+`GET /api/jobs/:id` returned the whole row to unauthenticated callers. Request bodies
+are now credential-stripped before storage, and the shared sanitiser now recognises the
+`rhPullSecret` and `mirrorPullSecret` spellings it previously missed.
+
+**Fixed: JSON Run import persisted credentials.** `POST /api/run/import` sanitised with
+the *export* sanitiser before persisting, which only blanks four `credentials.*` fields.
+An imported run therefore wrote `credentials.sshPrivateKey`, every `platformConfig.*`
+password, `hostInventory.nodes[].bmc.password` and userinfo embedded in a proxy URL into
+stored state, from which `GET /api/state`, `GET /api/run/export` and
+`POST /api/run/duplicate` served them back. It now uses the same persistence-grade
+sanitiser as `POST /api/state`. This matters for upgrades specifically, because the
+recommended path is Export Run → upgrade → Import Run.
+
+Consequence for operators: **a re-imported run no longer carries credentials, so
+credentials must be re-entered after importing.** Non-sensitive configuration, proxy
+*endpoints* (minus any embedded userinfo) and v1/v2 → v3 migration are unaffected.
+
+> **Not fixed, and release-blocking:** the backend still has **no authentication on any
+> route** and unrestricted CORS, while the OpenShift overlay publishes it on a public
+> Route. Several endpoints remain able to run privileged work with mounted credentials
+> for an anonymous caller. See the Tranche 8 handoff; this requires a deployment-topology
+> decision and is not closed by the fixes above.
+
+### Known limitations
+
+- Human QA is not yet complete; this release is not final.
+- Host networking supports a documented subset of NMState, not all of it. Advanced bond
+  options beyond bond mode and bond members (for example `xmit_hash_policy`,
+  `lacp_rate`, `updelay`, `downdelay`) remain unavailable, as does the `balance-xor`
+  bond mode. Unchanged from v2.0.0 and identical across 4.20, 4.21 and 4.22.
+- Bare-metal IPI host networking is limited to a single ethernet interface with an IPv4
+  address, DNS and a default route; bond, VLAN, IPv6 and MTU are Agent-based only.
+- The Service Mesh preset no longer includes distributed tracing; add the Tempo and
+  OpenTelemetry operators manually if you need it.
+
+---
+
+## [2.0.0] - 2026-09-18
+
+> Detailed notes: [docs/releases/v2.0.0.md](docs/releases/v2.0.0.md) ·
+> Upgrading from v1.x: [Migration Guide](docs/MIGRATION_GUIDE_v1_to_v2.md)
+>
+> **Date correction.** The 2026-09-18 above is the date v2.0 scope was declared closed
+> (commit `8cb53ad`). The annotated `v2.0.0` tag was created **2026-10-06** and points
+> at `09703fa`. The heading date is left as written to preserve the historical entry.
+> There is **no GitHub Release** for v2.0.0 — a tag is not a release page, and no
+> artifact, SBOM or checksum file was ever published. See
+> [SBOM and provenance](docs/security/SBOM_AND_PROVENANCE.md).
+
+### Breaking Changes
+
+**Version Support Scope:** OpenShift Airgap Architect v2.0.0 supports exactly:
+- **4.20** (baseline)
+- **4.21** (current)
+- **4.22 and later are unsupported** — deterministic rejection at all boundaries (UI, HTTP 422, generation, Field Guide)
+
+**State Schema:** v3 (automatic migration from v1/v2). Exports use manifest schema 1.0.0 with state schema v3 and are not backward-compatible with v1.x.
+
+**Version Lock Required:** An explicit version lock is required before generation. The locked version determines parameter catalogs, Field Guide content, and validation rules.
+
+### Added
+
+**Version-Awareness Architecture:**
+- Version-aware parameter catalogs with per-minor-version field visibility (4.20 baseline, 4.21 additions)
+- Version-specific Field Guide content with version-correct documentation URLs and strict version resolution (no fallback)
+- Canonical version state handling with v3 schema (version lock, unlock/relock workflow)
+- State schema migration system (v1→v3, v2→v3, automatic at all boundaries)
+- Unsupported-version recovery UI (4.22 rejection with "Switch to 4.21" button)
+- Version-manifest in exported ZIP archives with integrity checksums
+- Archive validation endpoint (POST /api/bundle.import) with validation-only semantics
+
+**4.21 Parameter Support:**
+- AWS EBS root volume throughput (controlPlane and compute)
+- AWS Confidential Compute (SEV-SNP)
+- Azure shared key access control (allowSharedKeyAccess)
+- Azure BYO VNet named subnets (subnets[].name with role assignment)
+- Bare Metal BMC CA certificate verification (bmcVerifyCA)
+
+**UI/UX Enhancements:**
+- Metadata-driven "New in 4.21" annotations for introduced fields
+- Deprecation annotations for vSphere legacy placement fields
+- Version-neutral user-facing copy with CI guard enforcement
+- Field Guide provenance certification with version-correct docRef URLs
+
+**vSphere Improvements:**
+- Full inventory path support for failure-domain topology fields (computeCluster, datastore)
+- Automatic legacy-to-failure-domain path conversion in backend generation
+- Updated UI placeholders and hints with correct path format guidance
+
+### Fixed
+
+**Backend:**
+- Canonical version state handling repaired (commit 60862a0)
+- Frontend shared-module container runtime fixed (commit db4a526)
+- Unsupported-version HTTP boundaries enforced (commit d995e2f)
+- vSphere legacy mode now constructs full inventory paths for computeCluster and datastore
+
+**Frontend:**
+- Minor-version frontend coverage stabilized (commit 9b3327e)
+- Unsupported-version recovery button styling fixed (commit 2c15e82)
+- vSphere failure-domain placeholders corrected to show full inventory paths
+
+### Security
+
+- Backend dependency vulnerabilities remediated (commit 436135f — undici updated)
+- Backend credential persistence sanitized (commit f1f50a2 — platform/BMC/proxy credentials)
+
 ## [1.7.0] - 2026-05-28
 
 ### Fixed
@@ -311,6 +866,15 @@ None.
 - Complies with OpenShift restricted-v2 Security Context Constraints (SCC)
 - Will pass security scanners and organizational policy checks
 
+> **Correction (2026-10-16), retained rather than rewritten.** The last two bullets
+> above were not verified when written and remain unverified. No `restricted-v2`
+> admission test has ever been performed against a live OpenShift cluster, and no
+> scanner result was recorded. The non-root UID 1001 claim is accurate for the
+> process; the SCC-compliance and scanner claims are not evidence-backed. Tracked as
+> **PROD-039** (`active`) and **PROD-003** (`done_pending_verification`). See the
+> Security section of `README.md` for why the shipped manifests are unlikely to be
+> admitted under `restricted-v2` as written.
+
 ## [1.6.0] - 2026-05-20
 
 ### Added
@@ -345,6 +909,9 @@ All items verified_done and tested. This release makes OpenShift Airgap Architec
 - OpenShift-specific (`manifests/openshift/`):
   - `route-backend.yaml` / `route-frontend.yaml` - TLS edge Routes for external access
 - Security: Restricted-v2 SCC compatible (UID 1001, fsGroup 1001, non-root execution)
+  — **unverified; see the correction under 1.7.0 above.** Hardcoding `runAsUser: 1001`
+  and `fsGroup: 1001` is in tension with `restricted-v2`, which assigns both from the
+  namespace UID range. PROD-039 / PROD-003.
 - Resource limits defined (see PROD-004)
 - Health probes configured (see PROD-006)
 - Comprehensive deployment guide: `manifests/README.md`

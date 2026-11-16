@@ -1,0 +1,578 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const SAMPLES = JSON.parse(
+  fs.readFileSync(
+    new URL("./fixtures/integrity-synthetic-samples.json", import.meta.url),
+    "utf8"
+  )
+);
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TEST_DIR = __dirname;
+const BACKLOG_PATH = path.resolve(__dirname, "../../docs/BACKLOG_STATUS.md");
+
+const EXCLUDED_DIRS = new Set(["node_modules"]);
+const JS_EXTENSIONS = new Set([".js", ".mjs", ".cjs"]);
+
+function collectTestFiles(dir) {
+  const results = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (EXCLUDED_DIRS.has(entry.name)) continue;
+      results.push(...collectTestFiles(path.join(dir, entry.name)));
+    } else if (entry.isFile() && JS_EXTENSIONS.has(path.extname(entry.name))) {
+      results.push(path.join(dir, entry.name));
+    }
+  }
+  return results;
+}
+
+const FORCE_EXIT_FLAG = ["--test", "force", "exit"].join("-");
+const FORBIDDEN_PATTERNS = [
+  { name: "test.only", pattern: /\btest\s*\.\s*only\s*\(/g },
+  { name: "it.only", pattern: /\bit\s*\.\s*only\s*\(/g },
+  { name: "describe.only", pattern: /\bdescribe\s*\.\s*only\s*\(/g },
+  { name: "suite.only", pattern: /\bsuite\s*\.\s*only\s*\(/g },
+  { name: "suite.skip", pattern: /\bsuite\s*\.\s*skip\s*\(/g },
+  { name: "xit", pattern: /\bxit\s*\(/g },
+  { name: "xdescribe", pattern: /\bxdescribe\s*\(/g },
+  { name: "process.exit", pattern: /\bprocess\s*\.\s*exit\s*\(/g },
+  { name: FORCE_EXIT_FLAG, pattern: new RegExp(FORCE_EXIT_FLAG, "g") },
+  { name: "it.todo", pattern: /\bit\s*\.\s*todo\s*\(/g },
+  { name: "describe.todo", pattern: /\bdescribe\s*\.\s*todo\s*\(/g },
+  { name: "suite.todo", pattern: /\bsuite\s*\.\s*todo\s*\(/g },
+];
+
+const SKIP_PATTERNS = [
+  { name: "test.skip", pattern: /\btest\s*\.\s*skip\s*\(/g },
+  { name: "it.skip", pattern: /\bit\s*\.\s*skip\s*\(/g },
+  { name: "describe.skip", pattern: /\bdescribe\s*\.\s*skip\s*\(/g },
+];
+
+const OPTION_OBJECT_PATTERNS = [
+  { name: "option-skip", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`][^"'`\n]*["'`]\s*,\s*\{[^}]*\bskip\s*:/g },
+  { name: "option-only", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`][^"'`\n]*["'`]\s*,\s*\{[^}]*\bonly\s*:/g },
+  { name: "option-todo", pattern: /\b(?:test|it|describe|suite)\s*\(\s*["'`][^"'`\n]*["'`]\s*,\s*\{[^}]*\btodo\s*:/g },
+];
+
+const ALIAS_PATTERNS = [
+  { name: "alias-skip", pattern: /\b(?:const|let|var)\s+\w+\s*=\s*(?:test|it|describe|suite)\.skip\b/g },
+  { name: "alias-only", pattern: /\b(?:const|let|var)\s+\w+\s*=\s*(?:test|it|describe|suite)\.only\b/g },
+  { name: "destructure-skip", pattern: /\b(?:const|let|var)\s+\{[^}]*\bskip\b[^}]*\}\s*=\s*(?:test|it|describe|suite)\b/g },
+  { name: "destructure-only", pattern: /\b(?:const|let|var)\s+\{[^}]*\bonly\b[^}]*\}\s*=\s*(?:test|it|describe|suite)\b/g },
+];
+
+const IMPORT_ALIAS_PATTERNS = [
+  { name: "import-alias", pattern: /\bimport\s*\{[^}]*\bas\s+\w+[^}]*\}\s*from\s*["'`]node:test["'`]/g },
+  { name: "import-namespace", pattern: /\bimport\s*\*\s*as\s+\w+\s+from\s*["'`]node:test["'`]/g },
+];
+
+const TODO_RAW_PATTERN = /\btest\.todo\s*\(/g;
+const TODO_WITH_CALLBACK = /\btest\.todo\s*\(\s*["'`].*["'`]\s*,/g;
+const TODO_FORMAT_HINT = ["Required format: test.todo",
+  '("[ID] description - concise reason")'].join("");
+
+function loadBacklogIds() {
+  const content = fs.readFileSync(BACKLOG_PATH, "utf8");
+  const ids = new Map();
+  const rowPattern = /\|\s*(DOC-\d+|PHX-\d+|PROD-\d+|DEF-\d+|LOG-\d+|DB-[A-Z]+-\d+|LOCAL\s*#\d+)\s*\|[^|]*\|\s*(\S+)\s*\|/g;
+  let match;
+  while ((match = rowPattern.exec(content)) !== null) {
+    const id = match[1].trim();
+    const status = match[2].trim();
+    if (!ids.has(id)) {
+      ids.set(id, status);
+    }
+  }
+  return ids;
+}
+
+function scanFile(filePath) {
+  const content = fs.readFileSync(filePath, "utf8");
+  const fileName = path.relative(TEST_DIR, filePath);
+  return scanContentString(content, fileName);
+}
+
+function scanContentString(content, fileName) {
+  const lines = content.split("\n");
+  const violations = [];
+
+  const allPatterns = [
+    ...FORBIDDEN_PATTERNS,
+    ...SKIP_PATTERNS,
+    ...OPTION_OBJECT_PATTERNS,
+    ...ALIAS_PATTERNS,
+    ...IMPORT_ALIAS_PATTERNS,
+  ];
+
+  for (const { name, pattern } of allPatterns) {
+    pattern.lastIndex = 0;
+    let m;
+    while ((m = pattern.exec(content)) !== null) {
+      const lineNum = content.substring(0, m.index).split("\n").length;
+      violations.push({ file: fileName, line: lineNum, marker: name, text: lines[lineNum - 1].trim() });
+    }
+  }
+
+  return violations;
+}
+
+function validateTodos(filePath, backlogIds) {
+  const content = fs.readFileSync(filePath, "utf8");
+  const fileName = path.relative(TEST_DIR, filePath);
+  return validateTodoString(content, fileName, backlogIds);
+}
+
+function validateTodoString(content, fileName, backlogIds) {
+  const lines = content.split("\n");
+  const violations = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNum = i + 1;
+
+    TODO_RAW_PATTERN.lastIndex = 0;
+    if (!TODO_RAW_PATTERN.test(line)) continue;
+
+    TODO_WITH_CALLBACK.lastIndex = 0;
+    if (TODO_WITH_CALLBACK.test(line)) {
+      violations.push({
+        file: fileName, line: lineNum, marker: "test.todo-with-callback",
+        text: line.trim(), reason: "test.todo must not have an executable callback"
+      });
+      continue;
+    }
+
+    const idMatch = line.match(/\btest\.todo\s*\(\s*["'`]\[([A-Z]+-\d+)\]\s+.+\s*-\s+.+["'`]\s*\)/);
+    if (!idMatch) {
+      violations.push({
+        file: fileName, line: lineNum, marker: "test.todo-bad-format",
+        text: line.trim(),
+        reason: TODO_FORMAT_HINT
+      });
+      continue;
+    }
+
+    const id = idMatch[1];
+    if (!backlogIds.has(id)) {
+      violations.push({
+        file: fileName, line: lineNum, marker: "test.todo-unknown-id",
+        text: line.trim(), reason: `Backlog ID ${id} not found in BACKLOG_STATUS.md`
+      });
+      continue;
+    }
+
+    const status = backlogIds.get(id);
+    if (status === "verified_done" || status === "obsolete") {
+      violations.push({
+        file: fileName, line: lineNum, marker: "test.todo-resolved-id",
+        text: line.trim(),
+        reason: `Backlog ID ${id} has status '${status}' — todo should be implemented or removed`
+      });
+    }
+  }
+
+  return violations;
+}
+
+describe("test-integrity guard", () => {
+  it("no test file contains unauthorized skip, only, or force-exit markers", () => {
+    const testFiles = collectTestFiles(TEST_DIR);
+
+    const allViolations = [];
+    for (const filePath of testFiles) {
+      allViolations.push(...scanFile(filePath));
+    }
+
+    if (allViolations.length > 0) {
+      const report = allViolations
+        .map(v => `  ${v.file}:${v.line} [${v.marker}] ${v.text}`)
+        .join("\n");
+      assert.fail(
+        `Found ${allViolations.length} unauthorized test marker(s):\n${report}\n\n` +
+        "All executable skips must be converted to test.todo with a backlog ID."
+      );
+    }
+  });
+
+  it("all test.todo entries have valid backlog IDs with acceptable status", () => {
+    const backlogIds = loadBacklogIds();
+    assert.ok(backlogIds.size > 0, "Should load backlog IDs from BACKLOG_STATUS.md");
+
+    const testFiles = collectTestFiles(TEST_DIR);
+
+    const allViolations = [];
+    for (const filePath of testFiles) {
+      allViolations.push(...validateTodos(filePath, backlogIds));
+    }
+
+    if (allViolations.length > 0) {
+      const report = allViolations
+        .map(v => `  ${v.file}:${v.line} [${v.marker}] ${v.reason}\n    ${v.text}`)
+        .join("\n");
+      assert.fail(
+        `Found ${allViolations.length} test.todo violation(s):\n${report}`
+      );
+    }
+  });
+
+  it("backlog ID loader finds expected IDs", () => {
+    const backlogIds = loadBacklogIds();
+    assert.ok(backlogIds.has("DOC-123"), "Should find DOC-123");
+    assert.ok(backlogIds.has("DOC-124"), "Should find DOC-124");
+    assert.ok(backlogIds.has("DOC-125"), "Should find DOC-125");
+    assert.ok(backlogIds.has("DOC-126"), "Should find DOC-126");
+    assert.strictEqual(backlogIds.get("DOC-123"), "deferred");
+    assert.strictEqual(backlogIds.get("DOC-124"), "deferred");
+  });
+
+  describe("self-tests with synthetic content", () => {
+    it("detects test.only in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.testOnly, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.only");
+    });
+
+    it("detects test.skip in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.testSkip, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.skip");
+    });
+
+    it("detects process.exit in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.processExit, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "process.exit");
+    });
+
+    it(`detects ${FORCE_EXIT_FLAG} in synthetic content`, () => {
+      const violations = scanContentString(SAMPLES.testForceExit, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, FORCE_EXIT_FLAG);
+    });
+
+    it("detects suite.only in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.suiteOnly, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "suite.only");
+    });
+
+    it("detects it.todo in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.itTodo, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "it.todo");
+    });
+
+    it("detects describe.todo in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.describeTodo, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "describe.todo");
+    });
+
+    it("detects suite.todo in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.suiteTodo, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "suite.todo");
+    });
+
+    it("clean content produces zero violations", () => {
+      const violations = scanContentString(SAMPLES.clean, "clean.test.js");
+      assert.strictEqual(violations.length, 0);
+    });
+
+    it("detects SAMPLES.optionSkip as option-skip", () => {
+      const violations = scanContentString(SAMPLES.optionSkip, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-skip"),
+        "Should detect option-object skip pattern");
+    });
+
+    it("detects SAMPLES.optionOnly as option-only", () => {
+      const violations = scanContentString(SAMPLES.optionOnly, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-only"),
+        "Should detect option-object only pattern");
+    });
+
+    it("detects SAMPLES.optionTodo as option-todo", () => {
+      const violations = scanContentString(SAMPLES.optionTodo, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-todo"),
+        "Should detect option-object todo pattern");
+    });
+
+    it("detects SAMPLES.itOptionSkip as option-skip", () => {
+      const violations = scanContentString(SAMPLES.itOptionSkip, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-skip"),
+        "Should detect it-level option-object skip");
+    });
+
+    it("detects SAMPLES.describeOptionSkip as option-skip", () => {
+      const violations = scanContentString(SAMPLES.describeOptionSkip, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-skip"),
+        "Should detect describe-level option-object skip");
+    });
+
+    it("detects SAMPLES.suiteOptionSkip as option-skip", () => {
+      const violations = scanContentString(SAMPLES.suiteOptionSkip, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-skip"),
+        "Should detect suite-level option-object skip");
+    });
+
+    it("detects SAMPLES.aliasSkip as alias-skip", () => {
+      const violations = scanContentString(SAMPLES.aliasSkip, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "alias-skip"),
+        "Should detect alias assignment of skip");
+    });
+
+    it("detects SAMPLES.destructuredOnly as destructure-only", () => {
+      const violations = scanContentString(SAMPLES.destructuredOnly, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "destructure-only"),
+        "Should detect destructured only assignment");
+    });
+
+    it("detects multiline option-skip across lines", () => {
+      const violations = scanContentString(SAMPLES.multilineOptionSkip, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-skip"),
+        "Should detect multiline option-object skip pattern");
+    });
+
+    it("detects multiline alias-skip across lines", () => {
+      const violations = scanContentString(SAMPLES.multilineAlias, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "alias-skip"),
+        "Should detect multiline alias assignment of skip");
+    });
+
+    it("detects multiline destructure-only across lines", () => {
+      const violations = scanContentString(SAMPLES.multilineDestructure, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "destructure-only"),
+        "Should detect multiline destructured only assignment");
+    });
+
+    it("detects option-skip with string reason value", () => {
+      const violations = scanContentString(SAMPLES.skipStringReason, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-skip"),
+        "Should detect skip with string value in option object");
+    });
+
+    it("detects option-skip with variable value", () => {
+      const violations = scanContentString(SAMPLES.skipVariable, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-skip"),
+        "Should detect skip with variable value in option object");
+    });
+
+    it("detects option-only with variable value", () => {
+      const violations = scanContentString(SAMPLES.onlyVariable, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-only"),
+        "Should detect only with variable value in option object");
+    });
+
+    it("detects option-todo with string reason value", () => {
+      const violations = scanContentString(SAMPLES.suiteTodoString, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "option-todo"),
+        "Should detect todo with string value in option object");
+    });
+
+    it("detects split dot-method skip across lines", () => {
+      const violations = scanContentString(SAMPLES.splitDirectSkip, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "test.skip"),
+        "Should detect test.skip split across lines");
+    });
+
+    it("detects import alias from node:test", () => {
+      const violations = scanContentString(SAMPLES.importAlias, "synthetic.test.js");
+      assert.ok(violations.some(v => v.marker === "import-alias"),
+        "Should detect renamed import from node:test");
+    });
+
+    it("does not flag plain data object with skip property", () => {
+      const violations = scanContentString(SAMPLES.dataObjectSkip, "synthetic.test.js");
+      assert.strictEqual(violations.length, 0,
+        "Plain data objects with skip property must not trigger violations");
+    });
+
+    it("does not flag plain data object with only property", () => {
+      const violations = scanContentString(SAMPLES.dataObjectOnly, "synthetic.test.js");
+      assert.strictEqual(violations.length, 0,
+        "Plain data objects with only property must not trigger violations");
+    });
+
+    it("does not flag assertion containing todo property", () => {
+      const violations = scanContentString(SAMPLES.assertionTodo, "synthetic.test.js");
+      assert.strictEqual(violations.length, 0,
+        "Assertion expressions with todo property must not trigger violations");
+    });
+
+    it("detects multiline pattern in nested .mjs file", () => {
+      const nestedDir = path.join(TEST_DIR, "__integrity_multiline__");
+      const mjsFile = path.join(nestedDir, "bypass.mjs");
+      fs.mkdirSync(nestedDir, { recursive: true });
+      try {
+        fs.writeFileSync(mjsFile, SAMPLES.multilineOptionSkip);
+        const files = collectTestFiles(TEST_DIR);
+        const found = files.some(f => f.endsWith("bypass.mjs"));
+        assert.ok(found, "collectTestFiles must find .mjs in nested dir");
+        const violations = scanFile(mjsFile);
+        assert.ok(violations.some(v => v.marker === "option-skip"),
+          "Should detect multiline option-skip in .mjs file");
+      } finally {
+        fs.rmSync(nestedDir, { recursive: true, force: true });
+      }
+    });
+
+    it("accepts valid test.todo with known deferred backlog ID", () => {
+      const backlogIds = new Map([["DOC-123", "deferred"]]);
+      const violations = validateTodoString(SAMPLES.validTodo, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 0);
+    });
+
+    it("accepts valid test.todo with active backlog ID", () => {
+      const backlogIds = new Map([["DOC-120", "active"]]);
+      const violations = validateTodoString(SAMPLES.validTodoActive, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 0);
+    });
+
+    it("rejects test.todo with unknown backlog ID", () => {
+      const backlogIds = new Map([["DOC-123", "deferred"]]);
+      const violations = validateTodoString(SAMPLES.todoUnknownId, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.todo-unknown-id");
+    });
+
+    it("rejects test.todo with verified_done backlog ID", () => {
+      const backlogIds = new Map([["DOC-074", "verified_done"]]);
+      const violations = validateTodoString(SAMPLES.todoVerifiedDone, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.todo-resolved-id");
+    });
+
+    it("rejects test.todo with obsolete backlog ID", () => {
+      const backlogIds = new Map([["DOC-101", "obsolete"]]);
+      const violations = validateTodoString(SAMPLES.todoObsolete, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.todo-resolved-id");
+    });
+
+    it("rejects test.todo missing backlog ID prefix", () => {
+      const backlogIds = new Map([["DOC-123", "deferred"]]);
+      const violations = validateTodoString(SAMPLES.todoMissingId, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.todo-bad-format");
+    });
+
+    it("rejects test.todo missing reason after dash", () => {
+      const backlogIds = new Map([["DOC-123", "deferred"]]);
+      const violations = validateTodoString(SAMPLES.todoMissingReason, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.todo-bad-format");
+    });
+
+    it("rejects test.todo with executable callback", () => {
+      const backlogIds = new Map([["DOC-123", "deferred"]]);
+      const violations = validateTodoString(SAMPLES.todoWithCallback, "synthetic.test.js", backlogIds);
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "test.todo-with-callback");
+    });
+
+    it("detects xit in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.xit, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "xit");
+    });
+
+    it("detects xdescribe in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.xdescribe, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "xdescribe");
+    });
+
+    it("detects suite.skip in synthetic content", () => {
+      const violations = scanContentString(SAMPLES.suiteSkip, "synthetic.test.js");
+      assert.strictEqual(violations.length, 1);
+      assert.strictEqual(violations[0].marker, "suite.skip");
+    });
+
+    it("collectTestFiles discovers nested .test.js files", () => {
+      const nestedDir = path.join(TEST_DIR, "__integrity_test_nested__");
+      const nestedFile = path.join(nestedDir, "nested-violation.test.js");
+      fs.mkdirSync(nestedDir, { recursive: true });
+      try {
+        fs.writeFileSync(nestedFile, SAMPLES.testSkip);
+        const files = collectTestFiles(TEST_DIR);
+        const found = files.some(f => f.includes("__integrity_test_nested__"));
+        assert.ok(found, "collectTestFiles must find test files in nested directories");
+        const violations = scanFile(nestedFile);
+        assert.strictEqual(violations.length, 1);
+        assert.strictEqual(violations[0].marker, "test.skip");
+      } finally {
+        fs.rmSync(nestedDir, { recursive: true, force: true });
+      }
+    });
+
+    it("collectTestFiles scans helpers directory", () => {
+      const helperTestFile = path.join(TEST_DIR, "helpers", "__integrity_test__.test.js");
+      try {
+        fs.writeFileSync(helperTestFile, SAMPLES.testOnly);
+        const files = collectTestFiles(TEST_DIR);
+        const found = files.some(f => f.includes(path.join("helpers", "__integrity_test__.test.js")));
+        assert.ok(found, "collectTestFiles must scan helpers directory");
+        const violations = scanFile(helperTestFile);
+        assert.strictEqual(violations.length, 1);
+        assert.strictEqual(violations[0].marker, "test.only");
+      } finally {
+        fs.rmSync(helperTestFile, { force: true });
+      }
+    });
+
+    it("collectTestFiles scans fixture .mjs files", () => {
+      const mjsFile = path.join(TEST_DIR, "fixtures", "__integrity_test__.mjs");
+      try {
+        fs.writeFileSync(mjsFile, SAMPLES.suiteOnly);
+        const files = collectTestFiles(TEST_DIR);
+        const found = files.some(f => f.endsWith("__integrity_test__.mjs"));
+        assert.ok(found, "collectTestFiles must scan .mjs files in fixtures");
+        const violations = scanFile(mjsFile);
+        assert.strictEqual(violations.length, 1);
+        assert.strictEqual(violations[0].marker, "suite.only");
+      } finally {
+        fs.rmSync(mjsFile, { force: true });
+      }
+    });
+
+    it("collectTestFiles scans deeply nested .cjs files", () => {
+      const deepDir = path.join(TEST_DIR, "__integrity_nested__", "deeper");
+      const cjsFile = path.join(deepDir, "example.cjs");
+      fs.mkdirSync(deepDir, { recursive: true });
+      try {
+        fs.writeFileSync(cjsFile, SAMPLES.testSkip);
+        const files = collectTestFiles(TEST_DIR);
+        const found = files.some(f => f.endsWith("example.cjs"));
+        assert.ok(found, "collectTestFiles must find .cjs files in deeply nested directories");
+        const violations = scanFile(cjsFile);
+        assert.strictEqual(violations.length, 1);
+        assert.strictEqual(violations[0].marker, "test.skip");
+      } finally {
+        fs.rmSync(path.join(TEST_DIR, "__integrity_nested__"), { recursive: true, force: true });
+      }
+    });
+
+    it("collectTestFiles still excludes node_modules", () => {
+      const files = collectTestFiles(TEST_DIR);
+      const violating = files.filter(f => f.includes("node_modules"));
+      assert.strictEqual(violating.length, 0, "Must not scan node_modules");
+    });
+
+    it("scanner includes test-integrity.test.js itself", () => {
+      const files = collectTestFiles(TEST_DIR);
+      const selfIncluded = files.some(f => f.endsWith("test-integrity.test.js"));
+      assert.ok(selfIncluded, "collectTestFiles must not exempt test-integrity.test.js");
+    });
+
+    it("collectTestFiles does not collect .json files", () => {
+      const files = collectTestFiles(TEST_DIR);
+      const jsonFiles = files.filter(f => f.endsWith(".json"));
+      assert.strictEqual(jsonFiles.length, 0, "Must not scan .json files");
+    });
+  });
+});

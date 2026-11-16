@@ -40,18 +40,18 @@ It does not replace deep working docs; it centralizes navigation and validation 
 
 | Scenario ID        | Install method | Canonical docs-index status | Primary deep doc                                    |
 | ------------------ | -------------- | --------------------------- | --------------------------------------------------- |
-| `bare-metal-agent` | Agent-based    | Present in docs-index       | `docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` |
-| `bare-metal-ipi`   | IPI            | Present in docs-index       | `docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md`   |
-| `bare-metal-upi`   | UPI            | Present in docs-index       | `docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md`   |
+| `bare-metal-agent` | Agent-based    | Present in docs-index       | `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` |
+| `bare-metal-ipi`   | IPI            | Present in docs-index       | `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md`   |
+| `bare-metal-upi`   | UPI            | Present in docs-index       | `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md`   |
 
 
 
 
 ## Deep working docs (authoritative for detail)
 
-- `docs/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md`
-- `docs/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md`
-- `docs/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md`
+- `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md`
+- `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md`
+- `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md`
 
 
 
@@ -92,9 +92,9 @@ It does not replace deep working docs; it centralizes navigation and validation 
 
 | Artifact                                       | Why still relevant                                   | Validation basis                           |
 | ---------------------------------------------- | ---------------------------------------------------- | ------------------------------------------ |
-| `BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` | Scenario-specific truth and implementation alignment | File header and scenario snapshot sections |
-| `BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md`   | IPI-specific mapping/reconciliation details          | File snapshot and docs mapping sections    |
-| `BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md`   | UPI-specific constraints and mapping                 | File snapshot and docs mapping sections    |
+| `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_AGENT_DOC_REVIEW_AND_PLAN.md` | Scenario-specific truth and implementation alignment | File header and scenario snapshot sections |
+| `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_IPI_DOC_REVIEW_AND_PLAN.md`   | IPI-specific mapping/reconciliation details          | File snapshot and docs mapping sections    |
+| `local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md`   | UPI-specific constraints and mapping                 | File snapshot and docs mapping sections    |
 | `BARE_METAL_IPV4_IPV6_VIP_TRUTH_4_20.md`       | Cross-scenario networking/VIP truth decisions        | Truth table and UI consequences sections   |
 | `MIRRORING_SECTION_GATING.md`                  | Current frontend/backend gating rule                 | Explicit rule and status sections          |
 

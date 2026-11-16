@@ -1,0 +1,18 @@
+apiVersion: mirror.openshift.io/v1alpha2
+kind: ImageSetConfiguration
+storageConfig:
+  registry:
+    imageURL: agent.agent.example.com:5000/openshift/release/metadata:latest/openshift/release/metadata:latest
+mirror:
+  platform:
+    architectures:
+      - "multi"
+    channels:
+    - name: stable-4.22
+      minVersion: 4.22.0
+      maxVersion: 4.22.1
+      type: ocp
+  operators:
+    - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.22
+      packages:
+        - name: multicluster-engine

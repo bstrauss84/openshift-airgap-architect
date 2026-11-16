@@ -128,7 +128,7 @@ test("sshKeypairSchema: accepts valid ecdsa algorithm", () => {
 test("sshKeypairSchema: rejects invalid algorithm", () => {
   const result = sshKeypairSchema.safeParse({ algorithm: "invalid-algo" });
   assert.strictEqual(result.success, false);
-  assert.ok(result.error.errors[0].message.includes("Invalid enum value"));
+  assert.ok(result.error.issues[0].message.includes("Invalid enum value"));
 });
 
 test("sshKeypairSchema: defaults to ed25519 when empty", () => {
@@ -195,7 +195,7 @@ test("ocMirrorPreflightSchema: rejects registry URL longer than 2048 chars", () 
   const longUrl = "http://example.com/" + "a".repeat(2050);
   const result = ocMirrorPreflightSchema.safeParse({ registryUrl: longUrl });
   assert.strictEqual(result.success, false);
-  assert.ok(result.error.errors[0].message.includes("String must contain at most 2048"));
+  assert.ok(result.error.issues[0].message.includes("String must contain at most 2048"));
 });
 
 test("ocMirrorPreflightSchema: accepts registry URL at 2048 char limit", () => {
@@ -213,7 +213,7 @@ test("ocMirrorPreflightSchema: defaults mode to mirrorToDisk", () => {
 test("ocMirrorPreflightSchema: accepts negative minBytes", () => {
   const result = ocMirrorPreflightSchema.safeParse({ minBytes: -100 });
   assert.strictEqual(result.success, false);
-  assert.ok(result.error.errors[0].message.includes("Number must be greater than or equal to 0"));
+  assert.ok(result.error.issues[0].message.includes("Number must be greater than or equal to 0"));
 });
 
 // ===================================================================
@@ -298,8 +298,8 @@ test("cincinnatiPatchesUpdateSchema: rejects empty channel", () => {
 test("cincinnatiPatchesUpdateSchema: rejects missing channel", () => {
   const result = cincinnatiPatchesUpdateSchema.safeParse({});
   assert.strictEqual(result.success, false);
-  assert.ok(result.error.errors.length > 0);
-  assert.ok(result.error.errors[0].path.includes("channel"));
+  assert.ok(result.error.issues.length > 0);
+  assert.ok(result.error.issues[0].path.includes("channel"));
 });
 
 // ===================================================================

@@ -6,7 +6,7 @@
  * bundle contains all expected runtime package artifacts.
  */
 
-import { describe, it, before, after, beforeEach } from "node:test";
+import { describe, it, before, after, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -26,6 +26,22 @@ const createMinimalState = () => ({
 
 describe("Runtime package integration", () => {
   let tempDir;
+
+  // These tests read staged artifacts off disk, so the staging directory must
+  // outlive each call — exactly like the bundle stream. The test is therefore
+  // the owner of the cleanup handle here, and releasing it per test is what
+  // keeps a suite run from accumulating staging directories under os.tmpdir().
+  const staged = [];
+  const stageArtifacts = (args) => {
+    const result = createRuntimePackageArtifacts(args);
+    staged.push(result);
+    return result;
+  };
+
+  afterEach(() => {
+    while (staged.length > 0) staged.pop().cleanup();
+    if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true });
+  });
 
   before(() => {
     // Set fixture mode to avoid requiring actual container images
@@ -52,7 +68,7 @@ describe("Runtime package integration", () => {
       method: "Agent-Based Installer"
     };
 
-    const result = createRuntimePackageArtifacts({
+    const result = stageArtifacts({
       state,
       exportOptions: { includeHighSideRuntimePackage: true },
       runPayload,
@@ -76,7 +92,7 @@ describe("Runtime package integration", () => {
       version: "4.20"
     };
 
-    const result = createRuntimePackageArtifacts({
+    const result = stageArtifacts({
       state,
       exportOptions: { includeHighSideRuntimePackage: true },
       runPayload,
@@ -113,7 +129,7 @@ describe("Runtime package integration", () => {
       version: "4.20"
     };
 
-    const result = createRuntimePackageArtifacts({
+    const result = stageArtifacts({
       state,
       exportOptions: { includeHighSideRuntimePackage: true },
       runPayload,
@@ -146,7 +162,7 @@ describe("Runtime package integration", () => {
       version: "4.20"
     };
 
-    const result = createRuntimePackageArtifacts({
+    const result = stageArtifacts({
       state,
       exportOptions: { includeHighSideRuntimePackage: true },
       runPayload,
@@ -175,7 +191,7 @@ describe("Runtime package integration", () => {
       platform: "Bare Metal"
     };
 
-    const result = createRuntimePackageArtifacts({
+    const result = stageArtifacts({
       state,
       exportOptions: { includeHighSideRuntimePackage: true },
       runPayload,
@@ -203,7 +219,7 @@ describe("Runtime package integration", () => {
       version: "4.20"
     };
 
-    const result = createRuntimePackageArtifacts({
+    const result = stageArtifacts({
       state,
       exportOptions: { includeHighSideRuntimePackage: true },
       runPayload,
@@ -235,7 +251,7 @@ describe("Runtime package integration", () => {
       version: "4.20"
     };
 
-    const result = createRuntimePackageArtifacts({
+    const result = stageArtifacts({
       state,
       exportOptions: { includeHighSideRuntimePackage: true },
       runPayload,
@@ -270,7 +286,7 @@ describe("Runtime package integration", () => {
       version: "4.20"
     };
 
-    const result = createRuntimePackageArtifacts({
+    const result = stageArtifacts({
       state,
       exportOptions: { includeHighSideRuntimePackage: false },
       runPayload,
@@ -293,7 +309,7 @@ describe("Runtime package integration", () => {
       version: "4.20"
     };
 
-    const result = createRuntimePackageArtifacts({
+    const result = stageArtifacts({
       state,
       exportOptions: { includeHighSideRuntimePackage: true },
       runPayload,
@@ -325,7 +341,7 @@ describe("Runtime package integration", () => {
       version: "4.20"
     };
 
-    const result = createRuntimePackageArtifacts({
+    const result = stageArtifacts({
       state,
       exportOptions: { includeHighSideRuntimePackage: true },
       runPayload,

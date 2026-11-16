@@ -22,12 +22,20 @@ import {
   buildOperatorsSummary,
   buildDocumentationSources
 } from '../src/scenarioSummaryHelpers.js';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import docsIndex420 from '../src/data/docs-index/4.20.json';
+import docsIndex421 from '../src/data/docs-index/4.21.json';
+
+const HELPERS_SOURCE_PATH = resolve('src/scenarioSummaryHelpers.js');
 
 // Mock getScenarioId to avoid importing the whole helper
 vi.mock('../src/hostInventoryV2Helpers.js', () => ({
   getScenarioId: (platform, method) => {
     if (platform === 'VMware vSphere' && method === 'IPI') return 'vsphere-ipi';
+    if (platform === 'VMware vSphere' && method === 'Agent-Based Installer') return 'vsphere-agent';
     if (platform === 'Bare Metal' && method === 'Agent-Based Installer') return 'bare-metal-agent';
+    if (platform === 'Bare Metal' && method === 'IPI') return 'bare-metal-ipi';
     return null;
   }
 }));
@@ -485,12 +493,13 @@ describe('Scenario Summary Helpers', () => {
         methodology: { method: 'IPI' },
         globalStrategy: { fips: true }
       };
-      const docs = buildDocumentationSources(state, ['identity-access'], {});
+      const docs = buildDocumentationSources(state, ['identity-access'], docsIndex420);
       const fipsDoc = docs.find(d => d.title === 'Enabling FIPS mode');
       expect(fipsDoc).toBeDefined();
+      expect(fipsDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_overview/installing-fips');
     });
 
-    it('adds dual-stack doc when dual-stack configured and networking confirmed', () => {
+    it('dual-stack doc is suppressed even when dual-stack networking is configured', () => {
       const state = {
         blueprint: { platform: 'VMware vSphere' },
         methodology: { method: 'IPI' },
@@ -501,20 +510,21 @@ describe('Scenario Summary Helpers', () => {
           }
         }
       };
-      const docs = buildDocumentationSources(state, ['networking-v2'], {});
+      const docs = buildDocumentationSources(state, ['networking-v2'], docsIndex420);
       const dualStackDoc = docs.find(d => d.title === 'Configuring dual-stack networking');
-      expect(dualStackDoc).toBeDefined();
+      expect(dualStackDoc).toBeUndefined();
     });
 
-    it('adds mirror registry doc when mirror registry used and connectivity confirmed', () => {
+    it('adds neutral mirroring doc when mirror registry used and connectivity confirmed (bare-metal-agent)', () => {
       const state = {
-        blueprint: { platform: 'VMware vSphere' },
-        methodology: { method: 'IPI' },
+        blueprint: { platform: 'Bare Metal' },
+        methodology: { method: 'Agent-Based Installer' },
         credentials: { usingMirrorRegistry: true }
       };
-      const docs = buildDocumentationSources(state, ['connectivity-mirroring'], {});
-      const mirrorDoc = docs.find(d => d.title === 'Mirroring images for a disconnected installation');
+      const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
+      const mirrorDoc = docs.find(d => d.title === 'About disconnected installation mirroring');
       expect(mirrorDoc).toBeDefined();
+      expect(mirrorDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/installing-mirroring-disconnected-about');
     });
 
     it('adds proxy doc when proxy enabled and trust-proxy confirmed', () => {
@@ -523,9 +533,10 @@ describe('Scenario Summary Helpers', () => {
         methodology: { method: 'IPI' },
         globalStrategy: { proxyEnabled: true }
       };
-      const docs = buildDocumentationSources(state, ['trust-proxy'], {});
+      const docs = buildDocumentationSources(state, ['trust-proxy'], docsIndex420);
       const proxyDoc = docs.find(d => d.title === 'Configuring corporate proxy for disconnected clusters');
       expect(proxyDoc).toBeDefined();
+      expect(proxyDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic#installation-configure-proxy_installing-platform-agnostic');
     });
 
     it('deduplicates docs by URL', () => {
@@ -545,6 +556,308 @@ describe('Scenario Summary Helpers', () => {
       };
       const docs = buildDocumentationSources(state, [], docsIndex);
       expect(docs).toHaveLength(1);
+    });
+  });
+
+  describe('Version-aware conditional documentation links (DOC-102 Slice 5J)', () => {
+    const CONDITIONAL_LINK_EXPECTATIONS = [
+      {
+        title: 'Enabling FIPS mode',
+        docId: 'installing-fips',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_overview/installing-fips',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installation_overview/installing-fips',
+      },
+      {
+        title: 'About disconnected installation mirroring',
+        docId: 'about-disconnected-installation-mirroring',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/installing-mirroring-disconnected-about',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/installing-mirroring-disconnected-about',
+      },
+      {
+        title: 'Configuring NTP servers for disconnected clusters',
+        docId: 'configuring-ntp-chrony',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_an_on-premise_cluster_with_the_agent-based_installer/preparing-to-install-with-agent-based-installer',
+      },
+      {
+        title: 'Configuring corporate proxy for disconnected clusters',
+        docId: 'configuring-cluster-wide-proxy',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic#installation-configure-proxy_installing-platform-agnostic',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/installing_on_any_platform/installing-platform-agnostic#installation-configure-proxy_installing-platform-agnostic',
+      },
+      {
+        title: 'Configuring additional trust bundles',
+        docId: 'configuring-custom-pki',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/configuring_network_settings/configuring-a-custom-pki',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/configuring_network_settings/configuring-a-custom-pki',
+      },
+      {
+        title: 'Installing Operators in disconnected environments',
+        docId: 'olm-restricted-networks',
+        url420: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/olm-restricted-networks',
+        url421: 'https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/olm-restricted-networks',
+      },
+    ];
+
+    const CONDITIONAL_LINK_TITLES = CONDITIONAL_LINK_EXPECTATIONS.map(e => e.title);
+
+    function stateWithAllConditionals() {
+      return {
+        blueprint: { platform: 'Bare Metal' },
+        methodology: { method: 'Agent-Based Installer' },
+        globalStrategy: {
+          fips: true,
+          networking: {
+            clusterNetworkCidr: '10.128.0.0/14',
+            clusterNetworkCidrV6: 'fd01::/48'
+          },
+          ntpServers: ['time.example.com'],
+          proxyEnabled: true
+        },
+        credentials: { usingMirrorRegistry: true },
+        trust: { mirrorRegistryCaPem: '-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----' },
+        operators: { selected: [{ name: 'op1', catalog: 'Red Hat' }] }
+      };
+    }
+
+    const ALL_TABS = ['identity-access', 'networking-v2', 'connectivity-mirroring', 'trust-proxy', 'operators'];
+
+    describe.each(CONDITIONAL_LINK_EXPECTATIONS)('$title', ({ title, url420, url421 }) => {
+      it('4.20 index → exact verified URL (bare-metal-agent)', () => {
+        const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, docsIndex420);
+        const doc = docs.find(d => d.title === title);
+        expect(doc).toBeDefined();
+        expect(doc.url).toBe(url420);
+        expect(doc.url).toContain('/4.20/');
+        expect(doc.url).not.toContain('/4.21/');
+      });
+
+      it('4.21 index → exact verified URL (bare-metal-agent)', () => {
+        const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, docsIndex421);
+        const doc = docs.find(d => d.title === title);
+        expect(doc).toBeDefined();
+        expect(doc.url).toBe(url421);
+        expect(doc.url).toContain('/4.21/');
+        expect(doc.url).not.toContain('/4.20/');
+      });
+
+      it('null index → link is not added', () => {
+        const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, null);
+        const doc = docs.find(d => d.title === title);
+        expect(doc).toBeUndefined();
+      });
+    });
+
+    it('all 6 conditional docs present with 4.20 index (bare-metal-agent)', () => {
+      const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, docsIndex420);
+      for (const { title } of CONDITIONAL_LINK_EXPECTATIONS) {
+        expect(docs.find(d => d.title === title)).toBeDefined();
+      }
+    });
+
+    it('all 6 conditional docs present with 4.21 index (bare-metal-agent)', () => {
+      const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, docsIndex421);
+      for (const { title } of CONDITIONAL_LINK_EXPECTATIONS) {
+        expect(docs.find(d => d.title === title)).toBeDefined();
+      }
+    });
+
+    it('base scenario documentation uses the selected index', () => {
+      const docs420 = buildDocumentationSources(stateWithAllConditionals(), [], docsIndex420);
+      const scenarioDocs420 = docs420.filter(d => !CONDITIONAL_LINK_TITLES.includes(d.title));
+      expect(scenarioDocs420.length).toBeGreaterThan(0);
+      for (const d of scenarioDocs420) {
+        expect(d.url).toContain('/4.20/');
+        expect(d.url).not.toContain('/4.21/');
+      }
+
+      const docs421 = buildDocumentationSources(stateWithAllConditionals(), [], docsIndex421);
+      const scenarioDocs421 = docs421.filter(d => !CONDITIONAL_LINK_TITLES.includes(d.title));
+      expect(scenarioDocs421.length).toBeGreaterThan(0);
+      for (const d of scenarioDocs421) {
+        expect(d.url).toContain('/4.21/');
+        expect(d.url).not.toContain('/4.20/');
+      }
+    });
+
+    it('deduplication still works with version-aware links', () => {
+      const fipsUrl = docsIndex420.sharedDocs.find(d => d.id === 'installing-fips').url;
+      const indexWithDupe = {
+        ...docsIndex420,
+        scenarios: {
+          'bare-metal-agent': {
+            docs: [
+              { title: 'Enabling FIPS mode', url: fipsUrl }
+            ]
+          }
+        }
+      };
+      const state = stateWithAllConditionals();
+      const docs = buildDocumentationSources(state, ['identity-access'], indexWithDupe);
+      const fipsDocs = docs.filter(d => d.url === fipsUrl);
+      expect(fipsDocs).toHaveLength(1);
+    });
+
+    it('null index produces no scenario docs and no conditional docs', () => {
+      const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, null);
+      expect(docs).toHaveLength(0);
+    });
+
+    it('docsIndex with no sharedDocs produces no conditional docs', () => {
+      const indexNoShared = {
+        version: '4.20',
+        scenarios: {
+          'bare-metal-agent': {
+            docs: [{ title: 'test', url: 'https://example.com' }]
+          }
+        }
+      };
+      const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, indexNoShared);
+      const conditionalTitles = docs.filter(d => CONDITIONAL_LINK_TITLES.includes(d.title));
+      expect(conditionalTitles).toHaveLength(0);
+    });
+
+    it('missing sharedDocs mapping adds no conditional link', () => {
+      const indexPartialShared = {
+        version: '4.20',
+        sharedDocs: [
+          { id: 'installing-fips', title: 'FIPS', url: 'https://example.com/fips' }
+        ],
+        scenarios: { 'bare-metal-agent': { docs: [] } }
+      };
+      const docs = buildDocumentationSources(stateWithAllConditionals(), ALL_TABS, indexPartialShared);
+      const fipsDoc = docs.find(d => d.title === 'Enabling FIPS mode');
+      expect(fipsDoc).toBeDefined();
+      const otherConditionals = docs.filter(d =>
+        CONDITIONAL_LINK_TITLES.includes(d.title) && d.title !== 'Enabling FIPS mode'
+      );
+      expect(otherConditionals).toHaveLength(0);
+    });
+
+    describe('NTP doc restricted to Agent-based scenarios', () => {
+      const ntpTitle = 'Configuring NTP servers for disconnected clusters';
+
+      it('NTP doc appears for bare-metal-agent', () => {
+        const state = {
+          blueprint: { platform: 'Bare Metal' },
+          methodology: { method: 'Agent-Based Installer' },
+          globalStrategy: { ntpServers: ['time.example.com'] }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
+        expect(docs.find(d => d.title === ntpTitle)).toBeDefined();
+      });
+
+      it('NTP doc appears for vsphere-agent', () => {
+        const state = {
+          blueprint: { platform: 'VMware vSphere' },
+          methodology: { method: 'Agent-Based Installer' },
+          globalStrategy: { ntpServers: ['time.example.com'] }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
+        expect(docs.find(d => d.title === ntpTitle)).toBeDefined();
+      });
+
+      it('NTP doc suppressed for vsphere-ipi despite NTP servers configured', () => {
+        const state = {
+          blueprint: { platform: 'VMware vSphere' },
+          methodology: { method: 'IPI' },
+          globalStrategy: { ntpServers: ['time.example.com'] }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
+        expect(docs.find(d => d.title === ntpTitle)).toBeUndefined();
+      });
+
+      it('NTP doc suppressed for bare-metal-ipi despite NTP servers configured', () => {
+        const state = {
+          blueprint: { platform: 'Bare Metal' },
+          methodology: { method: 'IPI' },
+          globalStrategy: { ntpServers: ['time.example.com'] }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
+        expect(docs.find(d => d.title === ntpTitle)).toBeUndefined();
+      });
+    });
+
+    describe('Neutral mirroring mapping (generic boolean condition)', () => {
+      const neutralTitle = 'About disconnected installation mirroring';
+      const ocMirrorV2Title = 'About oc-mirror (v2)';
+
+      it('generic usingMirrorRegistry returns neutral 4.20 URL, not oc-mirror-v2', () => {
+        const state = {
+          blueprint: { platform: 'Bare Metal' },
+          methodology: { method: 'Agent-Based Installer' },
+          credentials: { usingMirrorRegistry: true }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex420);
+        const neutralDoc = docs.find(d => d.title === neutralTitle);
+        expect(neutralDoc).toBeDefined();
+        expect(neutralDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/installing-mirroring-disconnected-about');
+        const v2Doc = docs.find(d => d.title === ocMirrorV2Title);
+        expect(v2Doc).toBeUndefined();
+      });
+
+      it('generic usingMirrorRegistry returns neutral 4.21 URL, not oc-mirror-v2', () => {
+        const state = {
+          blueprint: { platform: 'Bare Metal' },
+          methodology: { method: 'Agent-Based Installer' },
+          credentials: { usingMirrorRegistry: true }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], docsIndex421);
+        const neutralDoc = docs.find(d => d.title === neutralTitle);
+        expect(neutralDoc).toBeDefined();
+        expect(neutralDoc.url).toBe('https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/disconnected_environments/installing-mirroring-disconnected-about');
+        expect(neutralDoc.url).toContain('/4.21/');
+        expect(neutralDoc.url).not.toContain('/4.20/');
+      });
+
+      it('about-oc-mirror-v2 sharedDocs entry remains in each index', () => {
+        const v2Entry420 = docsIndex420.sharedDocs.find(d => d.id === 'about-oc-mirror-v2');
+        expect(v2Entry420).toBeDefined();
+        expect(v2Entry420.url).toContain('/4.20/');
+        const v2Entry421 = docsIndex421.sharedDocs.find(d => d.id === 'about-oc-mirror-v2');
+        expect(v2Entry421).toBeDefined();
+        expect(v2Entry421.url).toContain('/4.21/');
+      });
+
+      it('null index adds no mirroring link', () => {
+        const state = {
+          blueprint: { platform: 'Bare Metal' },
+          methodology: { method: 'Agent-Based Installer' },
+          credentials: { usingMirrorRegistry: true }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], null);
+        expect(docs.find(d => d.title === neutralTitle)).toBeUndefined();
+      });
+
+      it('index missing neutral mapping adds no mirroring link', () => {
+        const indexWithoutNeutral = {
+          version: '4.20',
+          sharedDocs: [
+            { id: 'about-oc-mirror-v2', title: ocMirrorV2Title, url: 'https://example.com/v2' }
+          ],
+          scenarios: { 'bare-metal-agent': { docs: [] } }
+        };
+        const state = {
+          blueprint: { platform: 'Bare Metal' },
+          methodology: { method: 'Agent-Based Installer' },
+          credentials: { usingMirrorRegistry: true }
+        };
+        const docs = buildDocumentationSources(state, ['connectivity-mirroring'], indexWithoutNeutral);
+        expect(docs.find(d => d.title === neutralTitle)).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Source contract: no baseUrl suffix concatenation (DOC-102)', () => {
+    it('production code does not concatenate ${baseUrl}html/ for conditional links', () => {
+      const source = readFileSync(HELPERS_SOURCE_PATH, 'utf-8');
+      expect(source).not.toMatch(/\$\{baseUrl\}html\//);
+    });
+
+    it('production code uses getSharedDocUrl for all conditional doc lookups', () => {
+      const source = readFileSync(HELPERS_SOURCE_PATH, 'utf-8');
+      expect(source).toMatch(/getSharedDocUrl/);
+      expect(source).toMatch(/sharedUrl\(/);
     });
   });
 

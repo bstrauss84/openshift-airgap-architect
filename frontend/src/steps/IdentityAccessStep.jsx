@@ -11,14 +11,15 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useApp } from "../store.jsx";
-import { getScenarioId } from "../hostInventoryV2Helpers.js";
-import { getFieldMeta } from "../catalogFieldMeta.js";
+import { getScenarioId, getParamMeta, getCatalogForScenario } from "../catalogResolver.js";
+import { isParamVisibleForVersion } from "../catalogFieldMeta.js";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { isValidPullSecret, isValidSshPublicKey } from "../validation.js";
 import { apiFetch } from "../api.js";
 import SecretInput from "../components/SecretInput.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 import Switch from "../components/Switch.jsx";
-import PreloadedConfigBanner from "../components/PreloadedConfigBanner.jsx";
+import PreloadedConfigBanner from "../components/PreloadedConfigBanner.jsx";import { encodeBasicAuth, anonymousRegistryAuthJson } from "../shared/registryAuth.js";
 
 /**
  * Identity & Access replacement tab (Phase 5 segmented flow, Prompt E).
@@ -27,9 +28,14 @@ import PreloadedConfigBanner from "../components/PreloadedConfigBanner.jsx";
  */
 export default function IdentityAccessStep({ previewControls, previewEnabled, highlightErrors, fieldErrors = {} }) {
   const { state, updateState } = useApp();
-  const platform = state.blueprint?.platform;
-  const method = state.methodology?.method;
-  const scenarioId = getScenarioId(platform, method);
+  const scenarioId = getScenarioId(state);
+  // No baseline substitution: this used to read `|| "4.20"`, which silently
+  // presented 4.20 parameter metadata for a run whose minor was not known. With
+  // no selected minor there is no catalog to read, so the parameter set is
+  // empty — see catalogPaths.getCatalogForScenario, which now refuses a missing
+  // minor outright rather than defaulting.
+  const selectedMinor = getOpenShiftMinorFromState(state);
+  const catalogParams = (selectedMinor ? getCatalogForScenario(scenarioId, selectedMinor) : null) || [];
   const strategy = state.globalStrategy || {};
   const mirroring = strategy.mirroring || {};
 
@@ -97,10 +103,25 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
   }, [anyModalOpen]);
 
   const installConfig = "install-config.yaml";
-  const metaName = getFieldMeta(scenarioId, installConfig, "metadata.name");
-  const metaBaseDomain = getFieldMeta(scenarioId, installConfig, "baseDomain");
-  const metaPullSecret = getFieldMeta(scenarioId, installConfig, "pullSecret");
-  const metaSshKey = getFieldMeta(scenarioId, installConfig, "sshKey");
+
+  // Deliberate exceptions: metadata.name (supported-derived) and fips (supported-backend-only)
+  // are product controls that bypass generic catalog visibility.
+  const isCatalogFieldVisible = (path, outputFile) => {
+    const param = catalogParams.find(
+      (entry) => entry.path === path && entry.outputFile === outputFile
+    );
+    return isParamVisibleForVersion(param, selectedMinor);
+  };
+
+  const showBaseDomain = isCatalogFieldVisible("baseDomain", installConfig);
+  const showPullSecret = isCatalogFieldVisible("pullSecret", installConfig);
+  const showSshKey = isCatalogFieldVisible("sshKey", installConfig);
+  const showAccessCredentials = showPullSecret || showSshKey;
+
+  const metaName = getParamMeta(scenarioId, "metadata.name", installConfig, state);
+  const metaBaseDomain = getParamMeta(scenarioId, "baseDomain", installConfig, state);
+  const metaPullSecret = getParamMeta(scenarioId, "pullSecret", installConfig, state);
+  const metaSshKey = getParamMeta(scenarioId, "sshKey", installConfig, state);
 
   const activePullSecret = usingMirrorRegistry ? mirrorRegistryPullSecret : pullSecretPlaceholder;
   const pullSecretCheck = isValidPullSecret(activePullSecret);
@@ -130,13 +151,14 @@ export default function IdentityAccessStep({ previewControls, previewEnabled, hi
   /** OKD/installer dummy auth for unauthenticated registry: per https://github.com/orgs/okd-project/discussions/1930 */
   const buildUnauthMirrorSecret = () => {
     const registry = mirrorHelper.registry || mirroring.registryFqdn || "registry.local:5000";
-    return JSON.stringify({ auths: { [registry]: { auth: "aWQ6cGFzcwo=", email: "" } } });
+    return anonymousRegistryAuthJson(registry);
   };
 
   const generateMirrorPullSecret = () => {
     const registry = mirrorHelper.registry || mirroring.registryFqdn || "";
     if (!registry) return "";
-    const auth = window.btoa(`${mirrorHelper.username}:${mirrorHelper.password}`);
+    // UTF-8 safe: window.btoa alone throws on characters outside Latin-1.
+    const auth = encodeBasicAuth(mirrorHelper.username, mirrorHelper.password);
     return JSON.stringify({
       auths: {
         [registry]: {
@@ -314,6 +336,7 @@ dev-ocp`}
                 aria-invalid={fieldErrors.clusterName ? "true" : "false"}
               />
             </FieldLabelWithInfo>
+            {showBaseDomain && (
             <FieldLabelWithInfo
               label="Base Domain"
               hint={`DNS domain suffix for your cluster.
@@ -373,9 +396,11 @@ ocp.company.com`}
                 aria-invalid={fieldErrors.baseDomain ? "true" : "false"}
               />
             </FieldLabelWithInfo>
+            )}
           </div>
         </section>
 
+        {showAccessCredentials && (
         <section className={`card ${fieldErrors.pullSecret ? "highlight-errors" : ""}`}>
           <div className="card-header">
             <div>
@@ -389,7 +414,8 @@ ocp.company.com`}
                 message="Mirror registry credentials and settings were pre-configured from a mounted config file."
               />
             )}
-
+            {showPullSecret && (
+            <>
             <div
               className="credentials-mirror-checkbox-grid"
               style={{
@@ -639,7 +665,10 @@ If you selected "Anonymous pulls" above, this field is auto-filled with an OKD-d
                 );
               })()}
             </div>
+            </>
+            )}
 
+            {showSshKey && (
             <div className="credentials-field-constrained">
               <FieldLabelWithInfo
                 label="SSH Public Key"
@@ -694,8 +723,10 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJqfh... user@hostname`}
                 </button>
               </div>
             </div>
+            )}
           </div>
         </section>
+        )}
 
         <section className="card">
           <div className="card-header">
@@ -784,7 +815,7 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
             {keygenLoading ? <div className="loading">Generating keypair…</div> : null}
             {!keygenLoading && keypair ? (
               <>
-                <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Generated keypair</h4>
+                <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600 }}>Generated keypair</h4>
 
                 <div style={{ marginBottom: "1rem", padding: "0.75rem", background: "var(--surface-raised)", borderRadius: "6px", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <input
@@ -875,7 +906,7 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
               Credentials entered here are used only to generate the JSON locally. They are not stored or exported.
             </div>
 
-            <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Registry credentials</h4>
+            <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600 }}>Registry credentials</h4>
 
             <label style={{ display: "block", marginBottom: "1rem" }}>
               Registry FQDN
@@ -898,7 +929,7 @@ A federal agency deploying OpenShift must enable FIPS to comply with NIST 800-53
               <input value={mirrorHelper.email} onChange={(e) => setMirrorHelper((h) => ({ ...h, email: e.target.value }))} placeholder="ops@example.com" style={{ width: "100%" }} />
             </label>
 
-            <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>Generated pull secret</h4>
+            <h4 style={{ marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600 }}>Generated pull secret</h4>
             <label>
               <textarea className="textarea" rows={6} value={generateMirrorPullSecret()} readOnly style={{ fontFamily: "monospace", fontSize: "0.8125rem" }} />
             </label>

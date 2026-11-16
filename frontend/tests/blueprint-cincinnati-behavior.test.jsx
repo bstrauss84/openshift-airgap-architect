@@ -68,10 +68,18 @@ describe("BlueprintStep Cincinnati", () => {
     cleanup();
   });
 
-  function renderBlueprint(initialState) {
+  function renderBlueprint(initialState, captureUpdates = null) {
     const Wrapper = () => {
       const [state, setState] = useState(initialState);
-      const updateState = (patch) => setState((prev) => ({ ...prev, ...patch }));
+      const updateState = (patch) => {
+        setState((prev) => {
+          const next = { ...prev, ...patch };
+          if (captureUpdates) {
+            captureUpdates.push({ patch, state: next });
+          }
+          return next;
+        });
+      };
       return (
         <AppContext.Provider value={{ state, updateState, loading: false, startOver: vi.fn() }}>
           <BlueprintStep />
@@ -81,8 +89,40 @@ describe("BlueprintStep Cincinnati", () => {
     return render(<Wrapper />);
   }
 
+  function assertNo423InUpdates(updates) {
+    expect(updates.length).toBeGreaterThan(0);
+    const allValues = updates.flatMap(({ patch, state }) => {
+      const fromPatch = [
+        patch?.version?.selectedMinor,
+        patch?.version?.selectedChannel,
+        patch?.version?.selectedPatch,
+        patch?.version?.selectedVersion,
+        patch?.release?.channel,
+        patch?.release?.selectedChannel,
+        patch?.release?.patchVersion,
+        patch?.release?.selectedVersion,
+      ];
+      const fromState = [
+        state?.version?.selectedMinor,
+        state?.version?.selectedChannel,
+        state?.version?.selectedPatch,
+        state?.version?.selectedVersion,
+        state?.release?.channel,
+        state?.release?.selectedChannel,
+        state?.release?.patchVersion,
+        state?.release?.selectedVersion,
+      ];
+      return [...fromPatch, ...fromState];
+    });
+    const contains423 = allValues.some((v) => {
+      const str = String(v || "");
+      return str === "4.23" || str.startsWith("4.23.") || str === "stable-4.23";
+    });
+    expect(contains423).toBe(false);
+  }
+
   it("lists minor channels newest-first and defaults to newest on load", async () => {
-    const channelList = { channels: ["4.17", "4.19", "4.18"] };
+    const channelList = { channels: ["4.20", "4.21", "4.22", "4.23"] };
     mockCincinnatiApis(channelList);
 
     const initial = {
@@ -91,71 +131,80 @@ describe("BlueprintStep Cincinnati", () => {
       version: {},
       operators: { stale: false, selected: [], catalogs: {} }
     };
-    renderBlueprint(initial);
+    const updates = [];
+    renderBlueprint(initial, updates);
 
     const minorSelect = await waitFor(() => screen.getByLabelText(/Minor channel/i));
     await waitFor(() => {
       const opts = [...minorSelect.querySelectorAll("option")].map((o) => o.value).filter(Boolean);
-      expect(opts).toEqual(["4.19", "4.18", "4.17"]);
+      expect(opts).toEqual(["4.22", "4.21", "4.20"]);
     });
-    expect(minorSelect.value).toBe("4.19");
+    expect(minorSelect.value).toBe("4.22");
 
     const patchSelect = screen.getByLabelText(/Patch version/i);
     await waitFor(() => {
-      expect(patchSelect.value).toBe("4.19.1");
+      expect(patchSelect.value).toBe("4.22.1");
     });
+
+    assertNo423InUpdates(updates);
   });
 
   it("Update keeps user-selected minor when followLatestMinor is false", async () => {
-    const channelList = { channels: ["4.17", "4.18", "4.19"] };
+    const channelList = { channels: ["4.20", "4.21", "4.22", "4.23"] };
     mockCincinnatiApis(channelList);
 
     const initial = {
       blueprint: { platform: "Bare Metal", arch: "x86_64", confirmed: false },
-      release: { channel: "4.17", patchVersion: "4.17.1", confirmed: false, followLatestMinor: false },
+      release: { channel: "4.20", patchVersion: "4.20.1", confirmed: false, followLatestMinor: false },
       version: {},
       operators: { stale: false, selected: [], catalogs: {} }
     };
-    renderBlueprint(initial);
+    const updates = [];
+    renderBlueprint(initial, updates);
 
     const minorSelect = await waitFor(() => screen.getByLabelText(/Minor channel/i));
-    await waitFor(() => expect(minorSelect.value).toBe("4.17"));
+    await waitFor(() => expect(minorSelect.value).toBe("4.20"));
 
-    channelList.channels = ["4.16", "4.17", "4.18", "4.19", "4.20"];
+    channelList.channels = ["4.20", "4.21", "4.22", "4.23"];
     fireEvent.click(screen.getByRole("button", { name: /^Update$/i }));
 
     await waitFor(() => {
-      expect(minorSelect.value).toBe("4.17");
+      expect(minorSelect.value).toBe("4.20");
     });
     const patchSelect = screen.getByLabelText(/Patch version/i);
-    await waitFor(() => expect(patchSelect.value).toBe("4.17.1"));
+    await waitFor(() => expect(patchSelect.value).toBe("4.20.1"));
+
+    assertNo423InUpdates(updates);
   });
 
   it("Update advances to newest minor when followLatestMinor is true", async () => {
-    const channelList = { channels: ["4.17", "4.18"] };
+    const channelList = { channels: ["4.20", "4.21", "4.22", "4.23"] };
     mockCincinnatiApis(channelList);
 
     const initial = {
       blueprint: { platform: "Bare Metal", arch: "x86_64", confirmed: false },
-      release: { channel: null, patchVersion: null, confirmed: false, followLatestMinor: true },
+      release: { channel: "4.20", patchVersion: null, confirmed: false, followLatestMinor: true },
       version: {},
       operators: { stale: false, selected: [], catalogs: {} }
     };
-    renderBlueprint(initial);
+    const updates = [];
+    renderBlueprint(initial, updates);
 
     const minorSelect = await waitFor(() => screen.getByLabelText(/Minor channel/i));
-    await waitFor(() => expect(minorSelect.value).toBe("4.18"));
+    await waitFor(() => expect(minorSelect.value).toBe("4.20"));
 
-    channelList.channels = ["4.17", "4.18", "4.19"];
+    channelList.channels = ["4.20", "4.21", "4.22", "4.23"];
     fireEvent.click(screen.getByRole("button", { name: /^Update$/i }));
 
     await waitFor(() => {
-      expect(minorSelect.value).toBe("4.19");
+      expect(minorSelect.value).toBe("4.22");
     });
     const patchSelect = screen.getByLabelText(/Patch version/i);
     await waitFor(() => {
-      expect(patchSelect.value).toBe("4.19.1");
+      expect(patchSelect.value).toBe("4.22.1");
     });
+
+    assertNo423InUpdates(updates);
   });
 
   it("clears patches loading when patch fetch rejects", async () => {
@@ -184,6 +233,55 @@ describe("BlueprintStep Cincinnati", () => {
     await waitFor(() => {
       expect(screen.queryByText(/Loading patches/i)).not.toBeInTheDocument();
     });
+  });
+
+  it("a failing initial channel fetch raises no unhandled rejection and keeps the selection", async () => {
+    // The initial chain ended in `.finally` with no `.catch`, and `.finally`
+    // re-raises. apiFetch rejects on a network failure and on any non-2xx, so
+    // an unreachable backend produced an unhandled rejection on mount.
+    // process, not window: measured in this jsdom setup, a `window`
+    // "unhandledrejection" listener never fires, so a collector built on one
+    // would pass whether or not the defect is present. The Node-level hook
+    // does fire, and is what actually observes it.
+    const unhandled = [];
+    const onUnhandled = (reason) => unhandled.push(String(reason?.message || reason));
+    process.on("unhandledRejection", onUnhandled);
+
+    vi.mocked(apiFetch).mockImplementation((path) => {
+      if (path === "/api/cincinnati/channels") {
+        return Promise.reject(new Error("Failed to fetch"));
+      }
+      return Promise.reject(new Error("Failed to fetch"));
+    });
+
+    const updates = [];
+    const initial = {
+      blueprint: { platform: "Bare Metal", arch: "x86_64", confirmed: false },
+      release: { channel: "4.22", patchVersion: "4.22.16", confirmed: false, followLatestMinor: false },
+      version: { selectedMinor: "4.22" },
+      operators: { stale: false, selected: [], catalogs: {} }
+    };
+
+    try {
+      renderBlueprint(initial, updates);
+
+      // The loading flag is cleared in the `.finally`, so its disappearance is
+      // the signal that the rejected chain has fully settled.
+      await waitFor(() => {
+        expect(screen.queryByText(/Loading channels/i)).not.toBeInTheDocument();
+      });
+      await act(async () => { await Promise.resolve(); });
+      // An unhandled rejection is reported a turn after it is abandoned.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(unhandled).toEqual([]);
+      // And no fallback: a failed lookup must not clear or rewrite the
+      // operator's existing release selection.
+      const clearedChannel = updates.some((u) => u?.patch?.release && u.patch.release.channel === null);
+      expect(clearedChannel).toBe(false);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
   });
 
   it("Update shows refresh error and sets highlightJobId when Cincinnati job fails", async () => {

@@ -1,9 +1,9 @@
 name: CI
 on:
   push:
-      branches: [master, main, feature-**]
+    branches: [master, main, develop, feature-**]
   pull_request:
-    branches: [master, main]
+    branches: [master, main, develop]
 
 env:
   QUAY_ORG: ${{ secrets.QUAY_ORG }}
@@ -12,10 +12,100 @@ env:
   CONSOLE_PLUGIN_IMAGE: quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-console-plugin
 
 jobs:
-  build-and-test:
+  # Repository gates. No containers, no backend/frontend dependency trees.
+  #
+  # DEPENDENCY CONTRACT: `npm ci` AT THE ROOT, AND NOTHING ELSE.
+  #
+  # This job previously declared itself fully hermetic and installed nothing, on
+  # the stated grounds that every script used Node built-ins only. That claim
+  # became false and nobody noticed: scripts/t6a-e2e-helper-loadable.test.mjs
+  # imports e2e/helpers/asset-validation.js, which imports `js-yaml` — a ROOT
+  # devDependency. `npm run test:tooling` therefore failed 10 tests with
+  # ERR_MODULE_NOT_FOUND on every run, and because the claim was in a comment
+  # rather than in a check, it kept being believed.
+  #
+  # The contract is now explicit and declared rather than asserted in prose:
+  # this job installs the ROOT lockfile and depends on nothing else. Root
+  # `npm ci` is 5 packages in well under a second, so the job stays fast. If a
+  # future step needs backend or frontend packages it belongs in build-and-test,
+  # not here.
+  #
+  # Verified from a pristine clone with no node_modules anywhere:
+  # `npm ci` at the root alone makes `npm run test:tooling` report 1055/1055.
+  # (701/701 before the 8D glob picked up scripts/release/provenance and
+  # scripts/release/vex; 1050/1050 before scripts/shell-tests.test.mjs began
+  # bridging the shell security suites in. All of them need nothing beyond the
+  # root lockfile, which is what keeps this contract true — the shell suites
+  # do need `jq` and GNU `date`, which the runner image provides and which
+  # shell-tests.test.mjs asserts up front rather than failing obscurely.)
+  #
+  # Kept in its own job so a failure in the catalog-data gate below cannot mask
+  # these, and so results are attributable at a glance.
+  tooling-gates:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # The declared bootstrap for this job. `npm ci` fails closed if
+      # package-lock.json and package.json disagree, so the installed tree is
+      # exactly what the lockfile pins — no global packages, no NODE_PATH, no
+      # undeclared transitive resolution.
+      - name: Bootstrap root tooling dependencies
+        run: npm run bootstrap:tooling
+
+      - name: Application version synchronized (VERSION + 4 manifests + 3 lockfiles)
+        run: npm run check:app-version
+
+      - name: Application version validator tests
+        run: npm run test:app-version
+
+      - name: Cumulative minor-support guards (superset, baseline, fe/be agreement)
+        run: npm run check:supported-minors
+
+      - name: Stale version-list guard (repo-wide tracked JSON)
+        run: npm run check:version-lists
+
+      # --check is the GATE: read-only, non-zero exit on any drift including
+      # orphan mirror files. Do NOT substitute --dry-run here: that mode is a
+      # human preview and exits 0 even when it reports drift, which would make
+      # this step incapable of failing.
+      - name: Catalog mirror drift (canonical -> frontend, --check gate)
+        run: npm run sync-catalogs:check
+
+      - name: Docs-index mirror drift (canonical -> frontend, --check gate)
+        run: npm run sync-docs-index:check
+
+      - name: Repository tooling tests (guards, sync gates, schema conformance, scripts/minor)
+        run: npm run test:tooling
+
+      # EXPLICIT --strict mode. The guard has no default mode: omitting
+      # --report/--strict exits 2, so this cannot silently become permissive.
+      #
+      # The guard judges six structurally identifiable ways a citation can
+      # carry a minor (current and retired documentation hosts, installer
+      # release-branch permalinks, and minor-labelled citation ids/titles).
+      # It has NO suppression list and no exclusions: Tranche 0B repaired all
+      # 939 cross-minor references in data/params/4.21/** rather than excusing
+      # any of them, so strict passes because the data is correct.
+      #
+      # --report remains available as a human diagnostic (it prints the same
+      # findings and exits 0) but must never be the enforced CI path.
+      - name: Catalog citation and provenance minor guard
+        run: npm run check:citation-minor:strict
+
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      # The backend history-baseline integrity test intentionally resolves
+      # registered content identities against historical Git blob objects.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Reject committed junk (node_modules, caches, tools)
         run: |
@@ -30,19 +120,49 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          # No root package-lock.json; backend and frontend have their own. Omit cache to avoid lockfile lookup error.
+          # Caching is omitted by choice, not by necessity, and not for either
+          # reason previously claimed here.
+          #
+          # It is NOT because "there is no root package-lock.json" — there is
+          # one, and tooling-gates installs from it. It is also NOT because
+          # setup-node can only cache a single path: `cache-dependency-path`
+          # accepts a glob or a newline-separated list, so all three lockfiles
+          # (root, backend, frontend) could be cached together.
+          #
+          # Installs here are already fast (root 5 packages, backend ~0.6s,
+          # frontend ~5s from a cold clone), so caching would add configuration
+          # and a cache-invalidation failure mode for very little. Correctness
+          # does not depend on it. Enable it deliberately if install time
+          # becomes a problem.
 
+      # `npm test`, with NO trailing `-- <flag>`.
+      #
+      # This step used to run `npm test -- --reporter=spec`. npm appends forwarded
+      # arguments to the END of the script, producing
+      #   node --test --test-concurrency=1 test/ --reporter=spec
+      # and Node's test runner treats a trailing non-flag-position argument as a
+      # TEST FILE PATH, so every run died with
+      #   Could not find '.../backend/--reporter=spec'
+      # before a single test executed. `--reporter=spec` is not even a Node flag
+      # (the runner's option is `--test-reporter`). The whole job short-circuited
+      # here from 2026-05-27 onward, so the frontend suite, the production build,
+      # the bundle budget, the param-authority gate, the container-layout
+      # validator and the container smoke test never ran in CI at all.
+      #
+      # The reporter belongs to the package script, not to the caller. The
+      # default TAP output is deliberate: it is machine-readable, and the release
+      # certification harness parses its `# tests/pass/fail` counters.
       - name: Backend install and test
         run: |
           cd backend
           echo "Installing backend dependencies..."
           npm ci
           echo "Running backend tests..."
-          npm test 2>&1 | tee test-output.log
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+          if ! npm test 2>&1 | tee test-output.log; then
             echo "::error::Backend tests failed. See test-output.log for details."
             exit 1
           fi
+        shell: bash -o pipefail -e {0}
 
       - name: Frontend install, build, test
         run: |
@@ -52,11 +172,21 @@ jobs:
           echo "Building frontend..."
           npm run build
           echo "Running frontend tests..."
-          npm test 2>&1 | tee test-output.log
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+          if ! npm test 2>&1 | tee test-output.log; then
             echo "::error::Frontend tests failed. See test-output.log for details."
             exit 1
           fi
+        shell: bash -o pipefail -e {0}
+
+      # FQ-10. Gates metric A (eager app JS+CSS) and metric B (largest lazy chunk)
+      # against the production build just produced; metric C (total dist) is reported
+      # only. Thresholds and their derivation: frontend/scripts/bundle-budget.json.
+      # This check existed but ran in no pipeline, which is how the bundle drifted 43%
+      # past its budget unnoticed (gap list GAP-13).
+      - name: Frontend bundle budget (FQ-10)
+        run: |
+          cd frontend
+          npm run check-size
 
       - name: Console Plugin install and build
         run: |
@@ -81,10 +211,11 @@ jobs:
             frontend/test-output.log
           retention-days: 7
 
-      # Temporarily disabled - catalog validation errors exist in upstream main
-      # These are data quality issues unrelated to code changes
-      # - name: Validate param catalog authority (docs index, catalogs, parity, NMState guards)
-      #   run: node scripts/validate-param-authority.js
+      # Iterates every supported minor from the canonical SUPPORTED_MINORS and
+      # prints a PASS/FAIL summary tagged [mechanism] or [data].
+      # EXPECTED RED until Tranche 0B catalog data debt is resolved.
+      - name: Validate param catalog authority (docs index, catalogs, parity, NMState guards)
+        run: node scripts/validate-param-authority.js
 
   build-and-push:
     if: github.event_name == 'push'
@@ -132,13 +263,80 @@ jobs:
             quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-console-plugin:latest
             quay.io/${{ secrets.QUAY_ORG }}/openshift-airgap-architect-console-plugin:${{ github.sha }}
 
+      - name: Validate frontend container layout (static checks)
+        run: node scripts/validate-frontend-container-layout.mjs
+
+      - name: Frontend container smoke test (runtime import resolution)
+        run: |
+          set -o pipefail
+          echo "Building and testing frontend container with Docker..."
+          CONTAINER_ENGINE=docker bash scripts/smoke-frontend-container.sh 2>&1 | tee /tmp/oaa-frontend-container-smoke.log
+        env:
+          SMOKE_PORT: 5174
+
+      - name: Upload container smoke logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-smoke-logs
+          path: |
+            /tmp/oaa-frontend-container-smoke.log
+          retention-days: 7
+
   secrets:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # The marketplace action is deliberately not used here. It cannot reconcile
+      # findings against the history-scan baseline, and it publishes a raw scanner
+      # report as a workflow artifact by default. Pinned and checksum-verified
+      # instead, matching the version the local tranche gate is validated against.
+      # Installed OUTSIDE the workspace so the binary is never itself scanned.
+      - name: Install gitleaks (pinned, checksum-verified)
+        run: |
+          set -euo pipefail
+          VERSION=8.30.0
+          SHA256=79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e
+          curl -sSLf -o "$RUNNER_TEMP/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          echo "${SHA256}  ${RUNNER_TEMP}/gitleaks.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP/bin" gitleaks
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # A config that loads no rules passes every scan vacuously. Run first.
+      - name: Gitleaks config self-test
+        run: ./scripts/security/gitleaks-selftest.sh
+
+      # Reports are written to the runner temp directory: never committed, never
+      # uploaded as an artifact. --exit-code 0 hands control to the reconciler rather
+      # than failing before findings can be accounted for.
+      - name: Secret scan — worktree
+        run: |
+          set -euo pipefail
+          gitleaks detect --source . --no-git --config .gitleaks.toml --redact \
+            --report-format json --report-path "$RUNNER_TEMP/worktree.json" --exit-code 0
+          count="$(jq 'length' "$RUNNER_TEMP/worktree.json")"
+          if [ "$count" != "0" ]; then
+            echo "::error::$count secret finding(s) in the worktree"
+            jq -r '.[] | "rule=\(.RuleID) path=\(.File) line=\(.StartLine)"' "$RUNNER_TEMP/worktree.json"
+            exit 1
+          fi
+
+      - name: Secret scan — reachable history (baseline-reconciled)
+        run: |
+          set -euo pipefail
+          gitleaks detect --source . --config .gitleaks.toml --redact \
+            --report-format json --report-path "$RUNNER_TEMP/history.json" --exit-code 0
+          node scripts/security/history-scan-baseline-cli.mjs history "$RUNNER_TEMP/history.json"
+
+      - name: Current-tree credential artifacts
+        run: node scripts/security/history-scan-baseline-cli.mjs tree

@@ -1,0 +1,39 @@
+# Put the backend into authenticated mode.
+#
+# OAA_AUTH_MODE=proxy makes every /api route except the probe set require a
+# proven identity. The backend refuses to START if the shared secret is
+# missing or shorter than 32 characters, so a half-configured deployment
+# cannot come up serving anonymous traffic — see backend/src/accessControl.js.
+#
+# OAA_ALLOWED_ORIGINS replaces the wildcard CORS that used to let any origin
+# read every response. In this topology the UI and API are same-origin, so a
+# compliant browser sends no Origin at all on same-origin requests and the
+# allowlist is a backstop rather than the primary control. It must still be
+# set: the backend treats an empty allowlist in proxy mode as a configuration
+# error, because a deployment that intends an allowlist and supplies none
+# would otherwise silently accept nothing and present as a blanket 403.
+#
+# REPLACE THE PLACEHOLDER HOSTNAME. It must be the external URL of the
+# `airgap-architect` Route, scheme included:
+#   oc get route airgap-architect -o jsonpath='https://{.spec.host}'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airgap-architect-backend
+spec:
+  template:
+    spec:
+      serviceAccountName: airgap-architect-backend
+      automountServiceAccountToken: false
+      containers:
+        - name: backend
+          env:
+            - name: OAA_AUTH_MODE
+              value: "proxy"
+            - name: OAA_PROXY_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: airgap-architect-proxy
+                  key: proxy_shared_secret
+            - name: OAA_ALLOWED_ORIGINS
+              value: "https://airgap-architect.apps.example.com"

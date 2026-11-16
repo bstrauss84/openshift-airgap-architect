@@ -12,6 +12,7 @@ import React, { useEffect } from "react";
 import { createPortal } from "react-dom";
 import Button from "./Button.jsx";
 import { useFocusTrap } from "../hooks/useFocusTrap.js";
+import { getNewestSupportedMinor } from "../shared/versionPolicy.js";
 
 const MODAL_Z = 10080;
 
@@ -32,9 +33,26 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
 
   if (!isOpen) return null;
 
-  const version = appVersion || "1.7.0-dev";
-  const sha = gitSha && gitSha !== "unknown" ? gitSha.slice(0, 7) : "dev";
-  const buildDate = buildTime && buildTime !== "unknown" ? new Date(buildTime).toLocaleDateString() : "dev build";
+  // Version, revision and build time are THREE INDEPENDENT FACTS and none may
+  // be inferred from another. A missing APP_GIT_SHA (the Compose default — see
+  // docker-compose.yml) means only that the REVISION is unknown. It does not
+  // make this a development build, and it says nothing about the version,
+  // which is read from package.json and is present in every build.
+  const trimmed = typeof appVersion === "string" ? appVersion.trim() : "";
+  const version = (trimmed && trimmed !== "unknown") ? trimmed : "unavailable";
+  const shaTrimmed = typeof gitSha === "string" ? gitSha.trim() : "";
+  // An unknown revision is omitted, not shown as a placeholder: it is optional
+  // provenance and its absence says nothing about the release.
+  const revision = (shaTrimmed && shaTrimmed !== "unknown") ? shaTrimmed.slice(0, 7) : null;
+  const buildTimeTrimmed = typeof buildTime === "string" ? buildTime.trim() : "";
+  const parsedBuildTime = (buildTimeTrimmed && buildTimeTrimmed !== "unknown")
+    ? new Date(buildTimeTrimmed)
+    : null;
+  // An unparseable timestamp reads as unavailable rather than the literal
+  // string "Invalid Date".
+  const buildDate = (parsedBuildTime && !Number.isNaN(parsedBuildTime.getTime()))
+    ? parsedBuildTime.toLocaleDateString()
+    : "unavailable";
 
   return createPortal(
     <>
@@ -65,8 +83,8 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
             width: "90%",
             maxHeight: "90vh",
             overflow: "auto",
-            backgroundColor: "var(--bg-primary)",
-            border: "1px solid var(--border-primary)",
+            backgroundColor: "var(--card-bg)",
+            border: "1px solid var(--border-color)",
             borderRadius: "8px",
             padding: "24px",
             boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
@@ -77,7 +95,11 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
               OpenShift Airgap Architect
             </h2>
             <p style={{ margin: "8px 0 0", color: "var(--text-secondary)", fontSize: "14px" }}>
-              Version {version} ({sha}) • Built {buildDate}
+              {[
+                `Version ${version}`,
+                revision ? `Revision ${revision}` : null,
+                `Built ${buildDate}`
+              ].filter(Boolean).join(" • ")}
             </p>
           </div>
 
@@ -95,7 +117,7 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
               <p style={{ margin: 0, lineHeight: 1.6, color: "var(--text-secondary)" }}>
                 <strong>Bill Strauss</strong>
               </p>
-              <p style={{ margin: "4px 0 0", fontSize: "14px", color: "var(--text-muted)" }}>
+              <p style={{ margin: "4px 0 0", fontSize: "14px", color: "var(--text-subtle)" }}>
                 Developed with AI assistance from <strong>Claude (Anthropic)</strong> and <strong>Cursor AI</strong>
               </p>
             </section>
@@ -112,20 +134,18 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
               <ul style={{ margin: 0, paddingLeft: "20px", lineHeight: 1.8 }}>
                 <li>
                   <a
-                    href="https://github.com/billstrauss/openshift-airgap-architect"
+                    href="https://github.com/bstrauss84/openshift-airgap-architect"
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: "var(--link-color)" }}
                   >
                     GitHub Repository
                   </a>
                 </li>
                 <li>
                   <a
-                    href="https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing/index"
+                    href={`https://docs.redhat.com/en/documentation/openshift_container_platform/${getNewestSupportedMinor()}/html/installing/index`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: "var(--link-color)" }}
                   >
                     OpenShift Documentation
                   </a>
@@ -135,7 +155,7 @@ function AboutModal({ isOpen, onClose, appVersion, gitSha, buildTime }) {
 
             <section>
               <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>Disclaimer</h3>
-              <p style={{ margin: 0, fontSize: "14px", lineHeight: 1.6, color: "var(--text-muted)" }}>
+              <p style={{ margin: 0, fontSize: "14px", lineHeight: 1.6, color: "var(--text-subtle)" }}>
                 This tool generates installation configuration files based on user input. Always validate
                 generated configurations against official Red Hat OpenShift Container Platform documentation
                 before use in production environments.

@@ -10,11 +10,18 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AppProvider, useApp } from "./store.jsx";
+import { getVersionLocked, detectUnknownSchema } from "./shared/versionHelpers.js";
+
+const STORAGE_KEY = "airgap-architect-state";
 import Sidebar from "./components/Sidebar.jsx";
 import Modal from "./components/Modal.jsx";
 import LandingPage from "./LandingPage.jsx";
+// The Mirroring workflow loads on demand (v2.2.0 M5): the Install wizard never
+// needs it, so it is kept out of the eager bundle.
+const MirroringShell = React.lazy(() => import("./mirroring/MirroringShell.jsx"));
+import { useThemePreference } from "./hooks/useThemePreference.js";
 import BlueprintStep from "./steps/BlueprintStep.jsx";
 import PlaceholderCard from "./components/PlaceholderCard.jsx";
 import MethodologyStep from "./steps/MethodologyStep.jsx";
@@ -45,20 +52,45 @@ import { computeVisibleWizardRows, findFirstAttentionStepIndex } from "./wizardV
 import { getScenarioId } from "./catalogResolver.js";
 import { SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { getOpenShiftMinorFromState } from "./shared/openShiftMinor.js";
+import { ensureCatalogsForMinor, areCatalogsLoadedForMinor } from "./catalogPaths.js";
+import { ensureDocsIndexForMinor, isDocsIndexResolvedForMinor } from "./docsIndexResolver.js";
+
+/**
+ * Readiness for a minor's lazily loaded versioned data (FQ-10).
+ *
+ * BOTH resources are required, and readiness is derived from actual cache residency
+ * rather than from "a load promise settled". The two caches are independent, so
+ * checking only catalogs let a warm-catalog / cold-docs-index state look ready and
+ * short-circuit the load effect, leaving the docs-index permanently unresolved.
+ *
+ * `isDocsIndexResolvedForMinor` is true once resolution COMPLETES, including completing
+ * as "this supported minor ships no docs-index" — an explicit resolved outcome, not an
+ * accidental pass.
+ */
+export const isVersionedDataReady = (minor) =>
+  Boolean(minor) && areCatalogsLoadedForMinor(minor) && isDocsIndexResolvedForMinor(minor);
+import { SUPPORTED_MINORS, getNewestSupportedMinor } from "./shared/versionPolicy.js";
+import { UPDATE_STATUS, isUrgentUpdateStatus, updateStatusOf, verifiedLatestRelease } from "../../shared/updateStatus.js";
 import { apiFetch } from "./api.js";
 import { getFeedbackConfig } from "./feedbackApi.js";
 import { getVersionDependentStepIdSet } from "./wizardVersionGate.js";
+import { computeReleaseTransition } from "./shared/versionReleaseTransition.js";
+import { computeOperatorMinorInvalidation } from "./shared/operatorMinorReconciliation.js";
 
-/** Used for Landing banner and tests; true only when update is available and no error/unknown. */
+/**
+ * Whether to raise the URGENT "update recommended" banner.
+ *
+ * True only when the backend found a PUBLISHED, stable GitHub Release that is
+ * semantically newer than the installed version (shared/updateStatus.js). A
+ * differing branch commit, an unknown Git SHA, an offline lookup or an older
+ * release never raise it.
+ */
 export function shouldShowUpdateBanner(updateInfo) {
-  if (!updateInfo?.enabled || !updateInfo?.isOutdated || updateInfo?.error) return false;
-  const cur = updateInfo?.currentSha && String(updateInfo.currentSha).toLowerCase();
-  const lat = updateInfo?.latestSha && String(updateInfo.latestSha).toLowerCase();
-  if (!cur || cur === "unknown" || !lat || lat === "unknown") return false;
-  return true;
+  return isUrgentUpdateStatus(updateStatusOf(updateInfo));
 }
 import { logAction } from "./logger.js";
 import { getExportRunFilename } from "./exportRunFilename.js";
+import ImportFollowUpNotice from "./components/ImportFollowUpNotice.jsx";
 
 const COMPONENT_MAP = {
   "blueprint": BlueprintStep,
@@ -176,42 +208,333 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-const AppShell = () => {
-  const { state, loading, startOver, updateState, setState } = useApp();
+/**
+ * Version Support Gate - blocks AppShell mount for unsupported OpenShift versions.
+ * Prevents catalog-dependent validation and hooks from running for 4.23+.
+ * Shows recoverable UI with explicit version selection instead of generic error boundary.
+ */
+// Exported for tests/version-gate-data-loading.test.jsx: this gate is the single
+// load-and-support boundary, so its behaviour is asserted directly rather than
+// inferred through the whole App tree.
+export const VersionSupportGate = ({ children, onOpenMirroring }) => {
+  const { state, startOver, updateState } = useApp();
+  const selectedMinor = getOpenShiftMinorFromState(state);
+
+  // FQ-10: versioned catalog and docs-index data is loaded per minor, on demand, so the
+  // initial chunk does not carry every supported minor's data. This gate is the right
+  // place for the load because it is already the single version boundary: nothing
+  // catalog-dependent mounts above it.
+  const [dataMinor, setDataMinor] = useState(() =>
+    selectedMinor && isVersionedDataReady(selectedMinor) ? selectedMinor : null
+  );
+  const [dataError, setDataError] = useState(null);
+
+  useEffect(() => {
+    if (!selectedMinor || !SUPPORTED_MINORS.includes(selectedMinor)) return undefined;
+    if (dataMinor === selectedMinor) return undefined;
+
+    let cancelled = false;
+    setDataError(null);
+    Promise.all([
+      ensureCatalogsForMinor(selectedMinor),
+      ensureDocsIndexForMinor(selectedMinor),
+    ])
+      .then(([loadedMinor]) => {
+        // Three guards. A version switch during an in-flight load must never show one
+        // minor's data under another minor's selection, and a half-warm cache must
+        // never be mistaken for a ready one:
+        //   - `cancelled` drops the result of a superseded effect run;
+        //   - the identity check rejects a resolution that is not for the currently
+        //     selected minor, even if the effect was not torn down;
+        //   - isVersionedDataReady re-derives readiness from ACTUAL cache residency of
+        //     BOTH resources, so readiness can never be inferred from promise
+        //     bookkeeping alone.
+        if (cancelled || loadedMinor !== selectedMinor) return;
+        if (!isVersionedDataReady(selectedMinor)) {
+          setDataError(
+            new Error(
+              `Versioned data for OpenShift ${selectedMinor} did not fully resolve ` +
+                "(catalogs and docs-index must both be resident)."
+            )
+          );
+          return;
+        }
+        setDataMinor(selectedMinor);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setDataError(err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMinor, dataMinor]);
+
+  // No version selected yet - let app proceed normally
+  if (!selectedMinor) {
+    return children;
+  }
+
+  // Check if selected version is supported
+  const isSupported = SUPPORTED_MINORS.includes(selectedMinor);
+
+  if (!isSupported) {
+    // Newest supported version, from the shared policy (does not mutate SUPPORTED_MINORS).
+    const newestSupported = getNewestSupportedMinor();
+
+    // Unsupported version - show recovery UI, do NOT mount AppShell
+    return (
+      <div className="app-loading" role="alert">
+        <div style={{ maxWidth: '600px', textAlign: 'left' }}>
+          <h2>Unsupported OpenShift Version</h2>
+          <p>
+            The selected OpenShift version <strong>{selectedMinor}</strong> is not supported by this version of OpenShift Airgap Architect.
+          </p>
+          <p>
+            <strong>Supported versions:</strong> {SUPPORTED_MINORS.join(', ')}
+          </p>
+          <p>
+            This may occur if you:
+          </p>
+          <ul>
+            <li>Imported state from a newer version of this tool</li>
+            <li>Manually selected an unsupported release</li>
+            <li>Upgraded OpenShift but not this tool</li>
+          </ul>
+          <p>
+            <strong>Recovery options:</strong>
+          </p>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            <button
+              type="button"
+              className="primary"
+              onClick={startOver}
+            >
+              Start Over
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                // DOC-102 Slice 5F.13: Clean canonical v3 state - remove all legacy version fields
+                // After recovery, no canonical, derived, or legacy field may retain unsupported version
+                updateState({
+                  version: {
+                    _schemaVersion: 3,
+                    selectedMinor: newestSupported,
+                    selectedPatch: null,
+                    selectedChannel: `stable-${newestSupported}`,
+                    locked: false,
+                    lockTimestamp: null,
+                    selectionTimestamp: Date.now(),
+                    // Explicitly neutralize legacy fields - do NOT spread old version
+                    selectedVersion: null,
+                    versionConfirmed: false,
+                    confirmedByUser: false
+                  },
+                  release: {
+                    channel: newestSupported,
+                    patchVersion: null,
+                    confirmed: false,
+                    // Explicitly clear legacy release fields
+                    followLatestMinor: false,
+                    selectedVersion: null
+                  }
+                });
+              }}
+            >
+              Switch to {newestSupported}
+            </button>
+            {onOpenMirroring ? (
+              // Mirroring does not depend on the Install release, so an
+              // unsupported Install state must not lock the user out of it.
+              <button type="button" className="ghost" onClick={onOpenMirroring}>
+                Open Mirroring
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Supported version, but its catalog data is not resident yet. Blocking here keeps
+  // every downstream consumer synchronous: no step component had to learn about
+  // loading states, which is what kept the FQ-10 change small.
+  if (dataError) {
+    return (
+      <div className="app-loading" role="alert">
+        <div style={{ maxWidth: '600px', textAlign: 'left' }}>
+          <h2>Could not load OpenShift {selectedMinor} data</h2>
+          <p>{dataError.message}</p>
+          <button type="button" className="primary" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (dataMinor !== selectedMinor) {
+    return (
+      <div className="app-loading" role="status" aria-live="polite">
+        Loading OpenShift {selectedMinor} configuration data…
+      </div>
+    );
+  }
+
+  // Supported version with its data resident - proceed normally
+  return children;
+};
+
+/**
+ * Wizard view state that has to outlive a VersionSupportGate data reload.
+ *
+ * The gate renders a loading placeholder INSTEAD of its children whenever the
+ * selected minor's catalogs are not resident yet (see `dataMinor !==
+ * selectedMinor` above). That is correct for data safety — nothing
+ * catalog-dependent may mount early — but it unmounts AppShell, and an
+ * unmounted component loses every `useState`. Changing the OpenShift minor
+ * therefore reset `showLanding` to its `true` initial value and dumped the user
+ * back on the landing page mid-wizard; importing a saved run whose minor was
+ * not yet resident did the same, discarding the `setShowLanding(false)` that
+ * `handleImport` had just performed. Patch changes never did this, because they
+ * do not change `selectedMinor` and so never make the gate block.
+ *
+ * Holding these two values above the gate makes the reload invisible: the
+ * provider never unmounts, so the user stays exactly where they were. Only the
+ * navigation state lives here — transient modal/toast state is deliberately
+ * left in AppShell, where resetting it across a version switch is harmless.
+ */
+const ShellViewContext = createContext(null);
+
+/** Which top-level workflow is open; survives a reload within the tab. */
+const WORKFLOW_SESSION_KEY = "oaa-active-workflow";
+
+export const ShellViewProvider = ({ children }) => {
+  const [showLanding, setShowLanding] = useState(true);
+  // "install" (landing page and the Install wizard) or "mirroring" (v2.2.0).
+  const [workflow, setWorkflowState] = useState(() => {
+    try {
+      return sessionStorage.getItem(WORKFLOW_SESSION_KEY) === "mirroring" ? "mirroring" : "install";
+    } catch {
+      return "install";
+    }
+  });
+  const setWorkflow = useCallback((next) => {
+    setWorkflowState(next);
+    try {
+      if (next === "mirroring") sessionStorage.setItem(WORKFLOW_SESSION_KEY, "mirroring");
+      else sessionStorage.removeItem(WORKFLOW_SESSION_KEY);
+    } catch {
+      /* storage unavailable: the choice simply does not survive a reload */
+    }
+  }, []);
   const [active, setActive] = useState(0);
+  // The YAML drawer is here for the same reason: it is something the user
+  // explicitly opened, and a version-data reload used to slam it shut.
+  const [yamlDrawerOpen, setYamlDrawerOpen] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  /**
+   * Where the wizard's scroll container was, and which step that was for.
+   *
+   * A ref, not state: it must not re-render anything, and it must survive the
+   * gate unmounting AppShell to load a newly selected minor's catalogs. That
+   * unmount destroys the `<main>` element itself, so the remounted one starts
+   * at scrollTop 0 — which is why changing the OpenShift minor snapped the page
+   * to the top even after the landing-page reset was fixed. Patch changes never
+   * did it, because they do not make the gate block.
+   */
+  const scrollMemoryRef = useRef({ top: 0, forActive: 0 });
+  /**
+   * The Install step the user was on when they chose Home (v2.2.0 M3). Home is
+   * navigation, not Start Over: choosing Install again resumes this exact step
+   * instead of recomputing "first incomplete". Session memory only.
+   */
+  const installReturnStepRef = useRef(null);
+  const value = useMemo(
+    () => ({
+      showLanding, setShowLanding,
+      workflow, setWorkflow,
+      active, setActive,
+      yamlDrawerOpen, setYamlDrawerOpen,
+      showPreview, setShowPreview,
+      scrollMemoryRef,
+      installReturnStepRef,
+    }),
+    [showLanding, workflow, setWorkflow, active, yamlDrawerOpen, showPreview]
+  );
+  return <ShellViewContext.Provider value={value}>{children}</ShellViewContext.Provider>;
+};
+
+const useShellView = () => {
+  const ctx = useContext(ShellViewContext);
+  if (!ctx) throw new Error("useShellView must be used inside ShellViewProvider");
+  return ctx;
+};
+
+const AppShell = () => {
+  const { state, loading, schemaError, startOver, updateState, setState, flushPendingSave } = useApp();
+  // `active` and `showLanding` come from ShellViewProvider, which sits ABOVE
+  // VersionSupportGate so they survive the gate's per-minor data reload.
+  const {
+    active, setActive,
+    showLanding, setShowLanding,
+    setWorkflow,
+    installReturnStepRef,
+    yamlDrawerOpen, setYamlDrawerOpen,
+    showPreview, setShowPreview,
+    scrollMemoryRef,
+  } = useShellView();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showReleaseWarning, setShowReleaseWarning] = useState(false);
-  const [showBlueprintWarning, setShowBlueprintWarning] = useState(false);
   const [showCoreLockWarning, setShowCoreLockWarning] = useState(false);
   const [lockAndProceedLoading, setLockAndProceedLoading] = useState(false);
+  const [lockError, setLockError] = useState("");
   const [showStartOverConfirm, setShowStartOverConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [showChangeReleaseWarning, setShowChangeReleaseWarning] = useState(false);
+  const [changeReleaseError, setChangeReleaseError] = useState("");
   const [showSwitchFlowConfirm, setShowSwitchFlowConfirm] = useState(false);
   const [pendingSwitchFlow, setPendingSwitchFlow] = useState(null);
   const [validationModal, setValidationModal] = useState(null);
   const [highlightErrors, setHighlightErrors] = useState(false);
   const [pendingNavIndex, setPendingNavIndex] = useState(null);
-  const [theme, setTheme] = useState(() => localStorage.getItem("airgap-theme") || "light");
-  const [showPreview, setShowPreview] = useState(false);
+  const [theme, setTheme] = useThemePreference();
   const [previewFiles, setPreviewFiles] = useState({});
   const [previewError, setPreviewError] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
+  /* True when the rendered documents are the last generation that SUCCEEDED
+     and the current state does not generate. The documents are kept so the
+     drawer stays a YAML preview rather than turning into an error panel, but
+     they must be labelled as superseded and must not be downloadable. */
+  const [previewStale, setPreviewStale] = useState(false);
+  /* DOC-227: per-artifact generation errors, keyed by output filename. A
+     failure in one generated document is that document's problem only — it
+     must not stale-label or block the others. `previewError`/`previewStale`
+     above remain the GLOBAL signal, used only when nothing generated at all
+     (transport failure, schema migration, unsupported target version). */
+  const [previewFileErrors, setPreviewFileErrors] = useState({});
+  /* Last content that generated successfully, per filename. A document whose
+     own generation just failed keeps showing this, clearly labelled, per the
+     Tranche 7C.4 contract. */
+  const lastGoodPreviewFilesRef = useRef({});
   const previewRequestIdRef = useRef(0);
   const prevMethodologyRef = useRef(state?.methodology?.method);
   const importingRef = useRef(false);  // Track when import is in progress
-  const [confirmingRelease, setConfirmingRelease] = useState(false);
-  const [showLanding, setShowLanding] = useState(true);
   const [showStartOverModal, setShowStartOverModal] = useState(false);
   const [startOverRunningJobs, setStartOverRunningJobs] = useState([]);
   const [startOverCheckingJobs, setStartOverCheckingJobs] = useState(false);
   const [startOverCheckError, setStartOverCheckError] = useState("");
   const [stepMap, setStepMap] = useState(null);
   const [blockedMessage, setBlockedMessage] = useState("");
+  // PHX-033/035: dismissal of the post-import follow-up notice. Session-only by
+  // design; every new import shows it again.
+  const [importNoticeDismissed, setImportNoticeDismissed] = useState(false);
   const [runActionsOpen, setRunActionsOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [jobsCount, setJobsCount] = useState(0);
   const [isToolsOpen, setIsToolsOpen] = useState(false);
-  const [yamlDrawerOpen, setYamlDrawerOpen] = useState(false);
   const [lockToast, setLockToast] = useState("");
   const [updateInfo, setUpdateInfo] = useState(null);
   const [buildInfo, setBuildInfo] = useState(null);
@@ -227,10 +550,38 @@ const AppShell = () => {
   const prefsRef = useRef(null);
   const mainContentRef = useRef(null);
 
-  useEffect(() => {
+  /**
+   * Scroll to the top when the user CHANGES STEP, and restore the previous
+   * offset when the same step is merely re-mounted.
+   *
+   * The re-mount case is the version gate swapping AppShell out while it loads
+   * a newly selected minor's catalogs. Before this, every supported-minor
+   * change dumped the user at the top of the Blueprint page and they had to
+   * scroll back down to the release controls to change it again.
+   *
+   * useLayoutEffect, so the restore happens before paint rather than as a
+   * visible jump; and keyed on whether `active` actually changed rather than
+   * on a timer, so there is nothing to race.
+   */
+  useLayoutEffect(() => {
     const el = mainContentRef.current;
-    if (el && typeof el.scrollTop === "number") el.scrollTop = 0;
-  }, [active]);
+    if (!el || typeof el.scrollTop !== "number") return;
+    const memory = scrollMemoryRef.current;
+    if (memory.forActive === active && memory.top > 0) {
+      el.scrollTop = memory.top;
+    } else {
+      el.scrollTop = 0;
+      scrollMemoryRef.current = { top: 0, forActive: active };
+    }
+  }, [active, scrollMemoryRef]);
+
+  /** Remember where the user is, so a re-mount can put them back. */
+  const rememberScroll = () => {
+    const el = mainContentRef.current;
+    if (el && typeof el.scrollTop === "number") {
+      scrollMemoryRef.current = { top: el.scrollTop, forActive: active };
+    }
+  };
 
   useEffect(() => {
     apiFetch("/api/schema/stepMap")
@@ -254,7 +605,7 @@ const AppShell = () => {
     console.log("%c🚀 OpenShift Airgap Architect", styles.title);
     console.log("%cDeveloped by Bill Strauss", styles.subtitle);
     console.log("%cWith AI assistance from Claude (Anthropic) and Cursor AI", styles.info);
-    console.log("%cMIT License • https://github.com/billstrauss/openshift-airgap-architect", styles.link);
+    console.log("%cMIT License • https://github.com/bstrauss84/openshift-airgap-architect", styles.link);
   }, []);
 
   useEffect(() => {
@@ -277,10 +628,16 @@ const AppShell = () => {
     }
   }, [loading, state?.ui?.showLanding]);
 
+  // Fetched on every mount, not only on the landing page. VersionSupportGate
+  // unmounts and remounts AppShell while the selected minor's catalogs load, and
+  // a reload can resume straight into the wizard; gating this on `showLanding`
+  // left Tools → About with no update status at all in both cases. The backend
+  // caches the result, so a remount costs no extra GitHub request.
   useEffect(() => {
-    if (!showLanding) return;
-    apiFetch("/api/update-info").then(setUpdateInfo).catch(() => setUpdateInfo({ enabled: false, error: "Unavailable" }));
-  }, [showLanding]);
+    // A failed request is "unavailable", not "disabled": the operator did not
+    // turn checks off, and nothing is known either way.
+    apiFetch("/api/update-info").then(setUpdateInfo).catch(() => setUpdateInfo({ enabled: true, error: "Unavailable", updateStatus: UPDATE_STATUS.OFFLINE }));
+  }, []);
 
   // Operations (N) badge: poll job count when in wizard so header and sidebar can show count (§9.3 placement)
   useEffect(() => {
@@ -305,7 +662,7 @@ const AppShell = () => {
   }, [state, stepMap]);
 
   const foundationalLocked = Boolean(
-    state?.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed)
+    state?.blueprint?.confirmed && getVersionLocked(state)
   );
 
   const sidebarSteps = useMemo(
@@ -333,13 +690,15 @@ const AppShell = () => {
       .map((step) => step.label);
   }, [state, visibleSteps]);
 
-  const versionConfirmed = state?.version?.versionConfirmed ?? state?.release?.confirmed;
+  const versionConfirmed = getVersionLocked(state);
   const versionDependentSteps = useMemo(
     () => getVersionDependentStepIdSet(segmentedFlowV1, visibleSteps),
     [segmentedFlowV1, visibleSteps]
   );
   const blueprintReady = Boolean(state?.blueprint?.arch && state?.blueprint?.platform);
-  const releaseReady = Boolean(getOpenShiftMinorFromState(state) && state?.release?.patchVersion);
+  // The server locks only a complete selection (channel AND patch, F19), so the
+  // client offers the lock under the same rule.
+  const releaseReady = Boolean(getOpenShiftMinorFromState(state) && state?.release?.channel && state?.release?.patchVersion);
 
   const errorFlags = useMemo(() => {
     if (!state) return {};
@@ -369,7 +728,7 @@ const AppShell = () => {
       const explicitlyCompleted = Boolean(state.ui?.completedSteps?.[step.id]);
       const completed =
         step.id === "blueprint"
-          ? Boolean(state.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed))
+          ? Boolean(state.blueprint?.confirmed && getVersionLocked(state))
           : valid && explicitlyCompleted && !needsReview && versionOk;
       flags[step.id] = completed;
     });
@@ -389,12 +748,12 @@ const AppShell = () => {
   const firstIncompleteStepIndex = useMemo(() => {
     const idx = visibleSteps.findIndex((step) => {
       if (step.id === "blueprint") {
-        return !(state?.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed));
+        return !(state?.blueprint?.confirmed && getVersionLocked(state));
       }
       return !state?.ui?.completedSteps?.[step.id];
     });
     return idx >= 0 ? idx : Math.max(0, visibleSteps.length - 1);
-  }, [visibleSteps, state?.ui?.completedSteps, state?.blueprint?.confirmed, state?.version?.versionConfirmed, state?.release?.confirmed]);
+  }, [visibleSteps, state?.ui?.completedSteps, state?.blueprint?.confirmed, state]);
 
   const previewStepId = visibleSteps[active]?.id;
   const hasRunningOcMirrorJobs = startOverRunningJobs.length > 0;
@@ -429,12 +788,11 @@ const AppShell = () => {
   const previewEnabled = useMemo(() => {
     // Enable preview on all steps after Blueprint lock-in, except landing/blueprint/review/operations
     const locked = Boolean(
-      state?.blueprint?.confirmed &&
-      (state?.version?.versionConfirmed ?? state?.release?.confirmed)
+      state?.blueprint?.confirmed && getVersionLocked(state)
     );
     const excludedSteps = ["landing", "blueprint", "review", "operations"];
     return locked && !excludedSteps.includes(previewStepId);
-  }, [previewStepId, state?.blueprint?.confirmed, state?.version?.versionConfirmed, state?.release?.confirmed]);
+  }, [previewStepId, state?.blueprint?.confirmed, state]);
   const yamlDrawerScenario = useMemo(() => ({
     isAgentBased: state?.methodology?.method === "Agent-Based Installer" &&
                   (state?.blueprint?.platform === "Bare Metal" ||
@@ -486,14 +844,12 @@ const AppShell = () => {
     }
   }, [showLanding, state, foundationalLocked, active, visibleSteps, updateState]);
 
-  // Required-field highlighting (Workstream D): when landing on a step with errors, show highlights; clear when step has no errors.
+  // Clear step-wide highlight when navigating to a different step.
+  // highlightErrors is set ONLY by explicit Next/Proceed attempts (attemptNavigate).
+  // Auto-clear when all errors are resolved so the red state doesn't persist after correction.
   useEffect(() => {
-    const stepId = visibleSteps[active]?.id;
-    if (!stepId || !state) return;
-    const result = validateStep(state, stepId);
-    const hasErrors = (result.errors || []).length > 0;
-    setHighlightErrors(hasErrors);
-  }, [active, visibleSteps, state]);
+    setHighlightErrors(false);
+  }, [active]);
 
   // Sync active step index from persisted activeStepId. Fires on every change so programmatic
   // navigation (e.g. "View full logs in Operations") actually moves the user to the target step.
@@ -543,11 +899,6 @@ const AppShell = () => {
   }, [active, visibleSteps, state?.ui, showLanding, updateState]);
 
   useEffect(() => {
-    document.body.dataset.theme = theme;
-    localStorage.setItem("airgap-theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
     const close = (e) => {
       if (runActionsRef.current && !runActionsRef.current.contains(e.target)) setRunActionsOpen(false);
       if (prefsRef.current && !prefsRef.current.contains(e.target)) setPrefsOpen(false);
@@ -563,11 +914,12 @@ const AppShell = () => {
     // Fix: Always generate YAML when state changes; YamlDrawer controls display via isOpen
     // This fixes: import showing wrong YAML, methodology switch showing empty agent-config
 
-    const confirmed = state?.version?.versionConfirmed ?? state?.release?.confirmed;
+    const confirmed = getVersionLocked(state);
 
     if (!confirmed) {
       // Show skeleton YAML before version confirmation
       setPreviewError("");
+      setPreviewFileErrors({});
       setPreviewFiles({
         "install-config.yaml": `apiVersion: v1
 baseDomain: example.com
@@ -584,19 +936,12 @@ metadata:
       return;
     }
 
-    // NO DEBOUNCE for regular field changes: text inputs now update on blur (infrequent)
-    // Toggles/selects are single-click operations (also infrequent)
-    // EXCEPTION: Small delay for large state changes (methodology switch, imports)
     const currentMethod = state?.methodology?.method;
     const methodologyChanged = currentMethod !== prevMethodologyRef.current;
     prevMethodologyRef.current = currentMethod;
 
     const isImporting = importingRef.current;
 
-    // 150ms delay for large state changes (lets React finish batching state updates)
-    // - Methodology changes: switching between IPI/UPI/Agent-based
-    // - Imports: loading run file with full state
-    // 0ms delay for regular field edits (immediate feedback)
     const delay = (methodologyChanged || isImporting) ? 150 : 0;
 
     const controller = new AbortController();
@@ -614,9 +959,17 @@ metadata:
       // - GET /api/generate: reads from backend state (600ms behind due to debounce)
       // - POST /api/generate: accepts state in request body (immediate, current)
 
+      /* DOC-227: `isolateArtifacts` asks the backend to build each previewed
+         document inside its own boundary and report per-file errors, instead
+         of failing the whole response at the first generator that throws. The
+         preview drawer is the only consumer that wants this: an NMState error
+         belongs to agent-config.yaml, and must not stop imageset-config.yaml —
+         which reads no host networking at all — from being regenerated when
+         operators or Quick Picks change. Review/export deliberately do NOT
+         send it and stay all-or-nothing fail-closed. */
       const fetchPromise = apiFetch("/api/generate", {
         method: "POST",
-        body: JSON.stringify({ state }),
+        body: JSON.stringify({ state, isolateArtifacts: true }),
         signal: controller.signal
       });
 
@@ -627,7 +980,36 @@ metadata:
             // Only apply result if this is still the latest request
             if (currentRequestId === previewRequestIdRef.current) {
               logAction("generate_preview", { stepId: previewStepId });
-              setPreviewFiles(data.files || {});
+
+              /* DOC-227. The response is now per-artifact: `files` carries
+                 everything that generated, `fileErrors` names the documents
+                 that did not. Artifacts that succeeded are current; artifacts
+                 that failed keep their own last successful content so the
+                 drawer can label that one pane superseded (Tranche 7C.4)
+                 without touching the panes that are fine. */
+              const files = data.files || {};
+              const rawFileErrors = data.fileErrors || {};
+              const fileErrors = {};
+              for (const name of Object.keys(rawFileErrors)) {
+                const entry = rawFileErrors[name];
+                fileErrors[name] = typeof entry === "string" ? entry : String(entry?.message || entry);
+              }
+
+              const lastGood = { ...lastGoodPreviewFilesRef.current };
+              for (const [name, content] of Object.entries(files)) {
+                if (content && !fileErrors[name]) lastGood[name] = content;
+              }
+              lastGoodPreviewFilesRef.current = lastGood;
+
+              const merged = { ...files };
+              for (const name of Object.keys(fileErrors)) {
+                if (!merged[name] && lastGood[name]) merged[name] = lastGood[name];
+              }
+
+              setPreviewFiles(merged);
+              setPreviewFileErrors(fileErrors);
+              setPreviewError("");
+              setPreviewStale(false);
               setPreviewLoading(false);
             }
           })
@@ -636,6 +1018,28 @@ metadata:
             if (error.name === 'AbortError') return;
             // Only show error if this is still the latest request
             if (currentRequestId === previewRequestIdRef.current) {
+              /* DOC-160 refined (Tranche 7C.4). The hazard DOC-160 guarded
+                 against is a stale document PASSING AS CURRENT — on screen and,
+                 worse, through Download. Blanking the files closed that hole
+                 but turned the YAML preview into an error panel: a single
+                 validation sentence replaced the whole document, which is not
+                 what a preview drawer is for.
+
+                 Both hazards are still closed, without discarding the document:
+                 `previewStale` makes the drawer label it explicitly as the last
+                 generation that succeeded, and Download stays disabled while
+                 `error` is set, so stale YAML can still never leave as current
+                 output. Only generated output is affected; `state` (everything
+                 the user typed) is untouched, and the next success repopulates
+                 normally. Guarded by the request-id check above, so a late
+                 failure cannot mark a newer success stale. */
+              /* DOC-227: reaching here means NOTHING generated — transport
+                 failure, schema migration, or the unsupported-target-version
+                 boundary, which must fail closed for every artifact. That is
+                 the global signal, so any per-artifact errors from the
+                 previous response are cleared rather than compounded. */
+              setPreviewStale(true);
+              setPreviewFileErrors({});
               setPreviewError(String(error?.message || error));
               setPreviewLoading(false);
             }
@@ -667,7 +1071,9 @@ metadata:
     state?.blueprint,           // Catches ALL blueprint changes
     state?.methodology,         // Catches methodology changes
     state?.release,             // Catches release changes
-    state?.version              // Catches version changes
+    state?.version,             // Catches version changes
+    state?.imagesetConfig,      // Catches imagesetConfig changes (kubeVirt, graph, additionalImages, archiveSize)
+    state?.exportOptions        // Catches export option changes (includeCredentials for preview)
     // NOTE: We depend on top-level objects, NOT the entire 'state', to avoid
     // triggering on UI-only changes (activeStepId, visitedSteps, completedSteps, etc.)
   ]);
@@ -684,16 +1090,20 @@ metadata:
       completedSteps[prevStepId] = true;
     }
 
-    const nextReviewFlags = { ...(state.reviewFlags || {}) };
+    // Only the flag for the step being LEFT changes here. Everything else must
+    // be merged from the latest state inside the updater — a caller that set a
+    // review flag immediately before navigating (e.g. locking a new minor flags
+    // Operators) would otherwise have it clobbered by this stale closure.
+    const reviewFlagDelta = {};
     if (prevStepId && prevStepId !== nextStepId) {
       if (options.skipReviewForStep && prevStepId === options.skipReviewForStep) {
-        nextReviewFlags[prevStepId] = false;
+        reviewFlagDelta[prevStepId] = false;
       } else {
         const validation = validateStep(state, prevStepId);
         if (validation.errors?.length) {
-          nextReviewFlags[prevStepId] = true;
+          reviewFlagDelta[prevStepId] = true;
         } else {
-          if (nextReviewFlags[prevStepId]) nextReviewFlags[prevStepId] = false;
+          reviewFlagDelta[prevStepId] = false;
           const autoCompleteOnValidLeave = new Set(["hosts-inventory", "inventory-v2", "inventory"]);
           if (autoCompleteOnValidLeave.has(prevStepId)) {
             completedSteps[prevStepId] = true;
@@ -709,21 +1119,22 @@ metadata:
     if (prevStepId !== nextStepId) {
       logAction("step_change", { fromStepId: prevStepId, toStepId: nextStepId });
     }
-    if (nextStepId && state.ui?.activeStepId !== nextStepId) {
-      updateState({
+
+    const stepIdChanged = Boolean(nextStepId) && state.ui?.activeStepId !== nextStepId;
+    const reviewFlagsChanged = Object.entries(reviewFlagDelta).some(
+      ([stepId, value]) => Boolean(state.reviewFlags?.[stepId]) !== Boolean(value)
+    );
+    if (stepIdChanged || reviewFlagsChanged) {
+      setState((prev) => ({
+        ...prev,
+        reviewFlags: { ...(prev.reviewFlags || {}), ...reviewFlagDelta },
         ui: {
-          ...state.ui,
-          activeStepId: nextStepId,
-          visitedSteps,
-          completedSteps
-        },
-        reviewFlags: nextReviewFlags
-      });
-    } else if (JSON.stringify(nextReviewFlags) !== JSON.stringify(state.reviewFlags || {})) {
-      updateState({
-        reviewFlags: nextReviewFlags,
-        ui: { ...state.ui, visitedSteps, completedSteps }
-      });
+          ...prev.ui,
+          ...(stepIdChanged ? { activeStepId: nextStepId } : {}),
+          visitedSteps: { ...(prev.ui?.visitedSteps || {}), ...visitedSteps },
+          completedSteps: { ...(prev.ui?.completedSteps || {}), ...completedSteps }
+        }
+      }));
     }
   };
 
@@ -767,42 +1178,6 @@ metadata:
       setActiveStep(active - 1);
     }
   };
-  const confirmBlueprintAndProceed = () => {
-    if (!blueprintReady) return;
-    setShowBlueprintWarning(false);
-    setHighlightErrors(false);
-    updateState({
-      blueprint: {
-        ...state.blueprint,
-        confirmed: true,
-        confirmationTimestamp: Date.now()
-      },
-      reviewFlags: { ...(state.reviewFlags || {}), blueprint: false }
-    });
-    const target = pendingNavIndex ?? active;
-    setPendingNavIndex(null);
-    setActiveStep(target, { skipReviewForStep: "blueprint" });
-  };
-
-  const confirmReleaseAndProceed = async () => {
-    if (!releaseReady || confirmingRelease) return;
-    setConfirmingRelease(true);
-    try {
-      const data = await apiFetch("/api/operators/confirm", { method: "POST" });
-      setHighlightErrors(false);
-      updateState({
-        release: { ...state.release, confirmed: true },
-        version: data.version,
-        reviewFlags: { ...(state.reviewFlags || {}), release: false }
-      });
-      setShowReleaseWarning(false);
-      const target = pendingNavIndex ?? active + 1;
-      setPendingNavIndex(null);
-      setActiveStep(target, { skipReviewForStep: "blueprint", markComplete: "blueprint" });
-    } finally {
-      setConfirmingRelease(false);
-    }
-  };
   const handleInstallClick = async () => {
     // If no progress (fresh start), clear state like Start Over does
     if (!hasProgress) {
@@ -810,7 +1185,13 @@ metadata:
       if (nextState) setState(nextState);
     }
     setShowLanding(false);
-    const nextIndex = hasProgress ? firstIncompleteStepIndex : 0;
+    // Returning from Home resumes the exact step; otherwise the existing
+    // "continue at the first incomplete step" behaviour applies.
+    const returnStep = installReturnStepRef.current;
+    installReturnStepRef.current = null;
+    const nextIndex = hasProgress && returnStep != null && returnStep < visibleSteps.length
+      ? returnStep
+      : hasProgress ? firstIncompleteStepIndex : 0;
     setActive(nextIndex);
     const stepId = visibleSteps[nextIndex]?.id;
     if (stepId && state?.ui) {
@@ -846,8 +1227,32 @@ metadata:
     const ephemeralSecret = (state.blueprint?.blueprintPullSecretEphemeral || "").trim();
     const secretValid = ephemeralSecret && validateBlueprintPullSecretOptional(ephemeralSecret).valid;
     setLockAndProceedLoading(true);
+    setLockError("");
     try {
-      const data = await apiFetch("/api/operators/confirm", { method: "POST" });
+      // F19: the lock confirms the release the SERVER holds, and selections reach
+      // the server through a 600 ms debounce. Locking inside that window confirmed
+      // an older (possibly empty) release and then adopted it below, replacing the
+      // selection on screen. Save first; never lock a selection the server lacks.
+      const flush = await flushPendingSave();
+      if (!flush.ok) {
+        setLockError(`Your release selection could not be saved to the server (${flush.error}), so nothing was locked. Check that the backend is reachable, then try again.`);
+        return;
+      }
+      let data;
+      try {
+        data = await apiFetch("/api/operators/confirm", { method: "POST" });
+      } catch (err) {
+        setLockError(`${err?.message || "The release could not be locked."} Nothing was locked.`);
+        return;
+      }
+      // This is the live re-lock path after "Change OpenShift release". If the
+      // newly locked minor differs from the one the stored operator metadata was
+      // resolved against, that metadata and the active selection it drives are
+      // no longer current: invalidate them and flag Operators for review.
+      const lockedMinor = data.version?.selectedMinor
+        ?? data.release?.channel
+        ?? getOpenShiftMinorFromState(state);
+      const invalidated = computeOperatorMinorInvalidation(state.operators, lockedMinor);
       updateState({
         blueprint: {
           ...state.blueprint,
@@ -857,7 +1262,13 @@ metadata:
         },
         release: data.release ?? { ...state.release, confirmed: true },
         version: data.version ?? state.version,
-        reviewFlags: { ...(state.reviewFlags || {}), blueprint: false, release: false },
+        reviewFlags: {
+          ...(state.reviewFlags || {}),
+          blueprint: false,
+          release: false,
+          ...(invalidated ? { operators: true } : {})
+        },
+        ...(invalidated ? { operators: invalidated } : {}),
         ...(state.blueprint?.blueprintRetainPullSecret && secretValid
           ? { credentials: { ...state.credentials, pullSecretPlaceholder: ephemeralSecret } }
           : {})
@@ -880,7 +1291,10 @@ metadata:
           if (Object.keys(scanJobs).length) {
             updateState({
               operators: {
-                ...state.operators,
+                // Base on the invalidated operators, never the pre-lock closure —
+                // otherwise this would resurrect the old minor's catalogs and
+                // active selection after they were deliberately cleared above.
+                ...(invalidated ?? state.operators),
                 scanJobs
               }
             });
@@ -895,6 +1309,23 @@ metadata:
     } finally {
       setLockAndProceedLoading(false);
     }
+  };
+
+  const confirmChangeRelease = () => {
+    const currentMinor = getOpenShiftMinorFromState(state);
+    const currentPatch = state?.version?.selectedPatch || state?.release?.patchVersion || null;
+    const timestamp = Date.now();
+    const result = computeReleaseTransition(state, currentMinor, {
+      timestamp,
+      ...(currentPatch ? { patch: currentPatch } : {}),
+    });
+    if (!result.ok) {
+      setChangeReleaseError(result.error);
+      return;
+    }
+    updateState(result.patch);
+    setShowChangeReleaseWarning(false);
+    setChangeReleaseError("");
   };
 
   const confirmStartOver = async () => {
@@ -913,7 +1344,29 @@ metadata:
   const exportRun = async () => {
     const filename = getExportRunFilename(state);
     logAction("export_run", { filename });
-    const data = await apiFetch("/api/run/export");
+
+    // GET /api/run/export serialises the SERVER's copy of the run, but edits reach
+    // the server through a 600 ms debounce. Exporting without flushing first hands
+    // the user a backup that silently predates their last edit, which is exactly
+    // the file they would restore from after an update. Refuse rather than export
+    // a stale snapshot the user would reasonably trust.
+    const flush = await flushPendingSave();
+    if (!flush.ok) {
+      setBlockedMessage(
+        `Export cancelled: your most recent changes could not be saved to the server (${flush.error}), ` +
+        `so the exported file would not match what you see here. Check that the backend is reachable, then try again.`
+      );
+      return;
+    }
+
+    let data;
+    try {
+      data = await apiFetch("/api/run/export");
+    } catch (err) {
+      setBlockedMessage(`Export failed: ${err?.message || String(err)}. Nothing was downloaded.`);
+      return;
+    }
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -926,19 +1379,38 @@ metadata:
   const importRun = async (file) => {
     if (!file) return;
     logAction("import_run");
-    const text = await file.text();
-    const payload = JSON.parse(text);
-
-    const data = await apiFetch("/api/run/import", { method: "POST", body: JSON.stringify(payload) });
+    let data;
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      data = await apiFetch("/api/run/import", { method: "POST", body: JSON.stringify(payload) });
+    } catch (err) {
+      const errPayload = err?.payload || {};
+      if (errPayload.code === "UNSUPPORTED_VERSION") {
+        const requested = errPayload.requestedVersion || "unknown";
+        const supported = (errPayload.supportedVersions || SUPPORTED_MINORS).join(", ");
+        setBlockedMessage(`Cannot import: OpenShift version ${requested} is not supported. Supported versions: ${supported}. Use a run file created with a supported version, or start a new configuration.`);
+      } else {
+        setBlockedMessage(`Import failed: ${err?.message || String(err)}. The file may be malformed or incompatible.`);
+      }
+      return;
+    } finally {
+      if (importRef.current) {
+        importRef.current.value = "";
+      }
+    }
 
     setIsToolsOpen(false);
 
-    // Clear the file input value so re-selecting the same file will trigger onChange
-    if (importRef.current) {
-      importRef.current.value = "";
+    const baseState = data.state || {};
+
+    // Check for unknown/future schema BEFORE applying imported state
+    const unknownSchema = detectUnknownSchema(baseState);
+    if (unknownSchema) {
+      alert(`Cannot import: ${unknownSchema.message}\n\nSchema version found: ${unknownSchema.schemaVersion}\nSupported versions: v1, v2, v3`);
+      return;
     }
 
-    const baseState = data.state || {};
     const ui = baseState.ui || {};
     const rowState =
       ui.segmentedFlowV1 == null
@@ -951,8 +1423,7 @@ metadata:
 
     const importedUi = merged.ui || {};
     const importedLocked = Boolean(
-      merged.blueprint?.confirmed &&
-      (merged.version?.versionConfirmed ?? merged.release?.confirmed)
+      merged.blueprint?.confirmed && getVersionLocked(merged)
     );
 
     if (importedUi.showLanding === true) {
@@ -997,6 +1468,7 @@ metadata:
 
     setState({ ...merged, ui: nextUi });
     setActive(targetIdx);
+    setImportNoticeDismissed(false);
 
     // Clear import flag after state settles (200ms is longer than 150ms delay)
     setTimeout(() => {
@@ -1028,17 +1500,43 @@ metadata:
           </div>
         </header>
         {shouldShowUpdateBanner(updateInfo) ? (
-          <div className="update-available-banner" role="status">
-            <strong>Update available</strong>
+          <div className="update-available-banner" role="alert">
+            <strong>Update available — update recommended as soon as practical.</strong>
             {" "}
-            (current: {(updateInfo.currentSha || "").slice(0, 7)}, latest: {(updateInfo.latestSha || "").slice(0, 7)} on {updateInfo.branch || "main"}).
+            {(() => {
+              const latest = verifiedLatestRelease(updateInfo.releaseIdentity);
+              return latest ? (
+                <>
+                  Version <strong>{latest.version}</strong> has been published
+                  {updateInfo.installedVersion ? <> (installed: {updateInfo.installedVersion})</> : null}
+                  {typeof latest.url === "string" && latest.url.startsWith("https://github.com/") ? (
+                    <>
+                      {" — "}
+                      <a href={latest.url} target="_blank" rel="noopener noreferrer">release notes</a>
+                    </>
+                  ) : null}
+                  .{" "}
+                </>
+              ) : null;
+            })()}
+            Before updating, open <strong>Tools → Export Run</strong> and save a copy of your
+            current configuration. After updating, use <strong>Tools → Import Run</strong> to
+            restore a compatible saved configuration. Saved runs exclude credentials, so
+            re-enter any secrets afterwards. This run JSON is not the generated bundle ZIP,
+            and it does not back up job history, downloaded binaries or server data volumes.
             {" "}
-            See Tools → About for update steps.
+            <a
+              href={`https://github.com/${updateInfo.repo || "bstrauss84/openshift-airgap-architect"}/blob/main/docs/UPDATING.md`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Read the update guide
+            </a>
           </div>
         ) : null}
         <div className="app landing-view">
           <div className="content landing-content">
-            <LandingPage hasProgress={hasProgress} onStartInstall={handleInstallClick} />
+            <LandingPage hasProgress={hasProgress} onStartInstall={handleInstallClick} onStartMirroring={() => setWorkflow("mirroring")} />
           </div>
         </div>
         <Modal
@@ -1082,6 +1580,38 @@ metadata:
             </button>
             <button type="button" className="primary" onClick={confirmStartOver} disabled={startOverCheckingJobs}>
               {hasRunningOcMirrorJobs ? "Yes, cancel run and start over" : "Yes, start over"}
+            </button>
+          </div>
+        </Modal>
+      </div>
+    );
+  }
+
+  // Unknown/future schema error - show blocking modal
+  if (schemaError) {
+    return (
+      <div className="app-shell">
+        <Modal title="Unsupported State Schema" open={true} onClose={() => {}}>
+          <p>{schemaError.message}</p>
+          <p>
+            <strong>Schema version found:</strong> {schemaError.schemaVersion}
+          </p>
+          <p>
+            <strong>Supported versions:</strong> v1, v2, v3
+          </p>
+          <p>
+            Please upgrade to the latest version of this tool, or start a new configuration.
+          </p>
+          <div style={{ display: "flex", gap: "1rem", marginTop: "1.5rem" }}>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => {
+                localStorage.removeItem(STORAGE_KEY);
+                window.location.reload();
+              }}
+            >
+              Start New Configuration
             </button>
           </div>
         </Modal>
@@ -1151,7 +1681,7 @@ metadata:
       {showLanding ? (
         <div className="app landing-view">
           <div className="content landing-content">
-            <LandingPage hasProgress={hasProgress} onStartInstall={handleInstallClick} />
+            <LandingPage hasProgress={hasProgress} onStartInstall={handleInstallClick} onStartMirroring={() => setWorkflow("mirroring")} />
           </div>
         </div>
       ) : (
@@ -1181,6 +1711,9 @@ metadata:
               <button type="button" className="ghost" onClick={() => setBlockedMessage("")}>Dismiss</button>
             </div>
           ) : null}
+          {!importNoticeDismissed ? (
+            <ImportFollowUpNotice state={state} onDismiss={() => setImportNoticeDismissed(true)} />
+          ) : null}
           <input
             ref={importRef}
             type="file"
@@ -1194,7 +1727,7 @@ metadata:
             </div>
           ) : null}
           <div className="main-layout" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            <main className="main" id="main-content" aria-label="Wizard step content" ref={mainContentRef} style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
+            <main className="main" id="main-content" aria-label="Wizard step content" ref={mainContentRef} onScroll={rememberScroll} style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
               <ErrorBoundary fallbackMessage="Something went wrong in this step; refresh or go back.">
                 <Current
                     previewControls={{ showPreview, setShowPreview }}
@@ -1203,6 +1736,10 @@ metadata:
                     fieldErrors={fieldErrors}
                     incompleteStepLabels={incompleteStepLabels}
                     onRequestStartOver={handleStartOverClick}
+                    onRequestChangeRelease={() => {
+                      setChangeReleaseError("");
+                      setShowChangeReleaseWarning(true);
+                    }}
                     onNavigateToOperations={(jobId) => {
                       const opsIdx = visibleSteps.findIndex((s) => s.id === "operations");
                       if (opsIdx < 0) return;
@@ -1214,6 +1751,12 @@ metadata:
                   />
               </ErrorBoundary>
             </main>
+            {/* Shell-level overlay layer for step-owned editors (DOC-131 node
+                editor). Sibling of <main>, so a portalled drawer is sized by the
+                application shell row rather than by a step's own scroll box, and
+                sits beside — never over — the YAML drawer. Collapses to nothing
+                when empty. */}
+            <div id="node-editor-portal-root" className="shell-overlay-root" />
             {yamlDrawerOpen && previewEnabled && (
               <YamlDrawer
                 isOpen={yamlDrawerOpen}
@@ -1230,7 +1773,20 @@ metadata:
                 showIncompleteWarning={!!errorFlags[previewStepId]}
                 loading={previewLoading}
                 error={previewError}
+                fileErrors={previewFileErrors}
+                stale={previewStale}
                 resetSizing={false}
+                fetchExportFile={async (filename) => {
+                  // Same inclusion rules as the bundle (exportPolicy), never the
+                  // credential-forced preview bytes.
+                  const data = await apiFetch("/api/generate", {
+                    method: "POST",
+                    body: JSON.stringify({ state, isolateArtifacts: true, exportPolicy: true })
+                  });
+                  const own = data?.fileErrors?.[filename];
+                  if (own) throw new Error(String(own?.message || own));
+                  return data?.files?.[filename];
+                }}
               />
             )}
           </div>
@@ -1264,7 +1820,7 @@ metadata:
                 className="primary"
                 onClick={() => {
                   const coreLockLocked =
-                    state.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed);
+                    state.blueprint?.confirmed && getVersionLocked(state);
                   if (visibleSteps[active]?.id === "blueprint" && !coreLockLocked) {
                     setPendingNavIndex(active + 1);
                     setShowCoreLockWarning(true);
@@ -1285,7 +1841,7 @@ metadata:
                 {active === visibleSteps.length - 1
                   ? "Finish"
                   : visibleSteps[active]?.id === "blueprint" &&
-                      !(state.blueprint?.confirmed && (state?.version?.versionConfirmed ?? state?.release?.confirmed))
+                      !(state.blueprint?.confirmed && getVersionLocked(state))
                     ? "Confirm & Proceed"
                     : visibleSteps[active]?.id === "blueprint"
                       ? "Proceed"
@@ -1303,7 +1859,7 @@ metadata:
         >
           <h3 id="core-lock-title">Lock foundational selections?</h3>
           <p className="modal-copy subtle">
-            The following will be locked. You will need to use Start Over to change them later.
+            The following will be locked. Platform and architecture require Start Over to change. The OpenShift release can be changed later.
           </p>
           <dl className="modal-summary">
             <dt>Target Platform</dt>
@@ -1317,44 +1873,13 @@ metadata:
                 : "—"}
             </dd>
           </dl>
+          {lockError ? <div className="note warning" role="alert">{lockError}</div> : null}
           <div className="actions">
-            <button type="button" className="ghost" onClick={() => { setShowCoreLockWarning(false); setPendingNavIndex(null); }}>
+            <button type="button" className="ghost" onClick={() => { setShowCoreLockWarning(false); setPendingNavIndex(null); setLockError(""); }}>
               No, go back
             </button>
             <button type="button" className="primary" onClick={lockAndProceed} disabled={!blueprintReady || !releaseReady || lockAndProceedLoading || blueprintPullSecretBlocking}>
               {lockAndProceedLoading ? "Locking…" : "Yes, lock selections"}
-            </button>
-          </div>
-        </Modal>
-        <Modal
-          isOpen={showReleaseWarning}
-          onClose={() => setShowReleaseWarning(false)}
-          ariaLabelledBy="release-warning-title"
-        >
-          <h3 id="release-warning-title">Release selection</h3>
-          <p className="subtle">
-            This release selection will be locked from this point, and you&apos;ll need to click Start Over to change it later. Continue?
-          </p>
-          <div className="actions">
-            <button type="button" className="ghost" onClick={() => setShowReleaseWarning(false)}>No</button>
-            <button type="button" className="primary" onClick={confirmReleaseAndProceed} disabled={!releaseReady || confirmingRelease}>
-              {confirmingRelease ? "…" : "Yes"}
-            </button>
-          </div>
-        </Modal>
-        <Modal
-          isOpen={showBlueprintWarning}
-          onClose={() => setShowBlueprintWarning(false)}
-          ariaLabelledBy="blueprint-warning-title"
-        >
-          <h3 id="blueprint-warning-title">Blueprint selection</h3>
-          <p className="subtle">
-            These selections will be locked from this point, and you&apos;ll need to click Start Over to change them later. Continue?
-          </p>
-          <div className="actions">
-            <button type="button" className="ghost" onClick={() => setShowBlueprintWarning(false)}>No</button>
-            <button type="button" className="primary" onClick={confirmBlueprintAndProceed} disabled={!blueprintReady}>
-              Yes
             </button>
           </div>
         </Modal>
@@ -1458,6 +1983,33 @@ metadata:
             </button>
           </div>
         </Modal>
+        <Modal
+          isOpen={showChangeReleaseWarning}
+          onClose={() => { setShowChangeReleaseWarning(false); setChangeReleaseError(""); }}
+          ariaLabelledBy="change-release-title"
+        >
+          <h3 id="change-release-title">Change OpenShift release?</h3>
+          <p className="subtle">
+            Unlocking the release will require reviewing version-dependent downstream work.
+            Operator selections and scans will become stale and need re-evaluation.
+          </p>
+          <p className="subtle">
+            Platform and architecture will remain locked. Use Start Over to reset the complete workflow.
+          </p>
+          {changeReleaseError ? (
+            <div className="note warning" role="alert">
+              Could not unlock release: {changeReleaseError}
+            </div>
+          ) : null}
+          <div className="actions">
+            <button type="button" className="ghost" onClick={() => { setShowChangeReleaseWarning(false); setChangeReleaseError(""); }}>
+              Cancel
+            </button>
+            <button type="button" className="primary" onClick={confirmChangeRelease}>
+              Yes, unlock release
+            </button>
+          </div>
+        </Modal>
         <ToolsDrawer
           isOpen={isToolsOpen}
           onClose={() => setIsToolsOpen(false)}
@@ -1466,6 +2018,12 @@ metadata:
           onExportRun={exportRun}
           onImportClick={() => importRef.current?.click()}
           onStartOver={handleStartOverClick}
+          onHome={() => {
+            // Navigation only: no Start Over, no reset, no job cancellation.
+            installReturnStepRef.current = active;
+            setShowLanding(true);
+          }}
+          workflowLabel="Install"
           jobsCount={jobsCount}
           onNavigateToOperations={() => attemptNavigate(visibleSteps.findIndex((s) => s.id === "operations"))}
           isLocked={foundationalLocked}
@@ -1484,10 +2042,39 @@ metadata:
   );
 };
 
+/**
+ * Top-level workflow router (v2.2.0). Install keeps its existing gated shell:
+ * VersionSupportGate still wraps the landing page and the wizard, and nothing
+ * catalog-dependent mounts for an unsupported Install minor. Mirroring renders
+ * beside it, outside that gate, because it does not use the Install release.
+ */
+const WorkflowRouter = () => {
+  const { workflow, setWorkflow, setShowLanding } = useShellView();
+  if (workflow === "mirroring") {
+    return (
+      <React.Suspense fallback={<div className="loading" role="status">Loading Mirroring…</div>}>
+        <MirroringShell
+          onExit={() => {
+            setShowLanding(true);
+            setWorkflow("install");
+          }}
+        />
+      </React.Suspense>
+    );
+  }
+  return (
+    <VersionSupportGate onOpenMirroring={() => setWorkflow("mirroring")}>
+      <AppShell />
+    </VersionSupportGate>
+  );
+};
+
 const App = () => (
   <AppProvider>
     <ErrorBoundary>
-      <AppShell />
+      <ShellViewProvider>
+        <WorkflowRouter />
+      </ShellViewProvider>
     </ErrorBoundary>
   </AppProvider>
 );

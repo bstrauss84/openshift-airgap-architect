@@ -10,7 +10,8 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
-import { getOpenShiftMinorFromSources } from "../openShiftMinor.js";
+import { resolveFieldGuideVersion } from "./versionResolution.js";
+import { stripProxyCredentials } from "../../../shared/stateSanitizer.js";
 const normalizeNtpServers = (raw) => {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw.map((s) => String(s).trim()).filter(Boolean);
@@ -32,11 +33,10 @@ const buildContext = (state) => {
   const platformConfig = state.platformConfig || {};
   const docs = state.docs || {};
 
-  const version = release.patchVersion || "4.20.0";
-  const versionParts = version.split(".");
-  const versionMajorMinor = versionParts.length >= 2 ? `${versionParts[0]}.${versionParts[1]}` : "4.20";
-  const minor = getOpenShiftMinorFromSources(release, state.version || {}) || versionMajorMinor;
-  const channel = minor ? `stable-${minor}` : `stable-${versionMajorMinor}`;
+  const versionDescriptor = resolveFieldGuideVersion(state);
+  const version = versionDescriptor.displayVersion;
+  const versionMajorMinor = versionDescriptor.minor;
+  const channel = versionDescriptor.channel;
 
   const clusterName = blueprint.clusterName || "airgap-cluster";
   const baseDomain = blueprint.baseDomain || "example.com";
@@ -65,8 +65,17 @@ const buildContext = (state) => {
   const workspacePath = mirrorWorkflow.workspacePath || "/data/oc-mirror/workspace";
 
   const proxyEnabled = Boolean(globalStrategy.proxyEnabled);
-  const httpProxy = proxies.httpProxy || "";
-  const httpsProxy = proxies.httpsProxy || "";
+  // Single choke point: every Field Guide consumer (assembler summary lines and the
+  // {{httpProxy}} / {{httpsProxy}} command templates) reads these. Embedded `user:pass`
+  // userinfo is a credential and is removed unless the user explicitly opted into
+  // credential inclusion, matching install-config generation. The endpoint is preserved.
+  const includeCredentials = Boolean(state?.exportOptions?.includeCredentials);
+  const proxyValue = (raw) => {
+    const v = raw || "";
+    return includeCredentials ? v : stripProxyCredentials(v);
+  };
+  const httpProxy = proxyValue(proxies.httpProxy);
+  const httpsProxy = proxyValue(proxies.httpsProxy);
   const noProxy = proxies.noProxy || "";
 
   const fips = Boolean(globalStrategy.fips);
@@ -90,9 +99,12 @@ const buildContext = (state) => {
   const nutanixCluster = nutanixConfig.cluster || nutanixConfig.clusterName || "<nutanix-cluster>";
   const nutanixSubnet = nutanixConfig.subnet || nutanixConfig.subnetUUID || "<subnet-uuid>";
 
+  // Architecture
+  const arch = blueprint.arch || "<architecture>";
+
   // AWS
   const awsConfig = platformConfig.aws || {};
-  const awsRegion = awsConfig.region || blueprint.awsRegion || "us-gov-east-1";
+  const awsRegion = awsConfig.region || blueprint.awsRegion || "<aws-region>";
 
   // Azure
   const azureConfig = platformConfig.azure || {};
@@ -167,6 +179,7 @@ const buildContext = (state) => {
     nutanixEndpoint,
     nutanixCluster,
     nutanixSubnet,
+    arch,
     awsRegion,
     azureCloudName,
     azureRegion,

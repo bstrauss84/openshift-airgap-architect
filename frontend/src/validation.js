@@ -13,17 +13,83 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
-import { getTrustBundlePolicies, getTrustBundlePolicySupport, getForwardOpenShiftMinorDocNotice } from "./shared/versionPolicy.js";
+import { getTrustBundlePolicies, getTrustBundlePolicySupport, getForwardOpenShiftMinorDocNotice, SUPPORTED_MINORS } from "./shared/versionPolicy.js";
 import {
   getTrustPolicyOptionsForScenario,
   inferDefaultAdditionalTrustBundlePolicy
 } from "./shared/trustBundlePolicy.js";
+import { getVersionLocked } from "./shared/versionHelpers.js";
 import { getScenarioId, SCENARIO_IDS_WITH_HOST_INVENTORY } from "./hostInventoryV2Helpers.js";
 import { getRequiredParamsForOutput } from "./catalogResolver.js";
 import { getCatalogValidationForInventoryV2 } from "./hostInventoryV2Validation.js";
 import { normalizeMAC } from "./formatUtils.js";
+import { validateProvisioningNetworkFamily } from "../../shared/provisioningNetworkFamily.js";
+/* Family-agnostic BigInt address primitives. The provisioning-network checks
+   below used 32-bit integer maths, which cannot represent an IPv6 address, so
+   they silently refused an IPv6 provisioning network the installer accepts. */
+import {
+  parseIp as parseProvisioningIp,
+  parseCidr as parseProvisioningCidr
+} from "../../shared/provisioningNetworkGateway.js";
+import { isVersionGTE } from "../../shared/versionUtils.js";
+import { getOpenShiftMinorFromState } from "./shared/openShiftMinor.js";
+import { validateAzureByoVnet } from "../../shared/azureByoVnet.js";
+import { validateProvisioningNetworkGateway } from "../../shared/provisioningNetworkGateway.js";
+import {
+  resolveEffectiveInterfaceName,
+  resolveVlanInterfaceName,
+  PRIMARY_NAME_FALLBACKS
+} from "../../shared/interfaceNaming.js";
 
-/** 4.20 doc: valid platform.aws.vpc.subnets[].roles[].type. EdgeNode is Local Zone only — not exposed in app. */
+/**
+ * vCenter server address validity, mirroring the OpenShift installer contract.
+ *
+ * Source: openshift/installer release-4.20 and release-4.21,
+ *   pkg/types/vsphere/validation/platform.go  -> validateVCenters/validateFailureDomains
+ *   call validate.Host(), which is pkg/validate/validate.go:
+ *     Host(v) = net.ParseIP(v) != nil || validateSubdomain(v)
+ *     validateSubdomain = k8s IsDNS1123Subdomain
+ *
+ * Consequences that a naive "domain regex" would get wrong, so do not add one:
+ *   - a single label with no dot ("vcenter") is VALID
+ *   - all-numeric labels ("1.2.3.4.5") are VALID
+ *   - IPv6 literals are VALID
+ *   - uppercase is INVALID (DNS-1123 is lowercase only)
+ */
+const DNS1123_SUBDOMAIN = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$/;
+
+export function isValidVsphereHost(value) {
+  const v = String(value ?? "").trim();
+  if (!v) return false;
+  // net.ParseIP accepts IPv4 and IPv6 (including bracketless IPv6).
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(v)) {
+    return v.split(".").every((o) => Number(o) <= 255);
+  }
+  if (v.includes(":")) {
+    // IPv6 literal: hex groups and at most one "::" elision.
+    return /^[0-9a-fA-F:]+$/.test(v) && (v.match(/::/g) || []).length <= 1 && v.split(":").length <= 8;
+  }
+  if (v.length > 253) return false;
+  return DNS1123_SUBDOMAIN.test(v);
+}
+
+const VSPHERE_HOST_HINT = "must be the hostname, FQDN, or IP address of the vCenter";
+
+export function validateAwsRootVolumeThroughput(value, volumeType) {
+  if (value == null || value === "" || value === undefined) return { valid: true, blank: true };
+  const num = Number(value);
+  if (!Number.isFinite(num)) return { valid: false, error: "Root volume throughput must be a number." };
+  if (!Number.isInteger(num)) return { valid: false, error: "Root volume throughput must be an integer." };
+  if (num < 125) return { valid: false, error: "Root volume throughput must be at least 125 MiB/s." };
+  if (num > 2000) return { valid: false, error: "Root volume throughput must be at most 2000 MiB/s." };
+  const effectiveType = (volumeType || "gp3").toLowerCase();
+  if (effectiveType !== "gp3") return { valid: false, error: "Root volume throughput is only valid for gp3 volumes, not " + (volumeType || "(blank)") + "." };
+  return { valid: true, value: num };
+}
+
+export const VALID_CONFIDENTIAL_COMPUTE_POLICIES = ["Disabled", "AMDEncryptedVirtualizationNestedPaging"];
+
+/** Valid platform.aws.vpc.subnets[].roles[].type values. EdgeNode is Local Zone only and is not exposed in the app. */
 export const AWS_SUBNET_ROLES_ALLOWED = ["ClusterNode", "BootstrapNode", "IngressControllerLB", "ControlPlaneExternalLB", "ControlPlaneInternalLB"];
 /** When roles are specified, these must be assigned to at least one subnet. ControlPlaneExternalLB not required if publish is Internal. */
 export const AWS_SUBNET_ROLES_REQUIRED_EXTERNAL = ["ClusterNode", "IngressControllerLB", "ControlPlaneExternalLB", "BootstrapNode", "ControlPlaneInternalLB"];
@@ -434,8 +500,16 @@ const ipv6InCidr = (ipAddr, cidr) => {
   return ipBig >= range.start && ipBig <= range.end;
 };
 
-/** Validates a single host-inventory node: hostname, BMC (bare-metal IPI), primary interface (ethernet/bond/vlan), static IP/MAC. */
-const validateNode = ({ node, enableIpv6, machineCidr, platform, method, includeCredentials }) => {
+/**
+ * Validates a single host-inventory node: hostname, BMC (bare-metal IPI),
+ * primary interface (ethernet/bond/vlan), static IP/MAC, and static routes.
+ *
+ * `enableIpv4` / `enableIpv6` come from the cluster IP stack mode. They default
+ * to the historical pair (IPv4 on, IPv6 off) when a caller omits them so the
+ * many existing call sites and fixtures keep their meaning.
+ */
+const validateNode = ({ node, enableIpv4, enableIpv6, machineCidr, platform, method, includeCredentials }) => {
+  const ipv4Enabled = enableIpv4 !== false;
   const errors = [];
   const warnings = [];
   const fieldErrors = {};
@@ -557,18 +631,52 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
     }
 
     if (primary.mode === "static") {
-      if (!primary.ipv4Cidr) addError("primary.ipv4Cidr", "IPv4 address/CIDR is required for static mode.");
-      if (primary.ipv4Cidr && !isValidIpv4AddressWithPrefix(primary.ipv4Cidr)) addError("primary.ipv4Cidr", "IPv4 CIDR is invalid.");
-      if (!primary.ipv4Gateway) addError("primary.ipv4Gateway", "IPv4 default gateway is required.");
-      if (primary.ipv4Gateway && !isValidIpv4(primary.ipv4Gateway)) addError("primary.ipv4Gateway", "IPv4 gateway must be a valid IPv4 address.");
-      if (primary.ipv4Cidr && machineCidr && !ipInCidr(primary.ipv4Cidr, machineCidr)) {
-        addWarning("primary.ipv4Cidr", `IPv4 is outside machine network (${machineCidr}).`);
+      /* IPv4 host addressing is CLUSTER-STACK-COUPLED. buildNmState derives
+         enableIpv4 from the cluster IP stack mode and writes
+         `ipv4: { enabled: false }` when it is off, discarding any address the
+         user typed. Requiring an IPv4 address in an IPv6-only cluster therefore
+         demanded a value that the generator would throw away. */
+      if (ipv4Enabled) {
+        if (!primary.ipv4Cidr) addError("primary.ipv4Cidr", "IPv4 address/CIDR is required for static mode.");
+        if (primary.ipv4Cidr && !isValidIpv4AddressWithPrefix(primary.ipv4Cidr)) addError("primary.ipv4Cidr", "IPv4 CIDR is invalid.");
+        if (!primary.ipv4Gateway) addError("primary.ipv4Gateway", "IPv4 default gateway is required.");
+        if (primary.ipv4Gateway && !isValidIpv4(primary.ipv4Gateway)) addError("primary.ipv4Gateway", "IPv4 gateway must be a valid IPv4 address.");
+        if (primary.ipv4Cidr && machineCidr && !ipInCidr(primary.ipv4Cidr, machineCidr)) {
+          addWarning("primary.ipv4Cidr", `IPv4 is outside machine network (${machineCidr}).`);
+        }
       }
       if (enableIpv6 && primary.ipv6Cidr && !isValidIpv6Cidr(primary.ipv6Cidr)) {
         addError("primary.ipv6Cidr", "IPv6 CIDR is invalid.");
       }
       if (enableIpv6 && primary.ipv6Gateway && !primary.ipv6Cidr) {
         addError("primary.ipv6Cidr", "IPv6 CIDR is required when IPv6 gateway is provided.");
+      }
+      /* IPv6-only: the node has no IPv4 at all, so the IPv6 address becomes the
+         required one. Without this a static IPv6-only host passed validation
+         with no address of any family and generated an interface with both
+         families disabled. */
+      if (!ipv4Enabled && enableIpv6 && !primary.ipv6Cidr) {
+        addError("primary.ipv6Cidr", "IPv6 address/CIDR is required for static mode in an IPv6-only cluster.");
+      }
+      /* DOC-219. An address in a family the cluster does not enable can still
+         arrive in IMPORTED state (an older run, or a stack changed afterwards).
+         The drawer hides those inputs and buildNmState writes the family as
+         disabled, so the value vanished from the generated configuration with no
+         message. Reported here as a non-blocking warning — the configuration is
+         valid without it — and never removed automatically: the user decides. */
+      const unusedV4 = ipv4Enabled ? [] : [primary.ipv4Cidr, primary.ipv4Gateway].filter(Boolean);
+      if (unusedV4.length) {
+        addWarning(
+          "primary.ipv4Cidr",
+          `IPv4 value ${unusedV4.join(" / ")} is set but the cluster is IPv6-only, so it is not written to the generated host network configuration. Remove it in the node's Static IP Configuration, or set the cluster IP stack to dual-stack to use it.`
+        );
+      }
+      const unusedV6 = enableIpv6 ? [] : [primary.ipv6Cidr, primary.ipv6Gateway].filter(Boolean);
+      if (unusedV6.length) {
+        addWarning(
+          "primary.ipv6Cidr",
+          `IPv6 value ${unusedV6.join(" / ")} is set but the cluster is IPv4-only, so it is not written to the generated host network configuration. Remove it in the node's Static IP Configuration, or set the cluster IP stack to dual-stack to use it.`
+        );
       }
     }
 
@@ -609,11 +717,225 @@ const validateNode = ({ node, enableIpv6, machineCidr, platform, method, include
         if (!derivedBase) addError(`${prefix}.vlan.baseIface`, "Additional VLAN base interface is required.");
       }
       if (iface.mode === "static") {
-        if (!iface.ipv4Cidr) addError(`${prefix}.ipv4Cidr`, "Additional IPv4 address/CIDR is required for static mode.");
-        if (iface.ipv4Cidr && !isValidIpv4AddressWithPrefix(iface.ipv4Cidr)) addError(`${prefix}.ipv4Cidr`, "Additional IPv4 CIDR is invalid.");
-        if (enableIpv6 && iface.ipv6Cidr && !isValidIpv6Cidr(iface.ipv6Cidr)) {
+        /* A SECONDARY interface is NOT cluster-stack-coupled (7C.4A).
+           `hosts[].networkConfig` is delegated to the NMState Declarative
+           Network API, where `ipv4` and `ipv6` are independent per-interface
+           settings; nothing in the installer, assisted-service or Red Hat's
+           docs requires a storage/management NIC to match the cluster's
+           family, and Red Hat itself requires a separate storage network for
+           iSCSI boot with no family constraint. An earlier revision applied
+           the primary interface's rule here and refused a valid IPv4 storage
+           address in an IPv6-only cluster.
+
+           So: validate the FORMAT of whatever the user supplied, in either
+           family, and require that a static interface carries at least one
+           address — without dictating which family that must be. */
+        if (iface.ipv4Cidr && !isValidIpv4AddressWithPrefix(iface.ipv4Cidr)) {
+          addError(`${prefix}.ipv4Cidr`, "Additional IPv4 CIDR is invalid.");
+        }
+        if (iface.ipv6Cidr && !isValidIpv6Cidr(iface.ipv6Cidr)) {
           addError(`${prefix}.ipv6Cidr`, "Additional IPv6 CIDR is invalid.");
         }
+        /* No address at all on a SECONDARY interface is not an error.
+           The IP-assignment control offers only DHCP and Static, so an
+           unaddressed secondary is the only way to express a legitimate
+           L2-only NIC — one that exists for MTU, SR-IOV or as a bond
+           carrier — and `ipv4/ipv6: {enabled: false}` is the correct NMState
+           for that. A warning keeps it visible without blocking, because the
+           far more common cause is simply not having typed the address yet.
+           The PRIMARY is different and is required to be addressed: it
+           carries the node address. See addIpConfig in backend/src/generate.js. */
+        if (!iface.ipv4Cidr && !iface.ipv6Cidr) {
+          addWarning(
+            `${prefix}.ipv4Cidr`,
+            `Additional interface ${idx + 1} has no IPv4 or IPv6 address, so it will be generated as a layer-2 only interface.`
+          );
+        }
+      }
+    });
+
+    // Names every interface row contributes to the generated NMState document.
+    // Used by both the static-route next-hop check below and the VRF
+    // name-collision check further down.
+    const normalizeGeneratedName = (value) => String(value ?? "").trim();
+
+    const generatedNames = new Set();
+    const vrfEntries = [];
+
+    /* Delegated to shared/interfaceNaming.js. This implementation was already
+       correct and matched the backend; it is the basis of the shared contract
+       rather than a victim of it. Keeping a local copy would simply re-open the
+       drift. */
+    const effectiveVlanName = (iface) => resolveVlanInterfaceName(iface);
+
+    const collectActiveNames = (iface) => {
+      const names = [];
+      if (iface.type === "ethernet") {
+        if (iface.ethernet?.name) names.push(normalizeGeneratedName(iface.ethernet.name));
+      } else if (iface.type === "bond") {
+        if (iface.bond?.name) names.push(normalizeGeneratedName(iface.bond.name));
+        (iface.bond?.slaves || []).forEach(s => { if (s.name) names.push(normalizeGeneratedName(s.name)); });
+      } else if (iface.type === "vlan-on-ethernet") {
+        if (iface.ethernet?.name) names.push(normalizeGeneratedName(iface.ethernet.name));
+        const vn = effectiveVlanName(iface);
+        if (vn) names.push(normalizeGeneratedName(vn));
+      } else if (iface.type === "vlan-on-bond") {
+        if (iface.bond?.name) names.push(normalizeGeneratedName(iface.bond.name));
+        (iface.bond?.slaves || []).forEach(s => { if (s.name) names.push(normalizeGeneratedName(s.name)); });
+        const vn = effectiveVlanName(iface);
+        if (vn) names.push(normalizeGeneratedName(vn));
+      }
+      return names;
+    };
+
+    collectActiveNames(primary).forEach(n => generatedNames.add(n));
+    additional.forEach((iface) => {
+      collectActiveNames(iface).forEach(n => generatedNames.add(n));
+    });
+
+    /*
+     * Static route validation. Until now `advanced.routes` had none at all:
+     * no CIDR check on the destination, no IP check on the next hop, and no
+     * check that `nextHopInterface` names an interface the document will
+     * actually contain. A typo produced an NMState document the installer
+     * rejected at apply time, with nothing said in the wizard.
+     *
+     * Address family matters here, but it is keyed to the route's OWN next-hop
+     * interface, not to the cluster IP stack mode (7C.4A). nmstate rejects a
+     * route only when its family is disabled on that interface
+     * (`rust/src/lib/route.rs`: "The next hop interface of desired Route ...
+     * has been marked as IPv6 disabled"). An IPv4 route out of an IPv4
+     * secondary interface is valid in an IPv6-only cluster, and an earlier
+     * revision wrongly refused it.
+     */
+    const interfaceNamesInDocument = new Set(Array.from(generatedNames).filter(Boolean));
+
+    /* Families each interface will actually have, mirroring addIpConfig:
+       the PRIMARY path follows the cluster stack mode, every SECONDARY
+       interface follows only what the user configured on it. */
+    const interfaceFamilies = new Map();
+    const recordFamilies = (iface, names, clusterCoupled) => {
+      const v4 = clusterCoupled
+        ? ipv4Enabled && (iface?.mode === "dhcp" || Boolean(iface?.ipv4Cidr))
+        : iface?.mode === "dhcp" || Boolean(iface?.ipv4Cidr);
+      const v6 = clusterCoupled
+        ? Boolean(enableIpv6 && iface?.ipv6Cidr)
+        : Boolean(iface?.ipv6Cidr);
+      for (const n of names) if (n) interfaceFamilies.set(n, { ipv4: v4, ipv6: v6 });
+    };
+    recordFamilies(primary, collectActiveNames(primary), true);
+    additional.forEach((iface) => recordFamilies(iface, collectActiveNames(iface), false));
+
+    const validateRouteList = (routes, fieldPrefix, label, ownerInterfaceName) => {
+      (routes || []).forEach((route, ri) => {
+        const destination = String(route?.destination ?? "").trim();
+        const nextHopAddress = String(route?.nextHopAddress ?? "").trim();
+        const nextHopInterface = String(route?.nextHopInterface ?? "").trim();
+        // A wholly blank row is an unfinished repeatable entry, not an error;
+        // the generator skips it for the same reason.
+        if (!destination && !nextHopAddress && !nextHopInterface) return;
+        const field = (suffix) => `${fieldPrefix}.routes.${ri}.${suffix}`;
+
+        const destIsV6 = destination.includes(":");
+        if (!destination) {
+          addError(field("destination"), `${label} route ${ri + 1}: destination is required.`);
+        } else if (destIsV6 ? !isValidIpv6Cidr(destination) : !isValidIpv4Cidr(destination)) {
+          addError(field("destination"), `${label} route ${ri + 1}: destination must be a CIDR (e.g. 10.0.0.0/24 or 2001:db8::/64).`);
+        }
+
+        const hopIsV6 = nextHopAddress.includes(":");
+        if (!nextHopAddress) {
+          addError(field("nextHopAddress"), `${label} route ${ri + 1}: next hop address is required.`);
+        } else if (hopIsV6 ? !isValidIpv6(nextHopAddress) : !isValidIpv4(nextHopAddress)) {
+          addError(field("nextHopAddress"), `${label} route ${ri + 1}: next hop must be a valid IP address.`);
+        }
+
+        if (destination && nextHopAddress && destIsV6 !== hopIsV6) {
+          addError(field("nextHopAddress"), `${label} route ${ri + 1}: destination and next hop must be the same address family.`);
+        }
+
+        const routeIsV6 = destination ? destIsV6 : hopIsV6;
+        if (destination || nextHopAddress) {
+          const hopIface = nextHopInterface || ownerInterfaceName;
+          const families = hopIface ? interfaceFamilies.get(hopIface) : null;
+          const family = routeIsV6 ? "ipv6" : "ipv4";
+          if (families && families[family] !== true) {
+            addError(
+              field("destination"),
+              `${label} route ${ri + 1}: ${routeIsV6 ? "IPv6" : "IPv4"} is not enabled on "${hopIface}", ` +
+                `so this route cannot be applied. Give that interface ${routeIsV6 ? "an IPv6" : "an IPv4"} address, ` +
+                `or point the route at an interface that has one.`
+            );
+          }
+        }
+
+        if (nextHopInterface && interfaceNamesInDocument.size && !interfaceNamesInDocument.has(nextHopInterface)) {
+          addError(
+            field("nextHopInterface"),
+            `${label} route ${ri + 1}: next hop interface "${nextHopInterface}" is not one of this host's interfaces (${Array.from(interfaceNamesInDocument).sort().join(", ")}).`
+          );
+        }
+        if (!nextHopInterface && !ownerInterfaceName) {
+          addError(field("nextHopInterface"), `${label} route ${ri + 1}: next hop interface is required because this interface has no resolvable name yet.`);
+        }
+      });
+    };
+
+    validateRouteList(
+      primary.advanced?.routes,
+      "primary.advanced",
+      "Primary",
+      resolveEffectiveInterfaceName(primary, PRIMARY_NAME_FALLBACKS)
+    );
+    additional.forEach((iface, idx) => {
+      validateRouteList(
+        iface.advanced?.routes,
+        `additional.${idx}.advanced`,
+        `Additional interface ${idx + 1}`,
+        resolveEffectiveInterfaceName(iface)
+      );
+    });
+
+    // VRF cross-field validation: name required, table ID integer, no name collisions.
+    if (primary.advanced?.vrf?.enabled) {
+      const vrfName = normalizeGeneratedName(primary.advanced.vrf.name);
+      const rawTableId = String(primary.advanced.vrf.tableId ?? "").trim();
+      if (!vrfName) {
+        addError("primary.advanced.vrf.name", "Primary VRF name is required.");
+      }
+      if (rawTableId === "" || !Number.isInteger(Number(rawTableId))) {
+        addError("primary.advanced.vrf.tableId", "Primary VRF table ID must be a valid integer.");
+      }
+      if (vrfName) {
+        vrfEntries.push({ name: vrfName, field: "primary.advanced.vrf.name", label: "Primary" });
+      }
+    }
+
+    additional.forEach((iface, idx) => {
+      if (!iface.advanced?.vrf?.enabled) return;
+      const prefix = `additional.${idx}`;
+      const vrfName = normalizeGeneratedName(iface.advanced.vrf.name);
+      const rawTableId = String(iface.advanced.vrf.tableId ?? "").trim();
+      if (!vrfName) {
+        addError(`${prefix}.advanced.vrf.name`, `Additional interface ${idx + 1} VRF name is required.`);
+      }
+      if (rawTableId === "" || !Number.isInteger(Number(rawTableId))) {
+        addError(`${prefix}.advanced.vrf.tableId`, `Additional interface ${idx + 1} VRF table ID must be a valid integer.`);
+      }
+      if (vrfName) {
+        vrfEntries.push({ name: vrfName, field: `${prefix}.advanced.vrf.name`, label: `Additional interface ${idx + 1}` });
+      }
+    });
+
+    const seenVrfNames = new Map();
+    vrfEntries.forEach(({ name, field, label }) => {
+      if (generatedNames.has(name)) {
+        addError(field, `${label} VRF name "${name}" collides with an existing interface name.`);
+      }
+      if (seenVrfNames.has(name)) {
+        addError(field, `${label} VRF name "${name}" is already used by ${seenVrfNames.get(name)}.`);
+      } else {
+        seenVrfNames.set(name, label);
       }
     });
   }
@@ -628,6 +950,7 @@ const validateHostInventory = (state) => {
   const perNode = [];
   const inventory = state.hostInventory || {};
   const ipStackMode = inventory.ipStackMode || 'ipv4';
+  const enableIpv4 = ipStackMode === 'ipv4' || ipStackMode === 'dual-stack';
   const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
   const machineCidr = state.globalStrategy?.networking?.machineNetworkV4 || "";
 
@@ -637,6 +960,7 @@ const validateHostInventory = (state) => {
   (inventory.nodes || []).forEach((node, idx) => {
     const result = validateNode({
       node,
+      enableIpv4,
       enableIpv6,
       machineCidr,
       platform: state.blueprint?.platform,
@@ -680,7 +1004,7 @@ const validateHostInventory = (state) => {
 };
 
 const validateVersionConfirmed = (state) => {
-  const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
+  const confirmed = getVersionLocked(state);
   if (!confirmed) {
     return { errors: ["Version selection is not confirmed."], warnings: [] };
   }
@@ -791,14 +1115,14 @@ const validatePlatformConfig = (state) => {
     }
     const cmNx = (cfg.credentialsMode || "").trim();
     if (cmNx && cmNx !== "Manual") {
-      errors.push("Nutanix IPI requires credentialsMode Manual (OpenShift 4.20 Installing on Nutanix §1.4).");
+      errors.push("Nutanix IPI requires credentialsMode Manual per the OpenShift Nutanix installation documentation.");
     }
     const cpRep = cfg.controlPlaneReplicas;
     const compRep = cfg.computeReplicas;
     if (cpRep != null && String(cpRep).trim() !== "") {
       const n = Number(cpRep);
       if (n !== 1 && n !== 3) {
-        errors.push("Nutanix IPI supports control plane replicas 3 (standard or compact three-node) or 1 (single-node OpenShift) per OpenShift 4.20 Nutanix install-config parameters.");
+        errors.push("Nutanix IPI supports control plane replicas 3 for a standard or compact three-node cluster, or 1 for single-node OpenShift, per the OpenShift Nutanix installation configuration parameters.");
       }
       if (n === 1 && compRep != null && String(compRep).trim() !== "" && Number(compRep) !== 0) {
         errors.push("Single-node OpenShift on Nutanix IPI requires compute (worker) replicas 0.");
@@ -1100,13 +1424,18 @@ const validateNetworkingFormat = (state) => {
   const ingressVipList = parseVipList(ingressVip);
   if (apiVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("API VIPs: each value must be a valid IPv4 or IPv6 address.");
   if (ingressVipList.some((ip) => !isValidIpv4(ip) && !isValidIpv6(ip))) errors.push("Ingress VIPs: each value must be a valid IPv4 or IPv6 address.");
-  if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR)) {
-    const msg = "Provisioning network CIDR must be a valid CIDR.";
+  /* The bare-metal provisioning network may be IPv4 OR IPv6, independently of
+     the cluster's IP Stack Mode. These checks were IPv4-only, so the UI
+     rejected an IPv6 provisioning network the backend and the installer both
+     accept — there was no way to enter one at all. Evidence and the
+     Managed-IPv6 /64 rule: shared/provisioningNetworkFamily.js. */
+  if (provisioningCIDR && !isValidIpv4Cidr(provisioningCIDR) && !isValidIpv6Cidr(provisioningCIDR)) {
+    const msg = "Provisioning network CIDR must be a valid IPv4 or IPv6 CIDR.";
     errors.push(msg);
     fieldErrors.provisioningNetworkCIDR = msg;
   }
-  if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP)) {
-    const msg = "Cluster provisioning IP must be a valid IPv4 address.";
+  if (clusterProvisioningIP && !isValidIpv4(clusterProvisioningIP) && !isValidIpv6(clusterProvisioningIP)) {
+    const msg = "Cluster provisioning IP must be a valid IPv4 or IPv6 address.";
     errors.push(msg);
     fieldErrors.clusterProvisioningIP = msg;
   }
@@ -1121,17 +1450,24 @@ const validateNetworkingFormat = (state) => {
       fieldErrors.provisioningDHCPRange = msg;
     } else {
       const [startIP, endIP] = parts;
-      if (!isValidIpv4(startIP) || !isValidIpv4(endIP)) {
-        const msg = "Provisioning DHCP range: both start and end must be valid IPv4 addresses.";
+      /* BigInt comparison via the shared primitives, so the identical ordering
+         and containment rules apply to IPv6. The previous 32-bit integer path
+         could not represent an IPv6 address at all. */
+      const startParsed = parseProvisioningIp(startIP);
+      const endParsed = parseProvisioningIp(endIP);
+      if (!startParsed || !endParsed) {
+        const msg = "Provisioning DHCP range: both start and end must be valid IP addresses.";
         errors.push(msg);
         fieldErrors.provisioningDHCPRange = msg;
       } else {
-        // Convert IPs to integers for comparison
-        const toInt = (addr) => addr.split(".").reduce((acc, oct) => (acc << 8) + Number(oct), 0) >>> 0;
-        const startInt = toInt(startIP);
-        const endInt = toInt(endIP);
+        const startInt = startParsed.value;
+        const endInt = endParsed.value;
 
-        if (startInt > endInt) {
+        if (startParsed.family !== endParsed.family) {
+          const msg = "Provisioning DHCP range: start and end must be the same address family.";
+          errors.push(msg);
+          fieldErrors.provisioningDHCPRange = msg;
+        } else if (startInt > endInt) {
           const msg = "Provisioning DHCP range: start IP must be less than or equal to end IP.";
           errors.push(msg);
           fieldErrors.provisioningDHCPRange = msg;
@@ -1139,8 +1475,8 @@ const validateNetworkingFormat = (state) => {
 
         // Validate both IPs are within provisioning CIDR
         if (provisioningCIDR) {
-          const range = cidrToRange(provisioningCIDR);
-          if (range) {
+          const range = parseProvisioningCidr(provisioningCIDR);
+          if (range && range.family === startParsed.family) {
             if (startInt < range.start || startInt > range.end) {
               const msg = `Provisioning DHCP start IP (${startIP}) is outside provisioning network CIDR (${provisioningCIDR}).`;
               errors.push(msg);
@@ -1155,8 +1491,9 @@ const validateNetworkingFormat = (state) => {
         }
 
         // Validate cluster provisioning IP is NOT in DHCP range
-        if (clusterProvisioningIP && isValidIpv4(clusterProvisioningIP)) {
-          const clusterInt = toInt(clusterProvisioningIP);
+        const clusterParsed = parseProvisioningIp(clusterProvisioningIP);
+        if (clusterParsed && clusterParsed.family === startParsed.family) {
+          const clusterInt = clusterParsed.value;
           if (clusterInt >= startInt && clusterInt <= endInt) {
             const msg = `Cluster provisioning IP (${clusterProvisioningIP}) conflicts with DHCP range (${dhcpRange}). The provisioning IP must be outside the DHCP range.`;
             errors.push(msg);
@@ -1167,6 +1504,42 @@ const validateNetworkingFormat = (state) => {
         }
       }
     }
+  }
+
+  /* Provisioning-network address family and Managed-IPv6 prefix size.
+     The provisioning network is a single family (IPv4 or IPv6, never both) and
+     its family is independent of the cluster IP Stack Mode — both proven
+     against the installer in shared/provisioningNetworkFamily.js. Reported
+     per field so the message lands on the control the user must change. */
+  const provisioningFamilyResult = validateProvisioningNetworkFamily({
+    provisioningNetwork: hostInventory.provisioningNetwork,
+    cidr: provisioningCIDR,
+    dhcpRange,
+    clusterProvisioningIP,
+    gateway: hostInventory.provisioningNetworkGateway
+  });
+  for (const [field, msg] of Object.entries(provisioningFamilyResult.errors)) {
+    errors.push(msg);
+    if (!fieldErrors[field]) fieldErrors[field] = msg;
+  }
+
+  // platform.baremetal.provisioningNetworkGateway (new at OpenShift 4.22).
+  // One implementation, shared with backend/src/generate.js, so live feedback and
+  // the emission boundary cannot drift. See shared/provisioningNetworkGateway.js
+  // for why the tool checks the relationships itself rather than deferring to
+  // the installer.
+  const gatewayResult = validateProvisioningNetworkGateway({
+    gateway: hostInventory.provisioningNetworkGateway,
+    provisioningNetwork: hostInventory.provisioningNetwork,
+    cidr: provisioningCIDR,
+    dhcpRange,
+    clusterProvisioningIP,
+  });
+  for (const msg of gatewayResult.errors) {
+    errors.push(msg);
+    fieldErrors.provisioningNetworkGateway = msg;
+    if (/DHCP range/.test(msg)) fieldErrors.provisioningDHCPRange = msg;
+    if (/cluster provisioning IP/.test(msg)) fieldErrors.clusterProvisioningIP = msg;
   }
 
   // Validate cluster provisioning IP is within provisioning CIDR (when both are set)
@@ -1183,13 +1556,13 @@ const validateNetworkingFormat = (state) => {
     }
   }
   if (scenarioIdNw === "ibm-cloud-ipi" && (networking.machineNetworkV6 || "").trim()) {
-    errors.push("IBM Cloud install-config networking in OpenShift 4.20 is documented as IPv4 only.");
+    errors.push("IBM Cloud install-config networking supports IPv4 addresses only.");
   }
   if (scenarioIdNw === "ibm-cloud-ipi" && clusterV6) {
-    errors.push("IBM Cloud install-config clusterNetwork in OpenShift 4.20 is documented as IPv4 only.");
+    errors.push("IBM Cloud install-config clusterNetwork supports IPv4 addresses only.");
   }
   if (scenarioIdNw === "ibm-cloud-ipi" && serviceV6) {
-    errors.push("IBM Cloud install-config serviceNetwork in OpenShift 4.20 is documented as IPv4 only.");
+    errors.push("IBM Cloud install-config serviceNetwork supports IPv4 addresses only.");
   }
   if (scenarioIdNw === "nutanix-ipi") {
     const nx = state.platformConfig?.nutanix || {};
@@ -1634,11 +2007,10 @@ const validateStep = (state, stepId) => {
     const workerCount = nodes.filter((n) => n.role === "worker").length;
     const arbiterCount = nodes.filter((n) => n.role === "arbiter").length;
 
-    // 4.20 doc-driven topology constraints for disconnected agent-based bare metal.
-    // Agent-based bare metal supports:
-    // - SNO (1 control plane, 0 workers/compute)
-    // - 2 control plane + 1 local arbiter (arbiter replicas must be exactly 1)
-    // - 3 control plane (HA) with arbiter pool absent, workers can be any number.
+    // Agent-based bare metal supported topologies:
+    // - SNO: 1 control plane, 0 workers, 0 arbiter
+    // - Two-node with arbiter: 2 control plane, 1 arbiter
+    // - HA: 3, 4, or 5 control plane, no arbiter
     //
     // For bare-metal IPI, this app only generates the HA 3-control-plane form correctly.
     const topologyErrors = [];
@@ -1650,10 +2022,10 @@ const validateStep = (state, stepId) => {
         if (arbiterCount !== 1) {
           topologyErrors.push("Two control plane nodes require exactly one arbiter node for this topology.");
         }
-      } else if (masterCount === 3) {
-        if (arbiterCount !== 0) topologyErrors.push("3 control plane nodes must not include arbiter nodes.");
+      } else if (masterCount >= 3 && masterCount <= 5) {
+        if (arbiterCount !== 0) topologyErrors.push(`${masterCount} control plane nodes must not include arbiter nodes.`);
       } else {
-        topologyErrors.push("Unsupported control plane count. Supported topologies: 1 (SNO), 2 (with 1 arbiter), or 3 (HA).");
+        topologyErrors.push("Unsupported control plane count. Supported topologies: 1 (SNO), 2 (with 1 arbiter), or 3, 4, or 5 (HA).");
       }
     }
 
@@ -1710,7 +2082,22 @@ const validateStep = (state, stepId) => {
       ]
     };
   }
-  if (stepId === "operators") return validateVersionConfirmed(state);
+  if (stepId === "operators") {
+    const versionCheck = validateVersionConfirmed(state);
+    if (versionCheck.errors.length > 0) return versionCheck;
+    const ops = state.operators || {};
+    const errors = [];
+    const warnings = [];
+    const selected = ops.selected || [];
+    const hasStaleSelected = selected.length > 0 && selected.some(op => !op.catalogImage || !op.defaultChannel);
+    if (hasStaleSelected) {
+      errors.push("Selected operators have stale metadata from a previous OpenShift version. Rescan operator catalogs to update.");
+    }
+    if (ops.stale && selected.length > 0) {
+      warnings.push("Operator selections may need review after version change.");
+    }
+    return { errors, warnings };
+  }
   if (stepId === "release") return validateVersionConfirmed(state);
   if (stepId === "operations") return { errors: [], warnings: [] };
   if (stepId === "identity-access") {
@@ -1769,7 +2156,7 @@ const validateStep = (state, stepId) => {
     const workerCount = nodes.filter((n) => n.role === "worker").length;
     const isAgentSno =
       (scenarioId === "bare-metal-agent" || scenarioId === "vsphere-agent") && masterCount === 1 && workerCount === 0;
-    const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+    const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
     if (!isAgentSno && requiredPaths.includes("platform.baremetal.apiVIPs") && !(state.hostInventory?.apiVip || "").trim()) {
       const msg = "API VIPs are required for Bare Metal Agent-based multi-node installs.";
       fieldErrors.apiVip = fieldErrors.apiVip || msg;
@@ -1863,15 +2250,15 @@ const validateStep = (state, stepId) => {
 
     if (scenarioId === "azure-government-ipi") {
       const azureErrors = [];
-      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
-      // Note: cloudName is auto-filled to "AzureUSGovernmentCloud" in generation (only valid value)
-      // so no validation needed - field not shown in UI
+      const azureFieldErrors = {};
+      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
       if (requiredPaths.includes("platform.azure.region") && !(azure.region || "").trim()) {
         azureErrors.push("Azure region is required for Azure Government IPI.");
+        azureFieldErrors.azureRegion = "Region is required.";
       }
-      // Note: resourceGroupName is optional for IPI (installer creates it), so no validation
       if (requiredPaths.includes("platform.azure.baseDomainResourceGroupName") && !(azure.baseDomainResourceGroupName || "").trim()) {
         azureErrors.push("Base domain resource group is required for Azure Government IPI.");
+        azureFieldErrors.azureBaseDomainResourceGroupName = "Base domain resource group is required.";
       }
 
       // v1.7.0: defaultMachinePlatform.zones validation
@@ -1893,16 +2280,61 @@ const validateStep = (state, stepId) => {
         }
       }
 
-      return { errors: [...errors, ...azureErrors], warnings: [] };
+      const azureWarnings = [];
+      const azureMinor = getOpenShiftMinorFromState(state);
+      if (azureMinor === "4.21") {
+        const azureSharedKey = azure.allowSharedKeyAccess;
+        if (azureSharedKey !== undefined && azureSharedKey !== null && typeof azureSharedKey !== "boolean") {
+          azureErrors.push("Azure Storage shared-key access must be true, false, or omitted.");
+        }
+        if (azureSharedKey === false) {
+          azureWarnings.push("Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.");
+        }
+      }
+
+      const byoResult = validateAzureByoVnet(azure, azureMinor);
+      if (!byoResult.valid) azureErrors.push(...byoResult.errors);
+
+      return { errors: [...errors, ...azureErrors], warnings: azureWarnings, fieldErrors: azureFieldErrors };
+    }
+    if (scenarioId === "azure-government-upi") {
+      const azureErrors = [];
+      const azureWarnings = [];
+      const azureMinor = getOpenShiftMinorFromState(state);
+      if (azureMinor === "4.21") {
+        const azureSharedKey = azure.allowSharedKeyAccess;
+        if (azureSharedKey !== undefined && azureSharedKey !== null && typeof azureSharedKey !== "boolean") {
+          azureErrors.push("Azure Storage shared-key access must be true, false, or omitted.");
+        }
+        if (azureSharedKey === false) {
+          azureWarnings.push("Disabling shared-key access requires the installation identity to have appropriate Azure RBAC permissions, including Storage Blob Data Contributor where required.");
+        }
+      }
+
+      const byoResult = validateAzureByoVnet(azure, azureMinor);
+      if (!byoResult.valid) azureErrors.push(...byoResult.errors);
+
+      return { errors: [...errors, ...azureErrors], warnings: azureWarnings };
     }
     if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-upi" || scenarioId === "vsphere-agent") {
       const vsphereErrors = [];
+      const vsphereFieldErrors = {};
       const label =
         scenarioId === "vsphere-upi" ? "vSphere UPI" : scenarioId === "vsphere-agent" ? "vSphere Agent-based" : "vSphere IPI";
-      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
       const placementMode = vsphere.placementMode || "failureDomains";
       if (state.platformConfig?.publish === "Internal") {
         vsphereErrors.push("Internal publish is not supported on non-cloud platforms (vSphere). Use External. See BZ#1953035.");
+      }
+      // installer: validateVCenters() requires server and applies validate.Host().
+      // Applies in both placement modes — vcenters[] is always required.
+      const vcenterServer = (vsphere.vcenter || "").trim();
+      if (!vcenterServer) {
+        vsphereErrors.push(`vCenter server is required for ${label}.`);
+        vsphereFieldErrors.vsphereVcenter = "vCenter server is required.";
+      } else if (!isValidVsphereHost(vcenterServer)) {
+        vsphereErrors.push(`vCenter server "${vcenterServer}": ${VSPHERE_HOST_HINT}.`);
+        vsphereFieldErrors.vsphereVcenter = `Must be a hostname, FQDN, or IP address (lowercase).`;
       }
       if (scenarioId === "vsphere-ipi") {
         const hasClusterOSImage = (vsphere.clusterOSImage || "").trim() !== "";
@@ -1913,13 +2345,14 @@ const validateStep = (state, stepId) => {
       }
       // Legacy path: require only legacy-owned fields (vcenter, datacenter, defaultDatastore, cluster, network for single FD).
       if (placementMode === "legacy") {
-        if (!(vsphere.vcenter || "").trim()) vsphereErrors.push(`vCenter server is required for ${label} when using legacy single placement.`);
-        if (!(vsphere.datacenter || "").trim()) vsphereErrors.push(`Datacenter is required for ${label} when using legacy single placement.`);
+        if (!(vsphere.vcenter || "").trim()) { vsphereErrors.push(`vCenter server is required for ${label} when using legacy single placement.`); vsphereFieldErrors.vsphereVcenter = "vCenter server is required."; }
+        if (!(vsphere.datacenter || "").trim()) { vsphereErrors.push(`Datacenter is required for ${label} when using legacy single placement.`); vsphereFieldErrors.vsphereLegacyDatacenter = "Datacenter is required."; }
         if (requiredPaths.includes("platform.vsphere.defaultDatastore") && !(vsphere.datastore || "").trim()) {
           vsphereErrors.push(`Default datastore is required for ${label} when using legacy single placement.`);
+          vsphereFieldErrors.vsphereLegacyDatastore = "Default datastore is required.";
         }
-        if (!(vsphere.cluster || "").trim()) vsphereErrors.push(`Compute cluster is required for ${label} when using legacy single placement.`);
-        if (!(vsphere.network || "").trim()) vsphereErrors.push(`VM network is required for ${label} when using legacy single placement.`);
+        if (!(vsphere.cluster || "").trim()) { vsphereErrors.push(`Compute cluster is required for ${label} when using legacy single placement.`); vsphereFieldErrors.vsphereLegacyCluster = "Compute cluster is required."; }
+        if (!(vsphere.network || "").trim()) { vsphereErrors.push(`VM network is required for ${label} when using legacy single placement.`); vsphereFieldErrors.vsphereLegacyNetwork = "VM network is required."; }
       } else {
         // Failure-domains path: require at least one valid FD for IPI and Agent-based multi-node (install-config platform.vsphere).
         if (scenarioId === "vsphere-ipi" || scenarioId === "vsphere-agent") {
@@ -1928,16 +2361,91 @@ const validateStep = (state, stepId) => {
           if (fds.length === 0 || !validFd) {
             vsphereErrors.push(`At least one failure domain with server, datacenter, compute cluster, datastore, and networks is required for ${label} when using failure domains.`);
           }
+          fds.forEach((fd, i) => {
+            const fdLabel = fd.name || "fd-" + i;
+            const topo = fd.topology || {};
+            // installer: failureDomain.server is required, must pass validate.Host(),
+            // and must match a server listed in platform.vsphere.vcenters[].
+            const fdServer = String(fd.server || "").trim();
+            if (!fdServer) {
+              vsphereErrors.push("Failure domain " + fdLabel + ": must specify a vCenter server.");
+              vsphereFieldErrors["fd_" + i + "_server"] = "vCenter server is required.";
+            } else if (!isValidVsphereHost(fdServer)) {
+              vsphereErrors.push("Failure domain " + fdLabel + ": server \"" + fdServer + "\": " + VSPHERE_HOST_HINT + ".");
+              vsphereFieldErrors["fd_" + i + "_server"] = "Must be a hostname, FQDN, or IP address (lowercase).";
+            } else if (vcenterServer && fdServer !== vcenterServer) {
+              vsphereErrors.push("Failure domain " + fdLabel + ": server \"" + fdServer + "\" does not exist in vcenters. It must match the configured vCenter server \"" + vcenterServer + "\".");
+              vsphereFieldErrors["fd_" + i + "_server"] = "Must match the configured vCenter server.";
+            }
+            // installer: zone and region tag values are both required.
+            if (!String(fd.region || "").trim()) {
+              vsphereErrors.push("Failure domain " + fdLabel + ": must specify region tag value.");
+              vsphereFieldErrors["fd_" + i + "_region"] = "Region is required.";
+            }
+            if (!String(fd.zone || "").trim()) {
+              vsphereErrors.push("Failure domain " + fdLabel + ": must specify zone tag value.");
+              vsphereFieldErrors["fd_" + i + "_zone"] = "Zone is required.";
+            }
+            // installer: networks is capped at 10 (field.TooMany).
+            if (Array.isArray(topo.networks) && topo.networks.length > 10) {
+              vsphereErrors.push("Failure domain " + fdLabel + ": a maximum of 10 networks are allowed (found " + topo.networks.length + ").");
+              vsphereFieldErrors["fd_" + i + "_networks"] = "A maximum of 10 networks are allowed.";
+            }
+            if (topo.computeCluster && String(topo.computeCluster).trim()) {
+              if (!/^\/(.+?)\/host\/(.+)$/.test(String(topo.computeCluster).trim())) {
+                vsphereErrors.push("Failure domain " + fdLabel + ": computeCluster must be a full inventory path matching /<datacenter>/host/<cluster> (e.g. /Datacenter1/host/Cluster1). The OpenShift installer rejects short names.");
+                vsphereFieldErrors["fd_" + i + "_computeCluster"] = "Must be a full inventory path: /<datacenter>/host/<cluster>";
+              }
+            }
+            if (topo.datastore && String(topo.datastore).trim()) {
+              const dsVal = String(topo.datastore).trim();
+              const dcVal = String(topo.datacenter || "").trim();
+              if (!/^\/(.+?)\/datastore\/(.+)$/.test(dsVal)) {
+                vsphereErrors.push("Failure domain " + fdLabel + ": datastore must be a full inventory path matching /<datacenter>/datastore/<name> (e.g. /Datacenter1/datastore/DS1). The OpenShift installer rejects short names.");
+                vsphereFieldErrors["fd_" + i + "_datastore"] = "Must be a full inventory path: /<datacenter>/datastore/<name>";
+              } else if (dcVal && !dsVal.includes(dcVal)) {
+                // installer: "the datastore defined does not exist in the correct datacenter"
+                vsphereErrors.push("Failure domain " + fdLabel + ": the datastore defined does not exist in the correct datacenter (path must contain \"" + dcVal + "\").");
+                vsphereFieldErrors["fd_" + i + "_datastore"] = "Path must be under datacenter \"" + dcVal + "\".";
+              }
+            }
+            if (topo.folder && String(topo.folder).trim()) {
+              const folderVal = String(topo.folder).trim();
+              const dcVal = String(topo.datacenter || "").trim();
+              if (!/^\/(.+?)\/vm\/(.+)$/.test(folderVal)) {
+                vsphereErrors.push("Failure domain " + fdLabel + ": folder must be a full inventory path matching /<datacenter>/vm/<folder> (e.g. /Datacenter1/vm/OpenShift).");
+                vsphereFieldErrors["fd_" + i + "_folder"] = "Must be a full inventory path: /<datacenter>/vm/<folder>";
+              } else if (dcVal && !folderVal.includes(dcVal)) {
+                // installer: "the folder defined does not exist in the correct datacenter"
+                vsphereErrors.push("Failure domain " + fdLabel + ": the folder defined does not exist in the correct datacenter (path must contain \"" + dcVal + "\").");
+                vsphereFieldErrors["fd_" + i + "_folder"] = "Path must be under datacenter \"" + dcVal + "\".";
+              }
+            }
+            if (topo.resourcePool && String(topo.resourcePool).trim()) {
+              if (!/^\/(.+?)\/host\/(.+)$/.test(String(topo.resourcePool).trim())) {
+                vsphereErrors.push("Failure domain " + fdLabel + ": resourcePool must be a full inventory path starting with /<datacenter>/host/<cluster>/... (e.g. /Datacenter1/host/Cluster1/Resources/pool).");
+                vsphereFieldErrors["fd_" + i + "_resourcePool"] = "Must be a full inventory path: /<datacenter>/host/<cluster>/...";
+              }
+            }
+            if (topo.template && String(topo.template).trim()) {
+              if (!/^\/(.+?)\/vm\/(.+)$/.test(String(topo.template).trim())) {
+                vsphereErrors.push("Failure domain " + fdLabel + ": template must be a full inventory path matching /<datacenter>/vm/<path> (e.g. /Datacenter1/vm/rhcos-templates/rhcos-4.21).");
+                vsphereFieldErrors["fd_" + i + "_template"] = "Must be a full inventory path: /<datacenter>/vm/<path>";
+              }
+            }
+          });
         }
       }
-      return { errors: [...errors, ...vsphereErrors], warnings: [] };
+      return { errors: [...errors, ...vsphereErrors], warnings: [], fieldErrors: vsphereFieldErrors };
     }
     if (scenarioId === "aws-govcloud-ipi" || scenarioId === "aws-govcloud-upi") {
       const awsErrors = [];
+      const awsFieldErrors = {};
       const label = scenarioId === "aws-govcloud-upi" ? "AWS GovCloud UPI" : "AWS GovCloud IPI";
-      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
       if (requiredPaths.includes("platform.aws.region") && !(aws.region || "").trim()) {
         awsErrors.push(`AWS GovCloud region is required for ${label}.`);
+        awsFieldErrors.awsRegion = "Region is required.";
       }
 
       // v1.7.0: defaultMachinePlatform.iamProfile validation (ARN format)
@@ -1961,6 +2469,24 @@ const validateStep = (state, stepId) => {
           awsErrors.push(`AWS zones must match region format (e.g., ${region || "us-gov-west-1"}a). Invalid: ${invalidZones.join(", ")}`);
         }
       }
+      if (scenarioId === "aws-govcloud-ipi") {
+        const minor = getOpenShiftMinorFromState(state);
+        if (minor && isVersionGTE(minor, "4.21") && aws.rootVolumeThroughput != null && aws.rootVolumeThroughput !== "") {
+          const tpResult = validateAwsRootVolumeThroughput(aws.rootVolumeThroughput, (aws.rootVolumeType || "").trim() || undefined);
+          if (!tpResult.valid) {
+            awsErrors.push(tpResult.error);
+            awsFieldErrors.awsThroughput = tpResult.error;
+          }
+        }
+        if (minor && isVersionGTE(minor, "4.21")) {
+          const ccValue = aws.cpuOptions?.confidentialCompute;
+          if (ccValue !== undefined && ccValue !== null && ccValue !== "") {
+            if (typeof ccValue !== "string" || !VALID_CONFIDENTIAL_COMPUTE_POLICIES.includes(ccValue)) {
+              awsErrors.push("Confidential compute must be one of: " + VALID_CONFIDENTIAL_COMPUTE_POLICIES.join(", ") + ".");
+            }
+          }
+        }
+      }
       if (aws.vpcMode === "existing") {
         const entries = Array.isArray(aws.subnetEntries) && aws.subnetEntries.length > 0
           ? aws.subnetEntries
@@ -1973,7 +2499,7 @@ const validateStep = (state, stepId) => {
             const requiredSet = (state.platformConfig?.publish || "").toLowerCase() === "internal"
               ? AWS_SUBNET_ROLES_REQUIRED_INTERNAL
               : AWS_SUBNET_ROLES_REQUIRED_EXTERNAL;
-            /* 4.20: when roles specified, each subnet must have ≥1 role; required set must be covered */
+            /* When roles are specified, each subnet must have at least one role and the required set must be covered. */
             for (let i = 0; i < entries.length; i++) {
               if (!(entries[i].id || "").trim()) continue;
               const roles = entries[i].roles || [];
@@ -1985,14 +2511,14 @@ const validateStep = (state, stepId) => {
             const assigned = new Set(entries.flatMap((e) => e.roles || []));
             for (const r of requiredSet) {
               if (!assigned.has(r)) {
-                awsErrors.push(`Subnet roles must include "${r}" on at least one subnet (4.20 doc).`);
+                awsErrors.push(`Subnet roles must include "${r}" on at least one subnet per the OpenShift AWS installation documentation.`);
                 break;
               }
             }
           }
         }
       }
-      return { errors: [...errors, ...awsErrors], warnings: [] };
+      return { errors: [...errors, ...awsErrors], warnings: [], fieldErrors: awsFieldErrors };
     }
     if (scenarioId === "nutanix-ipi") {
       // v1.7.0: defaultMachinePlatform.bootType validation (dropdown handles enum, just document)
@@ -2006,7 +2532,7 @@ const validateStep = (state, stepId) => {
     }
     if (scenarioId === "ibm-cloud-ipi") {
       const ibmErrors = [];
-      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml") || [];
+      const requiredPaths = getRequiredParamsForOutput(scenarioId, "install-config.yaml", state) || [];
       const vpcMode = ibmcloud.vpcMode || "existing-vpc";
       const dedicatedHostsProfile = (ibmcloud.dedicatedHostsProfile || "").trim();
       const dedicatedHostsName = (ibmcloud.dedicatedHostsName || "").trim();
@@ -2121,10 +2647,13 @@ const validateManualOpenShiftRelease = (minorRaw, patchRaw) => {
   const minor = String(minorRaw ?? "").trim();
   const patch = String(patchRaw ?? "").trim();
   const errors = [];
-  if (!minor) errors.push("Minor channel is required (e.g. 4.17).");
-  else if (!/^4\.\d+$/.test(minor)) errors.push("Minor channel must look like 4.17.");
-  if (!patch) errors.push("Patch version is required (e.g. 4.17.12).");
-  else if (!/^4\.\d+\.\d+$/.test(patch)) errors.push("Patch version must look like 4.17.12.");
+  if (!minor) errors.push("Minor channel is required (e.g. 4.20, 4.21).");
+  else if (!/^4\.\d+$/.test(minor)) errors.push("Minor channel must look like 4.20.");
+  else if (!SUPPORTED_MINORS.includes(minor)) {
+    errors.push(`OpenShift ${minor} is not supported by this version of OpenShift Airgap Architect. Supported versions: ${SUPPORTED_MINORS.join(', ')}`);
+  }
+  if (!patch) errors.push("Patch version is required (e.g. 4.20.15, 4.21.5).");
+  else if (!/^4\.\d+\.\d+$/.test(patch)) errors.push("Patch version must look like 4.20.15.");
   if (minor && patch && !patch.startsWith(`${minor}.`)) {
     errors.push(`Patch ${patch} must belong to minor ${minor}.`);
   }

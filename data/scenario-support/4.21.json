@@ -1,0 +1,270 @@
+{
+  "$schema": "oaa.scenarioSupport/1",
+  "minor": "4.21",
+  "description": "Platform x installation-method support surface for this OpenShift minor. A FIRST-CLASS onboarding axis: a newly supported platform/method combination can appear with no change to install-config fields, AgentConfig fields or CPU architectures, so a field-level or architecture-level diff cannot detect it. Nutanix + Agent is the worked example. `upstream` is what Red Hat documents; `oaa` is what this product models; the two are recorded separately on purpose so a gap is visible rather than absent.",
+  "sources": [
+    {
+      "id": "OVERVIEW_T11",
+      "title": "Installation overview \u2014 1.2. Supported platforms, Table 1.1 \"Supported platforms\"",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installation_overview",
+      "note": "The direct platform x method grid (columns: IPI / UPI / Agent-based Installer / Assisted Installer). This is the primary authority for THIS axis. It carries no architecture axis at all."
+    },
+    {
+      "id": "OVERVIEW_T21_T22",
+      "title": "Installation overview \u2014 2.4. Supported installation methods for different platforms, Tables 2.1 and 2.2",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installation_overview",
+      "note": "Installer-provisioned (2.1) and user-provisioned (2.2) option matrices. Used as corroboration for IPI/UPI, and as the only source for the region-scoped rows (\"Government regions\" exists in 2.1 only)."
+    },
+    {
+      "id": "AGENT_PLATFORMS",
+      "title": "Installing an on-premise cluster with the Agent-based Installer \u2014 1.1.3. Supported platforms",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing_an_on-premise_cluster_with_the_agent-based_installer",
+      "quote": "The following platforms are supported: baremetal vsphere nutanix external none",
+      "note": "Byte-identical in 4.20, 4.21 and 4.22."
+    },
+    {
+      "id": "NUTANIX_BOOK",
+      "title": "Installing on Nutanix \u2014 Agent-based Installer",
+      "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html-single/installing_on_nutanix",
+      "quote": "You can install an OpenShift Container Platform cluster on Nutanix by using the Agent-based Installer.",
+      "note": "Verified verbatim in 4.20, 4.21 and 4.22."
+    }
+  ],
+  "matrix": [
+    {
+      "platform": "Bare Metal",
+      "method": "IPI",
+      "scenarioId": "bare-metal-ipi",
+      "upstream": "supported",
+      "upstreamReason": "Table 2.1 checkmarks Bare metal (64-bit x86) and Bare metal (64-bit ARM) for the Default and Network customization installation types.",
+      "oaa": "modelled",
+      "oaaReason": "OAA models this as scenarioId \"bare-metal-ipi\".",
+      "provenance": [
+        "OVERVIEW_T11",
+        "OVERVIEW_T21_T22"
+      ]
+    },
+    {
+      "platform": "Bare Metal",
+      "method": "UPI",
+      "scenarioId": "bare-metal-upi",
+      "upstream": "supported",
+      "upstreamReason": "Table 2.2 checkmarks Bare metal (64-bit x86) and Bare metal (64-bit ARM) for Custom, Network customization and Restricted network.",
+      "oaa": "modelled",
+      "oaaReason": "OAA models this as scenarioId \"bare-metal-upi\".",
+      "provenance": [
+        "OVERVIEW_T11",
+        "OVERVIEW_T21_T22"
+      ]
+    },
+    {
+      "platform": "Bare Metal",
+      "method": "Agent",
+      "scenarioId": "bare-metal-agent",
+      "upstream": "supported",
+      "upstreamReason": "Agent-based Installer \"Supported platforms\" lists baremetal.",
+      "oaa": "modelled",
+      "oaaReason": "OAA models this as scenarioId \"bare-metal-agent\".",
+      "provenance": [
+        "OVERVIEW_T11",
+        "AGENT_PLATFORMS"
+      ]
+    },
+    {
+      "platform": "VMware vSphere",
+      "method": "IPI",
+      "scenarioId": "vsphere-ipi",
+      "upstream": "supported",
+      "upstreamReason": "Table 2.1 checkmarks vSphere for Default, Custom, Network customization and Restricted network.",
+      "oaa": "modelled",
+      "oaaReason": "OAA models this as scenarioId \"vsphere-ipi\".",
+      "provenance": [
+        "OVERVIEW_T11",
+        "OVERVIEW_T21_T22"
+      ]
+    },
+    {
+      "platform": "VMware vSphere",
+      "method": "UPI",
+      "scenarioId": "vsphere-upi",
+      "upstream": "supported",
+      "upstreamReason": "Table 2.2 checkmarks vSphere for Custom, Network customization and Restricted network.",
+      "oaa": "modelled",
+      "oaaReason": "OAA models this as scenarioId \"vsphere-upi\".",
+      "provenance": [
+        "OVERVIEW_T11",
+        "OVERVIEW_T21_T22"
+      ]
+    },
+    {
+      "platform": "VMware vSphere",
+      "method": "Agent",
+      "scenarioId": "vsphere-agent",
+      "upstream": "supported",
+      "upstreamReason": "Agent-based Installer \"Supported platforms\" lists vsphere.",
+      "oaa": "modelled",
+      "oaaReason": "OAA models this as scenarioId \"vsphere-agent\".",
+      "provenance": [
+        "OVERVIEW_T11",
+        "AGENT_PLATFORMS"
+      ]
+    },
+    {
+      "platform": "Nutanix",
+      "method": "IPI",
+      "scenarioId": "nutanix-ipi",
+      "upstream": "supported",
+      "upstreamReason": "Table 2.1 checkmarks Nutanix for Default, Custom and Restricted network.",
+      "oaa": "modelled",
+      "oaaReason": "OAA models this as scenarioId \"nutanix-ipi\".",
+      "provenance": [
+        "OVERVIEW_T11",
+        "OVERVIEW_T21_T22"
+      ]
+    },
+    {
+      "platform": "Nutanix",
+      "method": "UPI",
+      "scenarioId": null,
+      "upstream": "not-supported",
+      "upstreamReason": "Table 1.1 \"Supported platforms\" leaves the user-provisioned cell blank for this platform, and the platform's column in Table 2.2 is empty on every row.",
+      "oaa": "intentionally-not-modelled",
+      "oaaReason": "Not supported upstream, so OAA does not model it. Aligned.",
+      "provenance": [
+        "OVERVIEW_T11",
+        "OVERVIEW_T21_T22"
+      ]
+    },
+    {
+      "platform": "Nutanix",
+      "method": "Agent",
+      "scenarioId": null,
+      "upstream": "documentation-conflict",
+      "upstreamReason": "UNRECONCILED CONFLICT between Red Hat's own sources, identical in 4.20, 4.21 and 4.22. AGAINST: installation-overview Table 1.1 \"Supported platforms\" marks Nutanix only for Installer-provisioned infrastructure and the Assisted Installer; the Agent-based Installer cell is BLANK (support is marked with a literal \"X\" in that table, and Bare metal and vSphere do carry one in the Agent column, so the blank is meaningful). FOR: the Agent book's \"Supported platforms\" list reads \"baremetal vsphere nutanix external none\", and the Nutanix book states \"You can install an OpenShift Container Platform cluster on Nutanix by using the Agent-based Installer.\" Source precedence favours the two platform/method-specific books over the general overview, but the overview table is itself an intentional support matrix, so this is recorded as a conflict rather than resolved by inference. OAA does not expose Nutanix Agent, so the product already fails closed.",
+      "oaa": "intentionally-not-modelled",
+      "oaaReason": "Upstream status is an unreconciled documentation conflict, and OAA models only nutanix-ipi: there is no nutanix-agent scenario, catalog or D3 row. No user-facing surface claims otherwise (README lists \"Nutanix IPI\"; the Methodology step offers only IPI for Nutanix; data/docs-index/*.json records the exclusion explicitly). Not a v2.1.0 blocker. Tracked as DOC-200, recommended target v2.2, and gated on Red Hat reconciling the conflict first.",
+      "provenance": [
+        "OVERVIEW_T11",
+        "AGENT_PLATFORMS",
+        "NUTANIX_BOOK"
+      ]
+    },
+    {
+      "platform": "AWS GovCloud",
+      "method": "IPI",
+      "scenarioId": "aws-govcloud-ipi",
+      "upstream": "supported",
+      "upstreamReason": "Table 2.1 row \"Government regions\" is checkmarked under AWS (64-bit x86).",
+      "oaa": "modelled",
+      "oaaReason": "OAA models this as scenarioId \"aws-govcloud-ipi\".",
+      "provenance": [
+        "OVERVIEW_T11",
+        "OVERVIEW_T21_T22"
+      ]
+    },
+    {
+      "platform": "AWS GovCloud",
+      "method": "UPI",
+      "scenarioId": "aws-govcloud-upi",
+      "upstream": "unknown-needs-review",
+      "upstreamReason": "Table 2.2 has no \"Government regions\" row at all, so UPI into AWS GovCloud is not affirmatively documented by the overview matrix; the AWS book separately publishes RHCOS AMIs for us-gov-east-1 and us-gov-west-1, which implies feasibility without stating support. Evidence is genuinely ambiguous and must not be resolved by inference.",
+      "oaa": "modelled-pending-upstream-review",
+      "oaaReason": "OAA models aws-govcloud-upi and the Methodology step offers UPI for AWS GovCloud, but the overview matrix does not affirmatively document UPI into government regions. This predates Tranche 7C.1 and is NOT a new exposure; it needs a human product decision, not an inference. Tracked as DOC-204.",
+      "provenance": [
+        "OVERVIEW_T11",
+        "OVERVIEW_T21_T22"
+      ]
+    },
+    {
+      "platform": "AWS GovCloud",
+      "method": "Agent",
+      "scenarioId": null,
+      "upstream": "not-supported",
+      "upstreamReason": "Table 1.1 \"Supported platforms\" leaves the Agent-based Installer cell blank for this platform, and the Agent book's \"Supported platforms\" list (baremetal, vsphere, nutanix, external, none) does not include it.",
+      "oaa": "intentionally-not-modelled",
+      "oaaReason": "Not supported upstream, so OAA does not model it. Aligned.",
+      "provenance": [
+        "OVERVIEW_T11",
+        "AGENT_PLATFORMS"
+      ]
+    },
+    {
+      "platform": "Azure Government",
+      "method": "IPI",
+      "scenarioId": "azure-government-ipi",
+      "upstream": "supported",
+      "upstreamReason": "Table 2.1 row \"Government regions\" is checkmarked under Azure (64-bit x86).",
+      "oaa": "modelled",
+      "oaaReason": "OAA models this as scenarioId \"azure-government-ipi\".",
+      "provenance": [
+        "OVERVIEW_T11",
+        "OVERVIEW_T21_T22"
+      ]
+    },
+    {
+      "platform": "Azure Government",
+      "method": "UPI",
+      "scenarioId": "azure-government-upi",
+      "upstream": "unknown-needs-review",
+      "upstreamReason": "Table 2.2 has no \"Government regions\" row, and the Azure book documents government-region installation only as an installer-provisioned flow. Not affirmatively documented; not inferable from commercial Azure UPI.",
+      "oaa": "modelled-unreachable-pending-upstream-review",
+      "oaaReason": "shared/scenarioId.js maps azure-government-upi and a D3 row exists, but shared/installMethods.js offers only IPI for Azure Government, so the scenario is unreachable from the UI. Upstream support is not affirmatively documented either. Tracked as DOC-204.",
+      "provenance": [
+        "OVERVIEW_T11",
+        "OVERVIEW_T21_T22"
+      ]
+    },
+    {
+      "platform": "Azure Government",
+      "method": "Agent",
+      "scenarioId": null,
+      "upstream": "not-supported",
+      "upstreamReason": "Table 1.1 \"Supported platforms\" leaves the Agent-based Installer cell blank for this platform, and the Agent book's \"Supported platforms\" list (baremetal, vsphere, nutanix, external, none) does not include it.",
+      "oaa": "intentionally-not-modelled",
+      "oaaReason": "Not supported upstream, so OAA does not model it. Aligned.",
+      "provenance": [
+        "OVERVIEW_T11",
+        "AGENT_PLATFORMS"
+      ]
+    },
+    {
+      "platform": "IBM Cloud",
+      "method": "IPI",
+      "scenarioId": "ibm-cloud-ipi",
+      "upstream": "supported",
+      "upstreamReason": "Table 2.1 checkmarks IBM Cloud for Default, Custom, Network customization, Restricted network, Private clusters and Existing VPC.",
+      "oaa": "modelled",
+      "oaaReason": "OAA models this as scenarioId \"ibm-cloud-ipi\".",
+      "provenance": [
+        "OVERVIEW_T11",
+        "OVERVIEW_T21_T22"
+      ]
+    },
+    {
+      "platform": "IBM Cloud",
+      "method": "UPI",
+      "scenarioId": null,
+      "upstream": "not-supported",
+      "upstreamReason": "Table 1.1 \"Supported platforms\" leaves the user-provisioned cell blank for this platform, and the platform's column in Table 2.2 is empty on every row.",
+      "oaa": "intentionally-not-modelled",
+      "oaaReason": "Not supported upstream, so OAA does not model it. Aligned.",
+      "provenance": [
+        "OVERVIEW_T11",
+        "OVERVIEW_T21_T22"
+      ]
+    },
+    {
+      "platform": "IBM Cloud",
+      "method": "Agent",
+      "scenarioId": null,
+      "upstream": "not-supported",
+      "upstreamReason": "Table 1.1 \"Supported platforms\" leaves the Agent-based Installer cell blank for this platform, and the Agent book's \"Supported platforms\" list (baremetal, vsphere, nutanix, external, none) does not include it.",
+      "oaa": "intentionally-not-modelled",
+      "oaaReason": "Not supported upstream, so OAA does not model it. Aligned.",
+      "provenance": [
+        "OVERVIEW_T11",
+        "AGENT_PLATFORMS"
+      ]
+    }
+  ]
+}

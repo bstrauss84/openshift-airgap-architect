@@ -1,10 +1,38 @@
 # Implementation Roadmap (Semantic Versioning)
 
-**Created:** 2026-05-14  
-**Last Updated:** 2026-05-29  
-**Based on:** BACKLOG_STATUS.md + REVISED_PHASED_PLAN_2026-05-10.md  
-**Replaces:** docs/REVISED_PHASED_PLAN_2026-05-10.md (as active roadmap)  
+> ## 📜 HISTORICAL PLANNING RECORD — NOT CURRENT STATUS
+>
+> **This document describes the plan as it stood on 2026-08-13, when the
+> current release was v1.7.0.** It is retained as a record of what was
+> intended and why. It is **not** a statement of what the product supports
+> today, and the "Current Version" line below is historical.
+>
+> For current truth use, in this order:
+>
+> 1. [`docs/BACKLOG_STATUS.md`](BACKLOG_STATUS.md) — the single source of
+>    truth for status claims.
+> 2. [`CLAUDE.md`](../CLAUDE.md) — durable product scope and rules.
+> 3. [`docs/releases/v2.1.0.md`](releases/v2.1.0.md) — the current release
+>    note, including what is not certified.
+>
+> Two specific statements in the body below were accurate when written and
+> are **wrong as present-tense claims**; both are annotated in place rather
+> than rewritten, so the record stays intact:
+>
+> - a forward-looking mention of OpenShift **4.23** support (§ "Deferred to
+>   v2.0.0"). The supported set is **4.20, 4.21 and 4.22**. 4.23 is
+>   unsupported and rejected at every boundary.
+> - a claim of **restricted-v2 SCC compatibility** (§ v1.6.0). That was never
+>   verified against a cluster and the manifests of the time pinned
+>   `runAsUser: 1001`, which a default namespace UID range rejects.
+
+**Created:** 2026-05-14
+**Last Updated:** 2026-08-13 (content frozen; banner added 2026-10-16)
+**Based on:** BACKLOG_STATUS.md + REVISED_PHASED_PLAN_2026-05-10.md + version-aware planning (local-docs/version-aware-planning/)
+**Replaces:** docs/REVISED_PHASED_PLAN_2026-05-10.md (as active roadmap)
 **Current Version:** 1.7.0 (released 2026-05-29)
+**Next Major:** v2.0.0 (architecture approved 2026-05-29, Phases 0–2 complete, Phases 3–5 active/partial)
+**Parallel Program:** Enterprise productization and security-ready distribution (PROD-024 through PROD-046, intake 2026-08-03)
 
 ---
 
@@ -62,7 +90,7 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ### v1.1.1 (Patch) - ✅ **RELEASED** (2026-05-14)
 
-**Released:** 2026-05-14  
+**Released:** 2026-05-14
 **Purpose:** Highside infrastructure foundation (phased approach - Option B)
 
 #### Items Completed (3/3)
@@ -102,7 +130,7 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ### v1.1.2 (Patch) - ✅ **RELEASED** (2026-05-14)
 
-**Released:** 2026-05-14  
+**Released:** 2026-05-14
 **Purpose:** ReviewStep.jsx UI integration (highside phase 2 - complete)
 
 #### Items Completed (2/2)
@@ -131,15 +159,15 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 #### Highside Integration Complete ✅
 
-**Phase 1 (v1.1.1):** Core infrastructure modules  
-**Phase 2 (v1.1.2):** ReviewStep.jsx UI layer  
+**Phase 1 (v1.1.1):** Core infrastructure modules
+**Phase 2 (v1.1.2):** ReviewStep.jsx UI layer
 **Status:** Highside integration fully complete
 
 ---
 
 ### v1.1.3 (Patch) - ✅ **RELEASED** (2026-05-14)
 
-**Released:** 2026-05-14 (same day as v1.1.2)  
+**Released:** 2026-05-14 (same day as v1.1.2)
 **Purpose:** Critical hotfix for v1.1.2 runtime error
 
 #### Issue Fixed
@@ -303,7 +331,7 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ### v1.2.1 (Patch) - ✅ **RELEASED** (2026-05-17)
 
-**Released:** 2026-05-17  
+**Released:** 2026-05-17
 **Purpose:** Node drawer alignment fixes + VIP validation enhancements
 
 #### Items Completed (3/3)
@@ -346,7 +374,7 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ### v1.2.2 (Patch) - ✅ **RELEASED** (2026-05-17)
 
-**Released:** 2026-05-17  
+**Released:** 2026-05-17
 **Purpose:** VIP validation error display + tooltip quality enhancement
 
 #### Items Completed (2/2)
@@ -387,7 +415,7 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ### v1.2.3 (Patch) - ✅ **RELEASED** (2026-05-26)
 
-**Released:** 2026-05-26  
+**Released:** 2026-05-26
 **Purpose:** DOC-082 Phase 3 completion - Parameter canonicalization, catalog validation, advanced features
 
 #### Items Completed (7/7)
@@ -488,7 +516,7 @@ This document organizes remaining backlog work by semantic versioning to provide
 **Phase 7 - Automation Documentation:** ✅ Complete (2026-05-27, commit f7a97fc)
 - Created `local-docs/AUDIT_AUTOMATION_GUIDE.md` (36KB, 800+ lines)
 - Documents reproducible process for OCP 4.21+ audits
-- 18 reusable scripts with adaptation instructions  
+- 18 reusable scripts with adaptation instructions
 - Lessons learned: 67% false positive filtering rate, source precedence rules
 - Common pitfalls and solutions
 - Estimated effort reduction: 5-8 days (with guide) vs 13-19 days (first time)
@@ -500,7 +528,7 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ### v1.6.0 (Minor) - ✅ **RELEASED** (2026-05-27)
 
-**Released:** 2026-05-27  
+**Released:** 2026-05-27
 **Purpose:** Comprehensive verification and parameter expansion - "Complete the Audit"
 
 #### Items Completed (4 major features + 8 verification findings)
@@ -637,9 +665,9 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ### v1.7.0 (Minor) - ✅ **RELEASED** (2026-05-29)
 
-**Released:** 2026-05-29  
-**Purpose:** "Complete the Foundation" - Finish deferred work from v1.6.0 + production readiness  
-**Theme:** Enterprise readiness and production scaling  
+**Released:** 2026-05-29
+**Purpose:** "Complete the Foundation" - Finish deferred work from v1.6.0 + production readiness
+**Theme:** Enterprise readiness and production scaling
 **Actual Effort:** 28 engineering days (5 calendar weeks)
 
 #### Completion Status - ALL COMPLETE ✅
@@ -748,6 +776,13 @@ This document organizes remaining backlog work by semantic versioning to provide
 - Archiver upgrade to 8.0.0 (eliminates memory leak from deprecated `inflight` dependency)
 - Build performance optimization (reduced Docker context size)
 - Container security verification (non-root execution, restricted-v2 SCC compatible)
+  <!-- HISTORICAL, AND NOT TRUE AS WRITTEN. Recorded 2026-08-13; corrected
+       2026-10-16. restricted-v2 compatibility was never verified against a
+       cluster, and the manifests of this period pinned runAsUser: 1001 and
+       fsGroup: 1001 — outside a default namespace uid-range, so admission
+       would have rejected the pod. The OpenShift overlay now removes both
+       pins (manifests/openshift/patch-restricted-v2.yaml); that correction
+       is still unverified on a live cluster. See PROD-039 / PROD-003. -->
 
 **Testing:**
 - 117 new regression tests added across 5 test suites
@@ -996,6 +1031,11 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 **Deferred to v2.0.0 (8-12 weeks, separate project):**
 - DOC-059: Version-aware system (OpenShift 4.20/4.21/4.22/4.23 support)
+  <!-- HISTORICAL SCOPE GUESS, NOT A SUPPORT CLAIM. Written 2026-08-13 when
+       the supported set was still being chosen. The shipped set is 4.20,
+       4.21 and 4.22. 4.23 is UNSUPPORTED and is rejected at every boundary
+       (HTTP 422 UNSUPPORTED_VERSION), with no fallback to a supported
+       minor. See CLAUDE.md "Product Scope". -->
 - Comprehensive testing/validation (after version-aware stabilizes)
 - Phase 4: Testing & Validation (visual regression, accessibility, E2E matrix)
 
@@ -1052,7 +1092,7 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 **Test Results:**
 - New tests: 10/10 passing
-- Regression tests: 56/56 validation tests passing  
+- Regression tests: 56/56 validation tests passing
 - Overall: 738/745 total suite passing (5 pre-existing failures unrelated)
 
 **Commit:** 103dc32 (pushed to main + develop, 2026-05-20)
@@ -1371,47 +1411,253 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ---
 
-### v2.0.0 (Major) - 8-12 weeks (SEPARATE PROJECT)
+### DOC-101: v2.0.0 Phase 1 - Architecture Foundation ✅ **VERIFIED DONE** (2026-06-26)
 
+**Status:** ✅ **VERIFIED_DONE** - 6/6 slices + 2 regression fixes complete
+**Started:** 2026-06-01
+**Completed:** 2026-06-26 (final browser verification passed)
+**Purpose:** Build version-awareness plumbing for OpenShift 4.20 + 4.21 support
+**Commits:** 8a879e7 through bf7cfb3 (12 commits total)
+
+#### Implementation Status
+
+**✅ Slice 1: Centralized Version Utilities (COMPLETE)**
+- Commits: 8a879e7, 42ba167
+- Files: `shared/versionUtils.js` (6,865 bytes), `shared/versionUtils.test.js` (14,394 bytes)
+- Tests: 23/23 passing
+- Functions: normalizeVersion, getMinorVersion, compareVersions, isVersionGTE, isVersionLT, isVersionInRange
+- Evidence: No ad-hoc string comparisons, semantic version handling centralized
+
+**✅ Slice 2: Catalog Parameter Schema v2.0 (COMPLETE)**
+- Commits: c4d1aae, 3b5194f
+- Files: `schema/catalog-parameter-schema.json`
+- Extensions: supportStatus, minVersion, maxVersion, versionNotes, validationRules
+- Deprecation Support: deprecated, deprecatedReason, replacementPath, removalVersion fields
+- Evidence: Schema ready for Phase 0 catalog updates
+
+**✅ Slice 3: State Schema v3 Migration System (COMPLETE)**
+- Commits: 7f3dc5c, 09b6d40
+- Files: `shared/stateMigration.js` (8,492 bytes), `shared/stateMigration.test.js` (12,267 bytes)
+- Tests: 23/23 passing
+- Features: Auto-detect schema version, v1/v2/v3 support, preserve unknown fields, pure shared helper
+- Evidence: minVersion/maxVersion required, v3 clone safety verified
+
+**✅ Slice 4: Backend API State/Import/Export Boundaries (COMPLETE)**
+- Commits: 30ae319, b29c1fd, 9653413, fcd2f34
+- Boundaries: 5 integration points (state update, import, export, buildPreviewFiles, buildFieldGuide)
+- Security: Unsafe logging removed, silent reset prevented
+- Evidence: Migration applied at all boundaries, integration tests added
+
+**✅ Slice 5: Backend Generation Boundary (COMPLETE - READY TO COMMIT)**
+- Commits: d3f83c3, e4122a7, + uncommitted cleanup
+- Files: State migration in generate.js, stateMigration.js fixes, Docker/Containerfile shared/ fix, 10 new tests
+- Tests: 609/622 passing (2 archiver failures pre-existing, unrelated to DOC-101)
+- Fixes Applied:
+  1. ✅ Fixed stateMigration.js locked precedence (explicit !== undefined > implicit ??)
+  2. ✅ Added malformed channel validation (regex `/^(\d+)\.(\d+)$/`, rejects "latest", "4.x", "4.20.15")
+  3. ✅ Fixed container startup (Docker/Containerfile missing `COPY shared /shared`)
+  4. ✅ Verified oc-mirror legacy fixture migration (uses v2-ish state, migration verified)
+  5. ✅ Verified runtime package secret-safety (code inspection: uses sanitizedState, no automated test)
+  6. ✅ bundle.prepare validation decision: ACCEPTED (migration at buildBundleZip generation point)
+  7. ✅ YAML generation coverage: generation-migration-boundary.test.js (not byte-identical golden)
+- Container: Backend running 53+ minutes, migration working correctly
+- Evidence: `podman logs` shows "State migrated to v3 at /api/state boundary"
+- Ready to commit with proper message
+
+**✅ Slice 6: Frontend Hydration/API State Boundary (COMPLETE - COMMITTED 51e25c8 + ccf0b59)**
+- Commits: 51e25c8 (Slice 6, 2026-06-24), ccf0b59 (cleanup, 2026-06-25)
+- Files: `frontend/src/shared/versionHelpers.js` (new, 103 lines), `frontend/tests/slice-6-v3-preservation.test.jsx` (new, 490 lines, 38 tests), 4 modified files (Slice 6), +7 files (cleanup)
+- Tests: 945/945 frontend passing (38 Slice 6 + 8 lock regression + 6 boundary tests), 617/632 backend passing (6 migration boundary + 6 operators confirm v3, 4 pre-existing failures)
+- Changes:
+  1. ✅ v3-aware version helpers (getVersionLocked, getDisplayOpenShiftVersion, detectUnknownSchema)
+  2. ✅ store.jsx updateState() nested merge fix (preserves version metadata)
+  3. ✅ Replaced ALL 15 frontend legacy fallback instances with v3-aware helpers (8 in Slice 6, +7 in cleanup)
+  4. ✅ Import flow preserves backend-migrated v3 state
+  5. ✅ Unknown/future schema blocking (backend + frontend both block, no pass-through)
+  6. ✅ API/network error blocking (no silent localStorage fallback)
+  7. ✅ Hardcoded "4.20" fallback removed (shows "Version not selected")
+  8. ✅ BlueprintStep sets v3 `locked` field instead of v2 `versionConfirmed`
+- Security: ✅ No credential logging, no full state logging
+- Build: ✅ SUCCESS (1.53s)
+
+**✅ Regression Fix 1: Migration-Before-Persist Blocker (COMMITTED 0cea4e9 - 2026-06-25)**
+- Problem: POST /api/state wrote to database BEFORE validating migration, causing DB pollution from invalid/unknown schemas
+- Solution: Build candidate state in memory, validate migration FIRST, only persist if validation succeeds
+- Files: backend/src/index.js (13 lines changed), backend/test/api-state-migration-boundary.test.js (NEW, 324 lines, 6 hermetic tests)
+- Tests: 6/6 migration boundary tests passing (exit=0), unknown schema 999 rejected without DB pollution
+- Evidence: Direct SQLite queries confirm no pollution, all tests clean exit
+
+**✅ Regression Fix 2: Lock State Regression (COMMITTED bf7cfb3 - 2026-06-26)**
+- Problem: Blueprint lock/confirm button blocked navigation with contradictory messages. Backend `/api/operators/confirm` returned legacy v2 `versionConfirmed` instead of v3 canonical `locked` field
+- Solution: Updated endpoint to return v3 canonical schema (_schemaVersion, locked, selectedMinor, selectedPatch)
+- Files: backend/src/index.js (+7, -2 lines), backend/test/api-operators-confirm-v3.test.js (NEW, 324 lines, 6 tests), frontend/tests/blueprint-lock-v3-canonical.test.jsx (NEW, 173 lines, 8 tests), frontend/tests/blueprint-lock-scan-flow.test.jsx (updated mock)
+- Tests: 6/6 backend operators confirm v3 tests passing, 8/8 frontend lock v3 canonical tests passing
+- Browser Verification: 4.20 lock/navigation ✅, 4.21 lock/navigation ✅, contradictory messages resolved ✅
+- Evidence: Manual browser confirmation complete, only non-blocking `/api/generate` aborted-request console noise (see LOG-001)
+
+#### Final Verification (2026-06-26)
+
+✅ **Browser UI Verification Complete**
+- 4.20 foundational lock/navigation: PASS
+- 4.21 foundational lock/navigation: PASS
+- Contradictory locked/not-locked messages: RESOLVED
+- Console noise: Only non-blocking `/api/generate` aborted-request logging (LOG-001 follow-up created)
+- No security issues: No credentials used/pasted, unknown schemas rejected without DB pollution
+
+✅ **Automated Evidence**
+- Backend migration boundary tests: 6/6 passing
+- Backend operators confirm v3 tests: 6/6 passing
+- Frontend blueprint lock v3 canonical: 8/8 passing
+- Frontend Slice 6 v3 preservation: 38/38 passing
+- Frontend full suite: 945/945 passing
+- Backend suite: 617/632 passing (4 pre-existing failures only)
+
+✅ **Security Verified**
+- No secrets used/pasted in verification
+- Unknown/future schema rejected without persisted state pollution
+- No full-state/credential logging added
+
+✅ **Phase 1 COMPLETE - VERIFIED_DONE**
+
+---
+
+### v2.0.0 (Major) - 16-20 weeks (ARCHITECTURE APPROVED 2026-05-29)
+
+**Status:** Phase 0 (DOC-100) verified_done, Phase 1 (DOC-101) verified_done, Phase 2 (DOC-102) verified_done (2026-08-13 — all canonical slices 5A/5B/5D/5F/5G/5H and final closure tranches complete; BMC verify CA implemented, Azure BYO VNet implemented, dnsRecordsType classified as deliberate support boundary; 38 unsupported/manual-review upstream delta paths intentionally deferred). Phase 3 (DOC-103) active / partial — version locking, version-aware controls, UI registry, browser verification implemented; tooltips, badges, annotations remaining. Phase 4 (DOC-104) active / partial — migration, catalog, visibility, validation, generation tests exist; parameterized version-matrix and Field Guide tests remaining; M01 version-manifest contract frozen (2026-09-15, documentation only). Phase 5 (DOC-105) active / partial — Design System, checklist, roadmap governance exist; ADR-001 through ADR-007 referenced at `local-docs/version-aware-planning/` but not tracked or present in the live worktree (not current release evidence); migration guide, README, CHANGELOG, security audit remaining. DOC-106 (versioned copy audit) verified_done (inventory complete; original implementation conclusion superseded by current evidence). DOC-107 (versioned copy implementation): centralized not started, field-specific partial, repository-wide incomplete, CI enforcement not started.
 **Purpose:** Version-aware system - **BREAKING CHANGE**
+**Scope:** OpenShift 4.20 (baseline) + 4.21 (first target). 4.22 is unsupported.
+**Planning Docs:** `local-docs/version-aware-planning/` (historically referenced ADR-001 through ADR-007, README.md, versioned copy audit requirements — ADR files are not tracked or present in the live worktree and are not current release evidence)
+**Tracking:** DOC-059 (parent), DOC-100 through DOC-107 (phased work breakdown)
+**Completion Matrix:** `docs/VERSION_AWARENESS_COMPLETION_MATRIX.md` (created 2026-08-03)
+**Historical Test Baselines (from HEAD 0e927b1):** Frontend 2,241 passed / 2 skipped / 0 failed, Backend 1,252 passed / 5 todo / 0 failed, Focused DNS 23 passed, Playwright 4 passed. These totals are accepted evidence from the dnsRecordsType support boundary tranche. Prior baseline (HEAD 289b8794): Frontend 2,080/2 skip, Backend 1,089/5 todo.
 
-#### Phase 6: Version-Aware System
+#### Why Major Version (Breaking Changes)
 
-**Item (1 MASSIVE):**
+- State schema v2 → v3 (incompatible with v1.x)
+- Generated artifact ZIP will include version-manifest.json with integrity checksums (M01 contract frozen 2026-09-15; v1.x tooling cannot validate manifests)
+- Frontend catalog structure changes (breaks v1.x frontend)
+- Catalog parameter schema v1.1.0 → v2.0.0 (new required fields)
+- JSON run envelope and generated artifact ZIP are distinct surfaces (M01 surface classification)
+- v1.x JSON run imports supported via explicit v1/v2→v3 state migration flow; manifest-bearing archive import is a separate future surface
 
-**DOC-059 (merged with LOCAL #7):** OpenShift version-aware system
+#### Key Architectural Decisions (Approved)
 
-**Why major version:**
-- **Breaking API changes:** Params JSON structure changes
-- **UI changes:** Version selector affects entire wizard flow
-- **Re-validation required:** All scenarios must be re-validated for each version
+1. **NO FALLBACK:** User-facing catalog loading/validation/preview/generation blocks unsupported versions
+2. **State Schema v3:** Pure shared migration helper at all boundaries (import, generation, hydration, export, API)
+3. **Catalog Param Schema v2.0:** supportStatus taxonomy (8 states), minVersion default 4.20, sparse validationRules
+4. **Bundler-Compatible Imports:** Vite's import.meta.glob (not raw require())
+5. **Centralized Version Utility:** shared/versionUtils.js prevents ad hoc semver/string comparisons
+6. **Versioned Copy Audit:** Required workstream (inventory + strategy implementation)
+7. **v1.x Migration:** Explicit user confirmation modal (not silent acceptance) for JSON run imports
+8. **Strict Checksums:** Reject corrupted or incomplete archives with clear error (M01 contract: SHA-256, lowercase hex, keyed by ZIP entry name; fail-closed on mismatch, missing manifest, missing checksum coverage, and unlisted entries; applies to future manifest-bearing archive import only — legacy JSON run imports without manifest use existing migration path)
+9. **Surface Classification (M01):** JSON run envelope (`/api/run/export`, `/api/run/import`) is the state portability surface; generated artifact ZIP (`buildBundleZip`) is the deployment bundle surface that will receive `version-manifest.json`; these are distinct and must not be conflated
 
-**Sub-Phases:**
+#### Phase 0: Baseline Certification (4.20) - ✅ COMPLETE (2026-06-01)
 
-1. **Research & Baseline (2 weeks)**
-   - Document OpenShift 4.20 as baseline
-   - Catalog all param variations across install methods
-   - Identify version-specific fields
+**Tracking:** DOC-100 (verified_done), DOC-106 (verified_done — inventory only)
 
-2. **Delta Detection (2 weeks)**
-   - Build tooling to identify changes between OCP minor versions
-   - Parse openshift-install binary for new params
-   - Download PDF docs for each release
-   - Extract param changes from official docs
+**Completed:**
+1. ✅ supportStatus added to all 949 params across 13 catalogs (commit 94b5b14)
+2. ✅ Distributions: supported-ui (348), supported-backend-only (694), supported-derived (29)
+3. ✅ Versioned copy audit complete: 3,239 refs inventoried in `versioned-copy-audit-results/` (8 files)
+4. ✅ Classification in `docs/VERSIONED_COPY_INVENTORY.md`
+5. ✅ Scripts created: add-support-status-all.js, find-hardcoded-versions.sh, analyze-ui-coverage.js
+6. ✅ Backend 507/507 tests passing, Frontend 891/891 tests passing (at time of completion)
 
-3. **Pipeline (2 weeks)**
-   - Automated workflow for version-aware catalog generation
-   - Carry forward unchanged values from previous version (4.20 → 4.21)
-   - Annotate deltas, additions, deprecations
-   - Version catalogs per release (4.20, 4.21, 4.22...)
+#### Phase 1: Architecture Foundation - ✅ COMPLETE (2026-06-26)
 
-4. **Frontend/Backend Integration (2 weeks)**
-   - Make wizard components version-aware
-   - Version selector on Blueprint step
-   - Dynamic param loading based on selected version
-   - Validation rules per version
+**Tracking:** DOC-101 (verified_done)
 
-5. **Field Guide Compartmentalization (1 week)**
+**Completed (6/6 slices + 2 regression fixes, 12 commits 8a879e7–bf7cfb3):**
+1. ✅ Centralized version utilities (shared/versionUtils.js, 23/23 tests)
+2. ✅ Catalog parameter schema v2.0 (schema/catalog-parameter-schema.json)
+3. ✅ State schema v3 migration (shared/stateMigration.js, 23/23 tests)
+4. ✅ Backend boundaries (5 integration points)
+5. ✅ Backend generation version-awareness (NO FALLBACK)
+6. ✅ Frontend hydration + cleanup
+7. ✅ Regression fix: migration-before-persist blocker (6 boundary tests)
+8. ✅ Regression fix: lock state (6 backend + 8 frontend tests)
+9. ✅ Browser verification (4.20 and 4.21 lock/navigation)
+
+**NOT completed in Phase 1 (deferred):**
+- ❌ DOC-107 (versioned copy strategy): centralized copy system not started (shared/versionedCopy.js NOT created, template helpers NOT implemented); field-specific user-facing copy partial (Azure shared-key, confidential-compute, catalog hints, Field Guide prose exist); repository-wide remediation incomplete; CI hardcoded-version enforcement not started (script exists, not wired). Inventory (DOC-106) was completed in Phase 0. See `docs/VERSION_AWARENESS_COMPLETION_MATRIX.md` Tranche V3.
+
+#### Phase 2: OpenShift 4.21 Audit - COMPLETE (verified_done 2026-08-13)
+
+**Tracking:** DOC-102 (verified_done — all canonical slices and final closure tranches complete)
+
+**All canonical slices and final closure tranches complete:**
+1. ✅ Slice 5A (commit e65e6ee): Frontend versioned catalog structure
+2. ✅ Slice 5B (commit bad31e3): 4.21 catalog baseline + 7 high-confidence params
+3. ✅ Slice 5D (commit 1f3b2e5): Manual-review 4.21 params (catalog-only)
+4. ✅ Slice 5F (commit 312cb3c): 4.21 docs index + field guide + unsupported-version recovery UI
+5. ✅ Slice 5G: 11 supported-platform 4.21 delta params verified, 24 metadata corrections
+6. ✅ Slice 5H (14 commits e939a41–063fcc5): Host Inventory register, 55/59 interactive controls
+7. ✅ BMC verify CA (commit a0d5fcb): Fully implemented as supported-ui with UI, validation, generation, Field Guide, tests
+8. ✅ Azure BYO VNet subnets (commit 3e3148b): Fully implemented with version-gated generation (4.21 subnets array vs 4.20 controlPlaneSubnet/computeSubnet)
+9. ✅ dnsRecordsType support boundary (commit 0e927b1): Reclassified to docs-only-not-supported/hidden-not-applicable; External mode not supported (requires OnPremDNSRecords feature gate + UserManaged load balancer, not owned by this application)
+
+**4.21 delta disposition:** All supported-platform/cataloged OpenShift 4.21 delta paths have a definitive application disposition. Zero minVersion=4.21 supported-backend-only catalog entries remain unresolved. 38 unsupported/manual-review upstream delta paths remain intentionally deferred (32 PowerVC, 4 GCP, 1 OpenStack, 1 global manual-review: imageDigestSources.sourcePolicy). Test evidence: frontend 2241/2 skip/0 fail, backend 1252/5 todo/0 fail.
+
+**See:** `docs/VERSION_AWARENESS_COMPLETION_MATRIX.md` for completed parameter disposition and remaining execution plan (DOC-103/104/105/107).
+
+#### Phase 3: UI/UX Enhancements - 2 weeks
+
+**Tracking:** DOC-103
+
+**Tasks:**
+1. Version lock UI (Blueprint page "Lock Version" button, manual not automatic)
+2. Deprecation badges (⚠️ on deprecated fields)
+3. Version-specific tooltips (version annotations)
+4. ~~Field guide version selector~~ SUPERSEDED — Field Guide derives version from locked blueprint version via context.js; no independent selector needed
+
+**Evidence Required:**
+- UI screenshots showing version lock workflow
+- Deprecated fields show badges
+- User can lock/unlock version with confirmation modal
+
+#### Phase 4: Testing & Validation - 2 weeks
+
+**Tracking:** DOC-104
+
+**Tasks:**
+- Expand test matrix from 1398 → ~2500-3000 tests
+- Categories: state migration (50), catalog loading (100), field visibility (200), validation (300), generation (400), import/export (100), E2E (50)
+- Parameterized tests for 4.20 and 4.21
+- Version-gating tests (fields hidden/shown correctly)
+- version-manifest.json implementation in generated artifact ZIP per M01 frozen contract (2026-09-15)
+- Import/export tests must distinguish JSON run envelope from generated artifact ZIP (M01 surface classification)
+
+**Evidence Required:**
+- All tests passing
+- Coverage report showing version-gating logic tested
+
+#### Phase 5: Documentation & Release - 2 weeks
+
+**Tracking:** DOC-105
+
+**Tasks:**
+1. Update CLAUDE.md with version-awareness patterns
+2. Create MIGRATION_GUIDE_v1_to_v2.md
+3. Update README.md with version selection instructions
+4. Create or recover tracked ADR documents (ADR-001 through ADR-007 historically referenced at local-docs/version-aware-planning/ but not present in live worktree)
+5. **Update BACKLOG_STATUS.md** - Mark DOC-059, DOC-100-107 verified_done ONLY after:
+   - Implementation complete
+   - Tests passing
+   - Generated artifact validation (4.20 and 4.21 YAMLs correct)
+   - Manual UI evidence (screenshots, walkthrough)
+   - Security review complete (no sensitive data in version manifest, versioned copy audit clean)
+6. Update IMPLEMENTATION_ROADMAP with v2.0.0 release notes
+7. Security audit (pull secrets, credentials, versioned copy)
+8. Final QA across all supported platforms and versions (4.20 and 4.21)
+
+**Evidence Required:**
+- All documentation updated
+- Security review signed off
+- Manual UI testing complete for 4.20 and 4.21
+- Generated install-config.yaml, agent-config.yaml validated for both versions
+
+#### Field Guide Compartmentalization
    - Break Field Guide into reusable compartments
    - Automation for new release documentation
    - Per-version Field Guide generation
@@ -1474,6 +1720,53 @@ This document organizes remaining backlog work by semantic versioning to provide
 - 180 fields × 5 OCP versions = 900+ validation cases
 - Better ROI to test AFTER app structure stabilizes
 - Current unit tests (707 frontend + 261 backend) provide adequate coverage
+
+---
+
+### Enterprise Productization Program (Parallel to v2.0.0)
+
+**Source:** 2026-08-03 enterprise productization and security-ready distribution intake
+**Umbrella:** PROD-041 (Security-Ready Distribution and Enterprise Productization)
+**Tracking:** PROD-024 through PROD-046 in docs/BACKLOG_STATUS.md
+**Trust-model root:** PROD-038 — dependency root for authentication, CORS, session isolation, and deployment-model decisions
+**Relationship:** Runs in parallel with v2.0.0 version-awareness work. Some items have cross-program dependencies (noted below). Planning and backlog capture do not establish compliance, certification, production readiness, or ATO readiness.
+
+#### Program Scope
+
+Read-only assessment (2026-08-03) identified productization gaps across 10 domains. All findings recorded as PROD-024 through PROD-046 in the canonical backlog (PROD-041 is the umbrella item). No compliance, certification, production readiness, restricted-v2 compatibility, security completion, or ATO readiness is claimed. The 20-outcome coverage map in docs/BACKLOG_STATUS.md tracks outcome-level status.
+
+#### Domain Summary
+
+| Domain | Critical Gaps | Items |
+|---|---|---|
+| Trust model and architecture | No documented trust model or deployment-model decision | PROD-038 (dependency root) |
+| Authentication and access control | No auth middleware, no RBAC, wide-open CORS (depends on PROD-038) | PROD-024, PROD-025 |
+| Container and build security | Vite dev server in prod, npm install vs ci, mutable image refs | PROD-026, PROD-030, PROD-032 |
+| Deployment hardening | Missing NetworkPolicy, ServiceAccount, readOnlyRootFilesystem; Route TLS already implemented (done_pending_verification) | PROD-027, PROD-028, PROD-029, PROD-034, PROD-039 |
+| Secret management | Secret resource exists but NOT wired to Deployment | PROD-035 |
+| Lifecycle operations | No graceful shutdown, no release process, no deployment lifecycle coordination | PROD-036, PROD-040, PROD-046 |
+| Supply chain | No image signing, no SBOM, no dependency/container-image scanning | PROD-020, PROD-023, PROD-031 |
+| Assurance and documentation | Partial internal docs exist; no consolidated customer-facing package, no threat model | PROD-037 |
+| Egress and connectivity | No egress NetworkPolicy, no documented connectivity profiles | PROD-033, PROD-043 |
+| Release and lifecycle | No release bundle format, no release evidence gate, no vulnerability disclosure | PROD-042, PROD-044, PROD-045 |
+| Program umbrella | Tracking and coordination | PROD-041 |
+
+#### Cross-Program Dependencies
+
+| Productization Item | Version-Awareness Item | Dependency Type |
+|---|---|---|
+| PROD-024 (auth) | DOC-119 (multi-user isolation) | Auth identifies users; DOC-119 isolates state. Both required for hosted deployment. |
+| PROD-026 (frontend prod build) | DOC-103 (UI/UX) | Frontend production build should follow UI/UX stabilization to avoid rebuild churn. |
+| PROD-037 (security assurance) | DOC-105 (release) | Security assurance package is a prerequisite for release sign-off. |
+
+#### Recommended Execution Order
+
+1. **First (dependency root):** PROD-038 (trust model — blocks PROD-024 and PROD-025 and informs all deployment-model-dependent decisions)
+2. **Immediate (can start now, no trust-model dependency):** PROD-032 (npm ci — one-line Containerfile change), PROD-034 (TLS routes — already implemented, verify and close)
+3. **Near-term (with v2.0.0 Phase 2):** PROD-025 (CORS/CSRF — after PROD-038), PROD-028 (ServiceAccounts), PROD-029 (readOnlyRootFilesystem), PROD-030 (digest pinning)
+4. **After v2.0.0 UI stabilizes:** PROD-026 (frontend production build), PROD-027 (NetworkPolicy), PROD-035 (Secret wiring)
+5. **Before hosted deployment:** PROD-024 (authentication — after PROD-038), PROD-036 (graceful shutdown), PROD-039 (SCC admission verification)
+6. **Before customer delivery:** PROD-031 (image signing), PROD-033 (egress enforcement), PROD-037 (security assurance package), PROD-040 (release process), PROD-042 (release bundle), PROD-043 (connectivity profiles), PROD-044 (release evidence gate), PROD-045 (vulnerability disclosure)
 
 ---
 
@@ -1662,5 +1955,5 @@ This document organizes remaining backlog work by semantic versioning to provide
 
 ---
 
-**Last Updated:** 2026-05-27 (v1.6.0 released, v1.7.0 scope defined, consolidated work breakdown)  
-**Next Review:** After v1.7.0 release (target: July 2026)
+**Last Updated:** 2026-09-15 (M01 version-manifest contract freeze — documentation only; surface classification frozen for JSON run envelope vs generated artifact ZIP; stale state.json/stateChecksum/manifest-version claims reconciled; checksum and identity semantics defined; fail-closed import conditions specified; no implementation or test changes)
+**Next Review:** After version-manifest implementation milestone or DOC-103/DOC-107 next tranche complete

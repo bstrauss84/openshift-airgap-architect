@@ -32,7 +32,7 @@ export const awsGovCloudPrereqs = {
     { text: "For disconnected/restricted network installs: set up a VPC with private subnets and VPC endpoints for EC2, ELB, Route53, S3, and STS." },
     { text: "If using an existing VPC, note the VPC ID and private subnet IDs (one per AZ) to add to platform.aws.vpc.subnets in install-config.yaml." },
     { text: "For GovCloud with no Route 53: set platform.aws.hostedZone to empty and manage DNS records manually. Set publish: Internal for private clusters." },
-    { text: "Obtain the RHCOS AMI ID for {{awsRegion}}. GovCloud regions require a custom AMI — check the OCP 4.20 AMI list in the installer or Red Hat docs.", cmd: "# List RHCOS AMIs in GovCloud:\naws ec2 describe-images --region {{awsRegion}} --owners 531415883065 \\\n  --filters 'Name=name,Values=rhcos-*4.20*' --query 'Images[*].{ID:ImageId,Name:Name}'" },
+    { text: "Obtain the RHCOS AMI ID for {{awsRegion}} using the release-specific stream metadata from the installer.", cmd: "openshift-install coreos print-stream-json | jq -r '.architectures[\"{{arch}}\"].images.aws.regions[\"{{awsRegion}}\"].image'" },
     { text: "Set platform.aws.amiID in install-config.yaml if the region requires a custom RHCOS AMI (GovCloud secret regions require this)." },
     { text: "Configure control-plane and worker instance types appropriate for GovCloud capacity. Recommended: m5.xlarge for control plane, m5.2xlarge for workers (or GovCloud equivalents)." },
     { text: "For a disconnected mirror registry in GovCloud: ensure the registry is reachable from the VPC private subnets (via VPC endpoint or internal routing)." },

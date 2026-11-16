@@ -10,6 +10,8 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 
+import { getScenarioId as sharedGetScenarioId } from "../../shared/scenarioId.js";
+
 /** Section IDs for scenario-aware layout (Phase 4.2). API/Ingress VIPs are on the Networking tab only. */
 export const SECTION_IDS = {
   AGENT_OPTIONS: "agentOptions",
@@ -67,37 +69,13 @@ export const SCENARIO_IDS_WITH_HOST_INVENTORY = ["bare-metal-agent", "bare-metal
  * @returns {string|null} "bare-metal-agent" | "bare-metal-ipi" | "bare-metal-upi" | "vsphere-agent" | "vsphere-ipi" | "vsphere-upi" | "aws-govcloud-ipi" | "aws-govcloud-upi" | "azure-government-ipi" | "ibm-cloud-ipi" | "nutanix-ipi" | null
  */
 export function getScenarioId(platform, method) {
-  if (platform === "Bare Metal") {
-    if (method === "Agent-Based Installer") return "bare-metal-agent";
-    if (method === "IPI") return "bare-metal-ipi";
-    if (method === "UPI") return "bare-metal-upi";
-    return null;
-  }
-  if (platform === "VMware vSphere") {
-    if (method === "Agent-Based Installer") return "vsphere-agent";
-    if (method === "IPI") return "vsphere-ipi";
-    if (method === "UPI") return "vsphere-upi";
-    return null;
-  }
-  if (platform === "AWS GovCloud") {
-    if (method === "IPI") return "aws-govcloud-ipi";
-    if (method === "UPI") return "aws-govcloud-upi";
-    return null;
-  }
-  if (platform === "Azure Government") {
-    if (method === "IPI") return "azure-government-ipi";
-    if (method === "UPI") return "azure-government-upi";
-    return null;
-  }
-  if (platform === "IBM Cloud") {
-    if (method === "IPI") return "ibm-cloud-ipi";
-    return null;
-  }
-  if (platform === "Nutanix") {
-    if (method === "IPI") return "nutanix-ipi";
-    return null;
-  }
-  return null;
+  // Delegates to the canonical map in shared/scenarioId.js. The table used to
+  // live here, which was fine while only the UI needed it; the generation
+  // boundary now needs the same answer to consult the D3 architecture matrix,
+  // and two copies of a platform/method table is the duplication this work has
+  // been removing. Behaviour is unchanged — this export and its ten-plus import
+  // sites are untouched.
+  return sharedGetScenarioId(platform, method);
 }
 
 /**
@@ -113,27 +91,91 @@ export function getSectionOrderForRender(scenarioAwareLayout, scenarioId) {
   return DEFAULT_SECTION_ORDER;
 }
 
-/** Collect all interface names (eno0, eno1, bond0, etc.) from primary and additionalInterfaces to compute next enoN. */
-export function getNextEnoName(node) {
+/**
+ * Every interface name already spoken for on this node.
+ *
+ * Deliberately EXHAUSTIVE and type-agnostic. A name only has to collide in the
+ * GENERATED NMState document to be a problem, and which names a row
+ * contributes changes the moment the user switches its type — so a scan that
+ * skips, say, the bond block of an ethernet row will hand out a name that
+ * becomes a duplicate one click later. `createInterfaceConfig` seeds a full
+ * bond block (`bond0`, slaves `eno0`/`eno1`) on every row regardless of type,
+ * which is exactly how that happens.
+ */
+export function collectUsedInterfaceNames(node) {
   const names = new Set();
-  const primary = node?.primary;
-  if (primary?.type === "ethernet" || primary?.type === "vlan-on-ethernet") {
-    if (primary.ethernet?.name) names.add(primary.ethernet.name);
-  }
-  if (primary?.bond?.name) names.add(primary.bond.name);
-  if (Array.isArray(primary?.bond?.slaves)) {
-    primary.bond.slaves.forEach((s) => { if (s?.name) names.add(s.name); });
-  }
-  (node?.additionalInterfaces || []).forEach((iface) => {
-    if (iface?.ethernet?.name) names.add(iface.ethernet.name);
-    if (iface?.bond?.name) names.add(iface.bond.name);
-    if (Array.isArray(iface?.bond?.slaves)) {
-      iface.bond.slaves.forEach((s) => { if (s?.name) names.add(s.name); });
-    }
-  });
+  const addName = (value) => {
+    const name = String(value ?? "").trim();
+    if (name) names.add(name);
+  };
+  const addInterface = (iface) => {
+    if (!iface) return;
+    addName(iface.ethernet?.name);
+    addName(iface.bond?.name);
+    (iface.bond?.slaves || []).forEach((slave) => addName(slave?.name));
+    addName(iface.vlan?.name);
+    addName(iface.advanced?.vrf?.name);
+  };
+  addInterface(node?.primary);
+  (node?.additionalInterfaces || []).forEach(addInterface);
+  return names;
+}
+
+/**
+ * Lowest `<prefix><n>` not already in `used`. Mutates `used` so a caller
+ * allocating several names in one go cannot hand out the same one twice.
+ */
+export function allocateInterfaceName(used, prefix) {
   let n = 0;
-  while (names.has(`eno${n}`)) n++;
-  return `eno${n}`;
+  while (used.has(`${prefix}${n}`)) n++;
+  const name = `${prefix}${n}`;
+  used.add(name);
+  return name;
+}
+
+/** Back-compat: the next free `enoN` for this node. */
+export function getNextEnoName(node) {
+  return allocateInterfaceName(collectUsedInterfaceNames(node), "eno");
+}
+
+/**
+ * A new additional interface whose EVERY default name is free on this node.
+ *
+ * The ethernet name alone used to be allocated, so adding a row to a host
+ * whose primary was a bond produced a row carrying the factory bond defaults
+ * — `bond0` and members `eno0`/`eno1` — which collided with that primary the
+ * instant the user switched the row's type to Bond, and generation failed with
+ * `Duplicate NMState interface name "eno0"`.
+ *
+ * Every name is allocated up front rather than renamed later, so switching the
+ * row's type only ever reveals values that were already unique. Nothing the
+ * user has typed is ever renamed.
+ */
+export function createAdditionalInterfaceConfig(node) {
+  const used = collectUsedInterfaceNames(node);
+  const ethernetName = allocateInterfaceName(used, "eno");
+  const bondName = allocateInterfaceName(used, "bond");
+  const slaveA = allocateInterfaceName(used, "eno");
+  const slaveB = allocateInterfaceName(used, "eno");
+  const vrfName = allocateInterfaceName(used, "vrf");
+
+  const config = createInterfaceConfig({
+    type: "ethernet",
+    ethernet: { name: ethernetName, macAddress: "" }
+  });
+  config.bond = {
+    ...config.bond,
+    name: bondName,
+    slaves: [
+      { name: slaveA, macAddress: "" },
+      { name: slaveB, macAddress: "" }
+    ]
+  };
+  config.advanced = {
+    ...config.advanced,
+    vrf: { ...config.advanced.vrf, name: vrfName }
+  };
+  return config;
 }
 
 export const createInterfaceConfig = (overrides = {}) => ({
@@ -206,8 +248,8 @@ export function generateNodesFromCounts(controlPlaneCount, workerCount, infraCou
 }
 
 /**
- * OpenShift 4.20 Agent-based install-config: controlPlane.replicas may be 1 (SNO only), 3, 4, or 5,
- * or 2 with exactly one arbiter (installation-config-parameters-agent).
+ * Agent-based install-config topology validation.
+ * Supported: 1 (SNO), 2 with one arbiter, or 3, 4, or 5 (HA).
  * @param {Array<{ role?: string }>} nodes
  * @returns {string[]} topology errors (empty if valid or nodes empty)
  */
@@ -222,7 +264,7 @@ export function getAgentBasedTopologyErrors(nodes) {
 
   if (![1, 2, 3, 4, 5].includes(masters)) {
     errors.push(
-      `Agent-based install-config allows control plane replicas 1 (single-node only), 2 (with one arbiter), 3, 4, or 5 (OpenShift 4.20). Inventory has ${masters} control plane node(s).`
+      `Agent-based install-config allows control plane replicas 1 (single-node only), 2 (with one arbiter), 3, 4, or 5. Inventory has ${masters} control plane node(s).`
     );
   }
   if (masters === 1) {
@@ -237,12 +279,26 @@ export function getAgentBasedTopologyErrors(nodes) {
   }
   if (masters === 2) {
     if (arbiters !== 1) {
-      errors.push("Two control plane nodes require exactly one arbiter node (OpenShift 4.20 Agent-based).");
+      errors.push("Two control plane nodes require exactly one arbiter node (Agent-based).");
     }
   } else if (arbiters > 0) {
     errors.push("Arbiter is only valid when there are exactly two control plane nodes.");
   }
   return errors;
+}
+
+/**
+ * Agent SNO detection: one master, zero workers.
+ * Matches the backend definition in generate.js (isSNO = masters === 1 && workers === 0).
+ * @param {Array<{ role?: string }>} nodes
+ * @returns {boolean}
+ */
+export function isAgentSingleNodeTopology(nodes) {
+  const list = Array.isArray(nodes) ? nodes : [];
+  if (list.length === 0) return false;
+  const masters = list.filter(n => (n?.role || "").trim() === "master").length;
+  const workers = list.filter(n => (n?.role || "").trim() === "worker").length;
+  return masters === 1 && workers === 0;
 }
 
 /** Keys that should NOT be copied by default when replicating (hostname, BMC, MACs). */
@@ -253,16 +309,92 @@ export const REPLICATE_EXCLUDE_DEFAULT = new Set([
   "primary.bond.slaves"
 ]);
 
+const PRIMARY_NETWORK_KEYS = [
+  "primary.type", "primary.mode", "primary.ipv4Cidr", "primary.ipv6Cidr",
+  "primary.ipv4Gateway", "primary.ipv6Gateway", "primary.vlan", "primary.bond",
+  "primary.advanced", "primary.ethernet.macAddress", "primary.bond.slaves.macAddress"
+];
+
+/**
+ * Compute the set of replication option keys available under current visibility.
+ * When sourceNode is provided, primary networking keys are structurally filtered
+ * based on the source node's type, mode, and IP-stack settings.
+ * @param {object} visibility
+ * @param {boolean} visibility.showIpiDrawer - true when Bare Metal + IPI
+ * @param {boolean} visibility.showAgentHostname - catalog visibility for agent hostname
+ * @param {boolean} visibility.showAgentDns - catalog visibility for agent DNS
+ * @param {boolean} visibility.showAgentRootDeviceHints - catalog visibility for agent root device hints
+ * @param {boolean} visibility.showAgentPrimaryNetwork - catalog visibility for agent primary networking
+ * @param {boolean} visibility.showBmc - true when Bare Metal + IPI
+ * @param {boolean} visibility.showAgentDay2InstallConfigBmc - agent Day-2 structural eligibility
+ * @param {boolean} visibility.showAgentBmcCore - catalog visibility for agent BMC core fields
+ * @param {boolean} visibility.showAgentBootMac - catalog visibility for agent Boot MAC
+ * @param {object} [visibility.sourceNode] - selected source node for structural filtering
+ * @param {boolean} [visibility.enableIpv6] - true when ipv6 or dual-stack
+ * @returns {Set<string>}
+ */
+export function getAvailableReplicateKeys(visibility) {
+  const keys = new Set();
+  const {
+    showIpiDrawer, showAgentHostname, showAgentDns,
+    showAgentRootDeviceHints, showAgentPrimaryNetwork,
+    showBmc,
+    showAgentDay2InstallConfigBmc, showAgentBmcCore, showAgentBootMac,
+    sourceNode, enableIpv6,
+  } = visibility;
+
+  if (showIpiDrawer) {
+    keys.add("hostname");
+    keys.add("hostnameUseFqdn");
+    keys.add("rootDevice");
+    if (showBmc) { keys.add("bmc"); keys.add("bootMACAddress"); }
+  } else {
+    if (showAgentHostname) { keys.add("hostname"); keys.add("hostnameUseFqdn"); }
+    if (showAgentDns) { keys.add("dnsServers"); keys.add("dnsSearch"); }
+    if (showAgentRootDeviceHints) keys.add("rootDevice");
+    if (showAgentPrimaryNetwork) {
+      if (sourceNode) {
+        const type = sourceNode.primary?.type || "ethernet";
+        const mode = sourceNode.primary?.mode || "dhcp";
+        const isEthernet = type === "ethernet" || type === "vlan-on-ethernet";
+        const isBond = type === "bond" || type === "vlan-on-bond";
+        const isVlan = type === "vlan-on-ethernet" || type === "vlan-on-bond";
+        const isStatic = mode === "static";
+        keys.add("primary.type");
+        keys.add("primary.mode");
+        keys.add("primary.advanced");
+        if (isEthernet) keys.add("primary.ethernet.macAddress");
+        if (isBond) { keys.add("primary.bond"); keys.add("primary.bond.slaves.macAddress"); }
+        if (isVlan) keys.add("primary.vlan");
+        if (isStatic) { keys.add("primary.ipv4Cidr"); keys.add("primary.ipv4Gateway"); }
+        if (isStatic && enableIpv6) { keys.add("primary.ipv6Cidr"); keys.add("primary.ipv6Gateway"); }
+      } else {
+        PRIMARY_NETWORK_KEYS.forEach((k) => keys.add(k));
+      }
+    }
+    if (showAgentDay2InstallConfigBmc && showAgentBmcCore) keys.add("bmc");
+    if (showAgentDay2InstallConfigBmc && showAgentBootMac) keys.add("bootMACAddress");
+  }
+  return keys;
+}
+
 /**
  * Apply selected settings from source node to target nodes.
  * Only copies fields that are in selectedFields; never copies hostname/bmc/MACs unless explicitly selected.
+ * Fail-closed: only keys present in both selectedFields and availableKeys are applied.
+ * If availableKeys is missing or not a Set, no fields are applied.
  * @param {object} sourceNode
  * @param {object[]} targetNodes
  * @param {Set<string>} selectedFields - e.g. new Set(["dnsServers", "dnsSearch", "primary.type", "primary.mode", "primary.vlan", "primary.bond", "primary.advanced", "primary.ipv4Gateway", "primary.ipv6Gateway"])
+ * @param {Set<string>} availableKeys - only keys in this set are applied; required
  * @returns {object[]} new array of target nodes with applied settings
  */
-export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) {
+export function applyReplicateSettings(sourceNode, targetNodes, selectedFields, availableKeys) {
   if (!sourceNode || !targetNodes?.length) return targetNodes;
+
+  const effectiveFields = (availableKeys instanceof Set)
+    ? new Set(Array.from(selectedFields).filter((k) => availableKeys.has(k)))
+    : new Set();
 
   const copyPrimaryShape = (destPrimary, srcPrimary, selectedFieldsForNode) => {
     if (selectedFieldsForNode.has("primary.type")) destPrimary.type = srcPrimary.type;
@@ -307,14 +439,12 @@ export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) 
 
   return targetNodes.map((node) => {
     const next = { ...node };
-    // Arbiter nodes in bare-metal-agent intentionally hide Root device hints and Advanced (MTU/routes).
-    // Even if the modal user checked those copy options, do not apply them to arbiter targets.
     const isArbiterTarget = node?.role === "arbiter";
     const selectedFieldsForNode = isArbiterTarget
       ? new Set(
-        Array.from(selectedFields).filter((k) => k !== "rootDevice" && k !== "primary.advanced")
+        Array.from(effectiveFields).filter((k) => k !== "rootDevice" && k !== "primary.advanced")
       )
-      : selectedFields;
+      : effectiveFields;
     if (selectedFieldsForNode.has("dnsServers")) next.dnsServers = sourceNode.dnsServers ?? "";
     if (selectedFieldsForNode.has("dnsSearch")) next.dnsSearch = sourceNode.dnsSearch ?? "";
     if (selectedFieldsForNode.has("hostname")) next.hostname = sourceNode.hostname ?? node.hostname;
@@ -329,7 +459,20 @@ export function applyReplicateSettings(sourceNode, targetNodes, selectedFields) 
       next.rootDeviceHintMinSizeGb = sourceNode.rootDeviceHintMinSizeGb ?? "";
       next.rootDeviceHintRotational = sourceNode.rootDeviceHintRotational ?? "";
     }
-    if (selectedFieldsForNode.has("bmc")) next.bmc = sourceNode.bmc ? { ...sourceNode.bmc } : node.bmc;
+    if (selectedFieldsForNode.has("bmc") || selectedFieldsForNode.has("bootMACAddress")) {
+      const srcBmc = sourceNode.bmc || {};
+      const destBmc = { ...(node.bmc || {}) };
+      if (selectedFieldsForNode.has("bmc")) {
+        destBmc.address = srcBmc.address ?? destBmc.address;
+        destBmc.username = srcBmc.username ?? destBmc.username;
+        destBmc.password = srcBmc.password ?? destBmc.password;
+        destBmc.disableCertificateVerification = srcBmc.disableCertificateVerification ?? destBmc.disableCertificateVerification;
+      }
+      if (selectedFieldsForNode.has("bootMACAddress")) {
+        destBmc.bootMACAddress = srcBmc.bootMACAddress ?? destBmc.bootMACAddress;
+      }
+      next.bmc = destBmc;
+    }
     if (
       [
         "primary.type",

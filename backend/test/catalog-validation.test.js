@@ -27,7 +27,7 @@ import {
 // ===================================================================
 
 test("getCatalog: loads bare-metal-ipi catalog", () => {
-  const catalog = getCatalog("bare-metal-ipi");
+  const catalog = getCatalog("bare-metal-ipi", "4.20");
   assert.ok(catalog);
   assert.strictEqual(catalog.scenarioId, "bare-metal-ipi");
   assert.ok(Array.isArray(catalog.parameters));
@@ -35,74 +35,183 @@ test("getCatalog: loads bare-metal-ipi catalog", () => {
 });
 
 test("getCatalog: loads vsphere-agent catalog", () => {
-  const catalog = getCatalog("vsphere-agent");
+  const catalog = getCatalog("vsphere-agent", "4.20");
   assert.ok(catalog);
   assert.strictEqual(catalog.scenarioId, "vsphere-agent");
 });
 
 test("getCatalog: returns null for non-existent catalog", () => {
-  const catalog = getCatalog("invalid-scenario");
+  const catalog = getCatalog("invalid-scenario", "4.20");
   assert.strictEqual(catalog, null);
 });
 
-test("getAllCatalogs: loads all 13 catalogs", () => {
-  const catalogs = getAllCatalogs();
+test("getAllCatalogs: loads all 13 catalogs for 4.20", () => {
+  clearCatalogCache();
+  const catalogs = getAllCatalogs("4.20");
   const catalogIds = Object.keys(catalogs);
 
-  // Should have 13 catalogs (12 scenarios + oc-mirror-v2)
-  assert.ok(catalogIds.length >= 12);
+  assert.strictEqual(catalogIds.length, 13);
 
-  // Verify key catalogs exist
   assert.ok(catalogs["bare-metal-ipi"]);
   assert.ok(catalogs["vsphere-agent"]);
   assert.ok(catalogs["aws-govcloud-ipi"]);
   assert.ok(catalogs["azure-government-ipi"]);
+  assert.ok(catalogs["oc-mirror-v2"]);
 });
 
 test("getCatalog: uses cache on second call", () => {
   clearCatalogCache();
-  const catalog1 = getCatalog("bare-metal-ipi");
-  const catalog2 = getCatalog("bare-metal-ipi");
+  const catalog1 = getCatalog("bare-metal-ipi", "4.20");
+  const catalog2 = getCatalog("bare-metal-ipi", "4.20");
 
   // Should be same object (cached)
   assert.strictEqual(catalog1, catalog2);
 });
 
 // ===================================================================
-// REQUIRED FIELDS VALIDATION TESTS (UI STATE - ABANDONED APPROACH)
-// ===================================================================
-//
-// NOTE: These tests validate UI state structure against catalogs.
-// This approach was explored but abandoned in favor of YAML validation
-// (see yamlValidator.js and yaml-validation.test.js).
-//
-// The catalog parameter paths are designed for YAML structure, not UI state.
-// Mapping UI state → catalog paths is complex and error-prone.
-//
-// Current validation strategy: Validate generated YAML (not UI state).
-// See backend/src/yamlValidator.js for the active implementation.
-//
-// These tests are kept for reference but may fail as they test incomplete code.
+// VERSION-AWARE CATALOG SELECTION TESTS
 // ===================================================================
 
-test.skip("validateRequiredFields: passes when all required fields present", () => {
-  const state = {
-    blueprint: {
-      baseDomain: "example.com",
-      clusterName: "test-cluster",
-      platform: "Bare Metal",
-    },
-    identity: {
-      pullSecret: '{"auths":{}}',
-      sshKey: "ssh-rsa AAAA...",
-    },
-  };
+test("getCatalog: 4.20 bare-metal-agent does not contain 4.21-only paths", () => {
+  clearCatalogCache();
+  const catalog = getCatalog("bare-metal-agent", "4.20");
+  assert.ok(catalog);
 
-  const result = validateRequiredFields(state, "bare-metal-ipi");
-  assert.strictEqual(result.valid, true);
-  assert.strictEqual(result.errors.length, 0);
+  const paths = catalog.parameters.map((p) => p.path);
+  assert.ok(!paths.includes("platform.baremetal.dnsRecordsType"));
+  assert.ok(!paths.includes("platform.baremetal.bmcVerifyCA"));
 });
 
+test("getCatalog: 4.21 bare-metal-agent contains 4.21-only paths", () => {
+  clearCatalogCache();
+  const catalog = getCatalog("bare-metal-agent", "4.21");
+  assert.ok(catalog);
+
+  const paths = catalog.parameters.map((p) => p.path);
+  assert.ok(paths.includes("platform.baremetal.dnsRecordsType"));
+  assert.ok(paths.includes("platform.baremetal.bmcVerifyCA"));
+});
+
+test("getAllCatalogs: 4.21 has 12 catalogs and lacks oc-mirror-v2", () => {
+  clearCatalogCache();
+  const catalogs = getAllCatalogs("4.21");
+  const catalogIds = Object.keys(catalogs);
+
+  assert.strictEqual(catalogIds.length, 12);
+  assert.strictEqual(catalogs["oc-mirror-v2"], undefined);
+});
+
+test("getCatalog: oc-mirror-v2 present in 4.20", () => {
+  clearCatalogCache();
+  const catalog = getCatalog("oc-mirror-v2", "4.20");
+  assert.ok(catalog);
+});
+
+test("getCatalog: oc-mirror-v2 absent in 4.21 returns null", () => {
+  clearCatalogCache();
+  const catalog = getCatalog("oc-mirror-v2", "4.21");
+  assert.strictEqual(catalog, null);
+});
+
+// ===================================================================
+// PER-VERSION CACHE TESTS
+// ===================================================================
+
+test("per-version cache: same version returns same cached object", () => {
+  clearCatalogCache();
+  const a = getCatalog("bare-metal-agent", "4.20");
+  const b = getCatalog("bare-metal-agent", "4.20");
+  assert.strictEqual(a, b);
+});
+
+test("per-version cache: 4.20 and 4.21 return different catalog objects", () => {
+  clearCatalogCache();
+  const a = getCatalog("bare-metal-agent", "4.20");
+  const b = getCatalog("bare-metal-agent", "4.21");
+  assert.notStrictEqual(a, b);
+});
+
+test("per-version cache: loading one version does not contaminate the other", () => {
+  clearCatalogCache();
+  getCatalog("bare-metal-agent", "4.20");
+  const catalog421 = getCatalog("bare-metal-agent", "4.21");
+  const paths421 = catalog421.parameters.map((p) => p.path);
+  assert.ok(paths421.includes("platform.baremetal.dnsRecordsType"));
+});
+
+test("clearCatalogCache: clears both version caches and allows reload", () => {
+  const a420 = getCatalog("bare-metal-agent", "4.20");
+  const a421 = getCatalog("bare-metal-agent", "4.21");
+  clearCatalogCache();
+  const b420 = getCatalog("bare-metal-agent", "4.20");
+  const b421 = getCatalog("bare-metal-agent", "4.21");
+  assert.notStrictEqual(a420, b420);
+  assert.notStrictEqual(a421, b421);
+});
+
+// ===================================================================
+// MISSING SCENARIO WITH SUPPORTED VERSION
+// ===================================================================
+
+test("getCatalog: missing scenario with 4.21 returns null", () => {
+  const catalog = getCatalog("invalid-scenario", "4.21");
+  assert.strictEqual(catalog, null);
+});
+
+// ===================================================================
+// UNSUPPORTED VERSION TESTS
+// ===================================================================
+
+test("getCatalog: unsupported 4.23 throws UNSUPPORTED_VERSION", () => {
+  assert.throws(
+    () => getCatalog("bare-metal-agent", "4.23"),
+    (err) => {
+      assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
+      assert.strictEqual(err.requestedVersion, "4.23");
+      assert.deepStrictEqual(err.supportedVersions, ["4.20", "4.21", "4.22"]);
+      return true;
+    }
+  );
+});
+
+// ===================================================================
+// MISSING VERSION TESTS
+// ===================================================================
+
+test("getCatalog: omitted version throws CATALOG_VERSION_REQUIRED", () => {
+  assert.throws(
+    () => getCatalog("bare-metal-agent"),
+    (err) => {
+      assert.strictEqual(err.code, "CATALOG_VERSION_REQUIRED");
+      assert.deepStrictEqual(err.supportedVersions, ["4.20", "4.21", "4.22"]);
+      return true;
+    }
+  );
+});
+
+test("getCatalog: null version throws CATALOG_VERSION_REQUIRED", () => {
+  assert.throws(
+    () => getCatalog("bare-metal-agent", null),
+    (err) => {
+      assert.strictEqual(err.code, "CATALOG_VERSION_REQUIRED");
+      assert.strictEqual(err.requestedVersion, null);
+      return true;
+    }
+  );
+});
+
+test("getCatalog: empty string version throws CATALOG_VERSION_REQUIRED", () => {
+  assert.throws(
+    () => getCatalog("bare-metal-agent", ""),
+    (err) => {
+      assert.strictEqual(err.code, "CATALOG_VERSION_REQUIRED");
+      return true;
+    }
+  );
+});
+
+// ===================================================================
+// REQUIRED FIELDS VALIDATION TESTS (UI STATE - ABANDONED APPROACH)
 test("validateRequiredFields: fails when required field missing", () => {
   const state = {
     blueprint: {
@@ -112,7 +221,7 @@ test("validateRequiredFields: fails when required field missing", () => {
     },
   };
 
-  const result = validateRequiredFields(state, "bare-metal-ipi");
+  const result = validateRequiredFields(state, "bare-metal-ipi", "4.20");
   assert.strictEqual(result.valid, false);
   assert.ok(result.errors.length > 0);
 
@@ -130,7 +239,7 @@ test("validateRequiredFields: handles empty string as missing", () => {
     },
   };
 
-  const result = validateRequiredFields(state, "bare-metal-ipi");
+  const result = validateRequiredFields(state, "bare-metal-ipi", "4.20");
   assert.strictEqual(result.valid, false);
 
   const error = result.errors.find((e) => e.path === "baseDomain");
@@ -145,13 +254,13 @@ test("validateRequiredFields: handles null as missing", () => {
     },
   };
 
-  const result = validateRequiredFields(state, "bare-metal-ipi");
+  const result = validateRequiredFields(state, "bare-metal-ipi", "4.20");
   assert.strictEqual(result.valid, false);
 });
 
 test("validateRequiredFields: returns error for non-existent catalog", () => {
   const state = { blueprint: {} };
-  const result = validateRequiredFields(state, "invalid-scenario");
+  const result = validateRequiredFields(state, "invalid-scenario", "4.20");
 
   assert.strictEqual(result.valid, false);
   assert.ok(result.errors.some((e) => e.path === "catalog"));
@@ -168,24 +277,8 @@ test("validateEnumValues: passes when enum value is in allowed list", () => {
     },
   };
 
-  const result = validateEnumValues(state, "bare-metal-ipi");
+  const result = validateEnumValues(state, "bare-metal-ipi", "4.20");
   assert.strictEqual(result.valid, true);
-});
-
-test.skip("validateEnumValues: fails when enum value not in allowed list", () => {
-  const state = {
-    networking: {
-      networkType: "InvalidNetworkType",  // Not in allowed list
-    },
-  };
-
-  const result = validateEnumValues(state, "bare-metal-ipi");
-  assert.strictEqual(result.valid, false);
-
-  const error = result.errors.find((e) => e.path === "networking.networkType");
-  assert.ok(error);
-  assert.ok(error.message.includes("Invalid value"));
-  assert.ok(Array.isArray(error.allowed));
 });
 
 test("validateEnumValues: skips empty values (required validation handles)", () => {
@@ -195,7 +288,7 @@ test("validateEnumValues: skips empty values (required validation handles)", () 
     },
   };
 
-  const result = validateEnumValues(state, "bare-metal-ipi");
+  const result = validateEnumValues(state, "bare-metal-ipi", "4.20");
   // Should pass enum validation (empty value is skipped)
   assert.strictEqual(result.valid, true);
 });
@@ -211,7 +304,7 @@ test("validateEnumValues: handles array of enum values", () => {
 
   // Note: This test assumes zones has an allowed list in catalog
   // If not, it will pass (no enum params found)
-  const result = validateEnumValues(state, "aws-govcloud-ipi");
+  const result = validateEnumValues(state, "aws-govcloud-ipi", "4.20");
   assert.strictEqual(result.valid, true);
 });
 
@@ -228,7 +321,7 @@ test("validateApplicability: passes when parameter applies to scenario", () => {
     },
   };
 
-  const result = validateApplicability(state, "bare-metal-ipi");
+  const result = validateApplicability(state, "bare-metal-ipi", "4.20");
   assert.strictEqual(result.valid, true);
 });
 
@@ -241,7 +334,7 @@ test("validateApplicability: fails when AWS parameter used in bare-metal", () =>
     },
   };
 
-  const result = validateApplicability(state, "bare-metal-ipi");
+  const result = validateApplicability(state, "bare-metal-ipi", "4.20");
   // Note: This depends on catalog having applies_to restrictions
   // If no restrictions, it will pass
   // Real test would need specific parameter known to have applies_to
@@ -249,7 +342,7 @@ test("validateApplicability: fails when AWS parameter used in bare-metal", () =>
 
 test("validateApplicability: handles non-existent catalog", () => {
   const state = { blueprint: {} };
-  const result = validateApplicability(state, "invalid-scenario");
+  const result = validateApplicability(state, "invalid-scenario", "4.20");
 
   assert.strictEqual(result.valid, false);
   assert.ok(result.errors.some((e) => e.path === "catalog"));
@@ -271,7 +364,7 @@ test("validateState: combines all validation types", () => {
     },
   };
 
-  const result = validateState(state, "bare-metal-ipi");
+  const result = validateState(state, "bare-metal-ipi", "4.20");
   assert.strictEqual(typeof result.valid, "boolean");
   assert.ok(result.errors);
   assert.ok(result.errors.required);
@@ -291,30 +384,9 @@ test("validateState: reports total error count", () => {
     },
   };
 
-  const result = validateState(state, "bare-metal-ipi");
+  const result = validateState(state, "bare-metal-ipi", "4.20");
   assert.strictEqual(result.valid, false);
   assert.ok(result.totalErrors > 0);
-});
-
-test.skip("validateState: valid state has zero total errors", () => {
-  const state = {
-    blueprint: {
-      baseDomain: "example.com",
-      clusterName: "test-cluster",
-      platform: "Bare Metal",
-    },
-    identity: {
-      pullSecret: '{"auths":{}}',
-      sshKey: "ssh-rsa AAAA...",
-    },
-    networking: {
-      networkType: "OVNKubernetes",
-    },
-  };
-
-  const result = validateState(state, "bare-metal-ipi");
-  assert.strictEqual(result.totalErrors, 0);
-  assert.strictEqual(result.valid, true);
 });
 
 // ===================================================================
@@ -411,7 +483,7 @@ test("validateRequiredFields: handles deeply nested required fields", () => {
   };
 
   // Should not throw, even with nested structures
-  const result = validateRequiredFields(state, "bare-metal-ipi");
+  const result = validateRequiredFields(state, "bare-metal-ipi", "4.20");
   assert.ok(result);
 });
 
@@ -424,21 +496,21 @@ test("validateEnumValues: handles missing parent object", () => {
   };
 
   // Should not throw
-  const result = validateEnumValues(state, "bare-metal-ipi");
+  const result = validateEnumValues(state, "bare-metal-ipi", "4.20");
   assert.ok(result);
 });
 
 test("clearCatalogCache: clears cache successfully", () => {
-  getCatalog("bare-metal-ipi");  // Load into cache
+  getCatalog("bare-metal-ipi", "4.20");  // Load into cache
   clearCatalogCache();
-  const catalog = getCatalog("bare-metal-ipi");  // Reload
+  const catalog = getCatalog("bare-metal-ipi", "4.20");  // Reload
 
   assert.ok(catalog);
   assert.strictEqual(catalog.scenarioId, "bare-metal-ipi");
 });
 
 test("validateState: handles null state gracefully", () => {
-  const result = validateState(null, "bare-metal-ipi");
+  const result = validateState(null, "bare-metal-ipi", "4.20");
 
   // Should fail but not throw
   assert.strictEqual(result.valid, false);
@@ -446,8 +518,34 @@ test("validateState: handles null state gracefully", () => {
 });
 
 test("validateState: handles empty state object", () => {
-  const result = validateState({}, "bare-metal-ipi");
+  const result = validateState({}, "bare-metal-ipi", "4.20");
 
   // Should fail (missing required fields) but not throw
   assert.strictEqual(result.valid, false);
+});
+
+// ===================================================================
+// validateState VERSION CONTRACT TESTS
+// ===================================================================
+
+test("validateState: omitted version throws CATALOG_VERSION_REQUIRED", () => {
+  assert.throws(
+    () => validateState({}, "bare-metal-ipi"),
+    (err) => {
+      assert.strictEqual(err.code, "CATALOG_VERSION_REQUIRED");
+      return true;
+    }
+  );
+});
+
+test("validateState: unsupported 4.23 throws UNSUPPORTED_VERSION", () => {
+  assert.throws(
+    () => validateState({}, "bare-metal-ipi", "4.23"),
+    (err) => {
+      assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
+      assert.strictEqual(err.requestedVersion, "4.23");
+      assert.deepStrictEqual(err.supportedVersions, ["4.20", "4.21", "4.22"]);
+      return true;
+    }
+  );
 });

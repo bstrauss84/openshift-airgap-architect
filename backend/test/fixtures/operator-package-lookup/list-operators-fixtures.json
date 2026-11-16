@@ -1,0 +1,213 @@
+{
+  "binary": {
+    "path": "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+    "sha256": "55b55cf1627426dca1910c71c177e3696e0984616ef36f9543fde269ae924a3a",
+    "version": "4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d",
+    "gitCommit": "ed9ff0d96dcbd591d6634d200d1fff9219629b69",
+    "channelRelease": "4.22.19"
+  },
+  "environment": {
+    "HOME": "/tmp/oaa-m5-research/catalog/home",
+    "XDG_RUNTIME_DIR": "/tmp/oaa-m5-research/catalog/xdg",
+    "REGISTRY_AUTH_FILE": "unset",
+    "CONTAINERS_REGISTRIES_CONF": "unset (system /etc/containers/registries.conf has no insecure entries)",
+    "wrapper": "timeout 120"
+  },
+  "cases": {
+    "a_catalog": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5601/demo/demo-index:v1"
+      ],
+      "exitCode": 0,
+      "stdout": "NAME      DISPLAY NAME    DEFAULT CHANNEL\ndemo-op   Demo Operator   stable\nother-op  Other Operator  alpha\n",
+      "stderr": "2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\n",
+      "elapsedMs": 39
+    },
+    "a2_catalog_src_tls_false": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5601/demo/demo-index:v1",
+        "--src-tls-verify=false"
+      ],
+      "exitCode": 0,
+      "stdout": "NAME      DISPLAY NAME    DEFAULT CHANNEL\ndemo-op   Demo Operator   stable\nother-op  Other Operator  alpha\n",
+      "stderr": "2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\n",
+      "elapsedMs": 30
+    },
+    "b_package": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5601/demo/demo-index:v1",
+        "--package=demo-op"
+      ],
+      "exitCode": 0,
+      "stdout": "NAME     DISPLAY NAME   DEFAULT CHANNEL\ndemo-op  Demo Operator  stable\n\nPACKAGE  CHANNEL  HEAD\ndemo-op  fast     demo-op.v1.1.0\ndemo-op  stable   demo-op.v1.0.1\n",
+      "stderr": "2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\n",
+      "elapsedMs": 32
+    },
+    "b2_package_other": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5601/demo/demo-index:v1",
+        "--package=other-op"
+      ],
+      "exitCode": 0,
+      "stdout": "NAME      DISPLAY NAME    DEFAULT CHANNEL\nother-op  Other Operator  alpha\n\nPACKAGE   CHANNEL  HEAD\nother-op  alpha    other-op.v0.1.0\n",
+      "stderr": "2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\n",
+      "elapsedMs": 33
+    },
+    "c_channel_stable": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5601/demo/demo-index:v1",
+        "--package=demo-op",
+        "--channel=stable"
+      ],
+      "exitCode": 0,
+      "stdout": "VERSIONS\n1.0.0\n1.0.1\n",
+      "stderr": "2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\n",
+      "elapsedMs": 35
+    },
+    "c_channel_fast": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5601/demo/demo-index:v1",
+        "--package=demo-op",
+        "--channel=fast"
+      ],
+      "exitCode": 0,
+      "stdout": "VERSIONS\n1.1.0\n",
+      "stderr": "2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\n",
+      "elapsedMs": 36
+    },
+    "d_package_missing": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5601/demo/demo-index:v1",
+        "--package=does-not-exist"
+      ],
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\n2026/10/27 09:40:36 \u001b[1;91m [ERROR] \u001b[0m : [Executor] operator \"does-not-exist\" not found in catalog \n",
+      "elapsedMs": 29
+    },
+    "e_channel_missing": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5601/demo/demo-index:v1",
+        "--package=demo-op",
+        "--channel=no-such-channel"
+      ],
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\n2026/10/27 09:40:36 \u001b[1;91m [ERROR] \u001b[0m : [Executor] channel \"no-such-channel\" not found for operator \"demo-op\" \n",
+      "elapsedMs": 31
+    },
+    "f_unreachable": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5699/demo/demo-index:v1"
+      ],
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:40:36 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\ntime=\"2026-10-27T09:40:36-04:00\" level=warning msg=\"Failed, retrying in 1s ... (1/5). Error: initializing source docker://localhost:5699/demo/demo-index:v1: pinging container registry localhost:5699: Get \\\"http://localhost:5699/v2/\\\": dial tcp [::1]:5699: connect: connection refused\"\ntime=\"2026-10-27T09:40:38-04:00\" level=warning msg=\"Failed, retrying in 2s ... (2/5). Error: initializing source docker://localhost:5699/demo/demo-index:v1: pinging container registry localhost:5699: Get \\\"http://localhost:5699/v2/\\\": dial tcp [::1]:5699: connect: connection refused\"\ntime=\"2026-10-27T09:40:40-04:00\" level=warning msg=\"Failed, retrying in 4s ... (3/5). Error: initializing source docker://localhost:5699/demo/demo-index:v1: pinging container registry localhost:5699: Get \\\"http://localhost:5699/v2/\\\": dial tcp [::1]:5699: connect: connection refused\"\ntime=\"2026-10-27T09:40:44-04:00\" level=warning msg=\"Failed, retrying in 8s ... (4/5). Error: initializing source docker://localhost:5699/demo/demo-index:v1: pinging container registry localhost:5699: Get \\\"http://localhost:5699/v2/\\\": dial tcp [::1]:5699: connect: connection refused\"\ntime=\"2026-10-27T09:40:52-04:00\" level=warning msg=\"Failed, retrying in 16s ... (5/5). Error: initializing source docker://localhost:5699/demo/demo-index:v1: pinging container registry localhost:5699: Get \\\"http://localhost:5699/v2/\\\": dial tcp [::1]:5699: connect: connection refused\"\n2026/10/27 09:41:09 \u001b[1;91m [ERROR] \u001b[0m : [Executor] failed to load catalog: initializing source docker://localhost:5699/demo/demo-index:v1: pinging container registry localhost:5699: Get \"http://localhost:5699/v2/\": dial tcp [::1]:5699: connect: connection refused \n",
+      "elapsedMs": 33013
+    },
+    "g_package_by_digest": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5601/demo/demo-index@sha256:7cf42bb8169e3aedc7b609887a027c941f6f9321ba983b6eecac9088b4ba132b",
+        "--package=demo-op"
+      ],
+      "exitCode": 0,
+      "stdout": "NAME     DISPLAY NAME   DEFAULT CHANNEL\ndemo-op  Demo Operator  stable\n\nPACKAGE  CHANNEL  HEAD\ndemo-op  fast     demo-op.v1.1.0\ndemo-op  stable   demo-op.v1.0.1\n",
+      "stderr": "2026/10/27 09:41:09 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:41:09 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:41:09 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\n",
+      "elapsedMs": 39
+    },
+    "h_channel_without_package": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5601/demo/demo-index:v1",
+        "--channel=stable"
+      ],
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "2026/10/27 09:41:10 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:41:10 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:41:10 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\nUsage:\n  oc-mirror list operators [flags]\n\nExamples:\n  # Output default operator catalogs for OpenShift release 4.8\n  oc-mirror --v2 list operators --catalogs --version=4.8\n  \n  # List all operator packages in a catalog\n  oc-mirror --v2 list operators --catalog=catalog-name\n  \n  # List all channels in an operator package\n  oc-mirror --v2 list operators --catalog=catalog-name --package=package-name\n  \n  # List all available versions for a specified operator in a channel\n  oc-mirror --v2 list operators --catalog=catalog-name --package=operator-name --channel=channel-name\n\nFlags:\n      --catalog string   List information for a specified catalog.\n      --catalogs         List available catalogs for an OpenShift release version. Requires --version.\n      --channel string   List information for a specified channel. Requires --catalog and --package.\n  -h, --help             help for operators\n      --package string   List information for a specified package. Requires --catalog.\n      --version string   Specify an OpenShift release version.\n\nGlobal Flags:\n      --authfile string        path of the authentication file. Default is ${XDG_RUNTIME_DIR}/containers/auth.json\n      --cache-dir string       oc-mirror cache directory location. Default is $HOME\n  -c, --config string          Path to imageset configuration file\n      --dest-tls-verify        require HTTPS and verify certificates when talking to the container registry or daemon (default true)\n      --log-level string       Log level one of (info, debug, trace, error) (default \"info\")\n      --parallel-images uint   Indicates the number of images mirrored in parallel (default 4)\n      --parallel-layers uint   Indicates the number of image layers mirrored in parallel (default 5)\n      --policy string          Path to a trust policy file\n  -p, --port uint16            HTTP port used by oc-mirror's local storage instance (default 55000)\n      --registries.d DIR       use registry configuration files in DIR (e.g. for container signature storage)\n      --retry-delay duration   delay between 2 retries (default 0 uses exponential backoff, set value uses constant delay)\n      --retry-times int        the number of times to possibly retry (default 5)\n      --src-tls-verify         require HTTPS and verify certificates when talking to the container registry or daemon (default true)\n      --workspace string       oc-mirror workspace where resources and internal artifacts are generated\n\n2026/10/27 09:41:10 \u001b[1;91m [ERROR] \u001b[0m : [Executor] must specify --catalog and --package with --channel \n",
+      "elapsedMs": 20
+    },
+    "f2_unreachable_retry1": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5699/demo/demo-index:v1",
+        "--retry-times=1"
+      ],
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "2026/10/27 09:41:33 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:41:33 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:41:33 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\ntime=\"2026-10-27T09:41:33-04:00\" level=warning msg=\"Failed, retrying in 1s ... (1/1). Error: initializing source docker://localhost:5699/demo/demo-index:v1: pinging container registry localhost:5699: Get \\\"http://localhost:5699/v2/\\\": dial tcp [::1]:5699: connect: connection refused\"\n2026/10/27 09:41:34 \u001b[1;91m [ERROR] \u001b[0m : [Executor] failed to load catalog: initializing source docker://localhost:5699/demo/demo-index:v1: pinging container registry localhost:5699: Get \"http://localhost:5699/v2/\": dial tcp [::1]:5699: connect: connection refused \n",
+      "elapsedMs": 1119
+    },
+    "f3_dns_nxdomain": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=oaa-nonexistent.invalid:5000/demo/demo-index:v1"
+      ],
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "2026/10/27 09:41:34 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:41:34 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:41:34 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\n2026/10/27 09:41:34 \u001b[1;91m [ERROR] \u001b[0m : [Executor] failed to load catalog: initializing source docker://oaa-nonexistent.invalid:5000/demo/demo-index:v1: pinging container registry oaa-nonexistent.invalid:5000: Get \"http://oaa-nonexistent.invalid:5000/v2/\": dial tcp: lookup oaa-nonexistent.invalid: no such host \n",
+      "elapsedMs": 23
+    },
+    "f4_blackhole_accept_no_reply": {
+      "argv": [
+        "/tmp/oaa-v220-research/m4-ocm-1793043361/x/oc-mirror",
+        "--v2",
+        "list",
+        "operators",
+        "--catalog=localhost:5698/demo/demo-index:v1"
+      ],
+      "exitCode": 124,
+      "stdout": "",
+      "stderr": "2026/10/27 09:41:34 \u001b[1;94m [INFO] \u001b[0m  : 👋 Hello, welcome to oc-mirror\n2026/10/27 09:41:34 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  setting up the environment for you...\n2026/10/27 09:41:34 \u001b[1;94m [INFO] \u001b[0m  : ⚙️  environment version: 4.22.0-202610131403.p2.ged9ff0d.assembly.stream.el9-ed9ff0d\n",
+      "elapsedMs": 120004
+    }
+  }
+}

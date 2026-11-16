@@ -1,0 +1,113 @@
+# NetworkPolicy: the backend is reachable ONLY from the authenticating pod.
+#
+# THIS IS NOT DEFENCE IN DEPTH; IT IS LOAD-BEARING.
+#
+# oauth-proxy runs as a sidecar in the frontend pod. A sidecar only
+# authenticates traffic that goes THROUGH it, and the backend has a ClusterIP
+# Service — so without this policy any pod in the namespace could call
+# `http://airgap-architect-backend:4000` directly and skip authentication
+# entirely. The decision record states the rule plainly: "a sidecar that can
+# be skipped by reaching the Service directly is not a boundary; NetworkPolicy
+# has to back it."
+#
+# The backend's shared-secret check (backend/src/accessControl.js) is the
+# other half. Neither is sufficient alone:
+#
+#   - NetworkPolicy alone: a compromised or merely buggy frontend pod could
+#     still forge identity headers, because it is on the allowed side.
+#   - Shared secret alone: an attacker who reads the Secret bypasses
+#     everything, and Secrets are readable by anything with the right RBAC.
+#
+# Together, reaching the backend requires BOTH being the frontend pod AND
+# holding the secret.
+#
+# REQUIRES A NETWORK PLUGIN THAT ENFORCES NetworkPolicy. OVN-Kubernetes (the
+# default from 4.12) does. If a cluster runs a plugin that ignores these
+# objects, they are silently inert — the policy applies with no error and
+# nothing is restricted. Verify with a direct curl from an unrelated pod; the
+# smoke commands in manifests/README.md include exactly that check.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: airgap-architect-backend-ingress
+  labels:
+    app: airgap-architect
+    app.kubernetes.io/part-of: airgap-architect
+spec:
+  podSelector:
+    matchLabels:
+      app: airgap-architect
+      component: backend
+  policyTypes:
+    - Ingress
+  ingress:
+    # Only the frontend pod, which is the pod oauth-proxy runs in.
+    - from:
+        - podSelector:
+            matchLabels:
+              app: airgap-architect
+              component: frontend
+      ports:
+        - protocol: TCP
+          port: 4000
+    # Prometheus scraping /api/metrics from inside the cluster. (An earlier
+    # revision's comment said this rule was for kubelet probes; it is not —
+    # a `podSelector` cannot match the kubelet, which is not a pod. Probe
+    # traffic originates from the NODE and OVN-Kubernetes permits it
+    # independently of these objects. If a plugin did block it, the pod would
+    # never become Ready: loud, not a silent bypass.)
+    - from:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 4000
+---
+# Default-deny ingress for the namespace, so a pod added later is not exposed
+# by omission. The policies above re-admit exactly what must be reachable.
+#
+# Scoped to this application's pods rather than the whole namespace
+# (`podSelector: {}`), because a namespace the operator also uses for other
+# work should not have its networking silently changed by installing this.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: airgap-architect-frontend-ingress
+  labels:
+    app: airgap-architect
+    app.kubernetes.io/part-of: airgap-architect
+spec:
+  podSelector:
+    matchLabels:
+      app: airgap-architect
+      component: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    # The OpenShift router, which terminates the Route. The router runs in
+    # openshift-ingress and is labelled by the platform.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              policy-group.network.openshift.io/ingress: ""
+      ports:
+        - protocol: TCP
+          port: 8443
+    # In-namespace access to the oauth-proxy port. Everything that reaches the
+    # application through here is authenticated by oauth-proxy first.
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8443
+# 5173 IS NOT ADMITTED, and since the AUTH-03 correction it is no longer
+# listening on the pod IP either: nginx binds 127.0.0.1:5173 so the bypass is
+# refused by the pod's own kernel whether or not this policy is enforced. That
+# ordering matters — the previous arrangement left an unauthenticated,
+# identity-forwarding, secret-attaching proxy on the pod IP and relied on this
+# object alone, which a non-enforcing network plugin accepts and ignores.
+#
+# The probe listener on 8081 is not admitted here either. Kubelet probes come
+# from the node rather than a pod, so they are not governed by these rules.

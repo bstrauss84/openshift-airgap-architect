@@ -1,0 +1,36 @@
+# Make the BACKEND Deployment admissible under the restricted-v2 SCC.
+#
+# JSON Patch, not a strategic merge, because the operation needed is REMOVE.
+# A strategic merge cannot delete a field — setting runAsUser to null is
+# either ignored or rejected depending on the field's schema, and the pinned
+# UID would survive.
+#
+# restricted-v2 allocates each namespace a UID range in the
+# `openshift.io/sa.scc.uid-range` annotation and requires the pod to run
+# inside it. The base pins runAsUser: 1001 and fsGroup: 1001, which is
+# outside a default range, so admission rejects the pod. This is why the
+# repository's historical restricted-v2 claim could not have been true.
+#
+# THE PINS STAY IN THE BASE, deliberately. Plain Kubernetes has no SCC to
+# inject a UID, and backend/Containerfile's final stage is `USER root` (it
+# drops privileges itself in entrypoint.sh via runuser). Remove runAsUser
+# there and `runAsNonRoot: true` would make the kubelet refuse the pod with
+# "container has runAsNonRoot and image will run as root". The base therefore
+# targets vanilla Kubernetes and this overlay adapts it to OpenShift.
+#
+# runAsNonRoot, allowPrivilegeEscalation: false, the dropped capabilities and
+# the seccomp profile all STAY. Those are the properties restricted-v2 wants
+# asserted; only the hardcoded identity is the problem.
+#
+# Removing fsGroup is safe and necessary: restricted-v2 assigns one from the
+# namespace range, and entrypoint.sh's non-root branch probes DATA_DIR for
+# writability and exits with an explicit fsGroup message if the PVC is not
+# group-writable. That branch becomes load-bearing here.
+#
+# STATUS: corrected but NOT verified on a cluster. No cluster was reachable
+# when this was written. Run the admission smoke check in manifests/README.md
+# before describing this as restricted-v2 certified.
+- op: remove
+  path: /spec/template/spec/securityContext/fsGroup
+- op: remove
+  path: /spec/template/spec/containers/0/securityContext/runAsUser

@@ -9,7 +9,7 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import { getParamMeta } from "../catalogResolver.js";
+import { getFieldMeta } from "../catalogFieldMeta.js";
 import { getTrustBundlePolicies } from "./versionPolicy.js";
 
 const INSTALL_CONFIG = "install-config.yaml";
@@ -45,7 +45,20 @@ export function trustBundleInferTier(trust) {
  * @returns {string[]}
  */
 export function getTrustPolicyOptionsForScenario(scenarioId, selectedVersion) {
-  const metaPolicy = getParamMeta(scenarioId, "additionalTrustBundlePolicy", INSTALL_CONFIG);
+  // Use getFieldMeta directly with explicit version (no state needed).
+  //
+  // No version selected yet is a REAL state: the backend's cold-start state
+  // already resolves a scenarioId (platform and methodology are pre-populated)
+  // while `version` is still empty, and `validateStep(state, "review")` reaches
+  // here on the very first render. This used to read `selectedVersion ||
+  // '4.20'`, which was harmless while every catalog was eagerly bundled and
+  // became a CatalogNotLoadedError crash once catalogs were lazy-loaded per
+  // minor. There is no catalog to consult before a version exists, so skip the
+  // read and fall through to the version-policy list below — which already
+  // handles the empty-version case on line 56.
+  const metaPolicy = selectedVersion
+    ? getFieldMeta(scenarioId, INSTALL_CONFIG, "additionalTrustBundlePolicy", selectedVersion)
+    : null;
   const policyAllowed = Array.isArray(metaPolicy?.allowed)
     ? metaPolicy.allowed
     : metaPolicy?.allowed

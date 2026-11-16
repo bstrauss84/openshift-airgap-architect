@@ -1,0 +1,18 @@
+name: Versioned Copy Guard
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main, develop]
+
+jobs:
+  check-versioned-copy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Classifier self-test
+        run: bash scripts/find-hardcoded-versions.sh --self-test
+
+      - name: Enforce versioned copy guard
+        run: bash scripts/find-hardcoded-versions.sh --check

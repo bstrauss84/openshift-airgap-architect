@@ -9,10 +9,22 @@
  *
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { apiFetch } from "../api.js";
+import { isJobGone, allJobsSettled } from "../shared/jobPolling.js";
 import { useApp } from "../store.jsx";
+import { getVersionLocked } from "../shared/versionHelpers.js";
 import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
+import {
+  catalogImagesForMinor,
+  reconcileOperatorsForMinor,
+  isOperatorResolved
+} from "../shared/operatorMinorReconciliation.js";
+// Quick Pick membership is a VERSION-AWARE PRESET, and reconciliation needs to
+// read it too, so the table lives in shared/ rather than module-private here.
+// See shared/operatorQuickPicks.js for why.
+import ScenarioQuickPicks from "../components/operators/ScenarioQuickPicks.jsx";
+import { scenarios, resolveScenarioPicks, ensureSources, applyScenarioPicks, removeScenarioPicks } from "../shared/operatorQuickPicks.js";
 import { useCatalogScanProgress } from "../useCatalogScanProgress.js";
 import SecretInput from "../components/SecretInput.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
@@ -21,179 +33,24 @@ import Button from "../components/Button.jsx";
 import Switch from "../components/Switch.jsx";
 import OptionRow from "../components/OptionRow.jsx";
 import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
+import OperatorCatalogBrowser from "../components/operators/OperatorCatalogBrowser.jsx";
+import SelectedOperatorCard from "../components/operators/SelectedOperatorCard.jsx";
+import OperatorVersionConstraints from "../components/operators/OperatorVersionConstraints.jsx";
 
-const scenarios = [
-  {
-    id: "virtualization",
-    label: "Virtualization",
-    picks: {
-      redhat: ["kubevirt-hyperconverged", "mtv-operator", "kubernetes-nmstate-operator"]
-    }
-  },
-  {
-    id: "local-storage",
-    label: "Local Storage",
-    picks: { redhat: ["lvms-operator", "local-storage-operator"] }
-  },
-  {
-    id: "openshift-ai",
-    label: "OpenShift AI",
-    picks: { redhat: ["rhods-operator", "rhods-prometheus-operator", "nfd"], certified: ["gpu-operator-certified"] }
-  },
-  {
-    id: "compliance",
-    label: "Compliance and Security",
-    description: "File integrity monitoring (AIDE) and compliance scanning",
-    picks: { redhat: ["compliance-operator", "file-integrity-operator"] }
-  },
-  {
-    id: "disconnected",
-    label: "Disconnected Update Support",
-    picks: { redhat: ["cincinnati-operator"] }
-  },
-  {
-    id: "qol",
-    label: "Quality of Life",
-    description: "Web Terminal, DevSpaces, and Red Hat Developer Hub (Backstage-based internal developer platform)",
-    picks: { redhat: ["web-terminal", "devspaces", "rhdh"] }
-  },
-  {
-    id: "node-health",
-    label: "Node Health and Maintenance",
-    picks: { redhat: ["self-node-remediation", "fence-agents-remediation", "node-healthcheck-operator", "node-maintenance-operator", "node-observability-operator"] }
-  },
-  {
-    id: "gitops",
-    label: "GitOps",
-    picks: { redhat: ["openshift-gitops-operator"] }
-  },
-  {
-    id: "cicd",
-    label: "CI/CD",
-    picks: { redhat: ["openshift-pipelines-operator-rh"] }
-  },
-  {
-    id: "odf",
-    label: "OpenShift Data Foundation (Base)",
-    description: "Persistent storage with file, block, and object support - base packages for disconnected mirroring",
-    versionPicks: {
-      "4.16": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator"] },
-      "4.17": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator"] },
-      "4.18": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
-      "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
-      "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
-      "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
-      "default": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] }
-    }
-  },
-  {
-    id: "odf-local-storage",
-    label: "ODF + Local Storage",
-    description: "ODF base packages + local-storage-operator for internal mode deployments (Ceph on local disks)",
-    versionPicks: {
-      "4.16": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "local-storage-operator"] },
-      "4.17": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "local-storage-operator"] },
-      "4.18": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "local-storage-operator"] },
-      "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "local-storage-operator"] },
-      "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] },
-      "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] },
-      "default": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "local-storage-operator"] }
-    }
-  },
-  {
-    id: "odf-disaster-recovery",
-    label: "ODF + Disaster Recovery",
-    description: "ODF base packages + Regional-DR/Metro-DR operators for disaster recovery configurations",
-    versionPicks: {
-      "4.16": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "4.17": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "4.18": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "4.19": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "4.20": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "4.21": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] },
-      "default": { redhat: ["ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator", "odf-multicluster-orchestrator", "odr-cluster-operator", "odr-hub-operator"] }
-    }
-  },
-  {
-    id: "platform-plus",
-    label: "OpenShift Platform Plus",
-    description: "Multi-cluster management (ACM + MCE), security (ACS), registry (Quay), and storage (ODF base stack)",
-    versionPicks: {
-      "4.16": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator"] },
-      "4.17": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator"] },
-      "4.18": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
-      "4.19": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies"] },
-      "4.20": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
-      "4.21": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] },
-      "default": { redhat: ["advanced-cluster-management", "multicluster-engine", "rhacs-operator", "quay-operator", "ocs-operator", "odf-operator", "mcg-operator", "odf-csi-addons-operator", "ocs-client-operator", "odf-prometheus-operator", "recipe", "rook-ceph-operator", "cephcsi-operator", "odf-dependencies", "odf-external-snapshotter-operator"] }
-    }
-  },
-  {
-    id: "app-dev-suite",
-    label: "App Development Suite",
-    description: "GitOps, CI/CD pipelines, cloud IDE, and web terminal",
-    versionPicks: {
-      "default": { redhat: ["openshift-gitops-operator", "openshift-pipelines-operator-rh", "devspaces", "web-terminal"] }
-    }
-  },
-  {
-    id: "logging",
-    label: "Logging Stack",
-    description: "Cluster logging with Loki log aggregation (Elasticsearch deprecated in 5.x+)",
-    picks: { redhat: ["cluster-logging", "loki-operator"] }
-  },
-  {
-    id: "service-mesh",
-    label: "Service Mesh",
-    description: "Istio-based service mesh with Kiali observability and Jaeger distributed tracing",
-    picks: { redhat: ["servicemeshoperator", "kiali-ossm", "jaeger-product"] }
-  },
-  {
-    id: "serverless",
-    label: "Serverless",
-    description: "Knative-based serverless workloads (Serving and Eventing)",
-    picks: { redhat: ["serverless-operator"] }
-  },
-  {
-    id: "network-observability",
-    label: "Network Observability",
-    description: "eBPF-based network traffic monitoring and analysis",
-    picks: { redhat: ["netobserv-operator"] }
-  },
-  {
-    id: "cost-management",
-    label: "Cost Management",
-    description: "Cluster cost tracking and resource usage metrics",
-    picks: { redhat: ["costmanagement-metrics-operator"] }
-  },
-  {
-    id: "quay",
-    label: "Red Hat Quay",
-    description: "Enterprise container registry with enhanced RBAC",
-    picks: { redhat: ["quay-operator"] }
-  },
-  {
-    id: "quay-bridge",
-    label: "Quay + OpenShift Integration",
-    description: "Quay as default OpenShift registry with namespace sync and ImageStream mirroring",
-    picks: { redhat: ["quay-operator", "quay-bridge-operator"] }
-  }
-];
 
-const catalogImages = (version) => ({
-  redhat: `registry.redhat.io/redhat/redhat-operator-index:v${version}`,
-  certified: `registry.redhat.io/redhat/certified-operator-index:v${version}`,
-  community: `registry.redhat.io/redhat/community-operator-index:v${version}`
-});
+const catalogImages = catalogImagesForMinor;
+
 
 const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const { state, updateState, setState } = useApp();
-  const [activeTab, setActiveTab] = useState("redhat");
   const [authAvailable, setAuthAvailable] = useState(false);
   const [jobs, setJobs] = useState({});
   const [jobStatuses, setJobStatuses] = useState({});
   const { displayProgress, start, complete, fail } = useCatalogScanProgress();
   const prevStatusesRef = useRef({});
+  // Job ids this mount has proved terminal (404). Survives re-renders, so a
+  // late re-seed from persisted state cannot resurrect them inside one mount.
+  const clearedJobIdsRef = useRef(new Set());
   const [loadingCatalogs, setLoadingCatalogs] = useState(false);
   const [pullSecretInput, setPullSecretInput] = useState("");
   const [scanError, setScanError] = useState("");
@@ -206,6 +63,12 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   // Local state for text inputs (onBlur pattern)
   const [additionalImagesLocal, setAdditionalImagesLocal] = useState(() => state.imagesetConfig?.additionalImages || "");
   const [archiveSizeLocal, setArchiveSizeLocal] = useState(() => state.imagesetConfig?.archiveSize || "");
+  const [archiveSizeTouched, setArchiveSizeTouched] = useState(false);
+  // oc-mirror reads archiveSize as an int64: "4.5" makes it refuse the whole
+  // file, and 0 or a negative number is meaningless (v2.2.0 M4 finding).
+  const archiveSizeError = String(archiveSizeLocal ?? "").trim() && !/^[1-9]\d*$/.test(String(archiveSizeLocal).trim())
+    ? "Enter a whole number of GiB, 1 or more (for example 100). oc-mirror refuses fractions, so the ImageSetConfiguration is not generated until this is fixed."
+    : "";
 
   // Sync local state when store changes
   useEffect(() => {
@@ -243,28 +106,56 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const catalogsData = (state.operators?.version === version) ? (state.operators?.catalogs || {}) : {};
   const catalogs = normalizeCatalogs(catalogsData);
   const selected = state.operators?.selected || [];
+  // Active (reconciled) quick-pick selection vs. preserved intent awaiting
+  // reconciliation against the currently locked minor. Only the former may be
+  // presented as currently selected.
   const scenarioSelections = state.operators?.scenarios || {};
-  const confirmed = state.version?.versionConfirmed ?? state.release?.confirmed;
+  const pendingScenarioIntent = state.operators?.pendingScenarios || {};
+  const unreconciledSelections = selected.filter((op) => !op.catalogImage || !op.defaultChannel);
+  const confirmed = getVersionLocked(state);
   const selectionsKey = `${version}-${confirmed}`;
   const hasResults = catalogs.redhat.length || catalogs.certified.length || catalogs.community.length;
   const fastMode = Boolean(state.operators?.fastMode);
   const cachedAt = state.operators?.cachedAt || null;
-  const selectedIds = new Set(selected.map((op) => op.id));
-  const filteredCatalogs = {
-    redhat: catalogs.redhat.filter((op) => !selectedIds.has(op.id)),
-    certified: catalogs.certified.filter((op) => !selectedIds.has(op.id)),
-    community: catalogs.community.filter((op) => !selectedIds.has(op.id))
-  };
+  // Selected operators are listed in the Selected panel, not in the catalog
+  // browser (OperatorCatalogBrowser excludes these ids; search never removes them).
+  const selectedIds = useMemo(() => new Set(selected.map((op) => op.id)), [selected]);
 
-  // Calculate actual row count for selected operators grid
+  // Measured width of the selected-operators grid.
+  //
+  // This must come from a layout effect, not from reading the ref inside a memo:
+  // a ref is not a reactive dependency and is null on the first render, so a memo
+  // keyed on selected.length computed 0 before the node existed and never
+  // re-ran unless the *count* changed. Reconciling onto a new minor replaces the
+  // selected entries while keeping the count identical, so the stale 0 survived
+  // and collapsed the grid wrapper to max-height: 0 — the operators were in the
+  // DOM, in canonical state and in the generated ImageSet, but invisible until
+  // the user toggled a selection and incidentally changed the count.
+  const [selectedGridWidth, setSelectedGridWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = selectedGridRef.current;
+    if (!el) return undefined;
+    const measure = () => setSelectedGridWidth(el.offsetWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [selected.length]);
+
+  // Rows needed by the selected operators at the measured width. Floored at one
+  // row whenever anything is selected: a not-yet-measured grid must never hide
+  // operators that are part of the current selection and generated output.
   const actualRowCount = useMemo(() => {
-    if (!selectedGridRef.current || selected.length === 0) return 0;
-    const gridWidth = selectedGridRef.current.offsetWidth;
+    if (selected.length === 0) return 0;
     const cardMinWidth = 220; // From grid minmax(min(100%, 220px), 1fr)
     const gap = 12;
-    const columnsPerRow = Math.floor((gridWidth + gap) / (cardMinWidth + gap)) || 1;
-    return Math.ceil(selected.length / columnsPerRow);
-  }, [selected.length]);
+    const columnsPerRow = Math.max(1, Math.floor((selectedGridWidth + gap) / (cardMinWidth + gap)));
+    return Math.max(1, Math.ceil(selected.length / columnsPerRow));
+  }, [selected.length, selectedGridWidth]);
 
   const maxExpandableRows = Math.max(2, actualRowCount);
   const showScrollbar = actualRowCount > selectedGridRows;
@@ -314,7 +205,14 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   useEffect(() => {
     const fromState = state.operators?.scanJobs;
     if (fromState && typeof fromState === "object" && Object.keys(fromState).length > 0) {
-      setJobs((prev) => (Object.keys(prev).length === 0 ? { ...fromState } : prev));
+      // Belt and braces for the terminal-404 clear below: a job id this mount
+      // has already proved gone must never be seeded back, even if a slower
+      // GET /api/state answers with the pre-clear scanJobs.
+      const seedable = Object.fromEntries(
+        Object.entries(fromState).filter(([, jobId]) => !clearedJobIdsRef.current.has(jobId))
+      );
+      if (Object.keys(seedable).length === 0) return;
+      setJobs((prev) => (Object.keys(prev).length === 0 ? seedable : prev));
     }
   }, [state.operators?.scanJobs]);
 
@@ -340,21 +238,61 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
 
   useEffect(() => {
     if (!confirmed || !version) return;
-    if (state.operators?.version === version && catalogs.redhat.length) return;
+    // Unresolved intent must keep this effect eligible. The old guard skipped
+    // whenever the minor was stamped and ANY catalog was present, which meant an
+    // imported run whose selections were intent-only could never be reconciled
+    // once a catalog list existed — the metadata stayed "unknown" and the
+    // ImageSet stayed empty until the user removed and re-picked everything.
+    const selectedNow = state.operators?.selected || [];
+    const pendingNow = state.operators?.pendingScenarios || {};
+    const hasUnresolvedIntent =
+      selectedNow.some((op) => !isOperatorResolved(op)) || Object.keys(pendingNow).length > 0;
+    if (state.operators?.version === version && catalogs.redhat.length && !hasUnresolvedIntent) return;
+    // Superseded-response guard (v2.2.0 M3). This load used to have no
+    // cancellation: if the locked minor changed while the request was in
+    // flight, the late answer still stamped THAT minor's catalogs and
+    // reconciled the selections against it, overwriting the current minor's
+    // state. The poller below already guards its writes the same way.
+    let cancelled = false;
     setLoadingCatalogs(true);
     apiFetch(`/api/operators/status?version=${version}`)
       .then((data) => {
-        setState((prev) => ({
-          ...prev,
-          operators: {
-            ...prev.operators,
-            catalogs: normalizeCatalogs(data),
-            version,
-            cachedAt: Object.values(data || {}).find((item) => item?.updatedAt)?.updatedAt || null
-          }
-        }));
+        if (cancelled) return;
+        setState((prev) => {
+          const nextCatalogs = normalizeCatalogs(data);
+          // Catalogs for the currently locked minor have landed: turn preserved
+          // intent back into a reconciled, current active selection where the
+          // package still exists. Anything unavailable stays pending intent.
+          const reconciled = reconcileOperatorsForMinor(prev.operators, nextCatalogs, version);
+          return {
+            ...prev,
+            operators: {
+              ...prev.operators,
+              ...(reconciled || {}),
+              catalogs: nextCatalogs,
+              version,
+              cachedAt: Object.values(data || {}).find((item) => item?.updatedAt)?.updatedAt || null
+            }
+          };
+        });
       })
-      .finally(() => setLoadingCatalogs(false));
+      .finally(() => {
+        if (!cancelled) setLoadingCatalogs(false);
+      })
+      // Same shape as the initial Cincinnati channel load: apiFetch rejects on
+      // a network failure and on any non-2xx, and `.finally` re-raises what it
+      // was handed, so an unreachable backend on this step produced an
+      // unhandled rejection. Behaviour is otherwise unchanged — the loading
+      // flag is already cleared above and the existing catalogs are left
+      // alone rather than being replaced with an empty set.
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      // This run set the flag, so it clears it: a superseded load must not
+      // leave "Loading operators…" spinning when the next run returns early
+      // (for example after Unlock). A run that does fetch sets it again.
+      setLoadingCatalogs(false);
+    };
   }, [selectionsKey]);
 
   useEffect(() => {
@@ -370,83 +308,41 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
   const scanEnabled = canScan && hasCredentialSource;
   const scenarioReady = hasResults;
 
-  const ensureSources = (op, source) => {
-    const sources = new Set(op.sources && op.sources.length ? op.sources : ["manual"]);
-    if (source) sources.add(source);
-    return { ...op, sources: Array.from(sources) };
-  };
 
+  // Selection logic shared with Mirroring (shared/operatorQuickPicks.js, v2.2.0 R-UX07).
   const applyScenario = (scenario) => {
     setState((prev) => {
-      const images = catalogImages(version);
-      const prevSelected = prev.operators?.selected || [];
-      const nextSelected = [...prevSelected];
-      const scenarioAdded = { ...(prev.operators?.scenarioAdded || {}) };
-
-      // Get version-specific picks or fall back to static picks
-      const picks = scenario.versionPicks?.[version] || scenario.versionPicks?.["default"] || scenario.picks;
-
-      Object.entries(picks).forEach(([catalogId, names]) => {
-        const list = catalogs[catalogId] || [];
-        names.forEach((name) => {
-          const target = name.toLowerCase();
-          const found = list.find((op) => op.name?.toLowerCase() === target);
-          if (!found) return;
-          const existingIndex = nextSelected.findIndex((item) => item.id === found.id);
-          if (existingIndex >= 0) {
-            nextSelected[existingIndex] = ensureSources(nextSelected[existingIndex], scenario.id);
-            const prevSources = prevSelected.find((item) => item.id === found.id)?.sources || [];
-            if (!prevSources.includes(scenario.id)) {
-              scenarioAdded[found.id] = { ...(scenarioAdded[found.id] || {}), [scenario.id]: true };
-            }
-            return;
-          }
-          nextSelected.push({ ...found, catalogImage: images[catalogId], sources: [scenario.id] });
-          scenarioAdded[found.id] = { ...(scenarioAdded[found.id] || {}), [scenario.id]: true };
-        });
+      // Version-specific picks, or a flat pick's static list. Never a fallback
+      // to another minor's list — handleScenarioClick refuses before we get here.
+      const result = applyScenarioPicks({
+        selected: prev.operators?.selected || [],
+        scenarioAdded: prev.operators?.scenarioAdded || {},
+        scenario,
+        minor: version,
+        catalogs,
+        catalogImages: catalogImages(version)
       });
+      if (!result) return prev;
       const scenarios = { ...(prev.operators?.scenarios || {}), [scenario.id]: true };
       return {
         ...prev,
-        operators: { ...prev.operators, selected: nextSelected, scenarios, scenarioAdded, version }
+        operators: { ...prev.operators, selected: result.selected, scenarios, scenarioAdded: result.scenarioAdded, version }
       };
     });
   };
 
   const removeScenarioOperators = (scenarioId) => {
     setState((prev) => {
-      const prevSelected = prev.operators?.selected || [];
-      const scenarioAdded = { ...(prev.operators?.scenarioAdded || {}) };
-      const nextSelected = prevSelected
-        .map((op) => {
-          const sources = (op.sources || ["manual"]).filter((source) => source !== scenarioId);
-          const addedByScenario = Boolean(scenarioAdded[op.id]?.[scenarioId]);
-          const removeEntirely = addedByScenario && sources.length === 0;
-          if (removeEntirely) {
-            const nextAdded = { ...(scenarioAdded[op.id] || {}) };
-            delete nextAdded[scenarioId];
-            if (Object.keys(nextAdded).length === 0) {
-              delete scenarioAdded[op.id];
-            } else {
-              scenarioAdded[op.id] = nextAdded;
-            }
-            return null;
-          }
-          const nextAdded = { ...(scenarioAdded[op.id] || {}) };
-          delete nextAdded[scenarioId];
-          if (Object.keys(nextAdded).length === 0) {
-            delete scenarioAdded[op.id];
-          } else {
-            scenarioAdded[op.id] = nextAdded;
-          }
-          return { ...op, sources };
-        })
-        .filter(Boolean);
+      const result = removeScenarioPicks({
+        selected: prev.operators?.selected || [],
+        scenarioAdded: prev.operators?.scenarioAdded || {},
+        scenarioId
+      });
       const scenarios = { ...(prev.operators?.scenarios || {}) };
       delete scenarios[scenarioId];
       return {
         ...prev,
-        operators: { ...prev.operators, selected: nextSelected, scenarios, scenarioAdded, version }
+        operators: { ...prev.operators, selected: result.selected, scenarios, scenarioAdded: result.scenarioAdded, version }
       };
     });
   };
@@ -462,8 +358,16 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
       return;
     }
 
+    // Fail closed rather than serve another minor's package list.
+    const picks = resolveScenarioPicks(scenario, version);
+    if (!picks) {
+      setScanError(
+        `Quick Pick "${scenario.label}" is not defined for OpenShift ${version || "(no version selected)"}.`
+      );
+      return;
+    }
+
     // Check if ALL operators from this scenario are currently selected
-    const picks = scenario.versionPicks?.[version] || scenario.versionPicks?.["default"] || scenario.picks;
     const allPickNames = Object.values(picks).flat().map((name) => name.toLowerCase());
     const allOperatorsSelected = allPickNames.every((name) =>
       selected.some((op) => op.name?.toLowerCase() === name)
@@ -509,17 +413,72 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
     }
   };
 
+  /**
+   * One or more catalog scan jobs answered 404: they are gone for good.
+   *
+   * Drop every reference that could cause it to be requested again — the local
+   * `jobs` map the poller iterates, and the persisted `operators.scanJobs` the
+   * seeding effect re-reads on mount — and mark the operator results stale so
+   * the existing banner explains why the catalog tables are not current.
+   *
+   * What is deliberately KEPT is `operators.expiredScans`: a purely
+   * informational "this catalog's scan expired, at this time" record. It
+   * carries no job id, precisely so that nothing downstream can turn it back
+   * into a request. This mirrors RunOcMirrorStep's
+   * `updateMirrorWorkflow({ lastRunJobId: null })`.
+   */
+  const forgetGoneScanJobs = (catalogIds) => {
+    if (!catalogIds.length) return;
+    setJobs((prev) => {
+      if (!catalogIds.some((catalogId) => catalogId in prev)) return prev;
+      const next = { ...prev };
+      for (const catalogId of catalogIds) delete next[catalogId];
+      return next;
+    });
+    setState((prev) => {
+      const prevOperators = prev.operators || {};
+      const nextScanJobs = { ...(prevOperators.scanJobs || {}) };
+      const nextExpired = { ...(prevOperators.expiredScans || {}) };
+      const expiredAt = new Date().toISOString();
+      for (const catalogId of catalogIds) {
+        delete nextScanJobs[catalogId];
+        nextExpired[catalogId] = { expiredAt };
+      }
+      return {
+        ...prev,
+        operators: { ...prevOperators, scanJobs: nextScanJobs, expiredScans: nextExpired, stale: true }
+      };
+    });
+  };
+
   useEffect(() => {
-    const ids = Object.values(jobs);
+    // A job id already proved terminal in this mount is never requested again,
+    // even if `jobs` has not re-rendered yet. The clear below is applied once
+    // per request round rather than per job precisely so that a mid-round
+    // re-render cannot re-arm polling for the jobs that have not answered yet.
+    const ids = Object.values(jobs).filter((id) => !clearedJobIdsRef.current.has(id));
     if (!ids.length) return;
     let cancelled = false;
     let prevPolledStatuses = {};
+    // Jobs that answered 404. A missing job is TERMINAL — it will not come
+    // back — so it must stop counting against "all done". Without this the
+    // catch below swallowed the 404, no status was recorded, `allDone` could
+    // never become true, and the loop re-armed every 4 seconds until the
+    // 150-iteration cap ten minutes later. A human saw exactly that as a wall
+    // of `404 Job not found` in the browser console.
+    const goneIds = new Set();
     let pollCount = 0;
+    let retryTimer = null;
     const MAX_POLLS = 150; // 150 * 4s = 10 minutes max polling time
     const startTime = Date.now();
     const MAX_DURATION_MS = 10 * 60 * 1000; // 10 minutes
 
     const poll = async () => {
+      // An already-scheduled tick must not fire after unmount. `cancelled` was
+      // only consulted around the state writers, so the request round itself
+      // still went out and a full set of /api/jobs/<id> calls was issued by a
+      // component that no longer exists.
+      if (cancelled) return;
       pollCount++;
       const elapsed = Date.now() - startTime;
 
@@ -532,6 +491,8 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
       }
 
       const nextStatuses = {};
+      /** Catalogs whose job answered 404 during THIS round. */
+      const goneCatalogIds = [];
       for (const id of ids) {
         try {
           const job = await apiFetch(`/api/jobs/${id}`);
@@ -556,26 +517,67 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           if (job.status === "completed" || job.status === "failed") {
             const data = await apiFetch(`/api/operators/status?version=${version}`);
             if (!cancelled) {
-              setState((prev) => ({
-                ...prev,
-                operators: { ...prev.operators, catalogs: normalizeCatalogs(data), version }
-              }));
+              setState((prev) => {
+                const nextCatalogs = normalizeCatalogs(data);
+                // RECONCILE HERE TOO. This writer used to assign catalogs and
+                // nothing else, so operator metadata was only ever re-derived by
+                // the mount-time effect. A user who imported a run and THEN
+                // scanned got populated catalog tables beside selections still
+                // reading "Default channel: unknown", with those operators
+                // missing from imageset-config.yaml — recoverable only by
+                // removing and re-picking each one. reconcileOperatorsForMinor
+                // returns null when there is nothing to do, so calling it on
+                // every catalog write is safe.
+                const reconciled = reconcileOperatorsForMinor(prev.operators, nextCatalogs, version);
+                return {
+                  ...prev,
+                  operators: {
+                    ...prev.operators,
+                    ...(reconciled || {}),
+                    catalogs: nextCatalogs,
+                    version
+                  }
+                };
+              });
             }
           }
-        } catch {
-          // ignore
+        } catch (err) {
+          if (isJobGone(err)) {
+            // Terminal. Record it so `allDone` can settle, and surface it on
+            // the matching catalog row rather than leaving the UI claiming a
+            // scan is still in flight.
+            goneIds.add(id);
+            // `goneIds` is a local of THIS effect run, so it dies on unmount.
+            // Without also dropping the id from component state AND from the
+            // persisted `operators.scanJobs`, the seeding effect re-read it on
+            // the next mount and the whole round of 404s started again — which
+            // is exactly what a human saw on every return to this step. Same
+            // remedy RunOcMirrorStep already applies to
+            // `mirrorWorkflow.lastRunJobId`.
+            clearedJobIdsRef.current.add(id);
+            const catalogId = Object.entries(jobs).find(([, jobId]) => jobId === id)?.[0];
+            if (catalogId) {
+              nextStatuses[catalogId] = { id, status: "failed", error: "Scan job no longer exists." };
+              goneCatalogIds.push(catalogId);
+            }
+          }
+          // Anything else is transient; the next tick retries.
         }
       }
+
+      // One clear for the whole round: see the note on `ids` above.
+      forgetGoneScanJobs(goneCatalogIds);
 
       // Update previous statuses for next poll
       prevPolledStatuses = { ...nextStatuses };
       if (!cancelled) {
         setJobStatuses(nextStatuses);
       }
-      const allDone = ids.every((jobId) => {
-        const status = Object.values(nextStatuses).find((item) => item?.id === jobId);
-        return status && (status.status === "completed" || status.status === "failed");
-      });
+      const allDone = allJobsSettled(
+        ids,
+        (jobId) => Object.values(nextStatuses).find((item) => item?.id === jobId)?.status,
+        goneIds
+      );
       const anyFailed = Object.values(nextStatuses).some((item) => item?.status === "failed");
       if (allDone && !anyFailed) {
         setState((prev) => ({
@@ -587,12 +589,16 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
 
       // Stop polling if all jobs are done or cancelled
       if (!cancelled && !allDone) {
-        setTimeout(poll, 4000);
+        retryTimer = setTimeout(poll, 4000);
       }
     };
     poll();
     return () => {
       cancelled = true;
+      // The handle was never captured, so cleanup could not cancel an armed
+      // tick. Compare RunOcMirrorStep, which uses setInterval/clearInterval.
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = null;
     };
   }, [jobs, version]);
 
@@ -628,7 +634,8 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
         if (!scenarioDef) return;
 
         // Get version-aware or static picks
-        const picks = scenarioDef.versionPicks?.[version] || scenarioDef.versionPicks?.["default"] || scenarioDef.picks;
+        const picks = resolveScenarioPicks(scenarioDef, version);
+        if (!picks) return;
         const allPickNames = Object.values(picks).flat().map((name) => name.toLowerCase());
 
         // Check if ALL operators from this scenario are still selected
@@ -689,6 +696,7 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
           ...prev.operators,
           selected: [],
           scenarios: {},
+          pendingScenarios: {},
           scenarioAdded: {},
           version
         }
@@ -730,6 +738,15 @@ const OperatorsStep = ({ previewControls, previewEnabled }) => {
         ) : null}
         {!hasCredentialSource && !discoveryAlreadyRunningOrDone ? (
           <Banner variant="info">Operator discovery disabled; provide registry.redhat.io credentials to populate catalogs.</Banner>
+        ) : null}
+        {hasResults && unreconciledSelections.length > 0 ? (
+          <Banner variant="warning">
+            {unreconciledSelections.length} previously selected{" "}
+            {unreconciledSelections.length === 1 ? "operator is" : "operators are"} not available in the
+            OpenShift {version} catalogs and {unreconciledSelections.length === 1 ? "has" : "have"} not been
+            re-selected: {unreconciledSelections.map((op) => op.displayName || op.name).join(", ")}.
+            They are excluded from the generated ImageSet configuration until resolved.
+          </Banner>
         ) : null}
         {warnVersionChange ? (
           <Banner variant="warning">
@@ -791,11 +808,11 @@ Authentication credentials for pulling Operator catalog metadata from Red Hat re
 
 **Pull secret sources:**
 
-**1. Mounted pull secret:**
-If running in a container with a pull secret mounted, it's automatically detected and used. No need to paste one here.
+**1. Mounted registry auth file:**
+If the backend has \`REGISTRY_AUTH_FILE\` mounted, the scan uses it automatically. No need to paste one here. (A mounted \`PULL_SECRET_FILE\` is a different mechanism and is used for oc-mirror runs, not for scans.)
 
 **2. Retained from Blueprint:**
-If you provided a pull secret on the Blueprint tab and checked "Retain for oc-mirror runs", it's carried forward here.
+If you provided a pull secret on the Blueprint tab and ticked "Retain pull secret for use on subsequent pages", it's carried forward here.
 
 **3. Paste for this scan only:**
 Paste a fresh pull secret just for this operator scan. It's not stored or exported.
@@ -957,7 +974,7 @@ gcr.io/vendor/database:stable
               aria-label="Additional images to mirror"
             />
           </div>
-          <div style={{ marginTop: 12 }}>
+          <div className="field-control-stack" style={{ marginTop: 12 }}>
             <FieldLabelWithInfo
               label="Archive chunk size — GiB (optional)"
               hint={`Maximum size for each archive file when mirroring to disk for transfer.
@@ -997,48 +1014,35 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
               style={{ maxWidth: 120, marginTop: 6 }}
               value={archiveSizeLocal}
               onChange={(e) => setArchiveSizeLocal(e.target.value)}
-              onBlur={(e) => updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), archiveSize: e.target.value } })}
+              onBlur={(e) => {
+                setArchiveSizeTouched(true);
+                updateState({ imagesetConfig: { ...(state.imagesetConfig || {}), archiveSize: e.target.value } });
+              }}
               placeholder="e.g. 100"
               aria-label="Archive chunk size in GiB"
+              className={archiveSizeTouched && archiveSizeError ? "input-error" : ""}
+              aria-invalid={archiveSizeTouched && archiveSizeError ? "true" : undefined}
+              aria-describedby={archiveSizeTouched && archiveSizeError ? "error-imageset-archive-size" : undefined}
             />
+            <div className="field-control-support">
+              {archiveSizeTouched && archiveSizeError ? (
+                <span id="error-imageset-archive-size" className="field-error" role="alert">{archiveSizeError}</span>
+              ) : null}
+            </div>
           </div>
         </CollapsibleSection>
 
         <section className="card">
           <h3 className="card-title">Scenario Quick Picks</h3>
           <p className="card-subtitle">One-click presets for common operator sets.</p>
-          <div className="scenario-picks">
-            {scenarios.map((scenario) => {
-              const isVersionAware = Boolean(scenario.versionPicks);
-              const effectiveVersion = isVersionAware ? (scenario.versionPicks[version] ? version : "default") : null;
-              const titleText = !scenarioReady
-                ? "Scenario picks need operator catalogs"
-                : scenario.description
-                  ? `${scenario.description}${isVersionAware ? ` (${effectiveVersion})` : ""}`
-                  : isVersionAware
-                    ? `Version-aware quick pick (${effectiveVersion})`
-                    : "";
-
-              return (
-                <button
-                  key={scenario.id}
-                  type="button"
-                  className={`scenario-pick ${scenarioSelections?.[scenario.id] ? "selected" : ""}`}
-                  onClick={() => handleScenarioClick(scenario)}
-                  title={titleText}
-                  disabled={!scenarioReady}
-                >
-                  <span className="scenario-pick-label">{scenario.label}</span>
-                  {isVersionAware && effectiveVersion && (
-                    <span className="scenario-pick-version subtle" aria-label={`for OpenShift ${effectiveVersion}`}>
-                      {effectiveVersion}
-                    </span>
-                  )}
-                  {scenarioSelections?.[scenario.id] ? <span className="scenario-pick-check" aria-hidden>✓</span> : null}
-                </button>
-              );
-            })}
-          </div>
+          <ScenarioQuickPicks
+            scenarios={scenarios}
+            version={version}
+            ready={scenarioReady}
+            isActive={(id) => scenarioSelections?.[id]}
+            isPending={(id) => pendingScenarioIntent?.[id]}
+            onToggle={handleScenarioClick}
+          />
         </section>
 
         <section className="card">
@@ -1062,12 +1066,7 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
           <div ref={selectedGridRef} className="selected-grid">
             {selected.length === 0 ? <div className="subtle">No operators selected.</div> : null}
             {selected.map((op) => (
-              <div key={op.id} className="selected-card">
-                <div className="operator-name">{op.name}</div>
-                <div className="subtle">default channel: {op.defaultChannel || "unknown"}</div>
-                {op.displayName ? <div className="subtle">{op.displayName}</div> : null}
-                <button className="ghost" onClick={() => removeOperator(op.id)}>Remove</button>
-              </div>
+              <SelectedOperatorCard key={op.id} op={op} onRemove={removeOperator} />
             ))}
           </div>
         </div>
@@ -1090,143 +1089,31 @@ Sets the top-level \`archiveSize\` field in the ImageSetConfiguration YAML. oc-m
             <p className="note">
               Specify minimum and maximum operator versions to mirror. Leave blank to mirror all versions from the default channel.
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
-              {selected.map((op) => (
-                <div key={op.id} style={{ padding: "1rem", border: "1px solid var(--border-subtle)", borderRadius: "4px" }}>
-                  <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>{op.name}</div>
-                  <div className="subtle" style={{ marginBottom: "1rem" }}>
-                    Channel: {op.defaultChannel || "unknown"}
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                    <FieldLabelWithInfo
-                      label="Min version (optional)"
-                      hint={`Minimum operator version to mirror for ${op.name}.
-
-**What is this:**
-The lowest operator version number to include when mirroring this operator from its default channel. All versions >= minVersion and <= maxVersion will be mirrored.
-
-**When needed:**
-Optional. Use when you want to exclude older operator versions from your disconnected environment (e.g., only mirror versions 1.5.0 and newer).
-
-**Format:**
-Semantic version string: MAJOR.MINOR.PATCH (e.g., 1.5.0, 2.0.1, 0.9.12)
-
-**How it's used:**
-Written to imageset-config.yaml as:
-mirror.operators[].packages[].channels[].includeConfig.minVersion: "1.5.0"
-
-oc-mirror will only mirror operator bundles with version >= minVersion.
-
-**Important:**
-⚠️ Version must exist in the operator's channel - if no versions match the constraint, mirroring will fail
-⚠️ Versions are operator-specific, not OpenShift versions (e.g., OpenShift Virtualization uses versions like 4.15.0, not OpenShift 4.20)
-⚠️ Must be valid semver format - invalid format will cause oc-mirror errors
-
-**Example:**
-Operator: kubevirt-hyperconverged, Channel: stable
-Set minVersion: "4.15.0" to only mirror OpenShift Virtualization 4.15.0 and newer`}
-                    >
-                      <input
-                        type="text"
-                        value={op.minVersion || ""}
-                        onChange={(e) => {
-                          const value = e.target.value.trim();
-                          setState((prev) => ({
-                            ...prev,
-                            operators: {
-                              ...prev.operators,
-                              selected: prev.operators.selected.map((item) =>
-                                item.id === op.id ? { ...item, minVersion: value || undefined } : item
-                              )
-                            }
-                          }));
-                        }}
-                        placeholder="e.g. 1.5.0"
-                        style={{ width: "100%" }}
-                      />
-                    </FieldLabelWithInfo>
-                    <FieldLabelWithInfo
-                      label="Max version (optional)"
-                      hint={`Maximum operator version to mirror for ${op.name}.
-
-**What is this:**
-The highest operator version number to include when mirroring this operator from its default channel. All versions >= minVersion and <= maxVersion will be mirrored.
-
-**When needed:**
-Optional. Use when you want to exclude newer operator versions that may be untested or incompatible (e.g., cap at version 2.5.0 to avoid 3.x).
-
-**Format:**
-Semantic version string: MAJOR.MINOR.PATCH (e.g., 2.5.0, 3.0.1, 1.12.5)
-
-**How it's used:**
-Written to imageset-config.yaml as:
-mirror.operators[].packages[].channels[].includeConfig.maxVersion: "2.5.0"
-
-oc-mirror will only mirror operator bundles with version <= maxVersion.
-
-**Important:**
-⚠️ Version must exist in the operator's channel - if no versions match the constraint, mirroring will fail
-⚠️ Versions are operator-specific, not OpenShift versions
-⚠️ Must be valid semver format - invalid format will cause oc-mirror errors
-⚠️ maxVersion must be >= minVersion if both are specified
-
-**Example:**
-Operator: local-storage-operator, Channel: stable
-Set maxVersion: "4.14.5" to cap at version 4.14.5 (avoid 4.15+ until tested)`}
-                    >
-                      <input
-                        type="text"
-                        value={op.maxVersion || ""}
-                        onChange={(e) => {
-                          const value = e.target.value.trim();
-                          setState((prev) => ({
-                            ...prev,
-                            operators: {
-                              ...prev.operators,
-                              selected: prev.operators.selected.map((item) =>
-                                item.id === op.id ? { ...item, maxVersion: value || undefined } : item
-                              )
-                            }
-                          }));
-                        }}
-                        placeholder="e.g. 2.5.0"
-                        style={{ width: "100%" }}
-                      />
-                    </FieldLabelWithInfo>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <OperatorVersionConstraints
+              selected={selected}
+              onChange={(id, patch) => {
+                setState((prev) => ({
+                  ...prev,
+                  operators: {
+                    ...prev.operators,
+                    selected: prev.operators.selected.map((item) =>
+                      item.id === id ? { ...item, ...patch } : item
+                    )
+                  }
+                }));
+              }}
+            />
           </CollapsibleSection>
         )}
 
         <section className="card">
-        <div className="tabs">
-          {["redhat", "certified", "community"].map((tab) => (
-            <button
-              key={tab}
-              className={`tab ${activeTab === tab ? "active" : ""}`}
-              onClick={() => setActiveTab(tab)}
-            >
-              {tab === "redhat" ? "Red Hat" : tab === "certified" ? "Certified" : "Community"}
-            </button>
-          ))}
-        </div>
-        <div className="operator-scroll">
-          {loadingCatalogs && !(filteredCatalogs[activeTab] || []).length ? (
-            <div className="loading">Loading operators…</div>
-          ) : null}
-          <div className="operator-grid">
-            {(filteredCatalogs[activeTab] || []).map((op) => (
-              <button key={op.id} className="operator-card" onClick={() => selectOperator(op)}>
-                <div className="operator-name">{op.name}</div>
-                <div className="subtle">default channel: {op.defaultChannel || "unknown"}</div>
-                {op.displayName ? <div className="subtle">{op.displayName}</div> : null}
-                <span className="operator-add">Add</span>
-              </button>
-            ))}
-          </div>
-        </div>
+          <OperatorCatalogBrowser
+            catalogs={catalogs}
+            selectedIds={selectedIds}
+            onSelect={selectOperator}
+            loading={loadingCatalogs}
+            idPrefix="install"
+          />
         </section>
       </div>
     </div>

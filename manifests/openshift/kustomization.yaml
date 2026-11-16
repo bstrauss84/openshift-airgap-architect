@@ -1,13 +1,86 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# OpenShift overlay: includes base resources plus TLS Routes for external access.
+# OpenShift overlay — AUTHENTICATED deployment.
+#
 # Usage: oc apply -k manifests/openshift/
+# Read manifests/README.md first: two secrets must be generated and one
+# placeholder hostname replaced before this will start.
+#
+# ──────────────────────────────────────────────────────────────────────────
+# `route-backend.yaml` IS DELIBERATELY ABSENT, AND ITS ABSENCE IS THE POINT.
+#
+# This overlay used to publish the backend on its own edge-TLS Route. That
+# Route exposed 51 anonymous endpoints to anyone who could reach the cluster's
+# router — including ones that start mirror runs with the mounted Red Hat pull
+# secret, return a generated SSH private key, and render an install-config
+# containing the pull secret.
+#
+# Authenticating the UI while leaving that Route in place would have been
+# decorative: the proxy would protect the browser path and the API would stay
+# wide open beside it. The file is deleted rather than commented out, because
+# a commented-out Route is one uncomment away from silently reopening the hole
+# it was removed to close.
+#
+# The backend is now reachable only:
+#   - from the frontend pod, via the same-origin /api nginx proxy, and
+#   - only when the request carries the proxy shared secret,
+#   - with NetworkPolicy refusing every other pod in the namespace.
+#
+# ──────────────────────────────────────────────────────────────────────────
+# THE PROXY SECRET IS NOT MANAGED HERE, AND THAT ABSENCE IS ALSO THE POINT.
+#
+# This overlay used to carry `secret-proxy.yaml`: the same Secret the
+# deployment guide tells the operator to create FIRST, declared with
+# `stringData: {session_secret: "", proxy_shared_secret: ""}`. `oc apply`
+# three-way merges, and an empty string is a present value, not an absent
+# one — so the documented sequence (create the Secret, apply, read the Route
+# host, apply again) overwrote both real keys with empty strings on the
+# second apply. The frontend then fails closed on OAA_REQUIRE_PROXY_SECRET
+# and the backend refuses to start: an authenticated deployment destroyed by
+# the idempotent re-apply its own guide prescribes.
+#
+# `airgap-architect-proxy` is therefore OPERATOR-OWNED. Nothing in this
+# overlay creates, patches or generates it; the Deployments only reference it
+# by `secretKeyRef`, which reads and never writes. Creation and rotation are
+# in manifests/README.md → "Before you apply". A `secretGenerator` would
+# reintroduce exactly the same clobber with a different spelling, so
+# scripts/validate-openshift-manifests.test.mjs fails the build if any Secret
+# reappears in this directory.
+# ──────────────────────────────────────────────────────────────────────────
 
 resources:
   - ../base
-  - route-backend.yaml
+  - serviceaccount.yaml
+  - networkpolicy.yaml
   - route-frontend.yaml
+
+patches:
+  # Identity: oauth-proxy sidecar, same-origin API, shared secret.
+  - path: patch-frontend-oauth.yaml
+    target:
+      kind: Deployment
+      name: airgap-architect-frontend
+  - path: patch-frontend-service.yaml
+    target:
+      kind: Service
+      name: airgap-architect-frontend
+  - path: patch-backend-auth.yaml
+    target:
+      kind: Deployment
+      name: airgap-architect-backend
+
+  # restricted-v2 admission: remove the hardcoded UID/fsGroup so the SCC can
+  # assign values from the namespace range. Applied LAST so it operates on the
+  # merged result of the patches above.
+  - path: patch-restricted-v2.yaml
+    target:
+      kind: Deployment
+      name: airgap-architect-backend
+  - path: patch-restricted-v2-frontend.yaml
+    target:
+      kind: Deployment
+      name: airgap-architect-frontend
 
 # Uncomment to deploy into a specific namespace:
 # namespace: airgap-architect

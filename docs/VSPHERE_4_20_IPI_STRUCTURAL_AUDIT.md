@@ -17,7 +17,7 @@
 ### 1. Exact doc examples where loadBalancer.type appears
 
 - **Working doc:** Example #12, installer-provisioned-infrastructure §2.4.5.3 (user-managed LB). Key hierarchy: `platform.vsphere.loadBalancer.type: UserManaged; apiVIPs; ingressVIPs`.
-- **Citation:** `docs/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md` §2.2.2 / §2.5 Phase B.2 table row #12: "platform.vsphere.loadBalancer.type: UserManaged; apiVIPs; ingressVIPs".
+- **Citation:** `local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_IPI_DOC_REVIEW_AND_PLAN.md` §2.2.2 / §2.5 Phase B.2 table row #12: "platform.vsphere.loadBalancer.type: UserManaged; apiVIPs; ingressVIPs".
 - **Doc URL:** `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_vmware_vsphere/installer-provisioned-infrastructure` (section 2.4.5.3 Deploying with user-managed load balancer).
 
 ### 2. Exact examples where VIPs appear

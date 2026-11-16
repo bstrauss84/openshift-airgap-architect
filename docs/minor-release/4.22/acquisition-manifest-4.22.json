@@ -1,0 +1,165 @@
+{
+  "schema": "oaa.minor.acquisition/1",
+  "minor": "4.22",
+  "tranche": "Phase 1 / Tranche 1",
+  "purpose": "Acquisition and research only. 4.22 remains unsupported and fail-closed.",
+  "evidenceRoot": "/home/bistraus/oaa-v2.1-evidence/ocp-4.22",
+  "evidenceRootTracked": false,
+  "resolutionTimestamp": "2026-10-07T17:08:58Z",
+  "releaseDiscovery": {
+    "mechanism": "Cincinnati stable-<minor>.yaml channel, the same source backend/src/cincinnati.js fetchStableFile() uses",
+    "url": "https://raw.githubusercontent.com/openshift/cincinnati-graph-data/master/channels/stable-4.22.yaml",
+    "selectionRule": "versions filtered to those starting '4.22.', sorted descending (backend/src/cincinnati.js fetchPatchesForChannel)",
+    "nodeCount": 92,
+    "resolved": "4.22.16",
+    "rejectedSources": [
+      "nightly",
+      "CI",
+      "release-candidate",
+      "prerelease",
+      "release-4.22 branch tip",
+      "fast-4.22 (4.22.17)",
+      "candidate-4.22 (4.22.17)"
+    ]
+  },
+  "installer": {
+    "release": "4.22.16",
+    "payloadDigest": "sha256:55a0c0c8f9a285fa468009511dd878d5492436ceb4f0207933b6403d19353876",
+    "payloadDigestCrossCheck": "release.txt Digest field matches the digest printed by the binary",
+    "binaryDownloadSource": "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/4.22.16/openshift-install-linux-4.22.16.tar.gz",
+    "checksumSource": "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/4.22.16/sha256sum.txt",
+    "checksumVerifiedBeforeUse": true,
+    "tarballSha256": "6f26860ba4ebaaf346ce7711be166105205e9edfff9993d9f15834c54a2e0fe5",
+    "binarySha256": "62b3a91ca3f242dd6feec1aefec8f5f5e7af4e13982f65600eb84fc56ca71a33",
+    "arch": "amd64",
+    "versionOutput": [
+      "4.22.16",
+      "built from commit 92820966521d640aa5f0edfb69bcfd9c168c2210",
+      "release image quay.io/openshift-release-dev/ocp-release@sha256:55a0c0c8f9a285fa468009511dd878d5492436ceb4f0207933b6403d19353876",
+      "release architecture amd64"
+    ],
+    "installerCommit": "92820966521d640aa5f0edfb69bcfd9c168c2210",
+    "installerCommitSource": "self-reported by the exact released binary; fetched and checked out from openshift/installer",
+    "sourceRetrieval": "git fetch --depth 1 https://github.com/openshift/installer.git 92820966521d640aa5f0edfb69bcfd9c168c2210",
+    "binaryToSourceRelationshipEstablished": true
+  },
+  "priorMinorBaseline": {
+    "note": "Re-verified from committed 0B provenance (scripts/minor/repair/proven-repairs.js INSTALLER_PINS), not from the tranche prompt.",
+    "minor": "4.21",
+    "release": "4.21.35",
+    "installerCommit": "006669f5812a47dbc733b6736584b87ef696e898",
+    "payloadDigest": "sha256:1f8f423477982ce16193469c26f8941ba797a6f4fc3b3621a5d426ae19deb457",
+    "supersededBranchTip": "1accb6487cf3784561665c08048dde20ad672c39",
+    "branchTipNotUsed": true
+  },
+  "ocMirrorV2Global": {
+    "policy": "latest available globally from clients/ocp/latest, independent of target minor (CLAUDE.md External tool version policy)",
+    "channel": "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest",
+    "channelReleaseName": "4.22.17",
+    "artifact": "oc-mirror.rhel9.tar.gz",
+    "tarballSha256": "2a2e3a3be56a5a44fca7c1e9249e7ed32a9dbf04c67225281c232b1cc31afe42",
+    "binarySha256": "e03f81341d1186a03504a1be8f356265b974004782f07a35123e9cf6e35808d8",
+    "checksumVerifiedBeforeUse": true,
+    "componentVersion": "4.22.0-202609301304.p2.g3f66eda.assembly.stream.el9-3f66eda",
+    "gitCommit": "3f66edaf31831b93043b0baa55d02462d4e7ee39",
+    "buildDate": "2026-09-30T13:40:59Z",
+    "arch": "linux/amd64",
+    "note": "The channel release name (4.22.17) is NEWER than the resolved supported-target stable release (4.22.16), and oc-mirror's own component version reports 4.22.0-... This is the documented, intentional asymmetry: a tool version is not a statement about target support."
+  },
+  "cincinnatiChannelSnapshot": {
+    "retrieved": "2026-10-07T17:08:58Z",
+    "channels": {
+      "stable-4.20": {
+        "http": 200,
+        "nodes": 142,
+        "latest": "4.20.40"
+      },
+      "stable-4.21": {
+        "http": 200,
+        "nodes": 75,
+        "latest": "4.21.35"
+      },
+      "stable-4.22": {
+        "http": 200,
+        "nodes": 92,
+        "latest": "4.22.16"
+      },
+      "stable-4.23": {
+        "http": 404,
+        "nodes": 0,
+        "latest": null
+      },
+      "eus-4.20": {
+        "http": 200,
+        "nodes": 142,
+        "latest": "4.20.40"
+      },
+      "eus-4.21": {
+        "http": 404,
+        "nodes": 0,
+        "latest": null
+      },
+      "eus-4.22": {
+        "http": 200,
+        "nodes": 92,
+        "latest": "4.22.16"
+      },
+      "fast-4.22": {
+        "http": 200,
+        "nodes": 95,
+        "latest": "4.22.17"
+      },
+      "candidate-4.22": {
+        "http": 200,
+        "nodes": 96,
+        "latest": "4.22.17"
+      }
+    },
+    "note": "stable-4.23 and eus-4.21 return HTTP 404 (the channel file does not exist), not an empty channel. The Revision-3 plan recorded these as '0 nodes'; 404 is the accurate current observation. 4.23 remains the fail-closed sentinel."
+  },
+  "extractionArtifacts": [
+    {
+      "path": "analysis/install-config-params-4.21.json",
+      "bytes": 811955,
+      "sha256": "75a8bb94c7f7533a3dff461ad563a79063dbda50aa4edffdda89adc65687c4bb"
+    },
+    {
+      "path": "analysis/install-config-params-4.22.json",
+      "bytes": 836754,
+      "sha256": "a38259c45ceb1bdb7d27d6ba99dd9c1138d73966235305aa1738bd030a580409"
+    },
+    {
+      "path": "analysis/agent-config-params-4.21.json",
+      "bytes": 13317,
+      "sha256": "d8aaaff37e4828d3f6b53c46dec5f3511a40b806366cc8531daf1ca5e22281da"
+    },
+    {
+      "path": "analysis/agent-config-params-4.22.json",
+      "bytes": 13317,
+      "sha256": "a7f1cda911dc3fb6ff6cabcf4e3c64a91febfae4bdbd16083002ec295a95191f"
+    },
+    {
+      "path": "analysis/delta-install-config-4.21-to-4.22.json",
+      "bytes": 27426,
+      "sha256": "db784d65fa35771c6bdefe791768b3759339e578b48c4feb16c34b8443b9d3c7"
+    },
+    {
+      "path": "analysis/delta-agent-config-4.21-to-4.22.json",
+      "bytes": 898,
+      "sha256": "d2379c56a7f8af662a211199067c0e4f5a76cd92d66a683a1295a416c3a9781f"
+    }
+  ],
+  "reproduction": [
+    "node scripts/minor/extract/parse-go-structs.js --minor 4.21 --release 4.21.35 --source <clone@006669f5812a47dbc733b6736584b87ef696e898> --root install-config --out install-config-params-4.21.json",
+    "node scripts/minor/extract/parse-go-structs.js --minor 4.22 --release 4.22.16 --source <clone@92820966521d640aa5f0edfb69bcfd9c168c2210> --root install-config --out install-config-params-4.22.json",
+    "node scripts/minor/compare/diff-params.js --baseline install-config-params-4.21.json --target install-config-params-4.22.json --previous-minor 4.21 --minor 4.22 --out delta-install-config-4.21-to-4.22.json",
+    "repeat both extractions with --root agent-config for the agent-config surface"
+  ],
+  "notTracked": [
+    "installer tarball and binary",
+    "installer source clones",
+    "documentation HTML",
+    "oc-mirror tarball and binary",
+    "binary probe scratch directories"
+  ]
+}

@@ -17,10 +17,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "additionalTrustBundlePolicy",
@@ -43,7 +46,10 @@
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "apiVersion",
@@ -60,10 +66,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Required install-config parameters",
+          "sectionHeading": "7.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-derived",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "baseDomain",
@@ -80,10 +89,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Required install-config parameters",
+          "sectionHeading": "7.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "capabilities",
@@ -100,10 +112,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "capabilities.additionalEnabledCapabilities",
@@ -120,10 +135,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "capabilities.baselineCapabilitySet",
@@ -145,10 +163,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute",
@@ -165,10 +186,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].architecture",
@@ -190,10 +214,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].hyperthreading",
@@ -213,10 +240,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].name",
@@ -233,10 +263,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].platform",
@@ -256,15 +289,18 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "compute[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "non-negative integer; 0 for three-node compact when control plane replicas is 3",
       "default": 3,
       "required": false,
@@ -276,10 +312,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane",
@@ -296,10 +335,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.diskSetup",
@@ -316,27 +358,42 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePool.DiskSetup",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.DiskSetup",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.platform",
+      "outputFile": "install-config.yaml",
       "type": "object",
+      "allowed": "MachinePoolPlatform object",
+      "default": "not specified in docs",
       "required": false,
       "description": "Platform-specific configuration for control plane machine pool.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Platform",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Platform",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.platform.nutanix",
@@ -353,28 +410,42 @@
         {
           "docId": "installer-source-code",
           "docTitle": "OpenShift Installer 4.20 Source Code",
-          "sectionHeading": "pkg/types/installconfig.go - MachinePoolPlatform.Nutanix",
-          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
+          "sectionHeading": "pkg/types/machinepools.go - MachinePoolPlatform.Nutanix",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane.replicas",
+      "outputFile": "install-config.yaml",
       "type": "integer",
+      "allowed": "Integer machine count for the control plane pool",
+      "default": 3,
       "required": false,
       "description": "Number of control plane nodes. Must be 3 or 5 for HA. SNO deployments use 1.",
-      "default": 3,
+      "applies_to": [
+        "nutanix-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/installconfig.go ControlPlane.Replicas",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/machinepools.go - MachinePool.Replicas",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/machinepools.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 install-config reference"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].architecture",
@@ -396,10 +467,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].hyperthreading",
@@ -419,10 +493,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].name",
@@ -439,10 +516,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].platform",
@@ -462,15 +542,18 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "controlPlane[].replicas",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": [
         3,
         1
@@ -485,10 +568,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "cpuPartitioningMode",
@@ -508,10 +594,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "credentialsMode",
@@ -533,7 +622,10 @@
           "sectionHeading": "1.4. Configuring the Cloud Credential Operator utility",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/preparing-to-install-on-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "featureGates",
@@ -553,7 +645,10 @@
           "sectionHeading": "pkg/types/installconfig.go - InstallConfig.FeatureGates",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "featureSet",
@@ -570,15 +665,18 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "fips",
       "outputFile": "install-config.yaml",
-      "type": "bool",
+      "type": "boolean",
       "allowed": [
         true,
         false
@@ -593,10 +691,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageContentSources[].mirrors",
@@ -613,10 +714,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageContentSources[].source",
@@ -633,10 +737,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageDigestSources",
@@ -651,12 +758,15 @@
       ],
       "citations": [
         {
-          "docId": "installing-disconnected",
-          "docTitle": "Installing a cluster on disconnected infrastructure",
-          "sectionHeading": "Mirroring and image sources (shared)",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - InstallConfig.ImageDigestSources",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageDigestSources[].mirrors",
@@ -671,12 +781,15 @@
       ],
       "citations": [
         {
-          "docId": "installing-disconnected",
-          "docTitle": "Installing a cluster on disconnected infrastructure",
-          "sectionHeading": "Mirroring and image sources (shared)",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Mirrors",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "imageDigestSources[].source",
@@ -691,12 +804,15 @@
       ],
       "citations": [
         {
-          "docId": "installing-disconnected",
-          "docTitle": "Installing a cluster on disconnected infrastructure",
-          "sectionHeading": "Mirroring and image sources (shared)",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/disconnected_environments/index"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - ImageDigestSource.Source",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "metadata",
@@ -713,10 +829,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Required install-config parameters",
+          "sectionHeading": "7.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "metadata.name",
@@ -733,10 +852,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Required install-config parameters",
+          "sectionHeading": "7.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-derived",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking",
@@ -756,7 +878,10 @@
           "sectionHeading": "Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.clusterNetwork",
@@ -776,7 +901,10 @@
           "sectionHeading": "Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.clusterNetwork[].cidr",
@@ -796,12 +924,15 @@
           "sectionHeading": "Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.clusterNetwork[].hostPrefix",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "subnet prefix",
       "default": "23 IPv4, 64 IPv6",
       "required": false,
@@ -816,7 +947,10 @@
           "sectionHeading": "Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.clusterNetworkMTU",
@@ -831,12 +965,15 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 installation configuration docs, networking section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/installconfig.go - Networking.ClusterNetworkMTU",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.machineNetwork",
@@ -856,7 +993,10 @@
           "sectionHeading": "Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.machineNetwork[].cidr",
@@ -876,7 +1016,10 @@
           "sectionHeading": "Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.networkType",
@@ -896,7 +1039,10 @@
           "sectionHeading": "Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.ovnKubernetesConfig",
@@ -916,7 +1062,10 @@
           "sectionHeading": "pkg/types/installconfig.go - Networking.OVNKubernetesConfig",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.ovnKubernetesConfig.ipv4.internalJoinSubnet",
@@ -936,7 +1085,10 @@
           "sectionHeading": "Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "networking.serviceNetwork",
@@ -956,7 +1108,10 @@
           "sectionHeading": "Network configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform",
@@ -973,10 +1128,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Required install-config parameters",
+          "sectionHeading": "7.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix",
@@ -996,7 +1154,10 @@
           "sectionHeading": "pkg/types/installconfig.go - Platform.Nutanix",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.apiVIP",
@@ -1013,10 +1174,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Nutanix install-config parameters",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.apiVIPs",
@@ -1033,10 +1197,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Nutanix install-config parameters",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.clusterName",
@@ -1051,12 +1218,15 @@
       ],
       "citations": [
         {
-          "docId": "installing-nutanix-ipi",
-          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.defaultMachinePlatform",
@@ -1071,53 +1241,83 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Nutanix docs, machine pool section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/nutanix/platform.go - Platform.DefaultMachinePlatform",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/nutanix/platform.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.defaultMachinePlatform.bootType",
+      "outputFile": "install-config.yaml",
       "type": "string",
-      "required": false,
-      "description": "Default boot type for Nutanix machines.",
-      "default": "Legacy",
+      "allowed": [
+        "Legacy",
+        "UEFI",
+        "SecureBoot"
+      ],
       "enum": [
         "Legacy",
         "UEFI",
         "SecureBoot"
       ],
+      "default": "Legacy",
+      "required": false,
+      "description": "Default boot type for Nutanix machines.",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/nutanix/machinepool.go BootType",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/nutanix/machinepool.go - MachinePool.BootType",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/nutanix/machinepool.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 Nutanix install-config reference"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.defaultMachinePlatform.categories",
+      "outputFile": "install-config.yaml",
       "type": "array",
+      "items_type": "object",
+      "allowed": "Array of Nutanix category key/value objects",
+      "default": "not specified in docs",
       "required": false,
       "description": "Default Nutanix categories (key-value pairs) for all machines.",
-      "items_type": "object",
+      "applies_to": [
+        "nutanix-ipi"
+      ],
       "citations": [
         {
-          "source": "installer_source",
-          "url": "github.com/openshift/installer/pkg/types/nutanix/machinepool.go Categories",
-          "note": "Go struct definition"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/nutanix/machinepool.go - MachinePool.Categories",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/nutanix/machinepool.go"
         },
         {
-          "source": "ocp_docs",
-          "note": "OpenShift 4.20 Nutanix install-config reference"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.failureDomains",
@@ -1132,12 +1332,15 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Nutanix docs, failure domain section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/nutanix/platform.go - Platform.FailureDomains",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/nutanix/platform.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.ingressVIP",
@@ -1154,10 +1357,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Nutanix install-config parameters",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.ingressVIPs",
@@ -1174,10 +1380,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Nutanix install-config parameters",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.prismCentral",
@@ -1192,12 +1401,15 @@
       ],
       "citations": [
         {
-          "docId": "installing-nutanix-ipi",
-          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.prismCentral.endpoint",
@@ -1217,7 +1429,10 @@
           "sectionHeading": "pkg/types/nutanix/platform.go - PrismCentral.Endpoint",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/nutanix/platform.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.prismCentral.endpoint.address",
@@ -1233,22 +1448,25 @@
       "citations": [
         {
           "docId": "installation-config-parameters-nutanix",
-          "docTitle": "Nutanix configuration parameters",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix"
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         },
         {
-          "docId": "installing-nutanix-ipi",
-          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.prismCentral.endpoint.port",
       "outputFile": "install-config.yaml",
-      "type": "int",
+      "type": "integer",
       "allowed": "not specified in docs",
       "default": 9440,
       "required": false,
@@ -1259,11 +1477,14 @@
       "citations": [
         {
           "docId": "installation-config-parameters-nutanix",
-          "docTitle": "Nutanix configuration parameters",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installation_configuration_parameters_understanding_installation_configuration_parameters/installation-config-parameters-nutanix"
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.prismCentral.password",
@@ -1278,12 +1499,15 @@
       ],
       "citations": [
         {
-          "docId": "installing-nutanix-ipi",
-          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.prismCentral.username",
@@ -1298,12 +1522,15 @@
       ],
       "citations": [
         {
-          "docId": "installing-nutanix-ipi",
-          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.prismElements",
@@ -1318,12 +1545,15 @@
       ],
       "citations": [
         {
-          "docId": "missing-parameter-analysis",
-          "docTitle": "DOC-082 Missing Parameter Analysis",
-          "sectionHeading": "OCP 4.20 Nutanix docs, Prism Element section",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/"
+          "docId": "installer-source-code",
+          "docTitle": "OpenShift Installer 4.20 Source Code",
+          "sectionHeading": "pkg/types/nutanix/platform.go - Platform.PrismElements",
+          "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/nutanix/platform.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-backend-only",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "platform.nutanix.subnet",
@@ -1338,12 +1568,15 @@
       ],
       "citations": [
         {
-          "docId": "installing-nutanix-ipi",
-          "docTitle": "Installing a cluster on Nutanix with installer-provisioned infrastructure",
-          "sectionHeading": "Nutanix install-config parameters",
-          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installing-nutanix-ipi"
+          "docId": "installation-config-parameters-nutanix",
+          "docTitle": "Installation configuration parameters for Nutanix",
+          "sectionHeading": "7.1.4. Additional Nutanix configuration parameters",
+          "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "proxy",
@@ -1363,7 +1596,10 @@
           "sectionHeading": "pkg/types/installconfig.go - InstallConfig.Proxy",
           "url": "https://github.com/openshift/installer/blob/release-4.20/pkg/types/installconfig.go"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "proxy.httpProxy",
@@ -1383,7 +1619,10 @@
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "proxy.httpsProxy",
@@ -1403,7 +1642,10 @@
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "proxy.noProxy",
@@ -1423,7 +1665,10 @@
           "sectionHeading": "1.11.2. Configuring the cluster-wide proxy during installation",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_any_platform/installing-platform-agnostic"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "publish",
@@ -1443,10 +1688,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "pullSecret",
@@ -1463,10 +1711,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Required install-config parameters",
+          "sectionHeading": "7.1.1. Required configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     },
     {
       "path": "sshKey",
@@ -1483,10 +1734,13 @@
         {
           "docId": "installation-config-parameters-nutanix",
           "docTitle": "Installation configuration parameters for Nutanix",
-          "sectionHeading": "Optional install-config parameters",
+          "sectionHeading": "7.1.3. Optional configuration parameters",
           "url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/installing_on_nutanix/installation-config-parameters-nutanix"
         }
-      ]
+      ],
+      "supportStatus": "supported-ui",
+      "minVersion": "4.20",
+      "maxVersion": null
     }
   ]
 }

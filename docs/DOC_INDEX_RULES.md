@@ -6,7 +6,7 @@ Machine-readable index for OpenShift Container Platform docs that maps (platform
 
 ## Base URL and sources
 
-- **Canonical source:** HTML docs on **docs.redhat.com** only. Base URL for 4.20: `https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/`. docs.openshift.com is shut down; do not add or retain docs.openshift.com URLs. If an equivalent 4.20 page is not yet located on docs.redhat.com, document the gap in the doc entry `notes` and in the scenario working doc.
+- **Canonical source:** HTML docs on **docs.redhat.com** only. Base URL per minor: `https://docs.redhat.com/en/documentation/openshift_container_platform/<version>/` (e.g. `.../4.21/`). docs.openshift.com is shut down; do not add or retain docs.openshift.com URLs. If an equivalent page for that minor is not yet located on docs.redhat.com, document the gap in the doc entry `notes` and in the scenario working doc — do not substitute another minor's page.
 
 ## Inclusion criteria
 
@@ -20,7 +20,7 @@ Machine-readable index for OpenShift Container Platform docs that maps (platform
 
 - **Scenario ID** = one (platform, install method) pair.
 - Current 4.20 docs-index scenarios (authoritative list): `bare-metal-agent`, `bare-metal-ipi`, `bare-metal-upi`, `vsphere-ipi`, `vsphere-upi`, `vsphere-agent`, `nutanix-ipi`, `aws-govcloud-ipi`, `aws-govcloud-upi`, `azure-government-ipi`, `ibm-cloud-ipi`.
-- `schema/scenarios.json` includes Azure Government UPI as a supported install method. If/when `azure-government-upi` is added to docs-index, update this list and keep scenario IDs aligned across schema, docs-index, and catalogs.
+- If/when `azure-government-upi` is added to docs-index, update this list and keep scenario IDs aligned between docs-index and the catalogs. (This bullet previously cited `schema/scenarios.json`, which was removed in v2.1: it had zero consumers and carried a stale `supportedVersions` list. Scenario truth is owned by `frontend/src/hostInventoryV2Helpers.js:getScenarioId()` plus the catalog file set.)
 - Do **not** invent ad-hoc scenario IDs outside the canonical list in `data/docs-index/<version>.json`.
 - **Connectivity/variant** is metadata on doc entries via **tags**, not a new scenario ID. Tags include: `restricted-network`, `gov-region`, `secret-region`, `top-secret-region`, `private-cluster`, `existing-vpc`, `existing-vnet`, `fully-disconnected`, `jumpbox`, `mirroring`, `proxy`, `trust-bundle`. Only add tags when the docs explicitly distinguish that variant.
 - Each file `data/docs-index/<version>.json` has a **scenarios** object: keys are scenario IDs, each value is `{ "docs": [ ... ] }`. Each doc in the array has: `id`, `title`, `url`, `configTypes` (array), `tags` (array), and optional `notes`.

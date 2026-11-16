@@ -321,8 +321,8 @@ These prep guides complement the main application:
 
 ### Deep UPI Documentation
 
-- [BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md](../BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md)
-- [VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md](../VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md)
+- [BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md](../../local-docs/ocp-4.20/platform-audits/BARE_METAL_4_20_UPI_DOC_REVIEW_AND_PLAN.md)
+- [VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md](../../local-docs/ocp-4.20/platform-audits/VSPHERE_4_20_UPI_DOC_REVIEW_AND_PLAN.md)
 - Cloud family docs (AWS/Azure sections)
 
 ---

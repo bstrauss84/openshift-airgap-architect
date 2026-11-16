@@ -2,7 +2,9 @@
 
 This document describes the parameter catalog system used to define OpenShift installation configuration parameters for different platform and installation method combinations.
 
-**Location:** `frontend/src/data/catalogs/`
+**Canonical location:** `data/params/<version>/<scenario-id>.json` — this is the authority.
+
+**Generated mirror:** `frontend/src/data/catalogs/<version>/<scenario-id>.json` — produced by `npm run sync-catalogs`; never hand-edited, never read as a source. See `docs/PARAM_AUTHORITY.md`.
 
 **Purpose:** Provide structured metadata about install-config.yaml and agent-config.yaml parameters, including required fields, allowed values, defaults, and documentation citations.
 
@@ -270,7 +272,7 @@ if (isRequired && !value) {
 
 ### Step 1: Create Catalog File
 
-Create `frontend/src/data/catalogs/<scenario-id>.json`:
+Create the canonical file `data/params/<version>/<scenario-id>.json` (then run `npm run sync-catalogs` to generate the frontend mirror — do not create the mirror by hand):
 
 ```json
 {

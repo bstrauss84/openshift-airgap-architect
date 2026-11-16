@@ -88,8 +88,8 @@ function isValuePresent(value) {
  * @param {string} scenarioId - Scenario identifier (e.g., "bare-metal-ipi")
  * @returns {Object} { valid: boolean, errors: Array<{path, message, description}> }
  */
-export function validateRequiredFields(yamlContent, outputFile, scenarioId) {
-  const catalog = getCatalog(scenarioId);
+export function validateRequiredFields(yamlContent, outputFile, scenarioId, version) {
+  const catalog = getCatalog(scenarioId, version);
   if (!catalog) {
     return { valid: false, errors: [{ path: "catalog", message: `Catalog not found for scenario: ${scenarioId}` }] };
   }
@@ -150,8 +150,8 @@ export function validateRequiredFields(yamlContent, outputFile, scenarioId) {
  * @param {string} scenarioId - Scenario identifier
  * @returns {Object} { valid: boolean, errors: Array<{path, message, allowed, description}> }
  */
-export function validateEnumValues(yamlContent, outputFile, scenarioId) {
-  const catalog = getCatalog(scenarioId);
+export function validateEnumValues(yamlContent, outputFile, scenarioId, version) {
+  const catalog = getCatalog(scenarioId, version);
   if (!catalog) {
     return { valid: false, errors: [{ path: "catalog", message: `Catalog not found for scenario: ${scenarioId}` }] };
   }
@@ -210,8 +210,8 @@ export function validateEnumValues(yamlContent, outputFile, scenarioId) {
  * @param {string} scenarioId - Scenario identifier
  * @returns {Object} { valid: boolean, errors: Array<{path, message, appliesTo}> }
  */
-export function validateApplicability(yamlContent, outputFile, scenarioId) {
-  const catalog = getCatalog(scenarioId);
+export function validateApplicability(yamlContent, outputFile, scenarioId, version) {
+  const catalog = getCatalog(scenarioId, version);
   if (!catalog) {
     return { valid: false, errors: [{ path: "catalog", message: `Catalog not found for scenario: ${scenarioId}` }] };
   }
@@ -255,10 +255,10 @@ export function validateApplicability(yamlContent, outputFile, scenarioId) {
  * @param {string} scenarioId - Scenario identifier
  * @returns {Object} { valid: boolean, errors: Object<string, Array>, totalErrors: number }
  */
-export function validateYaml(yamlContent, outputFile, scenarioId) {
-  const requiredValidation = validateRequiredFields(yamlContent, outputFile, scenarioId);
-  const enumValidation = validateEnumValues(yamlContent, outputFile, scenarioId);
-  const applicabilityValidation = validateApplicability(yamlContent, outputFile, scenarioId);
+export function validateYaml(yamlContent, outputFile, scenarioId, version) {
+  const requiredValidation = validateRequiredFields(yamlContent, outputFile, scenarioId, version);
+  const enumValidation = validateEnumValues(yamlContent, outputFile, scenarioId, version);
+  const applicabilityValidation = validateApplicability(yamlContent, outputFile, scenarioId, version);
 
   const allErrors = {
     required: requiredValidation.errors,
@@ -284,7 +284,12 @@ export function validateYaml(yamlContent, outputFile, scenarioId) {
  * @param {string} scenarioId - Scenario identifier
  * @returns {Object} { valid: boolean, fileErrors: Object<filename, validation>, totalErrors: number }
  */
-export function validateAllFiles(files, scenarioId) {
+export function validateAllFiles(files, scenarioId, version) {
+  // Enforce version contract before file filtering so empty, non-YAML, or
+  // null-content file sets cannot bypass CATALOG_VERSION_REQUIRED /
+  // UNSUPPORTED_VERSION checks.
+  getCatalog(scenarioId, version);
+
   const fileErrors = {};
   let totalErrors = 0;
 
@@ -294,7 +299,7 @@ export function validateAllFiles(files, scenarioId) {
     // Only validate YAML files (skip .md, .txt, etc.)
     if (!filename.endsWith(".yaml")) continue;
 
-    const validation = validateYaml(content, filename, scenarioId);
+    const validation = validateYaml(content, filename, scenarioId, version);
     fileErrors[filename] = validation;
     totalErrors += validation.totalErrors;
   }

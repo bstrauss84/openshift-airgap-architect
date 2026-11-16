@@ -1,0 +1,13 @@
+apiVersion: mirror.openshift.io/v1alpha2
+kind: ImageSetConfiguration
+storageConfig:
+  local:
+    path: /home/user/metadata
+mirror:
+  operators:
+    - catalog: registry.redhat.io/redhat/redhat-operator-index:v{product-version}
+      packages:
+        - name: rhacs-operator
+          channels:
+          - name: stable
+            minVersion: 4.0.1

@@ -1,15 +1,144 @@
-# Red Hat UBI 9 Node.js 20 — frontend (Vite dev server in container)
-FROM registry.access.redhat.com/ubi9/nodejs-20
+# OpenShift Airgap Architect — frontend production image (PROD-026).
+#
+# WHAT THIS REPLACED, AND WHY IT WAS A RELEASE BLOCKER
+#
+# This file used to be a SINGLE stage that ran `npm ci` with no `--omit=dev`
+# and whose production CMD was:
+#
+#   CMD ["node", "node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--port", "5173"]
+#
+# That is the Vite DEVELOPMENT SERVER, running as the long-lived production
+# process, with the complete devDependency tree resident in the shipped image.
+# So `vite`, `vitest`, `postcss`, `rollup`, `esbuild` and `jsdom` were not
+# "build-time only, not shipped" as docs/VERSION_AWARENESS_COMPLETION_MATRIX.md
+# claimed — they were installed in the image and vite was the listening
+# process. A container build reported 15 vulnerabilities (1 low, 4 moderate,
+# 8 high, 2 critical) while the security gate reported zero, because the gate
+# audited `--omit=dev` and the image did not.
+#
+# Two stages now: everything needed to BUILD stays in the builder and is
+# discarded; the runtime carries static assets and nginx, and no Node.js at all.
+#
+# CONTRACTS DELIBERATELY PRESERVED (see frontend/container/nginx-oaa.conf):
+#   - listens on 5173 (compose, Service, Deployment containerPort, and the
+#     liveness/readiness probes on `/`);
+#   - serves `/` and falls back to index.html so a reload cannot 404;
+#   - VITE_API_BASE stays a RUNTIME setting, via /runtime-config.js;
+#   - runs unprivileged and tolerates an arbitrary OpenShift UID with gid 0.
+#
+# NOT preserved, deliberately: HMR, module-graph serving and VITE_ALLOWED_HOSTS
+# are dev-server concepts. nginx serves pre-built files, so a Host allow-list is
+# not part of its threat model; the variable is accepted and ignored.
+#
+# There is no /api proxy here and there never was: the browser calls the backend
+# directly at VITE_API_BASE. Nothing in this image terminates or forwards API
+# traffic.
+
+# ---------------------------------------------------------------------------
+# Builder — produces frontend/dist, then is thrown away
+# ---------------------------------------------------------------------------
+FROM registry.access.redhat.com/ubi9/nodejs-22 AS builder
 
 USER root
-RUN mkdir -p /app && chown -R 1001:0 /app
-WORKDIR /app
-COPY --chown=1001:0 package.json package-lock.json* ./
+RUN mkdir -p /build && chown -R 1001:0 /build && chmod -R g+w /build
+WORKDIR /build
+
+# Manifests first so the dependency layer is cached independently of source.
+COPY --chown=1001:0 frontend/package.json frontend/package-lock.json ./frontend/
 USER 1001
-RUN npm install
+WORKDIR /build/frontend
+# Dev dependencies ARE required here — vite, the React plugin and postcss are
+# what perform the build. They stay in this stage.
+# Optional build-time CA (corporate HTTPS inspection): see backend/Containerfile.
+RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
+    set -e && \
+    if [ -s /run/secrets/oaa_build_ca ]; then \
+      cat /etc/pki/tls/certs/ca-bundle.crt /run/secrets/oaa_build_ca > /tmp/oaa-build-ca.pem && \
+      export CURL_CA_BUNDLE=/tmp/oaa-build-ca.pem SSL_CERT_FILE=/tmp/oaa-build-ca.pem \
+             NODE_EXTRA_CA_CERTS=/run/secrets/oaa_build_ca npm_config_cafile=/tmp/oaa-build-ca.pem && \
+      OAA_DNF_CA="$(for r in $(sed -n 's/^\[\(.*\)\]$/\1/p' /etc/yum.repos.d/*.repo); do printf -- '--setopt=%s.sslcacert=/tmp/oaa-build-ca.pem ' "$r"; done)" && \
+      echo "build CA: using the oaa_build_ca build secret for this step (not stored in the image)"; \
+    fi && npm ci --fetch-retries=4 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=60000 && \
+    rm -f /tmp/oaa-build-ca.pem
+
 USER root
-COPY --chown=1001:0 . .
+WORKDIR /build
+COPY --chown=1001:0 frontend/ ./frontend/
+# `shared/` is a sibling at build time because frontend sources import
+# ../../shared/*.js (archSupport, scenarioId, installMethods, versionUtils).
+# Vite resolves and bundles them, so the runtime image needs none of it.
+COPY --chown=1001:0 shared/ ./shared/
+
 USER 1001
+WORKDIR /build/frontend
+RUN npm run build && test -f dist/index.html
+
+# ---------------------------------------------------------------------------
+# Runtime — nginx and static assets only
+# ---------------------------------------------------------------------------
+FROM registry.access.redhat.com/ubi9/nginx-124:latest
+
+# Only the build output crosses the stage boundary. No node_modules, no
+# package.json, no Node.js runtime.
+COPY --from=builder --chown=1001:0 /build/frontend/dist/ /opt/app-root/src/
+
+# The server block is a TEMPLATE, rendered at container start.
+#
+# It must NOT be installed into nginx.d/ as a .conf: the image includes
+# `nginx.d/*.conf`, and the unrendered template contains literal
+# OAA_BACKEND_ORIGIN / OAA_PROXY_SHARED_SECRET placeholders that are not valid
+# nginx syntax. Shipping it there would mean every container start loaded a
+# broken config before the entrypoint could fix it.
+COPY --chown=1001:0 frontend/container/nginx-oaa.conf.template /opt/app-root/etc/oaa-nginx.conf.template
+COPY --chown=1001:0 frontend/container/oaa-entrypoint.sh /opt/app-root/bin/oaa-entrypoint.sh
+COPY --chown=1001:0 frontend/container/oaa-render-nginx.sh /opt/app-root/bin/oaa-render-nginx.sh
+
+USER root
+# `nginx -t` validates the config at BUILD time so a broken server block fails
+# the build instead of CrashLoopBackOff. It runs as root and leaves a
+# root-owned /run/nginx.pid behind, which then makes the real (uid 1001)
+# startup fail with `open() "/run/nginx.pid" failed (13: Permission denied)`.
+# Removing it is not cosmetic — without this the image does not start.
+#
+# The template is rendered once here BY THE SAME SCRIPT the entrypoint uses,
+# so what `nginx -t` validates is the shape that actually ships — including
+# the generated listen and resolver directives, which is where the two worst
+# config defects lived. It uses the build container's own resolv.conf and the
+# default (Compose) listen address; the entrypoint overwrites the file with
+# the deployment's real values on every start. Validating the rendered shape
+# at build time is what keeps a syntax error in the proxy block out of a
+# running cluster.
+#
+# nginx.d must be group-writable: OpenShift runs this container as an
+# arbitrary UID whose only predictable attribute is membership of group 0, and
+# that UID has to be able to write the rendered config at start.
+RUN chmod 0755 /opt/app-root/bin/oaa-entrypoint.sh /opt/app-root/bin/oaa-render-nginx.sh \
+    && chmod 0644 /opt/app-root/etc/oaa-nginx.conf.template \
+    && chmod -R a+rX /opt/app-root/src \
+    && /opt/app-root/bin/oaa-render-nginx.sh \
+         /opt/app-root/etc/oaa-nginx.conf.template \
+         /opt/app-root/etc/nginx.d/oaa.conf \
+    && chown 1001:0 /opt/app-root/etc/nginx.d/oaa.conf \
+    && chmod g+w /opt/app-root/etc/nginx.d /opt/app-root/etc/nginx.d/oaa.conf \
+    && nginx -t -c /etc/nginx/nginx.conf \
+    && rm -f /run/nginx.pid
+USER 1001
+
+# --- PROOF A: bind the shipped image to the source candidate --------------
+# See the matching block in backend/Containerfile. Empty defaults mean an
+# ad-hoc build stays unbound rather than claiming a revision it does not have;
+# scripts/release/buildImages.mjs supplies the real values. Certifying only
+# one of the two shipping images would certify half a release, so the frontend
+# carries the same labels as the backend.
+ARG APP_GIT_SHA=""
+ARG OAA_CANDIDATE_ID=""
+ARG OAA_BUILD_SUPPLIED_REVISION="false"
+LABEL org.opencontainers.image.revision="$APP_GIT_SHA" \
+      io.oaa.candidate-id="$OAA_CANDIDATE_ID" \
+      io.oaa.build-supplied-revision="$OAA_BUILD_SUPPLIED_REVISION"
 
 EXPOSE 5173
-CMD ["node", "node_modules/vite/bin/vite.js", "--host", "0.0.0.0", "--port", "5173"]
+
+# Writes /runtime-config.js from the environment, then hands off to the base
+# image's own run script (arbitrary-UID setup plus stdout/stderr log wiring).
+CMD ["/opt/app-root/bin/oaa-entrypoint.sh"]

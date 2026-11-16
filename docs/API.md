@@ -4,7 +4,9 @@ This document provides comprehensive documentation for all backend API endpoints
 
 **Base URL:** `http://localhost:4000/api` (configurable via `VITE_API_BASE`)
 
-**Authentication:** None (context-dependent deployment - see [Security Model](#security-model))
+**Authentication:** Mode-dependent — **required** in the OpenShift deployment,
+**absent** in local Compose. See [Security Model](#security-model). Set by
+`OAA_AUTH_MODE`; the backend refuses to start in an unsafe combination.
 
 **Content-Type:** All requests and responses use `application/json` unless otherwise specified
 
@@ -82,12 +84,18 @@ Returns build metadata for UI display (Tools → About).
 **Response:**
 ```json
 {
+  "version": "2.1.0",
   "gitSha": "a1b2c3d4e5f6",
   "buildTime": "2026-05-01T12:00:00Z",
   "repo": "bstrauss84/openshift-airgap-architect",
   "branch": "main"
 }
 ```
+
+`version` comes from `package.json` and is always present. `gitSha` and
+`buildTime` are `"unknown"` when not supplied. `branch` is the configured
+`APP_BRANCH` (documentation links), **not** the branch the build came from; the UI
+does not display it as build provenance.
 
 **Environment Variables:**
 - `APP_GIT_SHA`
@@ -99,30 +107,75 @@ Returns build metadata for UI display (Tools → About).
 
 ### `GET /api/update-info`
 
-Checks for available updates against GitHub releases.
+Compares the **installed application version** (`backend/package.json`) with the
+newest **published, stable GitHub Release** of `APP_REPO`
+(`GET https://api.github.com/repos/:repo/releases`). The Git SHA and the branch are
+**not** consulted, so an unknown `APP_GIT_SHA` (the Compose default) does not
+disable update detection.
 
-**Query Parameters:**
-- `force` (boolean, optional) - Bypass cache and force fresh check
+**Query Parameters:** none.
 
 **Response:**
 ```json
 {
-  "updateAvailable": true,
-  "latestVersion": "v1.2.3",
-  "currentVersion": "v1.2.0",
-  "releaseUrl": "https://github.com/bstrauss84/openshift-airgap-architect/releases/tag/v1.2.3",
-  "error": null
+  "enabled": true,
+  "installedVersion": "2.1.0",
+  "currentSha": "unknown",
+  "latestSha": null,
+  "isOutdated": true,
+  "updateStatus": "published-supported-update",
+  "urgent": true,
+  "releaseIdentity": {
+    "verified": true,
+    "source": "github-releases-api",
+    "repo": "bstrauss84/openshift-airgap-architect",
+    "latest": {
+      "version": "2.2.0",
+      "tag": "v2.2.0",
+      "name": "OpenShift Airgap Architect 2.2.0",
+      "url": "https://github.com/bstrauss84/openshift-airgap-architect/releases/tag/v2.2.0",
+      "publishedAt": "2026-11-01T00:00:00Z"
+    }
+  },
+  "checkedAt": "2026-10-21T12:00:00.000Z",
+  "error": null,
+  "repo": "bstrauss84/openshift-airgap-architect"
 }
 ```
 
+**Fields:**
+- `updateStatus` — the authoritative state, defined in `shared/updateStatus.js`:
+  - `disabled` — `CHECK_UPDATES=false|0`; no request is made.
+  - `unknown` — the installed version is missing or not a stable `X.Y.Z`; no request is made.
+  - `offline` — the lookup produced no trustworthy answer: timeout, network error,
+    non-OK response, rate limit, malformed payload, or release metadata naming a
+    repository other than `APP_REPO`. No conclusion is drawn either way.
+  - `up-to-date` — no eligible published release is newer than the installed version
+    (including when the installed version is newer than every release: no downgrade prompt).
+  - `published-supported-update` — an eligible release is semantically newer.
+- `urgent` — true only for `published-supported-update`. Clients must use this or
+  `updateStatus` to decide whether to prompt the operator.
+- `releaseIdentity` — present when the lookup completed. `latest` is the
+  highest-versioned eligible release, or `null` when none exists. A release is
+  eligible only if it is not a draft, not a prerelease, has a stable
+  `MAJOR.MINOR.PATCH` tag (optional `v`), a valid `published_at`, and API/HTML URLs
+  under `APP_REPO`.
+- `installedVersion` — the version being compared.
+- `currentSha` — optional provenance only; plays no part in the decision.
+- `isOutdated` — legacy; now equal to `urgent`. `latestSha` — legacy; always `null`.
+
+**Trust boundary:** "verified" means the metadata came from the GitHub REST API
+over HTTPS for the configured repository and passed the eligibility checks above.
+No release signature or artifact checksum is verified.
+
 **Status Codes:**
-- `200 OK` - Check completed (even if error)
-- Returns `updateAvailable: false` with `error` field if check fails
+- `200 OK` — check completed, including when it failed (see `error` / `updateStatus: "offline"`)
 
 **Notes:**
-- Requires `CHECK_UPDATES` enabled and `APP_GIT_SHA` set
-- Caches result for 1 hour
-- Safe to call repeatedly (rate limited by cache)
+- `CHECK_UPDATES` is enabled by default; `false`/`0` disables it.
+- Caches success for 6 hours, failure for 15 minutes. Uses the backend's
+  `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` handling and a 2 second timeout.
+- Prereleases are never offered. See [UPDATING.md](UPDATING.md).
 
 ---
 
@@ -416,7 +469,7 @@ Creates a background job to refresh Cincinnati data.
 
 ## Operator Catalog
 
-Operator catalog scanning uses `oc-mirror list operators` to query Red Hat catalogs.
+Operator catalog scanning downloads each catalog over TLS verified by the backend (registry credentials are used for that download only) and lists the local, digest-pinned copy with `oc-mirror list operators`.
 
 ### `GET /api/operators/credentials`
 
@@ -492,7 +545,7 @@ Initiates operator catalog scan (synchronous for now, may become async).
 - `500 Internal Server Error` - Scan failed
 
 **Notes:**
-- Runs `oc-mirror list operators --catalog=<catalog>`
+- Downloads `<catalog>` over verified TLS, then runs `oc-mirror list operators` against the digest-pinned local copy (no credentials passed to oc-mirror)
 - Requires pull secret with `registry.redhat.io` auth
 - `MOCK_MODE=true` bypasses actual scan, returns mock data
 
@@ -896,8 +949,7 @@ Generates a new SSH key pair.
 **Request Body:**
 ```json
 {
-  "algorithm": "ed25519",  // or "rsa", "ecdsa"
-  "comment": "user@hostname"
+  "algorithm": "ed25519"  // or "rsa", "ecdsa"
 }
 ```
 
@@ -905,9 +957,12 @@ Generates a new SSH key pair.
 ```json
 {
   "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\n...",
-  "publicKey": "ssh-ed25519 AAAAC3... user@hostname"
+  "publicKey": "ssh-ed25519 AAAAC3... openshift-airgap-architect-generated"
 }
 ```
+
+Every generated public key carries the fixed comment `openshift-airgap-architect-generated` (v2.2.0). Earlier versions used
+ssh-keygen's default, the server's `user@hostname`. There is no comment field in the request; keys you paste keep their own comment.
 
 **Supported Algorithms:**
 - `ed25519` (default) - Recommended
@@ -1288,24 +1343,34 @@ Checks if Red Hat pull secret is available.
 
 ---
 
-### `GET /api/secrets/rh-pull-secret/content`
+### `GET /api/secrets/rh-pull-secret/content` — WITHDRAWN (v2.1)
 
-Retrieves Red Hat pull secret content.
+Previously returned the raw mounted Red Hat pull secret. **Withdrawn**: it
+disclosed the credential to unauthenticated callers, and the OpenShift overlay
+publishes the backend on a Route with no authentication.
 
 **Response:**
 ```json
 {
-  "pullSecret": "{\"auths\":{...}}"
+  "error": "Raw mounted pull secret retrieval has been withdrawn.",
+  "code": "ENDPOINT_WITHDRAWN"
 }
 ```
 
 **Status Codes:**
-- `200 OK` - Pull secret available
-- `404 Not Found` - Pull secret not found
+- `410 Gone` — for every method that reaches the route: `GET`, `POST`, `PUT`,
+  `DELETE`, `PATCH`, `HEAD`
+- `204 No Content` — for `OPTIONS`. The CORS middleware is registered ahead of
+  this route and answers the preflight itself, so the route never runs. A
+  preflight carries no body and discloses nothing; it is not a bypass.
 
-**Security:**
-- Exposes sensitive credential data
-- Should be protected by authentication in untrusted deployments
+**Migration:** nothing needs the secret in the browser. Use
+`GET /api/secrets/rh-pull-secret` for the `{ available: boolean }` indication,
+and `rhAuthSource: "mounted"` on `/api/ocmirror/preflight` and
+`/api/ocmirror/run` to authenticate server-side without transferring the
+credential. Install operator catalog scans authenticate via `REGISTRY_AUTH_FILE`; Mirroring scans
+(`catalogMinor` + `profileId`) send `rhAuthSource: "inline"` with `pullSecret`, or `rhAuthSource: "mounted"`
+for this mounted pull secret, and never fall back to `REGISTRY_AUTH_FILE`.
 
 ---
 
@@ -1313,20 +1378,73 @@ Retrieves Red Hat pull secret content.
 
 ### Authentication
 
-The backend **does not implement authentication** by default. The security model is **context-dependent**:
+The security model is **mode-dependent**, selected by `OAA_AUTH_MODE`. The
+backend validates the combination at startup and **refuses to start** rather
+than serving in an unsafe one.
 
-**Trusted Network Deployment (Default):**
-- Application runs on `127.0.0.1` (localhost only)
-- Access requires local system access or SSH tunnel
-- No authentication needed - physical/network security is the boundary
+**`OAA_AUTH_MODE=proxy` — the OpenShift deployment. Authentication required.**
 
-**Untrusted Network Deployment:**
-- If exposing to LAN/WAN, implement authentication layer:
-  - Reverse proxy with authentication (nginx + basic auth, OAuth2 proxy)
-  - VPN/bastion host requirement
-  - Network ACLs
-- Document security model in deployment guide
-- Consider disabling sensitive endpoints (`/api/fs/ls`, `/api/secrets/*`)
+Every `/api` route requires a proven identity except `/api/health`,
+`/api/ready` and `/api/metrics` (kubelet and Prometheus carry no identity, and
+those three disclose liveness only). The chain:
+
+1. One Route, `reencrypt` TLS, terminating at `oauth-proxy` on :8443.
+2. `oauth-proxy` authenticates against the cluster's **built-in OpenShift
+   OAuth** server, using the application ServiceAccount as the OAuth client,
+   and authorizes with a SubjectAccessReview — so merely being able to log in
+   to the cluster is not sufficient.
+3. nginx proxies `/api` **same-origin** to the backend Service and attaches a
+   shared secret from a Kubernetes Secret.
+4. The backend accepts forwarded identity **only** when that shared secret is
+   present, so a pod that reaches the backend Service directly and invents
+   `X-Forwarded-User` is rejected with `PROXY_AUTH_REQUIRED`.
+5. A NetworkPolicy restricts the backend to the frontend pod, because a
+   sidecar that can be skipped is not a boundary.
+
+Also enforced: an origin allowlist (`OAA_ALLOWED_ORIGINS`) in place of
+wildcard CORS, and CSRF defence requiring both an accepted `Origin`/`Referer`
+and the `X-OAA-Request` header on state-changing methods.
+
+**Clusters using direct external OIDC are NOT supported** by this mode. OCP
+4.22 with external OIDC removes the built-in OAuth server, so `oauth-proxy`
+has nothing to authenticate against. Setting `OAA_OIDC_ISSUER` makes the
+backend exit at startup with that explanation rather than failing at login.
+
+**`OAA_AUTH_MODE=disabled` — local Compose. No authentication.**
+
+The historical behaviour, for one developer on one machine. It is accepted
+**only** on a loopback bind, and the server now **binds the address that was
+checked**: `BIND_ADDRESS` (default `127.0.0.1` in this mode, `0.0.0.0` in
+`proxy` mode) is resolved once and passed to `listen`. Until the AUTH-01
+correction the server called `app.listen(port)` with no host, which binds the
+unspecified address `::` — so the loopback guard validated a variable nothing
+consumed, and unauthenticated mode served every interface while passing its
+own check. Cross-site browser POSTs are still rejected by the `Origin` check,
+which matters because a page on the internet can otherwise POST to a
+developer's `localhost:4000`.
+
+A non-loopback bind in `disabled` mode requires BOTH
+`OAA_CONTAINER_NETWORK=isolated` **and** evidence that the process really is
+in a container (`/run/.containerenv`, `/.dockerenv`, or a container cgroup).
+That combination exists because a published port forwards to the container's
+address, never to the container's loopback, so Compose needs a wildcard bind
+*inside* the container. The declaration alone, on a host, is refused. What it
+cannot see is how the ports were published: `--network=host`, or publishing
+on `0.0.0.0`, exposes an unauthenticated API and no in-process check can
+detect it — the shipped `docker-compose.yml` pins `127.0.0.1:4000:4000` for
+exactly that reason.
+
+**Identity fields.** `X-Forwarded-User` and `X-Forwarded-Email` are trusted
+when the proxy shared secret is present, because `openshift/oauth-proxy`
+strips and replaces both on an authenticated request. `X-Forwarded-Groups` is
+**ignored**: oauth-proxy neither sets nor strips it, so any value is the
+caller's own. `identity.groups` is therefore always empty, and the nginx hop
+clears the header too.
+
+**Status:** implemented, and **not yet verified on a cluster**. OAuth login,
+`restricted-v2` admission and NetworkPolicy enforcement have not been
+exercised against a live OpenShift cluster. See `manifests/README.md` for the
+exact smoke commands.
 
 ### Rate Limiting
 
@@ -1340,16 +1458,41 @@ The backend **does not implement authentication** by default. The security model
 
 ### Sensitive Endpoints
 
+**Exposure now depends on the mode**, and the two are materially different:
+
+- **`OAA_AUTH_MODE=proxy` (OpenShift).** Every endpoint below requires a
+  proven identity. The wildcard CORS that made these responses readable
+  cross-origin is gone, replaced by an origin allowlist. The backend is no
+  longer published on a Route at all, and a NetworkPolicy refuses every pod
+  but the frontend. The cross-origin *read* risk called out below for
+  `/api/generate` and `/api/ssh/keypair` is closed in this mode.
+- **`OAA_AUTH_MODE=disabled` (local Compose).** Unchanged and unauthenticated
+  by design, which is why the backend refuses to start in this mode unless
+  bound to loopback. Everything below is reachable by anything with local
+  access; cross-site *writes* are blocked by the `Origin` check, but a local
+  process has unrestricted access.
+
+The per-endpoint notes below describe the data each route exposes, which is
+what determines the blast radius if the boundary is misconfigured.
+
 Endpoints that expose sensitive data or operations:
-- `GET /api/secrets/rh-pull-secret/content` - Exposes pull secret
-- `GET /api/fs/ls` - Directory traversal risk
-- `POST /api/ocmirror/run` - Executes arbitrary oc-mirror operations
-- `POST /api/ssh/keypair` - Generates SSH keys
+- `GET /api/secrets/rh-pull-secret/content` - **WITHDRAWN in v2.1** (410); used to return the pull secret
+- `POST`/`GET /api/bundle.zip` - archives a caller-supplied `mirrorWorkflow.archivePath`; **restricted in v2.1** to subdirectories of the data dir, excluding credential files and rejecting symlinks. `/tmp` is **not** an allowed export root — it remains browsable via `GET /api/fs/ls` but was deliberately excluded here (`assertExportableMirrorOutput(..., [dataDir])`). An earlier revision of this line said "the data dir and `/tmp`", describing a weaker policy than the code implements.
+- `GET /api/jobs`, `GET /api/jobs/:id`, `GET /api/jobs/:id/stream` - return whole job rows; request bodies are **credential-stripped before storage as of v2.1**
+- `GET /api/state`, `GET /api/run/export` - sanitized. `POST /api/run/import` previously persisted through the weaker *export* sanitizer, laundering SSH private keys, platform and BMC passwords and proxy userinfo into stored state; it now persists through `sanitizeStateForPersistence`, the same path `POST /api/state` uses. Closed in v2.1; covered by `backend/test/run-import-sanitizer-boundary.test.js`.
+- `POST /api/ocmirror/run`, `POST /api/ocmirror/preflight` - execute oc-mirror, optionally using the mounted pull secret, for an unauthenticated caller
+- `POST /api/operators/scan`, `POST /api/operators/prefetch` - use the mounted `REGISTRY_AUTH_FILE` (Install); a Mirroring scan with `rhAuthSource: "mounted"` uses the mounted Red Hat pull secret instead
+- `GET /api/fs/ls` - directory listing (allowlisted to the data dir and `/tmp`)
+- `POST /api/system/path-check` - spawns `df` on a caller-supplied path, no allowlist
+- `GET`/`POST /api/generate` - renders install-config, agent-config and imageset-config from server state with `includeCredentials` **forced on** for preview, so the response body carries the pull secret and any other configured credential. Combined with unrestricted CORS this is readable cross-origin.
+- `POST /api/ssh/keypair` - returns a generated private key in the response body (also readable cross-origin)
+- `POST /api/start-over`, `POST /api/jobs/:id/stop`, `DELETE /api/jobs` - destructive, unauthenticated
 
 **Recommendations:**
-- Deploy behind authentication in untrusted environments
-- Implement path whitelisting for `/api/fs/ls`
-- Consider disabling or protecting sensitive endpoints via middleware
+- Do not expose the backend directly. Prefer a same-origin reverse proxy via the
+  frontend, with the backend Route removed, and authentication in front of it.
+- Implement path whitelisting for `POST /api/system/path-check`
+- Treat anyone who can reach the API as fully privileged until authentication exists
 
 ---
 

@@ -10,22 +10,26 @@
  * Developed with AI assistance from Claude (Anthropic) and Cursor AI.
  */
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useApp } from "../store.jsx";
 import { validateNode } from "../validation.js";
 import {
   generateNodesFromCounts,
   emptyNode,
   applyReplicateSettings,
+  getAvailableReplicateKeys,
   getScenarioId,
   getSectionOrderForRender,
   SECTION_IDS,
   DEFAULT_SECTION_ORDER,
   SCENARIO_SECTION_ORDER,
   createInterfaceConfig,
-  getNextEnoName
+  createAdditionalInterfaceConfig
 } from "../hostInventoryV2Helpers.js";
 import { getCatalogPaths } from "../catalogPaths.js";
-import { getFieldMeta } from "../catalogFieldMeta.js";
+import { getCatalogForScenario } from "../catalogResolver.js";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
+import { getFieldMeta, isParamVisibleForVersion } from "../catalogFieldMeta.js";
 import {
   getCatalogValidationForInventoryV2,
   mergeNodeValidation
@@ -64,7 +68,8 @@ const REPLICATE_OPTIONS = [
   { key: "hostname", label: "Hostname (usually leave unchecked)" },
   { key: "hostnameUseFqdn", label: "Use FQDN for hostname" },
   { key: "rootDevice", label: "Root device hints (usually leave unchecked)" },
-  { key: "bmc", label: "BMC credentials (usually leave unchecked)" }
+  { key: "bmc", label: "BMC credentials (usually leave unchecked)" },
+  { key: "bootMACAddress", label: "Boot MAC address (usually leave unchecked)" }
 ];
 
 /** Compare mode badge: annotates section/field when "Compare legacy vs scenario-aware" is ON. Non-mutating. */
@@ -126,16 +131,43 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const supported = isScenarioSupported(platform, method);
   const machineCidr = state.globalStrategy?.networking?.machineNetworkV4 || "";
   const ipStackMode = inventory.ipStackMode || 'ipv4';
+  /* Host addressing is CLUSTER-STACK-COUPLED: buildNmState derives exactly
+     these two booleans from the same setting and writes `enabled: false` for
+     the family the cluster does not run, DISCARDING any address entered for
+     it. The node editor must therefore offer the same families the generator
+     will keep — otherwise it invites input it then throws away. */
+  const enableIpv4 = ipStackMode === 'ipv4' || ipStackMode === 'dual-stack';
   const enableIpv6 = ipStackMode === 'ipv6' || ipStackMode === 'dual-stack';
 
   const sectionOrder = useMemo(
     () => getSectionOrderForRender(true, scenarioId),
     [scenarioId]
   );
-  const catalogPaths = useMemo(() => getCatalogPaths(scenarioId), [scenarioId]);
+  // No baseline substitution: this used to read `|| "4.20"`, which silently
+  // presented 4.20 parameter metadata for a run whose minor was not known. With
+  // no selected minor there is no catalog to read, so the parameter set is
+  // empty — see catalogPaths.getCatalogForScenario, which now refuses a missing
+  // minor outright rather than defaulting.
+  const version = getOpenShiftMinorFromState(state);
+  const catalogPaths = useMemo(() => (version ? getCatalogPaths(scenarioId, version) : []), [scenarioId, version]);
+  const catalogParams = useMemo(() => (version ? getCatalogForScenario(scenarioId, version) : []), [scenarioId, version]);
+  const isCatalogFieldVisible = (path, outputFile) => {
+    const param = catalogParams.find(
+      (entry) => entry.path === path && entry.outputFile === outputFile
+    );
+    return isParamVisibleForVersion(param, version);
+  };
+  const showBootArtifactsBaseURL = isCatalogFieldVisible("bootArtifactsBaseURL", AGENT_CONFIG);
+  const showAgentHostname = isCatalogFieldVisible("hosts[].hostname", AGENT_CONFIG);
+  const showAgentDns = isCatalogFieldVisible("hosts[].networkConfig.dns-resolver", AGENT_CONFIG);
+  const showAgentRootDeviceHints = isCatalogFieldVisible("hosts[].rootDeviceHints", AGENT_CONFIG);
+  const showAgentBmcCore = isCatalogFieldVisible("platform.baremetal.hosts[].bmc", INSTALL_CONFIG);
+  const showAgentBootMac = isCatalogFieldVisible("platform.baremetal.hosts[].bootMACAddress", INSTALL_CONFIG);
+  const showAgentPrimaryNetwork = isCatalogFieldVisible("hosts[].networkConfig", AGENT_CONFIG);
+  const showAdditionalInterfaces = isCatalogFieldVisible("hosts[].networkConfig.interfaces", AGENT_CONFIG);
   const sectionOrderSet = useMemo(() => new Set(sectionOrder), [sectionOrder]);
 
-  const roleMeta = useMemo(() => getFieldMeta(scenarioId, AGENT_CONFIG, ROLE_PATH_AGENT), [scenarioId]);
+  const roleMeta = useMemo(() => (version ? getFieldMeta(scenarioId, AGENT_CONFIG, ROLE_PATH_AGENT, version) : null), [scenarioId, version]);
   const ROLE_LABELS = { master: "Control plane", worker: "Worker", arbiter: "Arbiter" };
   const roleOptions = useMemo(() => {
     if (Array.isArray(roleMeta?.allowed) && roleMeta.allowed.length > 0) {
@@ -161,9 +193,36 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
   const [replicateTargetIndices, setReplicateTargetIndices] = useState(() => new Set());
   const [panelWidthPx, setPanelWidthPx] = useState(() => Math.min(420, typeof window !== "undefined" ? Math.max(280, window.innerWidth * 0.33) : 380));
   const [isResizing, setIsResizing] = useState(false);
-  const [popoutOpen, setPopoutOpen] = useState(false);
+  const [popoutOpen, setPopoutOpen] = useState(false);  /* DOC-131: presentation mode for the node editor — "docked" (the accepted
+     default) or "focus". This is a view modifier over the SAME editor render
+     tree and the same selected node; it is deliberately session-local and not
+     persisted, so opening a node always starts Docked. */
+  const [nodeEditorMode, setNodeEditorMode] = useState("docked");
+  const isNodeEditorFocused = nodeEditorMode === "focus";
   const [copiedGatherCommand, setCopiedGatherCommand] = useState("");
   const containerRef = useRef(null);
+  // Shell overlay layer (App.jsx). Resolved after mount; null in bare-component
+  // tests, where the drawer falls back to rendering in place.
+  const [overlayHost, setOverlayHost] = useState(null);
+  useEffect(() => {
+    setOverlayHost(document.getElementById("node-editor-portal-root"));
+  }, []);
+  const portalToShell = useCallback(
+    (node) => (overlayHost ? createPortal(node, overlayHost) : node),
+    [overlayHost]
+  );
+
+  const selectedNode = selectedIndex != null ? nodes[selectedIndex] : null;
+  const availableReplicateKeys = useMemo(
+    () => getAvailableReplicateKeys({
+      showIpiDrawer, showAgentHostname, showAgentDns,
+      showAgentRootDeviceHints, showAgentPrimaryNetwork,
+      showBmc, showAgentDay2InstallConfigBmc,
+      showAgentBmcCore, showAgentBootMac,
+      sourceNode: selectedNode, enableIpv6,
+    }),
+    [showIpiDrawer, showAgentHostname, showAgentDns, showAgentRootDeviceHints, showAgentPrimaryNetwork, showBmc, showAgentDay2InstallConfigBmc, showAgentBmcCore, showAgentBootMac, selectedNode, enableIpv6]
+  );
 
   const copyGatherCommand = useCallback((key, text) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -177,15 +236,17 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
 
   const handleResizeMove = useCallback(
     (e) => {
-      if (!isResizing || !containerRef.current) return;
-      // Use container width instead of window width to account for YAML drawer
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const containerRight = containerRect.right;
+      // When portalled to the shell overlay layer the drawer's right edge is the
+      // overlay host's edge, not the step container's; anchor to whichever is live.
+      const anchorEl = overlayHost || containerRef.current;
+      if (!isResizing || !anchorEl) return;
+      // Anchor to the container's right edge so the YAML drawer is accounted for.
+      const containerRight = anchorEl.getBoundingClientRect().right;
       const distanceFromContainerRight = containerRight - e.clientX;
       const next = Math.min(MAX_PANEL_PX, Math.max(MIN_PANEL_PX, distanceFromContainerRight));
       setPanelWidthPx(next);
     },
-    [isResizing]
+    [isResizing, overlayHost]
   );
   const handleResizeEnd = useCallback(() => setIsResizing(false), []);
 
@@ -326,16 +387,17 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     });
 
   const addAdditionalInterface = (nodeIndex) =>
-    updateNode(nodeIndex, (node) => {
-      const nextName = getNextEnoName(node);
-      return {
-        ...node,
-        additionalInterfaces: [
-          ...(node.additionalInterfaces || []),
-          createInterfaceConfig({ type: "ethernet", ethernet: { name: nextName, macAddress: "" } })
-        ]
-      };
-    });
+    updateNode(nodeIndex, (node) => ({
+      ...node,
+      additionalInterfaces: [
+        ...(node.additionalInterfaces || []),
+        /* Allocates EVERY default name on the new row against the names
+           already used on this node — ethernet, bond, both bond members and
+           VRF — not just the ethernet name. See
+           createAdditionalInterfaceConfig for why the others matter. */
+        createAdditionalInterfaceConfig(node)
+      ]
+    }));
 
   const removeAdditionalInterface = (nodeIndex, ifaceIndex) =>
     updateNode(nodeIndex, (node) => ({
@@ -343,13 +405,59 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
       additionalInterfaces: (node.additionalInterfaces || []).filter((_, i) => i !== ifaceIndex)
     }));
 
-  const primaryBaseIface = (node) => {
-    if (node.primary?.type === "bond" || node.primary?.type === "vlan-on-bond") return node.primary.bond?.name || "bond0";
-    return node.primary?.ethernet?.name || "eno0";
-  };
-  const suggestedVlanName = (baseIface, vlanId) => (baseIface && vlanId ? `${baseIface}.${vlanId}` : "");
+  /* Routes on an ADDITIONAL interface. `advanced.routes` has always been seeded
+     into every interface row by createInterfaceConfig, but for additional
+     interfaces nothing wrote it and nothing read it — an imported run's routes
+     were invisible here and discarded at generation. These three handlers plus
+     the generator's addExtraRoutes close that round trip. */
+  const updateAdditionalRoute = (nodeIndex, ifaceIndex, routeIndex, patch) =>
+    updateNode(nodeIndex, (node) => ({
+      ...node,
+      additionalInterfaces: (node.additionalInterfaces || []).map((iface, i) =>
+        i !== ifaceIndex
+          ? iface
+          : {
+            ...iface,
+            advanced: {
+              ...iface.advanced,
+              routes: (iface.advanced?.routes || []).map((route, r) => (r === routeIndex ? { ...route, ...patch } : route))
+            }
+          }
+      )
+    }));
 
-  const selectedNode = selectedIndex != null ? nodes[selectedIndex] : null;
+  const addAdditionalRoute = (nodeIndex, ifaceIndex) =>
+    updateNode(nodeIndex, (node) => ({
+      ...node,
+      additionalInterfaces: (node.additionalInterfaces || []).map((iface, i) =>
+        i !== ifaceIndex
+          ? iface
+          : {
+            ...iface,
+            advanced: {
+              ...iface.advanced,
+              routes: [...(iface.advanced?.routes || []), { destination: "", nextHopAddress: "", nextHopInterface: "" }]
+            }
+          }
+      )
+    }));
+
+  const removeAdditionalRoute = (nodeIndex, ifaceIndex, routeIndex) =>
+    updateNode(nodeIndex, (node) => ({
+      ...node,
+      additionalInterfaces: (node.additionalInterfaces || []).map((iface, i) =>
+        i !== ifaceIndex
+          ? iface
+          : {
+            ...iface,
+            advanced: {
+              ...iface.advanced,
+              routes: (iface.advanced?.routes || []).filter((_, r) => r !== routeIndex)
+            }
+          }
+      )
+    }));
+
   const isArbiterDrawer = (selectedNode?.role || "").trim() === "arbiter";
   /** Bulk replicate must not target arbiter nodes (role-specific inventory). */
   const replicateEligibleTargetIndices = useMemo(() => {
@@ -368,6 +476,59 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     return short;
   };
   const drawerOpen = selectedIndex != null && nodes.length > 0;
+
+  /* Closing the editor (or losing the node list to Start Over / step change)
+     drops Focus, so the next open starts Docked. */
+  useEffect(() => {
+    if (!drawerOpen && nodeEditorMode !== "docked") setNodeEditorMode("docked");
+  }, [drawerOpen, nodeEditorMode]);
+
+  /* Focus needs the Host Inventory node-card pane's width, which belongs to
+     <main> in the app shell. Mirror the mode onto <body> — the same convention
+     App.jsx uses for body[data-theme] — and let the shell stylesheet yield that
+     pane. <main> is hidden, never unmounted, so uncommitted field edits and the
+     step's own state survive the round trip. */
+  useEffect(() => {
+    if (!drawerOpen || !isNodeEditorFocused) return undefined;
+    document.body.dataset.nodeEditorMode = "focus";
+    return () => { delete document.body.dataset.nodeEditorMode; };
+  }, [drawerOpen, isNodeEditorFocused]);
+
+  /* Escape steps Focus back to Docked. It must never close the editor, and the
+     replicate modal keeps ownership of Escape while it is open. */
+  useEffect(() => {
+    if (!drawerOpen || !isNodeEditorFocused || showReplicate) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setNodeEditorMode("docked");
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [drawerOpen, isNodeEditorFocused, showReplicate]);
+
+  /* DISCOVERABILITY (routes / default gateway). The Advanced accordion holds
+     "Additional Routes" and defaults to collapsed, which is why a user looking
+     for route configuration could not find it. Collapsed-by-default is kept —
+     it is the accepted layout — but a node that ALREADY has routes opens with
+     them visible, so an imported run never hides data behind a closed panel.
+     Keyed on the selected node so re-opening a different node re-evaluates,
+     while a deliberate collapse within one node is left alone. */
+  useEffect(() => {
+    if (selectedIndex == null) return;
+    if ((nodes[selectedIndex]?.primary?.advanced?.routes || []).length > 0) {
+      setAdvancedOpen(true);
+    }
+    const withRoutes = {};
+    (nodes[selectedIndex]?.additionalInterfaces || []).forEach((iface, i) => {
+      if ((iface?.advanced?.routes || []).length > 0) withRoutes[i] = true;
+    });
+    if (Object.keys(withRoutes).length) {
+      setAdditionalAdvancedOpen((prev) => ({ ...withRoutes, ...prev }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIndex]);
+
   const showBasicDrawer = sectionOrderSet.has(SECTION_IDS.NODE_DRAWER_BASIC);
   const showAdvancedDrawer = sectionOrderSet.has(SECTION_IDS.NODE_DRAWER_ADVANCED);
   const badgeBasicDrawer = null;
@@ -378,6 +539,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
     nodes.forEach((node, idx) => {
       const result = validateNode({
         node,
+        enableIpv4,
         enableIpv6,
         machineCidr,
         platform,
@@ -386,7 +548,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
       out[idx] = result;
     });
     return out;
-  }, [nodes, enableIpv6, machineCidr, platform, method]);
+  }, [nodes, enableIpv4, enableIpv6, machineCidr, platform, method]);
 
   const catalogValidation = useMemo(
     () => getCatalogValidationForInventoryV2(state, scenarioId),
@@ -420,7 +582,7 @@ const HostInventoryV2Step = ({ previewControls, previewEnabled, highlightErrors 
       return;
     }
     const targetNodes = targetIndices.map((i) => nodes[i]);
-    const nextNodes = applyReplicateSettings(source, targetNodes, replicateSelectedFields);
+    const nextNodes = applyReplicateSettings(source, targetNodes, replicateSelectedFields, availableReplicateKeys);
     const next = nodes.map((node, i) => (targetIndices.includes(i) ? nextNodes[targetIndices.indexOf(i)] : node));
     updateInventory({ nodes: next });
     setShowReplicate(false);
@@ -508,7 +670,7 @@ done`}</pre>
                 <div className="host-inventory-v2-gather-hint">Root device hints inventory (all supported subfields):</div>
                 <div className="code-block">
                   <div className="code-header">
-                    <span>Per-disk rootDeviceHints values (4.20)</span>
+                    <span>Per-disk rootDeviceHints values</span>
                     <button
                       type="button"
                       className="ghost copy-button"
@@ -550,7 +712,7 @@ done`}</pre>
 done`}</pre>
                 </div>
                 <p className="note subtle">
-                  OpenShift 4.20 allows combining multiple root device hints; the selected disk must satisfy all provided hints. For
+                  OpenShift allows combining multiple root device hints; the selected disk must satisfy all provided hints. For
                   <code>wwn</code>, use the value from <code>ID_WWN_WITH_EXTENSION</code> when present.
                 </p>
 
@@ -598,6 +760,7 @@ wipefs -a /dev/sdX`}</pre>
           if (sectionId === SECTION_IDS.AGENT_OPTIONS) {
             if (state?.ui?.segmentedFlowV1 === true) return null;
             if (!isAgentInventoryScenario) return null;
+            if (!showBootArtifactsBaseURL) return null;
             return (
               <section key={sectionId} className="card host-inventory-v2-section" data-section={sectionId}>
                 <div className="host-inventory-v2-section-heading">
@@ -631,7 +794,7 @@ wipefs -a /dev/sdX`}</pre>
                   <p className="note">Two control plane nodes require one arbiter for this topology. Clicking Generate nodes will add one arbiter automatically.</p>
                 )}
                 {isAgentInventoryScenario && countControlPlane === 1 && (
-                  <p className="note">Single-node OpenShift uses one control plane and no worker or infra nodes. Worker and infra counts are kept at zero (OpenShift 4.20 Agent-based install-config).</p>
+                  <p className="note">Single-node OpenShift uses one control plane and no worker or infra nodes. Worker and infra counts are kept at zero per the Agent-based install-config specification.</p>
                 )}
                 {isAgentInventoryScenario && (countControlPlane === 4 || countControlPlane === 5) && (
                   <p className="note subtle">Four or five control plane replicas are supported for Agent-based installs when documented for your environment; ensure total topology matches the installation guide.</p>
@@ -746,20 +909,25 @@ wipefs -a /dev/sdX`}</pre>
         })}
         </div>
 
-        {drawerOpen && (
+        {drawerOpen && portalToShell(
           <>
-            <div
-              role="separator"
-              aria-label="Resize panel"
-              className={`host-inventory-v2-drawer-resize-handle ${isResizing ? "resizing" : ""}`}
-              onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}
-            />
+            {/* Manual width only applies to the docked panel; Focus is sized by
+                the shell row, so the handle would have nothing to drag. */}
+            {!isNodeEditorFocused && (
+              <div
+                role="separator"
+                aria-label="Resize panel"
+                className={`host-inventory-v2-drawer-resize-handle ${isResizing ? "resizing" : ""}`}
+                onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}
+              />
+            )}
             <aside
-              className="host-inventory-v2-drawer host-inventory-v2-section"
+              className={`host-inventory-v2-drawer host-inventory-v2-section${isNodeEditorFocused ? " host-inventory-v2-drawer-focus" : ""}`}
               role="dialog"
               aria-label="Edit node"
               data-section="drawer"
-              style={{ width: panelWidthPx, minWidth: MIN_PANEL_PX, maxWidth: MAX_PANEL_PX }}
+              data-node-editor-mode={isNodeEditorFocused ? "focus" : "docked"}
+              style={isNodeEditorFocused ? undefined : { width: panelWidthPx, minWidth: MIN_PANEL_PX, maxWidth: MAX_PANEL_PX }}
             >
               <div className="host-inventory-v2-drawer-inner card">
                 <div className="host-inventory-v2-drawer-header">
@@ -767,18 +935,75 @@ wipefs -a /dev/sdX`}</pre>
                     <h3>Edit: {effectiveHostname(selectedNode) || `Node ${selectedIndex + 1}`}</h3>
                     <div className="modal-popout-header-buttons">
                       <button type="button" className="ghost" onClick={() => setPopoutOpen(true)} aria-label="Pop out to overlay" title="Expand to overlay">&#x2922;</button>
-                      <button type="button" className="ghost" onClick={() => setSelectedIndex(null)} aria-label="Close">×</button>
+                      <button type="button" className="ghost" onClick={() => setSelectedIndex(null)} aria-label="Close">×</button>                  {/* One control region for both presentation modes. DOM order
+                      is the canonical action order and therefore also the tab
+                      order: title, node operations (Previous / position / Next
+                      / Apply), then the editor-surface pair (Focus/Restore,
+                      Close). Nothing is reordered with CSS `order`, so
+                      responsive wrapping can never put an action after Close. */}
+                  <div className="host-inventory-v2-drawer-controls">
+                    <h3 className="card-title host-inventory-v2-drawer-title">
+                      Edit: {effectiveHostname(selectedNode) || `Node ${selectedIndex + 1}`}
+                    </h3>
+                    <div className="host-inventory-v2-drawer-nav">
+                      <button type="button" className="ghost" onClick={goPrev} disabled={nodes.length <= 1} aria-label={`Previous node (${selectedIndex + 1} of ${nodes.length})`}>← Previous</button>
+                      <span className="subtle" aria-live="polite" aria-atomic="true">{selectedIndex + 1} / {nodes.length}</span>
+                      <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1} aria-label={`Next node (${selectedIndex + 1} of ${nodes.length})`}>Next →</button>
+                    </div>
+                    {!isArbiterDrawer ? (
+                      <button type="button" className="ghost host-inventory-v2-drawer-apply" onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
+                    ) : null}
+                    {/* Editor-surface actions. Kept in their own nowrap group
+                        so wrapping can never separate Focus/Restore from
+                        Close, and Close is always the last action. */}
+                    <div className="host-inventory-v2-drawer-header-actions">
+                      {/* Presentation only — never closes or mutates the node. */}
+                      <button
+                        type="button"
+                        className="ghost host-inventory-v2-drawer-mode-toggle"
+                        onClick={() => setNodeEditorMode((mode) => (mode === "focus" ? "docked" : "focus"))}
+                        aria-pressed={isNodeEditorFocused}
+                        aria-label={isNodeEditorFocused ? "Exit focus mode" : "Expand node editor to focus mode"}
+                        title={isNodeEditorFocused ? "Restore the docked editor" : "Expand the editor across the full workspace"}
+                      >
+                        {/* The app ships no icon library, so this is an inline
+                            SVG rather than a new dependency or a Unicode glyph
+                            that depends on the user's font. Corners point
+                            outward to maximize, inward to restore. */}
+                        <svg
+                          viewBox="0 0 16 16"
+                          width="13"
+                          height="13"
+                          aria-hidden="true"
+                          focusable="false"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          {isNodeEditorFocused ? (
+                            <>
+                              <path d="M1.75 6H6V1.75" />
+                              <path d="M14.25 6H10V1.75" />
+                              <path d="M14.25 10H10v4.25" />
+                              <path d="M1.75 10H6v4.25" />
+                            </>
+                          ) : (
+                            <>
+                              <path d="M6 1.75H1.75V6" />
+                              <path d="M10 1.75h4.25V6" />
+                              <path d="M14.25 10v4.25H10" />
+                              <path d="M6 14.25H1.75V10" />
+                            </>
+                          )}
+                        </svg>
+                      </button>
+                      <button type="button" className="ghost host-inventory-v2-drawer-close" onClick={() => setSelectedIndex(null)} aria-label="Close">×</button>
                     </div>
                   </div>
-                  <div className="host-inventory-v2-drawer-nav">
-                    <button type="button" className="ghost" onClick={goPrev} disabled={nodes.length <= 1} aria-label={`Previous node (${selectedIndex + 1} of ${nodes.length})`}>← Previous</button>
-                    <span className="subtle" aria-live="polite" aria-atomic="true">{selectedIndex + 1} / {nodes.length}</span>
-                    <button type="button" className="ghost" onClick={goNext} disabled={nodes.length <= 1} aria-label={`Next node (${selectedIndex + 1} of ${nodes.length})`}>Next →</button>
-                  </div>
-                  {!isArbiterDrawer ? (
-                    <button type="button" className="ghost" style={{ marginBottom: 8 }} onClick={() => setShowReplicate(true)}>Apply settings to other nodes…</button>
-                  ) : (
-                    <p className="note subtle" style={{ marginBottom: 8 }}>
+                  {isArbiterDrawer && (
+                    <p className="note subtle host-inventory-v2-drawer-arbiter-note">
                       Bulk “Apply settings to other nodes” is not available while editing an arbiter. Configure the arbiter directly; other nodes can copy from a control plane or worker.
                     </p>
                   )}
@@ -831,8 +1056,17 @@ wipefs -a /dev/sdX`}</pre>
                           updateNode={updateNode}
                           selectedIndex={selectedIndex}
                           mergedNodeValidation={mergedNodeValidation}
+                          enableIpv4={enableIpv4}
                           enableIpv6={enableIpv6}
+                          ipStackMode={ipStackMode}
+                          showHostname={showAgentHostname}
+                          showDns={showAgentDns}
+                          showRootDeviceHints={showAgentRootDeviceHints}
                           showAgentDay2InstallConfigBmc={showAgentDay2InstallConfigBmc}
+                          showBmcCore={showAgentBmcCore}
+                          showBootMac={showAgentBootMac}
+                          showPrimaryNetwork={showAgentPrimaryNetwork}
+                          showAdditionalInterfaces={showAdditionalInterfaces}
                           showAdvancedDrawer={showAdvancedDrawer}
                           advancedOpen={advancedOpen}
                           setAdvancedOpen={setAdvancedOpen}
@@ -855,8 +1089,9 @@ wipefs -a /dev/sdX`}</pre>
                           updateAdditionalInterface={updateAdditionalInterface}
                           addAdditionalInterface={addAdditionalInterface}
                           removeAdditionalInterface={removeAdditionalInterface}
-                          primaryBaseIface={primaryBaseIface}
-                          suggestedVlanName={suggestedVlanName}
+                          updateAdditionalRoute={updateAdditionalRoute}
+                          addAdditionalRoute={addAdditionalRoute}
+                          removeAdditionalRoute={removeAdditionalRoute}
                           formatMACAsYouType={formatMACAsYouType}
                           normalizeMAC={normalizeMAC}
                           isDefaultHostname={isDefaultHostname}
@@ -963,8 +1198,8 @@ wipefs -a /dev/sdX`}</pre>
             <p className="subtle">Choose which settings to copy and which nodes to apply to. Hostname, BMC, and MACs are not copied by default. Arbiter nodes are excluded from targets.</p>
             <div className="host-inventory-v2-replicate-two-cols">
               <div className="list">
-                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "0.9375rem", fontWeight: 600, color: "var(--text-primary)" }}>Settings to copy</h4>
-                {REPLICATE_OPTIONS.filter((opt) => (opt.key === "bmc" ? showBmc || showAgentDay2InstallConfigBmc : true)).map((opt) => {
+                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "0.9375rem", fontWeight: 600 }}>Settings to copy</h4>
+                {REPLICATE_OPTIONS.filter((opt) => availableReplicateKeys.has(opt.key)).map((opt) => {
                   const inputId = `replicate-field-${opt.key}`;
                   const isDisabled = arbiterTargetsSelected && (opt.key === "rootDevice" || opt.key === "primary.advanced");
                   return (
@@ -985,7 +1220,7 @@ wipefs -a /dev/sdX`}</pre>
                 })}
               </div>
               <div className="list">
-                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "0.9375rem", fontWeight: 600, color: "var(--text-primary)" }}>Apply to nodes</h4>
+                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", fontSize: "0.9375rem", fontWeight: 600 }}>Apply to nodes</h4>
                 <div style={{ marginBottom: "0.75rem", padding: "0.625rem 0.75rem", background: "var(--surface-raised)", borderRadius: "6px", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <input
                     type="checkbox"

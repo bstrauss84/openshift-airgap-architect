@@ -11,7 +11,9 @@
  */
 import React from "react";
 import { useApp } from "../store.jsx";
-import { getScenarioId, getParamMeta, getRequiredParamsForOutput } from "../catalogResolver.js";
+import { getScenarioId, getParamMeta, getRequiredParamsForOutput, getCatalogForScenario } from "../catalogResolver.js";
+import { isParamVisibleForVersion } from "../catalogFieldMeta.js";
+import { getOpenShiftMinorFromState } from "../shared/openShiftMinor.js";
 import { getTrustPolicyOptionsForScenario, withAutoTrustBundlePolicy, hasEffectiveTrustBundle } from "../shared/trustBundlePolicy.js";
 import { getForwardOpenShiftMinorDocNotice } from "../shared/versionPolicy.js";
 import { apiFetch } from "../api.js";
@@ -141,6 +143,26 @@ function PemField({ label, required, value, onChange, onBlur, onFiles, error, pl
 export default function TrustProxyStep({ highlightErrors }) {
   const { state, updateState } = useApp();
   const scenarioId = getScenarioId(state);
+  // No baseline substitution: this used to read `|| "4.20"`, which silently
+  // presented 4.20 parameter metadata for a run whose minor was not known. With
+  // no selected minor there is no catalog to read, so the parameter set is
+  // empty — see catalogPaths.getCatalogForScenario, which now refuses a missing
+  // minor outright rather than defaulting.
+  const selectedMinor = getOpenShiftMinorFromState(state);
+  const catalogParams = (selectedMinor ? getCatalogForScenario(scenarioId, selectedMinor) : null) || [];
+
+  const isCatalogFieldVisible = (path, outputFile) => {
+    const param = catalogParams.find(
+      (entry) => entry.path === path && entry.outputFile === outputFile
+    );
+    return isParamVisibleForVersion(param, selectedMinor);
+  };
+
+  const showHttpProxy = isCatalogFieldVisible("proxy.httpProxy", INSTALL_CONFIG);
+  const showHttpsProxy = isCatalogFieldVisible("proxy.httpsProxy", INSTALL_CONFIG);
+  const showNoProxy = isCatalogFieldVisible("proxy.noProxy", INSTALL_CONFIG);
+  const showAnyProxyField = showHttpProxy || showHttpsProxy || showNoProxy;
+
   const strategy = state.globalStrategy || {};
   const mirroring = strategy.mirroring || {};
   const proxies = strategy.proxies || {};
@@ -206,13 +228,13 @@ export default function TrustProxyStep({ highlightErrors }) {
     updateState({ trust: nextTrust });
   };
 
-  const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG) || [];
+  const requiredPaths = getRequiredParamsForOutput(scenarioId, INSTALL_CONFIG, state) || [];
   const isRequired = (path) => requiredPaths.includes(path);
 
-  const metaHttpProxy = getParamMeta(scenarioId, "proxy.httpProxy", INSTALL_CONFIG);
-  const metaHttpsProxy = getParamMeta(scenarioId, "proxy.httpsProxy", INSTALL_CONFIG);
-  const metaNoProxy = getParamMeta(scenarioId, "proxy.noProxy", INSTALL_CONFIG);
-  const metaPolicy = getParamMeta(scenarioId, "additionalTrustBundlePolicy", INSTALL_CONFIG);
+  const metaHttpProxy = getParamMeta(scenarioId, "proxy.httpProxy", INSTALL_CONFIG, state);
+  const metaHttpsProxy = getParamMeta(scenarioId, "proxy.httpsProxy", INSTALL_CONFIG, state);
+  const metaNoProxy = getParamMeta(scenarioId, "proxy.noProxy", INSTALL_CONFIG, state);
+  const metaPolicy = getParamMeta(scenarioId, "additionalTrustBundlePolicy", INSTALL_CONFIG, state);
 
   const trustPolicyOptions = getTrustPolicyOptionsForScenario(scenarioId, selectedVersion);
   const forwardDocNotice = getForwardOpenShiftMinorDocNotice(selectedVersion);
@@ -629,9 +651,10 @@ export default function TrustProxyStep({ highlightErrors }) {
               />
             </OptionRow>
           </div>
-          {strategy.proxyEnabled ? (
+          {strategy.proxyEnabled && showAnyProxyField ? (
             <div className="card-body" style={{ paddingTop: 0 }}>
               <div className="proxy-fields-grid">
+                {showHttpProxy && (
                 <div className="proxy-field-cell">
                   <FieldLabelWithInfo
                     label={`HTTP Proxy ${metaHttpProxy?.required ? "" : "(optional)"}`}
@@ -668,6 +691,8 @@ http://proxy.corp:8080`}
                   </FieldLabelWithInfo>
                   {proxyErrors.httpProxy ? <div className="note warning">{proxyErrors.httpProxy}</div> : null}
                 </div>
+                )}
+                {showHttpsProxy && (
                 <div className="proxy-field-cell">
                   <FieldLabelWithInfo
                     label={`HTTPS Proxy ${metaHttpsProxy?.required ? "" : "(optional)"}`}
@@ -705,6 +730,8 @@ https://proxy.corp:8443 (if your proxy supports TLS)`}
                   </FieldLabelWithInfo>
                   {proxyErrors.httpsProxy ? <div className="note warning">{proxyErrors.httpsProxy}</div> : null}
                 </div>
+                )}
+                {showNoProxy && (
                 <div className="proxy-field-cell">
                   <FieldLabelWithInfo
                     label={`No Proxy ${isRequired("proxy.noProxy") ? "" : "(optional)"}`}
@@ -743,6 +770,7 @@ Internal cluster networks, service CIDRs, localhost
                     />
                   </FieldLabelWithInfo>
                 </div>
+                )}
               </div>
             </div>
           ) : null}
@@ -759,6 +787,8 @@ Internal cluster networks, service CIDRs, localhost
             {forwardDocNotice ? (
               <Banner variant="warning" className="trust-version-doc-notice">{forwardDocNotice}</Banner>
             ) : null}
+            {isCatalogFieldVisible("additionalTrustBundle", INSTALL_CONFIG) && (
+            <>
             <p className="note">
               Paste or upload PEM-encoded CA certificates (one or more <code>-----BEGIN CERTIFICATE-----</code> blocks). Valid certificates are merged into install-config{" "}
               <code>additionalTrustBundle</code> when you export or preview YAML.
@@ -891,8 +921,11 @@ MIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsF
                 />
               </div>
             </div>
+            </>
+            )}
 
-            {showTrustBundlePolicyUi ? (
+            {isCatalogFieldVisible("additionalTrustBundlePolicy", INSTALL_CONFIG) && (
+            showTrustBundlePolicyUi ? (
               <>
                 <div className="trust-policy-row">
                   <FieldLabelWithInfo
@@ -982,9 +1015,10 @@ additionalTrustBundlePolicy: Always
               </>
             ) : (
               <p className="note subtle">
-                <code>additionalTrustBundlePolicy</code> is only used together with <code>additionalTrustBundle</code> (OpenShift 4.20). Add at least one valid certificate above to choose{" "}
+                <code>additionalTrustBundlePolicy</code> is only used together with <code>additionalTrustBundle</code>. Add at least one valid certificate above to choose{" "}
                 <strong>Proxyonly</strong> or <strong>Always</strong>; defaults favor <strong>Always</strong> when a mirror registry CA is present and <strong>Proxyonly</strong> when only a proxy CA is present.
               </p>
+            )
             )}
 
             {selectionInvalidated ? (
