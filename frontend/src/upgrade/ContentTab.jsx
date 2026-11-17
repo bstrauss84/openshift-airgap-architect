@@ -24,7 +24,7 @@ import { useSourceCredential } from "../mirroring/sourceCredentialSession.js";
 import { useProfilePreview } from "../mirroring/useProfilePreview.js";
 import PresetImporter, { CATEGORY_LABEL, CONFIDENCE_LABEL, SOURCE_TO_KIND } from "./OperatorsTab.jsx";
 import RouteCatalogScan from "./RouteCatalogScan.jsx";
-import { buildScanPlan, cellEvidence, provenanceOf, scannedAt } from "./routeCatalogs.js";
+import { buildScanPlan, cellEvidence, provenanceOf, scannedAt, scannedDefault } from "./routeCatalogs.js";
 import { prepareStages, saveOperatorIntent, copyStageOperators, fetchStageConfig, fetchCatalogStatus, fetchChannelEvidence } from "./upgradeApi.js";
 
 export const checkTiming = { pollMs: 1500 };
@@ -81,6 +81,16 @@ function OperatorMatrix({ plan, views, profiles, readOnly, onSaveIntent, statusB
   // The selection never includes rows the filter hides.
   const selected = [...picked].filter((k) => shownKeys.has(k));
   const toggle = (key) => setPicked((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+  // One evidence computation per cell, with the copied-from stage's catalog default (owner QA 3b).
+  const evidence = (r, i) => {
+    const op = r.cells[i];
+    if (!op) return null;
+    const copied = (op.sources || []).map((x) => /^upgrade:copied-from-(s\d+)$/.exec(x)?.[1]).find(Boolean) || null;
+    const srcIdx = copied ? views.findIndex((v) => v.id === copied) : -1;
+    const srcOp = srcIdx >= 0 ? r.cells[srcIdx] : null;
+    const sourceDefault = srcOp ? (detailsFor(srcOp)?.listing?.defaultChannel || scannedDefault(statusByMinor[views[srcIdx].minor], srcOp)) : null;
+    return { ...cellEvidence(op, views[i].minor, statusByMinor[views[i].minor], scans[views[i].minor], detailsFor(op), { sourceDefault }), copiedFrom: copied };
+  };
 
   const entryFor = (r, category) => {
     const e = intent.get(r.key);
@@ -114,30 +124,39 @@ function OperatorMatrix({ plan, views, profiles, readOnly, onSaveIntent, statusB
   if (!rows.length) return <p className="subtle">No operators chosen yet. Choose them for a stage below (Quick Picks, catalog browser), or import a previous configuration.</p>;
   return (
     <div className="upgrade-matrix">
-      <div className="upgrade-matrix-tools" role="group" aria-label="Filter and bulk edit operators">
-        <input type="search" aria-label="Filter operators" placeholder="Filter operators" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <select aria-label="Show category" value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
-          <option value="all">All categories</option>
-          <option value="none">Not classified yet</option>
-          {Object.entries(CATEGORY_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </select>
+      <div className="upgrade-matrix-toolbar">
+        <div className="upgrade-matrix-find" role="search" aria-label="Find operators">
+          <input type="search" className="upgrade-matrix-search" aria-label="Filter operators" placeholder="Filter by name…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <select className="upgrade-matrix-catfilter" aria-label="Show category" value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
+            <option value="all">All categories</option>
+            <option value="none">Not classified yet</option>
+            {Object.entries(CATEGORY_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+          <span className="subtle upgrade-matrix-count" role="status">{shown.length === rows.length ? `${rows.length} operator${rows.length === 1 ? "" : "s"}` : `Showing ${shown.length} of ${rows.length}`}</span>
+        </div>
         {!readOnly ? (
-          <>
-            <Button variant="secondary" className="mini" onClick={() => setPicked(selected.length === shown.length ? new Set() : new Set(shown.map((r) => r.key)))}>
-              {selected.length === shown.length && shown.length ? "Clear selection" : `Select shown (${shown.length})`}
-            </Button>
-            <span className="upgrade-matrix-bulk">
-              <label className="sr-only" htmlFor={`upgrade-bulk-cat-${plan.id}`}>Category for the selected operators</label>
-              <select id={`upgrade-bulk-cat-${plan.id}`} value={bulkCategory} onChange={(e) => setBulkCategory(e.target.value)} disabled={!selected.length}>
-                {Object.entries(CATEGORY_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-              </select>
-              <Button variant="primary" className="mini" disabled={!selected.length} onClick={applyBulk}>Set for {selected.length} selected</Button>
-            </span>
-            <label className="toggle-row upgrade-matrix-overwrite">
-              <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} />
-              <span>Also replace categories already set</span>
-            </label>
-          </>
+          <div className="upgrade-matrix-bulk-panel" role="group" aria-labelledby={`upgrade-bulk-title-${plan.id}`}>
+            <div className="upgrade-matrix-bulk-head">
+              <strong id={`upgrade-bulk-title-${plan.id}`}>Set the category of several operators</strong>
+              <span className="subtle">{selected.length ? `${selected.length} selected` : "Tick operators in the table, or select all shown."}</span>
+              <Button variant="secondary" className="mini" disabled={!shown.length} onClick={() => setPicked(selected.length === shown.length ? new Set() : new Set(shown.map((r) => r.key)))}>
+                {selected.length === shown.length && shown.length ? "Clear selection" : `Select shown (${shown.length})`}
+              </Button>
+            </div>
+            <div className="upgrade-matrix-bulk-row">
+              <label className="upgrade-matrix-bulk-field" htmlFor={`upgrade-bulk-cat-${plan.id}`}>
+                <span className="subtle">Category</span>
+                <select id={`upgrade-bulk-cat-${plan.id}`} aria-label="Category for the selected operators" value={bulkCategory} onChange={(e) => setBulkCategory(e.target.value)} disabled={!selected.length}>
+                  {Object.entries(CATEGORY_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+              </label>
+              <label className="toggle-row upgrade-matrix-overwrite">
+                <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} disabled={!selected.length} />
+                <span>Also replace categories already set</span>
+              </label>
+              <Button variant="primary" className="mini upgrade-matrix-apply" disabled={!selected.length} onClick={applyBulk}>Set for {selected.length} selected</Button>
+            </div>
+          </div>
         ) : null}
       </div>
       {feedback ? (
@@ -145,6 +164,20 @@ function OperatorMatrix({ plan, views, profiles, readOnly, onSaveIntent, statusB
           {feedback.text} {feedback.undo ? <Button variant="secondary" className="mini" onClick={undo}>Undo</Button> : null}
         </p>
       ) : null}
+      {(() => {
+        const stale = [];
+        rows.forEach((r) => r.cells.forEach((op, i) => { const ev = op ? evidence(r, i) : null; if (ev?.suggest?.pretick && ev.copiedFrom && ev.suggest.channel !== op.defaultChannel) stale.push({ r, v: views[i], ev }); }));
+        if (!stale.length) return null;
+        const ex = stale[0];
+        return (
+          <Banner variant="warning">
+            <strong>{stale.length} channel{stale.length === 1 ? " was" : "s were"} copied from an earlier stage and {stale.length === 1 ? "is" : "are"} not this stage&apos;s catalog default.</strong>{" "}
+            For example {ex.r.display}: stage {ex.v.id.slice(1)} would mirror <code>{ex.ev.selected}</code>, but its {ex.v.minor} catalog defaults to <code>{ex.ev.catalogDefault}</code>.
+            {" "}They are pre-ticked in Channel suggestions below; nothing changes until you apply them.
+            {" "}<Button variant="secondary" className="mini" onClick={() => document.getElementById(`upgrade-channel-suggest-${plan.id}`)?.scrollIntoView?.({ behavior: "smooth", block: "start" })}>Review suggestions</Button>
+          </Banner>
+        );
+      })()}
       <div className="upgrade-table-scroll">
         <table className="upgrade-graph-table upgrade-operator-matrix">
           <caption className="sr-only">Operators on each stage of the route, with their category and catalog evidence per stage</caption>
@@ -180,13 +213,20 @@ function OperatorMatrix({ plan, views, profiles, readOnly, onSaveIntent, statusB
                   </td>
                   {r.cells.map((op, i) => {
                     if (!op) return <td key={views[i].id}><span className="subtle" aria-label="not selected for this stage">—</span></td>;
-                    const ev = cellEvidence(op, views[i].minor, statusByMinor[views[i].minor], scans[views[i].minor], detailsFor(op));
+                    const ev = evidence(r, i);
                     return (
-                      <td key={views[i].id} className="upgrade-matrix-cell">
-                        <span className="upgrade-cell-mark" data-state={ev.state} title={ev.detail} aria-hidden="true">{ev.mark}</span>
-                        <span className="upgrade-cell-channel" title={ev.detail}>{op.defaultChannel || <em>no channel</em>}</span>
-                        <span className="upgrade-cell-label" data-state={ev.state}>{ev.label}</span>
+                      <td key={views[i].id} className="upgrade-matrix-cell" data-state={ev.state}>
+                        <div className="upgrade-cell-sel">
+                          <span className="upgrade-cell-mark" data-state={ev.state} aria-hidden="true">{ev.mark}</span>
+                          <span className="upgrade-cell-channel" title="Selected channel: what this stage mirrors">{ev.selected || <em>no channel</em>}</span>
+                          {ev.copiedFrom ? <span className="upgrade-cell-copied subtle">copied from stage {ev.copiedFrom.slice(1)}</span> : null}
+                        </div>
+                        <div className="upgrade-cell-label" data-state={ev.state}>{ev.label}</div>
+                        {ev.catalogDefault && ev.catalogDefault !== ev.selected ? (
+                          <div className="upgrade-cell-default">Catalog default: <code>{ev.catalogDefault}</code> <span className="subtle">({ev.defaultFrom})</span></div>
+                        ) : null}
                         <span className="sr-only">{ev.detail}</span>
+                        <details className="upgrade-cell-why"><summary>Why</summary><p>{ev.detail}</p></details>
                       </td>
                     );
                   })}
@@ -202,11 +242,11 @@ function OperatorMatrix({ plan, views, profiles, readOnly, onSaveIntent, statusB
         const suggestions = [];
         rows.forEach((r) => r.cells.forEach((op, i) => {
           if (!op) return;
-          const ev = cellEvidence(op, views[i].minor, statusByMinor[views[i].minor], scans[views[i].minor], detailsFor(op));
+          const ev = evidence(r, i);
           if (ev.suggest && ev.suggest.channel !== op.defaultChannel) suggestions.push({ key: `${views[i].id}|${r.key}`, stage: views[i], profileId: views[i].linkedProfileId, row: r, op, ...ev.suggest });
         }));
         if (!suggestions.length && !channelFeedback) return null;
-        const picked = suggestPicked || new Set(suggestions.filter((x) => x.proven).map((x) => x.key));
+        const picked = suggestPicked || new Set(suggestions.filter((x) => x.pretick).map((x) => x.key));
         const togglePick = (k) => { const n = new Set(picked); if (n.has(k)) n.delete(k); else n.add(k); setSuggestPicked(n); };
         const apply = async () => {
           const chosen = suggestions.filter((x) => picked.has(x.key));
@@ -215,7 +255,7 @@ function OperatorMatrix({ plan, views, profiles, readOnly, onSaveIntent, statusB
           setSuggestPicked(null);
         };
         return (
-          <details className="upgrade-channel-suggest" open={suggestions.some((x) => x.proven)}>
+          <details className="upgrade-channel-suggest" id={`upgrade-channel-suggest-${plan.id}`} open={suggestions.some((x) => x.pretick)}>
             <summary>Channel suggestions ({suggestions.length}) <span className="subtle">— from catalog evidence; nothing changes until you apply</span></summary>
             {channelFeedback ? <p className="upgrade-matrix-feedback" role="status">{channelFeedback.text} {channelFeedback.undo ? <Button variant="secondary" className="mini" onClick={async () => { await onApplyChannels(channelFeedback.undo); setChannelFeedback({ text: "Channel changes undone.", undo: null }); }}>Undo</Button> : null}</p> : null}
             {suggestions.length ? (
@@ -231,20 +271,21 @@ function OperatorMatrix({ plan, views, profiles, readOnly, onSaveIntent, statusB
                   ))}
                 </ul>
                 {!readOnly && onApplyChannels ? <div className="actions"><Button variant="primary" className="mini" disabled={!picked.size} onClick={apply}>Apply {picked.size} channel change(s)</Button></div> : null}
-                <p className="subtle">Pre-ticked: channels a stage&apos;s catalog does not list. Others only differ from the catalog&apos;s default channel, which is not evidence they are wrong — tick them if you want the default.</p>
+                <p className="subtle">Pre-ticked: channels a stage&apos;s catalog does not list, stages with no channel, and channels copied from an earlier stage where they are that stage&apos;s default while this stage&apos;s catalog has another default. Others only differ from the catalog&apos;s default, which is not evidence they are wrong — tick them if you want the default.</p>
               </>
             ) : null}
           </details>
         );
       })()}
       <details className="upgrade-matrix-legend">
-        <summary>What the marks mean</summary>
+        <summary>How to read a stage cell</summary>
         <ul>
-          <li><span className="upgrade-cell-mark" data-state="VERIFIED">✓</span> verified — the Live catalog check confirmed this channel in this stage&apos;s catalog, or it is the scanned catalog&apos;s default channel</li>
-          <li><span className="upgrade-cell-mark" data-state="NOT_CHECKED">?</span> channel not checked — the operator is in the scanned catalog, but a scan records only the default channel; run the stage&apos;s Live catalog check</li>
-          <li><span className="upgrade-cell-mark" data-state="NOT_CHECKED">○</span> not scanned — the channel shown is the selection only</li>
-          <li><span className="upgrade-cell-mark" data-state="PENDING">…</span> scanning</li>
-          <li><span className="upgrade-cell-mark" data-state="WARNING">!</span> the last scan failed · <span className="upgrade-cell-mark" data-state="WARNING">⚠</span> no version in the chosen range</li>
+          <li><strong>First line</strong> — the selected channel: what this stage will mirror (and “copied from stage N” when it came from another stage).</li>
+          <li><strong>Catalog default</strong> — shown when it differs: this stage&apos;s own catalog default, from the Live catalog check or the scan.</li>
+          <li><span className="upgrade-cell-mark" data-state="VERIFIED">✓</span> verified — the Live catalog check confirmed the channel in this stage&apos;s catalog, or it is the scanned catalog&apos;s default</li>
+          <li><span className="upgrade-cell-mark" data-state="WARNING">≠</span> not this catalog&apos;s default — the channel exists (Live check) or may exist, but this catalog defaults to another one; for version-named channels (for example ODF stable-4.y) you usually want this stage&apos;s default</li>
+          <li><span className="upgrade-cell-mark" data-state="NOT_CHECKED">?</span> not confirmed here — the scan knows only default channels; run “Check channels in every stage”</li>
+          <li><span className="upgrade-cell-mark" data-state="NOT_CHECKED">○</span> not scanned · <span className="upgrade-cell-mark" data-state="PENDING">…</span> scanning · <span className="upgrade-cell-mark" data-state="WARNING">!</span> scan failed · <span className="upgrade-cell-mark" data-state="WARNING">⚠</span> no version in range</li>
           <li><span className="upgrade-cell-mark" data-state="BLOCKED">✕</span> not in this stage&apos;s catalog, or the channel is missing there</li>
           <li>None of these says the operator is compatible with your running cluster; that is a readiness item.</li>
         </ul>

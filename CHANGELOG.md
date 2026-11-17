@@ -55,6 +55,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Upgrade: stages prepared for an earlier route were shown and could be mirrored as the current route after the route
   changed without a target change; staleness is now derived on every read, mirroring refuses a mismatched set, and
   re-preparing carries the operators of a released same-minor stage into its replacement.
+- Upgrade: "Copy stage N's operators to later stages" (and adding imported operators to every stage) copied an
+  earlier minor's channel verbatim, so later stages' ImageSetConfigurations asked for e.g. ODF `stable-4.20` from
+  the 4.22 catalog; channels now resolve against each stage's own catalog, and the operator table shows each stage's
+  selected channel, its catalog default and the verdict separately, flagging earlier copies for review.
 - Upgrade: catalog scans restarted on revisits and duplicated (automatic scanning before the cache status loaded, no
   in-flight guard, failed minors retried); the server also reuses a running scan of the same catalog.
 - Upgrade: the stage's "Download it" was enabled for a stage that could not generate; it now says why and enables

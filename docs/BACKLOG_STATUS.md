@@ -82,6 +82,12 @@ RFC rev 2 and final authorization (2026-11-06); contract and user guide in `docs
   `upgrade-qa3-channels.test.jsx`, `upgrade-qa3-readiness.test.jsx`, `upgrade-yaml-preview.test.jsx`,
   `upgrade-ui.test.jsx`, `registry-credential-helper.test.jsx`. Finding (b) below is partly addressed (declared
   maximums are now read from the bundle).
+- **Owner QA round 3b (2026-11-17, `done_pending_verification`):** stage channels across minors — copy and
+  apply-to-stages wrote an earlier minor's channel verbatim (root cause of stable-4.20 in 4.21/4.22 columns and in
+  the 4.22 ImageSetConfiguration); resolved per target catalog; cells separate selected channel, catalog default
+  (live check | scan) and verdict; earlier copies flagged and pre-ticked; operator-table toolbar regrouped (find /
+  bulk-category panel); page-wide horizontal scroll on phones from sr-only text in the table fixed. Tests:
+  `backend/test/upgrade-qa3b-stage-channels.test.js`, `frontend/tests/upgrade-qa3b-stage-cells.test.jsx`.
 - **Findings queue (unnumbered; not fixed in this tranche):**
   - (a) **fixed in the correction pass:** the run contract now enforces the source (Red Hat) pull-secret rule
     (fail-first `backend/test/source-credential-run-contract.test.js`, 3/5 on aee6a32).

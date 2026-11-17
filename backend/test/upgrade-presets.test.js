@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 
 import { app } from "../src/index.js";
 import { getState } from "../src/utils.js";
+import { db } from "../src/db.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
 import { resetMirroringForTests, resetUpgradeForTests } from "./helpers/resetWorkflowsForTests.js";
 
@@ -163,6 +164,9 @@ describe("accepting and applying", () => {
   });
 
   test("apply to stages: added at each stage's catalog minor; existing selections untouched; images on the last stage", async () => {
+    // No cached scans for these minors (another test file may leave some): each stage's channel then
+    // stays the entry's own, and nothing is withheld as "not in the scanned catalog".
+    db.prepare("DELETE FROM operator_results WHERE version IN ('4.20', '4.21', '4.22')").run();
     const p = await newPlan();
     await api("POST", `/api/upgrade/plans/${p.id}`, { arch: "amd64", graphSource: "imported", current: "4.20.14", target: "4.22.22" });
     await api("POST", `/api/upgrade/plans/${p.id}/solve`, {});

@@ -139,12 +139,13 @@ describe("default classification and provenance", () => {
 describe("per-stage catalog evidence", () => {
   it("each cell says what THAT stage's catalog shows: not scanned, default channel, not checked, live-verified", async () => {
     mount();
-    await waitFor(() => expect(cells("kiali-ossm")[1].textContent).toMatch(/default channel/));
+    await waitFor(() => expect(cells("kiali-ossm")[1].textContent).toMatch(/catalog default/));
     expect(cells("kiali-ossm")[0].textContent).toMatch(/stable.*not scanned/);
-    expect(cells("odf-operator")[1].textContent).toMatch(/stable-4\.20.*channel not checked/);
+    // Owner QA 3b: the selected channel, the stage catalog's default and the verdict are kept apart.
+    expect(cells("odf-operator")[1].textContent).toMatch(/stable-4\.20.*copied from stage 1.*not confirmed here.*Catalog default: stable-4\.21 \(scan\)/);
     expect(cells("odf-operator")[2].textContent).toMatch(/—/);
     expect(cells("kiali-ossm")[2].textContent).toMatch(/verified/);
-    expect(cells("odf-operator")[1].querySelector(".sr-only").textContent).toMatch(/default channel is stable-4\.21.*Whether stable-4\.20 exists there is not known/);
+    expect(cells("odf-operator")[1].querySelector(".sr-only").textContent).toMatch(/not the 4\.21 catalog's default \(stable-4\.21\).*whether stable-4\.20 exists in the 4\.21 catalog is not known/);
   });
   it("a live check for a different channel is stale and is not shown as verification", () => {
     const o = op("kiali-ossm", "4.22", "fast", [], { verification: { status: "verified", catalogImage: img("4.22"), channel: "stable", minVersion: "", maxVersion: "" } });

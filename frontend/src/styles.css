@@ -8248,7 +8248,7 @@ body[data-theme="dark"] .upgrade-route-strip { background: #0b1120; }
 .upgrade-table-scroll { overflow-x: auto; }
 .upgrade-operator-matrix td, .upgrade-operator-matrix th { vertical-align: middle; }
 .upgrade-matrix-category { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.upgrade-matrix-category select { width: auto; max-width: 18rem; }
+.upgrade-matrix-category select { width: auto; max-width: 16rem; }
 
 /* Mirror & transfer. */
 .upgrade-method-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 12px; margin: 8px 0 16px; }
@@ -8304,10 +8304,6 @@ body[data-theme="dark"] .upgrade-route-strip { background: #0b1120; }
 .yaml-files-item + .yaml-files-item { border-top: 1px solid var(--border-color); }
 
 /* v2.3.0 owner QA: operator matrix (filter, bulk edit, evidence marks) and route catalog scans. */
-.upgrade-matrix-tools { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin: 4px 0 10px; }
-.upgrade-matrix-tools input[type="search"] { width: 14rem; max-width: 100%; }
-.upgrade-matrix-tools select { width: auto; max-width: 16rem; }
-.upgrade-matrix-bulk { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .upgrade-shell .upgrade-matrix-overwrite { font-size: 0.85rem; align-items: center; }
 .upgrade-matrix-feedback { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 8px; font-size: 0.9rem; }
 .upgrade-matrix-name { display: inline-flex; align-items: center; gap: 6px; }
@@ -8315,7 +8311,6 @@ body[data-theme="dark"] .upgrade-route-strip { background: #0b1120; }
 .upgrade-matrix-why { display: block; font-size: 0.75rem; font-weight: 400; }
 .upgrade-matrix-minor { display: block; font-weight: 400; font-size: 0.75rem; }
 .upgrade-operator-matrix tr[data-selected="true"] { background: var(--card-bg-subtle); }
-.upgrade-matrix-cell { white-space: nowrap; }
 .upgrade-cell-mark { display: inline-flex; align-items: center; justify-content: center; min-width: 1.3rem; height: 1.3rem; margin-right: 4px; border-radius: 999px; border: 1px solid var(--border-color); font-size: 0.75rem; font-weight: 700; }
 .upgrade-cell-mark[data-state="VERIFIED"] { color: var(--state-verified); border-color: var(--state-verified); }
 .upgrade-cell-mark[data-state="BLOCKED"] { color: var(--error-color); border-color: var(--color-danger); }
@@ -8379,3 +8374,40 @@ body[data-theme="dark"] .upgrade-stage-bar { background: #0b1120; }
 }
 .upgrade-content [id] { scroll-margin-top: calc(var(--mirroring-header-h, 0px) + var(--upgrade-tabs-h, 46px) + var(--upgrade-strip-h, 32px) + 56px); }
 .file-drop-zone .field-helper { font-size: 0.8125rem; color: var(--text-subtle); }
+
+/* Operators across the route — toolbar and stage cells (owner QA round 3b). Two clear groups:
+   find (search, category filter, count) and a framed bulk-edit panel (selection, category,
+   replace option, apply), instead of one crammed row. */
+.upgrade-matrix-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 4px 0 12px; }
+.upgrade-matrix-toolbar > *, .upgrade-matrix-bulk-panel > * { min-width: 0; }
+.upgrade-matrix-find { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.upgrade-shell .upgrade-matrix-find .upgrade-matrix-search { flex: 1 1 16rem; min-width: 12rem; max-width: 28rem; width: auto; }
+.upgrade-shell .upgrade-matrix-find .upgrade-matrix-catfilter { flex: 0 1 14rem; width: auto; max-width: 16rem; }
+.upgrade-matrix-count { margin-left: auto; font-size: 0.85rem; }
+.upgrade-matrix-bulk-panel { border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg-subtle); padding: 10px 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.upgrade-matrix-bulk-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.upgrade-matrix-bulk-head strong { font-size: 0.9rem; }
+.upgrade-matrix-bulk-head .subtle { font-size: 0.85rem; }
+.upgrade-matrix-bulk-head button { margin-left: auto; }
+.upgrade-matrix-bulk-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.upgrade-shell .upgrade-matrix-bulk-field { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; margin: 0; }
+.upgrade-shell .upgrade-matrix-bulk-field select { width: auto; min-width: 12rem; max-width: 18rem; }
+.upgrade-shell .upgrade-matrix-overwrite { margin: 0; }
+.upgrade-matrix-apply { margin-left: auto; }
+@media (max-width: 600px) {
+  .upgrade-matrix-count, .upgrade-matrix-bulk-head button, .upgrade-matrix-apply { margin-left: 0; }
+  .upgrade-shell .upgrade-matrix-find .upgrade-matrix-search,
+  .upgrade-shell .upgrade-matrix-find .upgrade-matrix-catfilter { flex: 1 1 100%; min-width: 0; max-width: 100%; }
+  .upgrade-shell .upgrade-matrix-bulk-field { flex: 1 1 100%; min-width: 0; }
+  .upgrade-shell .upgrade-matrix-bulk-field select { flex: 1 1 auto; min-width: 0; width: 100%; max-width: 100%; }
+}
+.upgrade-matrix-cell { min-width: 8.5rem; vertical-align: top; }
+.upgrade-cell-sel { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; white-space: nowrap; }
+.upgrade-cell-channel { font-weight: 600; font-variant-numeric: tabular-nums; }
+.upgrade-cell-copied { flex-basis: 100%; font-size: 0.7rem; padding-left: 1.6rem; }
+.upgrade-cell-default { font-size: 0.75rem; margin-top: 2px; }
+.upgrade-cell-default code { font-weight: 600; }
+.upgrade-cell-why { font-size: 0.72rem; margin-top: 2px; }
+.upgrade-cell-why summary { cursor: pointer; color: var(--text-subtle); }
+.upgrade-cell-why p { white-space: normal; max-width: 22rem; margin: 4px 0 0; }
+.upgrade-table-scroll { position: relative; } /* keeps absolutely positioned sr-only text inside the scroll box (no page-wide horizontal scroll) */

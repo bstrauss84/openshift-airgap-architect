@@ -6245,11 +6245,15 @@ const applyUpgradeIntentToStages = (plan, entries, { includeImages }) => {
     const selected = [...profile.operators.selected];
     const added = [];
     const kept = [];
+    const missing = [];
     for (const e of entries) {
       const catalogImage = `registry.redhat.io/redhat/${e.catalogKind}-operator-index:v${stage.minor}`;
       const id = `${catalogImage}::${e.name}`;
       if (selected.some((o) => o.id === id || (o.name === e.name && o.catalogImage === catalogImage))) { kept.push(e.name); continue; }
-      selected.push({ id, name: e.name, catalog: e.catalogKind, catalogImage, defaultChannel: e.channel || null, sources: [`upgrade:${e.category}`] });
+      // Each stage's own catalog decides the channel (never another minor's channel verbatim).
+      const r = resolveStageChannel({ name: e.name, kind: e.catalogKind, channel: e.channel || null, fromMinor: null, toMinor: stage.minor });
+      if (r.how === "not-in-catalog") { missing.push(e.name); continue; }
+      selected.push({ id, name: e.name, catalog: e.catalogKind, catalogImage, defaultChannel: r.channel, sources: [`upgrade:${e.category}`] });
       added.push(e.name);
     }
     const isLast = stage.id === plan.stages[plan.stages.length - 1].id;
@@ -6262,7 +6266,7 @@ const applyUpgradeIntentToStages = (plan, entries, { includeImages }) => {
         imagesAdded.push(img.name);
       }
     }
-    if (!added.length && !imagesAdded.length) { report.push({ stageId: stage.id, added, kept, imagesAdded }); continue; }
+    if (!added.length && !imagesAdded.length) { report.push({ stageId: stage.id, added, kept, imagesAdded, missing }); continue; }
     slice.profiles[profile.id] = normalizeProfile({
       ...profile,
       content: { ...profile.content, operators: profile.content.operators || added.length > 0, additionalImages: profile.content.additionalImages || imagesAdded.length > 0 },
@@ -6270,7 +6274,7 @@ const applyUpgradeIntentToStages = (plan, entries, { includeImages }) => {
       additionalImages: images,
       updatedAt: Date.now()
     }, profile.id);
-    report.push({ stageId: stage.id, added, kept, imagesAdded });
+    report.push({ stageId: stage.id, added, kept, imagesAdded, missing });
   }
   writeMirroringSlice(slice);
   return { ok: true, report };
@@ -6310,6 +6314,34 @@ const applyUpgradeMirrorToStages = (plan, previous, next) => {
  * selections to be resolved by that stage's catalog scan / Live catalog check. A selection
  * the target already has is never changed or removed; the source stage is never modified.
  */
+/**
+ * The channel a stage should get when an operator is copied into it from another minor's catalog
+ * (owner QA round 3b). Mirroring's `defaultChannel` on a selected operator is the channel that is
+ * MIRRORED, so copying it verbatim put e.g. ODF `stable-4.20` into the 4.21/4.22 stages' configs.
+ *  - target catalog scanned, package missing  → not added (reported);
+ *  - target scanned and the source channel is the source catalog's default (or none) → the target
+ *    catalog's own default ("target-default");
+ *  - otherwise the source channel is kept and reported unconfirmed ("copied-unconfirmed"); the
+ *    Content matrix then shows the stage's catalog default next to it and suggests it.
+ */
+const resolveStageChannel = ({ name, kind, channel, fromMinor, toMinor }) => {
+  const look = (minor) => {
+    if (!minor) return { scanned: false, hit: null };
+    const c = getResults(minor, kind || "redhat");
+    return { scanned: Boolean(c?.updatedAt), hit: c?.results?.find((e) => String(e.name || "").toLowerCase() === String(name).toLowerCase()) || null };
+  };
+  if (fromMinor && fromMinor === toMinor) return { channel: channel || null, how: "same-minor" };
+  const to = look(toMinor);
+  if (to.scanned && !to.hit) return { channel: null, how: "not-in-catalog", targetDefault: null };
+  const targetDefault = to.hit?.defaultChannel || null;
+  if (to.scanned && targetDefault) {
+    const from = look(fromMinor);
+    if (!channel || channel === targetDefault || (from.hit && from.hit.defaultChannel === channel)) return { channel: targetDefault, how: "target-default", targetDefault, sourceDefault: from.hit?.defaultChannel || null };
+    return { channel, how: "copied-unconfirmed", targetDefault };
+  }
+  return { channel: channel || null, how: "target-not-scanned", targetDefault: null };
+};
+
 const copyUpgradeStageOperators = (plan, fromStageId, toStageIds) => {
   const slice = readMirroringSlice();
   const from = plan.stages.find((s) => s.id === fromStageId);
@@ -6334,12 +6366,11 @@ const copyUpgradeStageOperators = (plan, fromStageId, toStageIds) => {
       if (typeof op.catalogImage !== "string" || !/:v\d+\.\d+$/.test(op.catalogImage)) continue;
       const catalogImage = op.catalogImage.replace(/:v\d+\.\d+$/, `:v${t.minor}`);
       if (selected.some((o) => o.name === op.name && o.catalogImage === catalogImage)) { kept.push(op.name); continue; }
-      selected.push({ id: `${catalogImage}::${op.name}`, name: op.name, catalog: op.catalog, catalogImage, defaultChannel: op.defaultChannel || null, sources: [`upgrade:copied-from-${fromStageId}`] });
+      const r = resolveStageChannel({ name: op.name, kind: op.catalog, channel: op.defaultChannel || null, fromMinor: from.minor || src.operators?.catalogMinor, toMinor: t.minor });
+      if (r.how === "not-in-catalog") { checks.push({ name: op.name, from: op.defaultChannel || null, channel: null, status: "not-in-catalog" }); continue; }
+      selected.push({ id: `${catalogImage}::${op.name}`, name: op.name, catalog: op.catalog, catalogImage, defaultChannel: r.channel, sources: [`upgrade:copied-from-${fromStageId}`] });
       added.push(op.name);
-      // What the target minor's scanned catalog says (evidence only; the copied channel is never replaced).
-      const cached = getResults(t.minor, op.catalog || "redhat");
-      const hit = cached?.results?.find((e) => String(e.name || "").toLowerCase() === String(op.name).toLowerCase());
-      checks.push({ name: op.name, channel: op.defaultChannel || null, status: !cached?.updatedAt ? "not-scanned" : !hit ? "not-in-catalog" : hit.defaultChannel === op.defaultChannel ? "default-channel" : "channel-not-checked" });
+      checks.push({ name: op.name, from: op.defaultChannel || null, channel: r.channel, status: r.how === "target-default" ? "default-channel" : r.how === "target-not-scanned" ? "not-scanned" : "channel-not-checked", targetDefault: r.targetDefault || null });
     }
     if (added.length) {
       slice.profiles[p.id] = normalizeProfile({ ...p, content: { ...p.content, operators: true }, operators: { ...p.operators, catalogMinor: t.minor, catalogMinorSource: "platform", selected }, updatedAt: Date.now() }, p.id);

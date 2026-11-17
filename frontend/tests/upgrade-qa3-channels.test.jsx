@@ -87,7 +87,7 @@ describe("per-stage channel evidence", () => {
     mount();
     await waitFor(() => expect(cells("odf-operator")[1].textContent).toMatch(/stable-4\.20.*channel missing/));
     expect(cells("odf-operator")[2].textContent).toMatch(/stable-4\.22.*listed · default/);
-    expect(cells("kiali-ossm")[1].textContent).toMatch(/candidate.*channel not checked/);
+    expect(cells("kiali-ossm")[1].textContent).toMatch(/candidate.*not confirmed here.*Catalog default: stable/);
     expect(cells("odf-operator")[1].querySelector(".sr-only").textContent).toMatch(/does not list odf-operator channel stable-4\.20 \(channels: stable-4\.21\)/);
   });
 

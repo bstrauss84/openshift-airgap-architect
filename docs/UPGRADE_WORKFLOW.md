@@ -132,6 +132,20 @@ profile owned by the plan, one pinned release, that minor's operator catalog).
   channel is your selection only), … scanning, ! scan failed, ⚠ no version in the
   range, ✕ not in the catalog / channel missing. None of these is compatibility
   with your running cluster.
+- **Reading a stage cell.** First line: the **selected channel** — what that
+  stage mirrors — with "copied from stage N" when it came from another stage.
+  Then the verdict, and **Catalog default: … (live check | scan)** whenever this
+  stage's own catalog defaults to another channel. Verdicts: ✓ verified
+  (Live check, or the scanned default), ≠ not this catalog's default (exists or
+  may exist, but the catalog defaults to another — usual for version-named
+  channels such as ODF `stable-4.y`), ? not confirmed here (a scan knows only
+  defaults), ○ not scanned, … scanning, ✕ missing. **Copying operators to later
+  stages** (and adding imported operators to every stage) resolves each channel
+  against the target stage's own scanned catalog: a copied *default* becomes the
+  target's default; a custom channel is kept and reported unconfirmed; an
+  operator missing from the scanned target catalog is not added. Channels copied
+  before this rule are flagged ("N channels were copied from an earlier stage…")
+  and pre-ticked in Channel suggestions.
 - **Channel suggestions.** Each cell compares the stage's selected channel with
   that stage's catalog listing from the Live catalog check (listed / listed ·
   default / channel missing). **Check channels in every stage** runs each stage's
