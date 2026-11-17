@@ -141,4 +141,17 @@ describe("Upgrade YAML preview", () => {
     expect(within(drawer()).getByRole("button", { name: "Download" })).toBeDisabled();
     expect(drawer().textContent).not.toMatch(/kind: ImageSetConfiguration/);
   });
+
+  it("the stage's “Download it” is disabled with the reason while the stage cannot generate, and enables itself once it can (owner QA P7)", async () => {
+    notReady["p-s1"] = "Choose at least one operator channel.";
+    await openContent();
+    const dl = await screen.findByRole("button", { name: "Download it" });
+    await waitFor(() => expect(screen.getByText(/Not ready to download: Choose at least one operator channel/)).toBeInTheDocument());
+    expect(dl).toBeDisabled();
+    // The stage becomes valid (a profile change): the button enables itself.
+    delete notReady["p-s1"];
+    fireEvent.click(screen.getByRole("button", { name: /Choose operators for this stage/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Download it" })).toBeEnabled());
+    expect(screen.getByText(/Ready: validated against the oc-mirror v2 schema/)).toBeInTheDocument();
+  });
 });

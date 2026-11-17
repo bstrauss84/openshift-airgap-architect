@@ -60,6 +60,16 @@ const blank = () => ({ id: Math.random().toString(36).slice(2), registry: "", us
 
 /** Attributes that ask password managers not to offer saving or filling these fields (hints only). */
 const NOT_A_LOGIN = { autoComplete: "off", "data-lpignore": "true", "data-1p-ignore": "true", "data-bwignore": "true", "data-form-type": "other" };
+/**
+ * v2.3.0 owner QA (P6): Chrome still offered to save these values when a mirror-to-mirror run
+ * started, because a type="password" field next to a "username" field looks like a login form,
+ * whatever the hints say. Where the browser can mask text with CSS, the secret is a text field
+ * masked with -webkit-text-security (no password field for a password manager to detect) and the
+ * field names avoid login words. Browsers that cannot mask text keep type="password", so the value
+ * is never shown in clear. Browsers still decide what their password manager does; this removes the
+ * signal, it cannot guarantee that no browser ever prompts.
+ */
+export const canMaskText = () => typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("-webkit-text-security", "disc");
 
 export default function RegistryCredentialHelper({ isOpen, onClose, onUse, idPrefix, title, purpose, defaultRegistry = "", existing = "" }) {
   const [entries, setEntries] = useState(() => [{ ...blank(), registry: defaultRegistry }]);
@@ -67,6 +77,8 @@ export default function RegistryCredentialHelper({ isOpen, onClose, onUse, idPre
   const [attempted, setAttempted] = useState(false);
   const [keepExisting, setKeepExisting] = useState(false);
   const [error, setError] = useState("");
+  const [reveal, setReveal] = useState(false);
+  const [maskWithCss] = useState(canMaskText);
   const existingRegistries = registriesIn(existing);
   const titleId = `${idPrefix}-cred-helper-title`;
 
@@ -134,19 +146,23 @@ mirror-user, or a robot account such as myorg+mirror.
 **Important notes:**
 • A colon is not allowed in a user name (it separates name and password).
 • Not stored anywhere.`}>
-                  <input id={f("username")} type="text" value={e.username} {...NOT_A_LOGIN} spellCheck={false}
-                    className={show("username") ? "input-error" : ""} aria-invalid={show("username") ? "true" : undefined} aria-describedby={show("username") ? `${f("username")}-error` : undefined}
+                  <input id={f("account")} name={f("account")} type="text" value={e.username} {...NOT_A_LOGIN} spellCheck={false}
+                    className={show("username") ? "input-error" : ""} aria-invalid={show("username") ? "true" : undefined} aria-describedby={show("username") ? `${f("account")}-error` : undefined}
                     onChange={(ev) => update(e.id, "username", ev.target.value)} onBlur={() => setTouched((t) => ({ ...t, [`${e.id}-username`]: true }))} />
                 </FieldLabelWithInfo>
-                <div className="field-control-support">{show("username") ? <span id={`${f("username")}-error`} className="field-error" role="alert">{p.username}</span> : null}</div>
+                <div className="field-control-support">{show("username") ? <span id={`${f("account")}-error`} className="field-error" role="alert">{p.username}</span> : null}</div>
               </div>
               <div className="field-control-stack">
                 <FieldLabelWithInfo label="Password or token" hint={SECRET_HINT}>
-                  <input id={f("password")} type="password" value={e.password} {...NOT_A_LOGIN}
-                    className={show("password") ? "input-error" : ""} aria-invalid={show("password") ? "true" : undefined} aria-describedby={show("password") ? `${f("password")}-error` : undefined}
+                  <input id={f("secret")} name={f("secret")} type={maskWithCss ? "text" : "password"} value={e.password} {...NOT_A_LOGIN} spellCheck={false}
+                    data-masked={maskWithCss && !reveal ? "true" : "false"}
+                    className={`registry-cred-secret${show("password") ? " input-error" : ""}`} aria-invalid={show("password") ? "true" : undefined} aria-describedby={show("password") ? `${f("secret")}-error` : undefined}
                     onChange={(ev) => update(e.id, "password", ev.target.value)} onBlur={() => setTouched((t) => ({ ...t, [`${e.id}-password`]: true }))} />
                 </FieldLabelWithInfo>
-                <div className="field-control-support">{show("password") ? <span id={`${f("password")}-error`} className="field-error" role="alert">{p.password}</span> : null}</div>
+                <div className="field-control-support">
+                  {show("password") ? <span id={`${f("secret")}-error`} className="field-error" role="alert">{p.password}</span> : null}
+                  {maskWithCss ? <label className="toggle-row registry-cred-reveal"><input type="checkbox" checked={reveal} onChange={(ev) => setReveal(ev.target.checked)} /><span>Show</span></label> : null}
+                </div>
               </div>
             </div>
             {entries.length > 1 ? <Button variant="secondary" className="mini" onClick={() => setEntries((list) => list.filter((x) => x.id !== e.id))}>Remove this registry</Button> : null}

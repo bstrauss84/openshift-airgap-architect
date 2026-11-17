@@ -65,7 +65,10 @@ describe("the dialog", () => {
     expect(screen.getByText(/Enter the user name/)).toBeInTheDocument();
     expect(onUse).not.toHaveBeenCalled();
     const pw = screen.getByLabelText(/Password or token/);
+    // jsdom cannot mask text with CSS, so the fallback (a password field) applies here; real Chrome
+    // gets a masked text field (owner QA P6; checked by the rendered browser test).
     expect(pw).toHaveAttribute("type", "password");
+    expect(pw.id).not.toMatch(/password|username/);
     // Credentials for another system, not an Architect login: "off", not "new-password" (owner A, 2026-11-03).
     expect(pw).toHaveAttribute("autocomplete", "off");
     fireEvent.change(screen.getByLabelText(/User name/), { target: { value: "dst-user" } });
@@ -204,5 +207,25 @@ describe("no 'save password?' invitation (owner A, 2026-11-03)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onUse).not.toHaveBeenCalled();
     expect(valuesAtClose).toBe("");
+  });
+});
+
+describe("no login-form signal where the browser can mask text (owner QA P6, 2026-11-17)", () => {
+  it("uses a CSS-masked text field (not type=password) and login-free field names; Show reveals on request", () => {
+    const orig = globalThis.CSS;
+    globalThis.CSS = { supports: (p, v) => p === "-webkit-text-security" && v === "disc" };
+    try {
+      render(<RegistryCredentialHelper isOpen onClose={() => {}} onUse={() => {}} idPrefix="p6" title="t" purpose="p" />);
+      const secret = screen.getByLabelText(/Password or token/);
+      expect(secret).toHaveAttribute("type", "text");
+      expect(secret).toHaveAttribute("data-masked", "true");
+      expect(secret).toHaveAttribute("autocomplete", "off");
+      expect(document.querySelector('input[type="password"]')).toBeNull();
+      for (const el of document.querySelectorAll("input")) expect(`${el.id} ${el.name}`).not.toMatch(/password|username/i);
+      fireEvent.click(screen.getByRole("checkbox", { name: "Show" }));
+      expect(secret).toHaveAttribute("data-masked", "false");
+    } finally {
+      globalThis.CSS = orig;
+    }
   });
 });

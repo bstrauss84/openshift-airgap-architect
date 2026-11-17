@@ -21,6 +21,7 @@ import OperatorsSection from "../mirroring/OperatorsSection.jsx";
 import AdditionalImagesEditor from "../mirroring/AdditionalImagesEditor.jsx";
 import { fetchMirroring, updateProfile, verifyCatalogs, fetchJob } from "../mirroring/mirroringApi.js";
 import { useSourceCredential } from "../mirroring/sourceCredentialSession.js";
+import { useProfilePreview } from "../mirroring/useProfilePreview.js";
 import PresetImporter, { CATEGORY_LABEL, CONFIDENCE_LABEL, SOURCE_TO_KIND } from "./OperatorsTab.jsx";
 import RouteCatalogScan from "./RouteCatalogScan.jsx";
 import { buildScanPlan, cellEvidence, provenanceOf, scannedAt } from "./routeCatalogs.js";
@@ -404,6 +405,12 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
     }
   };
 
+  // The shown stage's configuration, live (same hook and route as the YAML drawer and the Handoff
+  // package): its Download is enabled only when a validated file exists (owner QA P7).
+  const shownView = (plan.stageViews || []).find((v) => v.id === selected) || null;
+  const shownProfile = shownView?.linkedProfileId ? profiles[shownView.linkedProfileId] || null : null;
+  const stagePreview = useProfilePreview(plan.kind === "received" ? null : shownProfile);
+
   if (!plan.path) {
     return (
       <section className="card">
@@ -484,7 +491,14 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
             <>
               <div className="actions">
                 <Button variant="secondary" onClick={() => (onPreviewStage ? onPreviewStage(view.id) : stageConfig(profile, view, "preview"))} disabled={!onPreviewStage && !onPreviewFiles}>Preview this stage&apos;s ImageSetConfiguration</Button>
-                <Button variant="secondary" onClick={() => stageConfig(profile, view, "download")}>Download it</Button>
+                <Button variant="secondary" disabled={!stagePreview.yaml || stagePreview.loading} aria-describedby={`upgrade-stage-dl-${plan.id}`}
+                  onClick={async () => { try { downloadText(`stage-${view.id.slice(1)}-${view.release}-imageset-config.yaml`, await stagePreview.fetchForDownload()); } catch (err) { setError(String(err.message || err)); } }}>Download it</Button>
+                <span id={`upgrade-stage-dl-${plan.id}`} className="subtle upgrade-dl-status" role="status">
+                  {stagePreview.loading ? "Checking this stage's configuration…"
+                    : stagePreview.yaml ? "Ready: validated against the oc-mirror v2 schema (the same file as in the Handoff package)."
+                    : stagePreview.notReady.length ? <>Not ready to download: {stagePreview.notReady.join(" ")} {!profile.content?.operators && !received ? "" : null}</>
+                    : stagePreview.error ? `Not available: ${stagePreview.error}` : "Not ready to download yet."}
+                </span>
               </div>
               {!received && !profile.content?.operators ? (
                 <div className="actions">
