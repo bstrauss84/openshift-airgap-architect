@@ -90,6 +90,15 @@ stopwords = [
 # controls C and E failed until this line was added.
 #
 [[allowlists]]
+description = "Mirror registry config loader test fixtures — test-ca.pem is a self-signed cert generated for unit tests only, not a real credential"
+paths = [
+  '''backend/test/fixtures/test-ca\.pem$''',
+  '''backend/test/mirrorRegistryConfigLoader\.test\.js$''',
+  '''backend/test/idmsParser\.test\.js$''',
+  '''backend/test/imageSetConfigParser\.test\.js$''',
+]
+
+[[allowlists]]
 description = "DOC-166 provenance Git SHA-1 in imageset-config-schema.json apiCommit"
 targetRules = ["generic-api-key"]
 condition = "AND"
