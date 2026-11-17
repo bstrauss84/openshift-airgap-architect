@@ -22,27 +22,68 @@ import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
 import { useSourceCredential, useDestinationCredential } from "../mirroring/sourceCredentialSession.js";
 import { JsonDocumentInput } from "./PathTab.jsx";
 import { INVENTORY_KIND_HINT } from "./upgradeCopy.js";
-import { fetchReadiness, importInventory, clearInventory, attest } from "./upgradeApi.js";
+import FileDropZone from "../components/FileDropZone.jsx";
+import { guideFor } from "./readinessGuide.js";
+import { fetchReadiness, importInventory, importBundle, clearInventory, attest, collectorScriptUrl } from "./upgradeApi.js";
 
 export const STATE_TEXT = { VERIFIED: "✓ Verified", BLOCKED: "✕ Blocked", WARNING: "⚠ Warning", ATTESTED: "✎ Your statement", NOT_CHECKED: "? Not checked", PENDING: "○ To do" };
 const KIND_LABEL = { clusterversion: "ClusterVersion", subscription: "Operator subscriptions", csv: "Operator versions (CSV)", mcp: "Machine config pools" };
 const STEP_LABEL = { route: "Route", content: "Content", mirror: "Mirror & transfer" };
+const SECTION_LABEL = { clusterversion: "ClusterVersion", clusteroperators: "Cluster operators", mcp: "Machine config pools", subscriptions: "Operator subscriptions", csv: "Operator versions", apirequestcounts: "API usage", admingates: "Acknowledgement gates", adminacks: "Acknowledgements given" };
+const SECTION_TEXT = { imported: "✓", unavailable: "not readable", missing: "missing", invalid: "invalid" };
+/** What the collector runs — all read-only `oc get` (shown before anyone downloads it). */
+const COLLECTOR_READS = [
+  "oc get clusterversion version", "oc get clusteroperators", "oc get machineconfigpools",
+  "oc get subscriptions.operators.coreos.com -A", "oc get clusterserviceversions.operators.coreos.com -A",
+  "oc get apirequestcounts.apiserver.openshift.io",
+  "oc get configmap admin-gates -n openshift-config-managed", "oc get configmap admin-acks -n openshift-config"
+];
 
-function CheckRow({ c, onAction, onAttest, attestText, readOnly }) {
+function CheckGuide({ g }) {
+  return (
+    <dl className="upgrade-guide">
+      <dt>What it is</dt><dd>{g.what}</dd>
+      <dt>Why it matters</dt><dd>{g.why}</dd>
+      <dt>How to check</dt>
+      <dd>
+        {g.bundle ? <p>Included in the readiness bundle: run the collector and upload its file (top of this section). Or check by hand:</p> : <p>Architect cannot check this. Do it yourself, then record your statement below:</p>}
+        {g.commands.map((c) => (
+          <div key={c.cmd} className="upgrade-command"><pre>{c.cmd}</pre>{c.note ? <span className="subtle">{c.note}</span> : null}</div>
+        ))}
+        {g.note ? <p className="subtle">{g.note}</p> : null}
+      </dd>
+      <dt>Success looks like</dt><dd>{g.success}</dd>
+      <dt>If it fails</dt><dd>{g.failure}</dd>
+      {g.caution ? <><dt>Important</dt><dd>{g.caution}</dd></> : null}
+      {g.docs.length ? (
+        <>
+          <dt>Red Hat documentation</dt>
+          <dd><ul>{g.docs.map((d) => <li key={d.label}><a href={d.url} target="_blank" rel="noopener noreferrer">{d.label}</a></li>)}</ul></dd>
+        </>
+      ) : null}
+    </dl>
+  );
+}
+
+function CheckRow({ c, onAction, onAttest, attestText, readOnly, plan }) {
   const [open, setOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const hasDetails = Boolean(c.layers || c.url);
+  const guide = plan ? guideFor(c.id, plan) : null;
   return (
     <li className="upgrade-check" data-state={c.state}>
       <div className="upgrade-check-head">
         <span className="upgrade-badge" data-state={c.state}>{STATE_TEXT[c.state] || c.state}</span>
         <strong>{c.title}</strong>
         <span className="upgrade-check-actions">
-          {c.action?.kind === "import" ? <Button variant="secondary" className="mini" onClick={() => onAction(c.action)} disabled={readOnly}>Import cluster evidence</Button> : null}
+          {c.action?.kind === "import" ? <Button variant="secondary" className="mini" onClick={() => onAction(c.action)} disabled={readOnly}>{c.action.inventoryKind === "bundle" || guide?.bundle ? "Upload the readiness bundle" : "Import cluster evidence"}</Button> : null}
           {c.action?.kind === "step" ? <Button variant="secondary" className="mini" onClick={() => onAction(c.action)}>Go to {STEP_LABEL[c.action.step] || c.action.step}</Button> : null}
           {hasDetails ? <Button variant="secondary" className="mini" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? "Hide details" : "Details"}</Button> : null}
+          {guide ? <Button variant="secondary" className="mini" aria-expanded={guideOpen} onClick={() => setGuideOpen((v) => !v)} aria-label={`${guideOpen ? "Hide" : "How to check"}: ${c.title}`}>{guideOpen ? "Hide guide" : "How to check"}</Button> : null}
         </span>
       </div>
       <p className="upgrade-check-detail">{c.detail}</p>
+      {guideOpen && guide ? <CheckGuide g={guide} /> : null}
       {open && c.layers ? (
         <dl className="modal-summary">
           <dt>Update graph says</dt><dd>{c.layers.graph}</dd>
@@ -67,6 +108,8 @@ export default function ReadinessTab({ plan, onPlanChanged, credentialKey = null
   const [importKind, setImportKind] = useState(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [bundleResult, setBundleResult] = useState(null);
+  const bundleRef = React.useRef(null);
   const sourceCred = useSourceCredential(credentialKey, "run");
   const destCred = useDestinationCredential(credentialKey);
   const readOnly = plan.kind === "received";
@@ -90,6 +133,25 @@ export default function ReadinessTab({ plan, onPlanChanged, credentialKey = null
       setBusy(false);
     }
   };
+  const uploadBundle = async (files) => {
+    const file = files[0];
+    if (!file) return;
+    setBusy(true);
+    setError("");
+    setBundleResult(null);
+    try {
+      if (file.size > 20 * 1024 * 1024) throw new Error("The file is larger than 20 MiB. Upload the file the collector script wrote.");
+      const text = typeof file.text === "function" ? await file.text() : await new Promise((ok, fail) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result)); fr.onerror = () => fail(fr.error); fr.readAsText(file); });
+      const r = await importBundle(plan.id, text);
+      setBundleResult({ fileName: file.name, sections: r.sections, collectedAt: r.inventory?.collectedAt });
+      onPlanChanged(null);
+      await load();
+    } catch (err) {
+      setError(String(err.message || err));
+    } finally {
+      setBusy(false);
+    }
+  };
   const toggle = async (checkId, on) => {
     try {
       const next = await attest(plan.id, checkId, on);
@@ -98,7 +160,11 @@ export default function ReadinessTab({ plan, onPlanChanged, credentialKey = null
     } catch (err) { setError(String(err.message || err)); }
   };
   const onAction = (a) => {
-    if (a.kind === "import") setImportKind(a.inventoryKind);
+    // Every cluster check is covered by the one bundle; individual imports stay under Advanced.
+    if (a.kind === "import") {
+      bundleRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+      bundleRef.current?.querySelector("button")?.focus();
+    }
     else if (a.kind === "step" && onGoToStep) onGoToStep(a.step);
   };
 
@@ -131,7 +197,7 @@ export default function ReadinessTab({ plan, onPlanChanged, credentialKey = null
         <h3 id={`upgrade-ready-mirror-${plan.id}`}>Before mirroring</h3>
         <p className="subtle" role="status">{todo ? `${todo} thing(s) to do before the stages can be mirrored.` : "Ready to mirror. Each job still runs its own preflight (storage, tools, registry trust) right before it starts."}</p>
         <ul className="upgrade-check-list">
-          {[...local, ...routeChecks].map((c) => <CheckRow key={c.id} c={c} onAction={onAction} onAttest={toggle} attestText={data.attestable?.[c.id]} readOnly={readOnly} />)}
+          {[...local, ...routeChecks].map((c) => <CheckRow key={c.id} c={c} plan={plan} onAction={onAction} onAttest={toggle} attestText={data.attestable?.[c.id]} readOnly={readOnly} />)}
         </ul>
       </section>
       <section className="card" aria-labelledby={`upgrade-ready-cluster-${plan.id}`}>
@@ -141,13 +207,58 @@ export default function ReadinessTab({ plan, onPlanChanged, credentialKey = null
           {" "}Cluster readiness: {s.clusterReadiness}.
         </p>
         {data.cpo ? <Banner variant={data.cpo.eligible ? "info" : "warning"}>{data.cpo.eligible ? "Control Plane Only prerequisites are verified or attested." : `Control Plane Only steps stay withheld until these are verified or attested: ${data.cpo.missing.join(", ")}.`}</Banner> : null}
-        <div className="actions">
-          <Button variant="secondary" onClick={() => setImportKind("clusterversion")} disabled={readOnly}>Import cluster evidence…</Button>
-          {plan.inventory ? <Button variant="secondary" onClick={async () => { await clearInventory(plan.id); onPlanChanged(null); load(); }}>Remove imported evidence</Button> : null}
+        <div className="upgrade-bundle" ref={bundleRef} aria-labelledby={`upgrade-bundle-${plan.id}`} role="group">
+          <h4 id={`upgrade-bundle-${plan.id}`}>Check my cluster&apos;s readiness</h4>
+          <p className="subtle">Architect never connects to your cluster. Instead, one read-only script collects what these checks need, and you upload the single file it writes.</p>
+          <ol className="upgrade-bundle-steps">
+            <li>
+              <strong>Download the collector</strong>
+              <p><Button variant="secondary" onClick={() => { const a = document.createElement("a"); a.href = collectorScriptUrl(); a.download = "oaa-readiness-collector.sh"; document.body.appendChild(a); a.click(); a.remove(); }}>Download oaa-readiness-collector.sh</Button></p>
+              <details>
+                <summary>What it reads, and what it never does</summary>
+                <p className="subtle">Only these read-only commands, keeping names, versions, channels, phases, conditions and counts:</p>
+                <ul>{COLLECTOR_READS.map((c) => <li key={c}><code>{c}</code></li>)}</ul>
+                <p className="subtle">It never changes the cluster, never reads Secrets, pull secrets, tokens or your kubeconfig, never records your user name, the cluster ID or server URLs, masks credential-like text in condition messages, and sends nothing anywhere. It is plain bash — read it before you run it.</p>
+              </details>
+            </li>
+            <li>
+              <strong>Run it where <code>oc</code> is logged in to the cluster</strong>
+              <div className="upgrade-command"><pre>bash oaa-readiness-collector.sh</pre></div>
+              <p className="subtle">Needs <code>oc</code> (the cluster-reader role is enough) and <code>jq</code>. It writes <code>oaa-readiness-&lt;time&gt;.json</code>, readable only by you. Run it again right before each update.</p>
+            </li>
+            <li>
+              <strong>Upload the file</strong>
+              <FileDropZone id={`upgrade-bundle-file-${plan.id}`} label="Readiness bundle (.json)" accept=".json,application/json" disabled={readOnly || busy} onFiles={uploadBundle}
+                help="Uploading replaces any evidence imported before, so every check reads one collection with one time. Nothing that is not used by a check is kept." />
+            </li>
+          </ol>
+          {busy ? <div className="loading" role="status">Reading the bundle…</div> : null}
+          {plan.inventory ? (
+            <div role="status">
+              <p className="subtle">
+                {plan.inventory.source === "bundle"
+                  ? <>Evidence collected <strong>{plan.inventory.collectedAt}</strong>{bundleResult?.fileName ? ` (${bundleResult.fileName})` : ""}, uploaded {plan.inventory.importedAt}.</>
+                  : <>Imported {plan.inventory.importedAt} from individual exports: {plan.inventory.clusterVersion ? `ClusterVersion ${plan.inventory.clusterVersion.version || "?"}` : "no ClusterVersion"}, {plan.inventory.operators?.length || 0} operator(s), {plan.inventory.machineConfigPools?.length || 0} pool(s).</>}
+              </p>
+              {plan.inventory.sections ? (
+                <ul className="upgrade-bundle-sections" aria-label="What the bundle contained">
+                  {Object.entries(plan.inventory.sections).map(([k, v]) => (
+                    <li key={k}><span className="upgrade-badge" data-state={v.state === "imported" ? "VERIFIED" : "NOT_CHECKED"}>{SECTION_LABEL[k] || k}: {SECTION_TEXT[v.state] || v.state}{v.reason && v.state !== "imported" ? ` (${v.reason})` : ""}</span></li>
+                  ))}
+                </ul>
+              ) : null}
+              {plan.inventory.sections && Object.values(plan.inventory.sections).some((v) => v.state !== "imported") ? <p className="subtle">Checks that need a section the collector could not read stay “Not checked”. A “forbidden” section usually means the logged-in user lacks read access to it.</p> : null}
+              <div className="actions"><Button variant="secondary" onClick={async () => { await clearInventory(plan.id); setBundleResult(null); onPlanChanged(null); load(); }}>Remove the uploaded evidence</Button></div>
+            </div>
+          ) : null}
+          <details className="upgrade-advanced">
+            <summary>Advanced: import one command&apos;s output instead</summary>
+            <p className="subtle">For when the script cannot run. Paste or upload the JSON output of one read-only command at a time (ClusterVersion, subscriptions, operator versions, machine config pools). Exports imported this way are combined with each other, but not with an uploaded bundle.</p>
+            <Button variant="secondary" onClick={() => setImportKind("clusterversion")} disabled={readOnly}>Import one command&apos;s output…</Button>
+          </details>
         </div>
-        {plan.inventory ? <p className="subtle">Imported {plan.inventory.importedAt}: {plan.inventory.clusterVersion ? `ClusterVersion ${plan.inventory.clusterVersion.version || "?"}` : "no ClusterVersion"}, {plan.inventory.operators?.length || 0} operator(s), {plan.inventory.machineConfigPools?.length || 0} pool(s).</p> : null}
         <ul className="upgrade-check-list">
-          {clusterChecks.map((c) => <CheckRow key={c.id} c={c} onAction={onAction} onAttest={toggle} attestText={data.attestable?.[c.id]} readOnly={readOnly} />)}
+          {clusterChecks.map((c) => <CheckRow key={c.id} c={c} plan={plan} onAction={onAction} onAttest={toggle} attestText={data.attestable?.[c.id]} readOnly={readOnly} />)}
         </ul>
       </section>
 

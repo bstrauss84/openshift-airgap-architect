@@ -20,7 +20,7 @@ import {
 import { solvePath, classifyTargets, validateRoute, buildHops, channelPrefix, PLANNING_CHANNEL_RE, GRAPH_ARCHES, gaVersion, exploreRoute } from "../../shared/upgradePath.js";
 import { getMinorVersion, compareVersions } from "../../shared/versionUtils.js";
 import { evaluateReadiness, ATTESTABLE } from "./upgradeReadiness.js";
-import { projectInventory, InventoryError, INVENTORY_KINDS, INVENTORY_COMMANDS } from "./upgradeInventory.js";
+import { projectInventory, projectBundle, InventoryError, INVENTORY_KINDS, INVENTORY_COMMANDS, COLLECTOR_SCRIPT } from "./upgradeInventory.js";
 import { buildInstructions } from "./upgradeInstructions.js";
 import { stageRouteMismatch } from "./upgradeStages.js";
 import { analyzePresetFiles, OPERATOR_CATEGORIES } from "./upgradePresets.js";
@@ -66,6 +66,7 @@ export const upgradeGraphImportSchema = z.object({
 export const upgradeSolveSchema = z.object({
   route: z.array(versionField).min(2).max(17).optional()
 }).strict();
+export const upgradeBundleSchema = z.object({ text: z.string().min(2).max(20 * 1024 * 1024) }).strict();
 export const upgradeInventorySchema = z.object({ kind: z.enum(INVENTORY_KINDS), text: z.string().min(2).max(20 * 1024 * 1024) }).strict();
 export const upgradeAttestSchema = z.object({ checkId: z.string().max(48), attested: z.boolean(), note: z.string().max(500).optional() }).strict();
 export const upgradeClusterProgressSchema = z.object({ stageId: z.string().regex(/^s[0-9]{1,2}$/), state: z.enum(["none", "attested"]) }).strict();
@@ -393,7 +394,9 @@ export function registerUpgradeRoutes(app, deps) {
     const { slice, plan } = loaded;
     try {
       const part = projectInventory(req.body.kind, req.body.text);
-      const inventory = { ...(plan.inventory || {}), ...part, importedAt: new Date().toISOString() };
+      // An individual export never mixes into a bundle's single-timestamp evidence: it starts over.
+      const base = plan.inventory?.source === "bundle" ? {} : plan.inventory || {};
+      const inventory = { ...base, ...part, importedAt: new Date().toISOString() };
       delete inventory.operatorsKind;
       const saved = savePlan(slice, { ...plan, inventory });
       res.json({ inventory: saved.inventory });
@@ -401,6 +404,33 @@ export function registerUpgradeRoutes(app, deps) {
       if (err instanceof InventoryError) return res.status(err.status).json({ error: err.message, code: err.code });
       res.status(422).json({ error: "The document could not be read.", code: "INVENTORY_INVALID" });
     }
+  });
+
+  /**
+   * One readiness evidence bundle (owner QA P4): the collector script's single file. It replaces
+   * the plan's imported evidence as one source with one collection time (no mixing of old and
+   * new exports); sections the collector could not read are reported, never filled in.
+   */
+  app.post("/api/upgrade/plans/:id/inventory/bundle", validateBody(upgradeBundleSchema), (req, res) => {
+    const loaded = loadPlan(req, res);
+    if (!loaded) return;
+    const { slice, plan } = loaded;
+    try {
+      const { inventory, sections } = projectBundle(req.body.text);
+      const saved = savePlan(slice, { ...plan, inventory: { ...inventory, importedAt: new Date().toISOString() } });
+      res.json({ inventory: saved.inventory, sections });
+    } catch (err) {
+      if (err instanceof InventoryError) return res.status(err.status).json({ error: err.message, code: err.code });
+      res.status(422).json({ error: "The bundle could not be read.", code: "BUNDLE_INVALID" });
+    }
+  });
+
+  /** The read-only collector script itself (plain text; the user reads it before running it). */
+  app.get("/api/upgrade/readiness-collector", (_req, res) => {
+    res.setHeader("Content-Type", "text/x-shellscript; charset=utf-8");
+    res.setHeader("Content-Disposition", 'attachment; filename="oaa-readiness-collector.sh"');
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.send(COLLECTOR_SCRIPT);
   });
 
   app.delete("/api/upgrade/plans/:id/inventory", (req, res) => {

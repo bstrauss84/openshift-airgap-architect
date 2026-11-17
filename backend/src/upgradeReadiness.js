@@ -23,7 +23,7 @@ export const STATES = Object.freeze(["VERIFIED", "BLOCKED", "WARNING", "ATTESTED
  * as a to-do with the step that does it. Every check also names its group and its next action.
  */
 const GROUP = (id) => (/^(route|graph-freshness|current-channel)$/.test(id) ? "route" : /^(content|signatures)/.test(id) ? "content" : "cluster");
-const INVENTORY_FOR = { "cvo-health": "clusterversion", "cvo-upgradeable": "clusterversion", "current-version": "clusterversion", "mcp-health": "mcp", "cpo-topology": "mcp", "operator-compat": "csv" };
+const INVENTORY_FOR = { "cvo-health": "clusterversion", "cvo-upgradeable": "clusterversion", "current-version": "clusterversion", "mcp-health": "mcp", "cpo-topology": "mcp", "operator-compat": "csv", "cluster-operators": "bundle", "api-removals": "bundle", "admin-acks": "bundle", "evidence-age": "bundle" };
 const actionFor = (id, state) => {
   if (state === "VERIFIED") return null;
   if (INVENTORY_FOR[id] && state !== "ATTESTED") return { kind: "import", inventoryKind: INVENTORY_FOR[id] };
@@ -51,6 +51,16 @@ const attestedOr = (plan, id, title, notChecked) => {
     : check(id, "NOT_CHECKED", title, notChecked, { attestable: true, attestText: ATTESTABLE[id] });
 };
 
+/**
+ * Kubernetes version of each supported OpenShift minor, from each release's own release notes
+ * ("{product-title} {product-version} release uses Kubernetes 1.3x"; openshift-docs
+ * enterprise-4.20/4.21/4.22, rn-ocp-*about-this-release.adoc).
+ */
+export const KUBE_FOR_MINOR = Object.freeze({ "4.20": "1.33", "4.21": "1.34", "4.22": "1.35" });
+const kubeNum = (v) => { const m = String(v || "").match(/^1\.(\d+)/); return m ? Number(m[1]) : null; };
+const minorNum = (v) => { const m = String(v || "").match(/^4\.(\d+)/); return m ? Number(m[1]) : null; };
+export const EVIDENCE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
 const cond = (inv, type) => inv?.clusterVersion?.conditions?.find((c) => c.type === type);
 
 /**
@@ -60,7 +70,7 @@ const cond = (inv, type) => inv?.clusterVersion?.conditions?.find((c) => c.type 
  * @param {Array} ctx.stageViews - upgradeStageViews(plan)
  * @param {Record<string, {exists: boolean|null}>} ctx.signatureEvidence - by stage id
  */
-export function evaluateReadiness(plan, { pathStatus = "none", stageViews = [], signatureEvidence = {} } = {}) {
+export function evaluateReadiness(plan, { pathStatus = "none", stageViews = [], signatureEvidence = {}, now = Date.now() } = {}) {
   const checks = [];
   const inv = plan.inventory;
   const path = plan.path;
@@ -125,6 +135,32 @@ export function evaluateReadiness(plan, { pathStatus = "none", stageViews = [], 
     else checks.push(check("current-version", "NOT_CHECKED", "Current version", "The imported ClusterVersion has no completed version."));
     if (plan.currentChannel && inv.clusterVersion.channel && inv.clusterVersion.channel !== plan.currentChannel) checks.push(check("current-channel", "WARNING", "Current channel", `The plan says ${plan.currentChannel}; the cluster is on ${inv.clusterVersion.channel}.`));
   }
+  // How old the cluster evidence is (bundle collection time, else the import time).
+  const evidenceAt = Date.parse(inv?.collectedAt || inv?.importedAt || "");
+  if (inv && Number.isFinite(evidenceAt)) {
+    const hours = Math.max(0, Math.round((now - evidenceAt) / 3600000));
+    const label = inv.collectedAt ? `collected ${inv.collectedAt}` : `imported ${inv.importedAt}`;
+    checks.push(now - evidenceAt > EVIDENCE_MAX_AGE_MS
+      ? check("evidence-age", "WARNING", "Cluster evidence age", `The cluster evidence was ${label} (${hours} h ago). Cluster state changes; collect it again right before each update.`)
+      : check("evidence-age", "VERIFIED", "Cluster evidence age", `The cluster evidence was ${label} (${hours ? `${hours} h` : "less than an hour"} ago). Collect it again right before each update.`));
+  }
+  const crossesMinorHop = (path?.hops || []).some((h) => h.kind === "minor");
+  if (inv?.clusterOperators) {
+    const cos = inv.clusterOperators;
+    const c = (co, t) => co.conditions.find((x) => x.type === t);
+    const down = cos.filter((co) => c(co, "Available")?.status === "False");
+    const degraded = cos.filter((co) => c(co, "Degraded")?.status === "True");
+    const notUp = cos.filter((co) => c(co, "Upgradeable")?.status === "False");
+    const progressing = cos.filter((co) => c(co, "Progressing")?.status === "True");
+    const names = (l) => l.map((co) => `${co.name}${c(co, "Upgradeable")?.status === "False" && l === notUp ? ` (${c(co, "Upgradeable").reason || "no reason"})` : ""}`).join(", ");
+    if (!cos.length) checks.push(check("cluster-operators", "NOT_CHECKED", "Cluster operators", "The bundle lists no cluster operators."));
+    else if (down.length || degraded.length) checks.push(check("cluster-operators", "BLOCKED", "Cluster operators", `${down.length ? `Not available: ${names(down)}. ` : ""}${degraded.length ? `Degraded: ${names(degraded)}.` : ""}`.trim()));
+    else if (notUp.length) checks.push(check("cluster-operators", crossesMinorHop ? "BLOCKED" : "WARNING", "Cluster operators", `Upgradeable=False: ${names(notUp)}.${crossesMinorHop ? " Minor-version updates are blocked until this is resolved (for olm, an installed operator does not allow the next minor; update or remove it first)." : " This blocks minor updates only."}`));
+    else if (progressing.length) checks.push(check("cluster-operators", "WARNING", "Cluster operators", `Still progressing: ${names(progressing)}. Wait until they settle before starting an update.`));
+    else checks.push(check("cluster-operators", "VERIFIED", "Cluster operators", `All ${cos.length} cluster operators are available, not degraded and not blocking updates.`));
+  } else if (inv?.source === "bundle") {
+    checks.push(check("cluster-operators", "NOT_CHECKED", "Cluster operators", `The bundle could not read cluster operators (${inv.sections?.clusteroperators?.reason || inv.sections?.clusteroperators?.state || "missing"}).`));
+  }
   if (!inv?.machineConfigPools?.length) checks.push(check("mcp-health", "NOT_CHECKED", "Machine config pools", "Import `oc get mcp -o json` to check that no pool is degraded or still updating."));
   else {
     const degraded = inv.machineConfigPools.filter((m) => m.degraded === "True");
@@ -135,18 +171,54 @@ export function evaluateReadiness(plan, { pathStatus = "none", stageViews = [], 
     else checks.push(check("mcp-health", "VERIFIED", "Machine config pools", "Every imported pool is updated and none is degraded or paused."));
   }
 
-  // Operators: package compatibility metadata is not available offline (U5).
+  // Operators. A declared olm.maxOpenShiftVersion is evidence that OLM will block the minor update
+  // beyond it (the olm cluster operator reports Upgradeable=False). No declared maximum is NOT
+  // evidence of support, so without a blocker the check stays the administrator's to confirm.
   const opsImported = inv?.operators?.length || 0;
-  const opCheck = attestedOr(plan, "operator-compat", "Operator compatibility", opsImported
-    ? `${opsImported} installed operator(s) imported. Architect cannot read their maximum supported OpenShift version offline, so compatibility with each minor on the route is not verified. Check each operator's documentation and its Upgradeable condition before each minor update.`
-    : "No installed operators imported, and Architect cannot verify operator compatibility offline. Check each installed operator supports every minor on the route.");
+  const minorTargets = (path?.hops || []).filter((h) => h.kind === "minor").map((h) => getMinorVersion(h.to));
+  const capped = (inv?.csvs || []).filter((c) => c.maxOpenShiftVersion);
+  const blockers = capped.map((c) => ({ c, hit: minorTargets.find((m) => minorNum(m) > minorNum(c.maxOpenShiftVersion)) })).filter((x) => x.hit);
+  let opCheck;
+  if (blockers.length) {
+    const first = minorTargets[0];
+    const now1 = blockers.filter((x) => x.hit === first);
+    const fmt = (l) => l.map(({ c, hit }) => `${c.name} (maximum ${c.maxOpenShiftVersion}; blocks the update to ${hit})`).join(", ");
+    opCheck = now1.length
+      ? check("operator-compat", "BLOCKED", "Operator compatibility", `Installed operators that do not allow the next minor: ${fmt(now1)}. Update each to a version that allows ${first} (change its channel if the channel is version-named) before that update.${blockers.length > now1.length ? ` Later on the route: ${fmt(blockers.filter((x) => x.hit !== first))}.` : ""}`)
+      : check("operator-compat", "WARNING", "Operator compatibility", `Not blocking the first update, but must be updated before a later one: ${fmt(blockers)}.`);
+  } else {
+    opCheck = attestedOr(plan, "operator-compat", "Operator compatibility", inv?.csvs
+      ? `${inv.csvs.length} installed operator version(s) read; none declares a maximum OpenShift version that blocks this route (${capped.length} declare one). That means OLM will not block the updates — it does not prove each operator is supported on every minor. Check version-named channels (for example OpenShift Data Foundation stable-4.y) and each operator's support statement, then confirm here.`
+      : opsImported
+        ? `${opsImported} installed operator(s) imported. Without their versions (CSV), Architect cannot read their maximum supported OpenShift version, so compatibility with each minor on the route is not verified. Check each operator's documentation and its Upgradeable condition before each minor update.`
+        : "No installed operators imported, and Architect cannot verify operator compatibility offline. Check each installed operator supports every minor on the route.");
+  }
   checks.push(opCheck);
 
   // Administrator-side prerequisites Architect cannot observe.
   checks.push(attestedOr(plan, "etcd-backup", "etcd backup", "Take and verify an etcd backup before the update (and before each minor step)."));
-  checks.push(attestedOr(plan, "api-removals", "Removed APIs", "Review APIRequestCount for APIs removed in the Kubernetes versions on this route."));
+  const kubeFrom = kubeNum(KUBE_FOR_MINOR[getMinorVersion(plan.current || "")]);
+  const kubeTo = Math.max(...minorTargets.map((m) => kubeNum(KUBE_FOR_MINOR[m])).filter(Number.isFinite), -1);
+  if (Array.isArray(inv?.apiRemovals) && kubeFrom != null && kubeTo > kubeFrom) {
+    const onRoute = inv.apiRemovals.filter((a) => { const k = kubeNum(a.removedInRelease); return k != null && k > kubeFrom && k <= kubeTo; });
+    const used = onRoute.filter((a) => a.requestCount > 0);
+    const range = `Kubernetes 1.${kubeFrom + 1}${kubeTo > kubeFrom + 1 ? `–1.${kubeTo}` : ""}`;
+    checks.push(used.length
+      ? check("api-removals", "BLOCKED", "Removed APIs", `Still in use (APIRequestCount, last 24 h) and removed in ${range} on this route: ${used.slice(0, 12).map((a) => `${a.name} (removed in ${a.removedInRelease}, ${a.requestCount} requests)`).join(", ")}${used.length > 12 ? ` and ${used.length - 12} more` : ""}. Find the clients and migrate them, then collect again.`)
+      : check("api-removals", "VERIFIED", "Removed APIs", `No requests in the last 24 h (APIRequestCount) to an API removed in ${range}${onRoute.length ? ` (${onRoute.length} such API(s) exist, all unused)` : ""}. Clients that run less often than daily do not show here.`));
+  } else checks.push(attestedOr(plan, "api-removals", "Removed APIs", "Review APIRequestCount for APIs removed in the Kubernetes versions on this route."));
   const reaches422 = (path?.hops || []).some((h) => getMinorVersion(h.to) === "4.22" && getMinorVersion(h.from) === "4.21");
-  if (reaches422) checks.push(attestedOr(plan, "admin-acks", "Administrator acknowledgements", "The 4.21 → 4.22 update can require an administrator acknowledgement (for example Azure and vSphere clusters without managed boot images). Check `oc get configmap admin-gates -n openshift-config-managed -o yaml` and give the required acknowledgements."));
+  if (Array.isArray(inv?.adminGates) && crossesMinorHop) {
+    // The cluster lists only the gates of the minor it runs now; later minors' gates appear after reaching them.
+    const curMinor = getMinorVersion(inv.clusterVersion?.version || plan.current || "");
+    const relevant = inv.adminGates.filter((g) => g.key.startsWith(`ack-${curMinor}-`));
+    const open = relevant.filter((g) => !g.acknowledged);
+    if (open.length) checks.push(check("admin-acks", inv.adminAcksRead ? "BLOCKED" : "NOT_CHECKED", "Administrator acknowledgements", `${inv.adminAcksRead ? "Not yet acknowledged" : "Required (the bundle could not read admin-acks to see whether they were given)"}: ${open.map((g) => `${g.key} — ${g.description}`).join(" ")} Review each and acknowledge it (oc patch configmap admin-acks -n openshift-config) before the minor update.`));
+    else if (minorTargets.length === 1) checks.push(check("admin-acks", "VERIFIED", "Administrator acknowledgements", relevant.length ? `Every acknowledgement for leaving ${curMinor} was given (${relevant.map((g) => g.key).join(", ")}).` : `The cluster requires no acknowledgement for leaving ${curMinor}.`));
+    else checks.push(attestedOr(plan, "admin-acks", "Administrator acknowledgements", relevant.length
+      ? `Every acknowledgement for leaving ${curMinor} was given (${relevant.map((g) => g.key).join(", ")}). Later minors' acknowledgements appear only after the cluster reaches them; collect again then.`
+      : `The cluster requires no acknowledgement for leaving ${curMinor}. Later minors' acknowledgements appear only after the cluster reaches them; collect again then.`));
+  } else if (reaches422) checks.push(attestedOr(plan, "admin-acks", "Administrator acknowledgements", "The 4.21 → 4.22 update can require an administrator acknowledgement (for example Azure and vSphere clusters without managed boot images). Check `oc get configmap admin-gates -n openshift-config-managed -o yaml` and give the required acknowledgements."));
   if (plan.method === "osus") checks.push(attestedOr(plan, "osus-health", "OpenShift Update Service", "Confirm the update service answers and ClusterVersion's upstream points to it (see the OSUS instructions)."));
 
   // Content in the disconnected registry, per stage.

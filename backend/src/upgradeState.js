@@ -12,6 +12,7 @@
 import { normalizeRegistryReference } from "../../shared/registryReference.js";
 import crypto from "node:crypto";
 import { PLANNING_CHANNEL_RE, GRAPH_ARCHES, gaVersion } from "../../shared/upgradePath.js";
+import { redactText } from "./upgradeInventory.js";
 
 export const UPGRADE_SCHEMA = "oaa.upgrade.slice/v1";
 export const MAX_PLANS = 20;
@@ -95,14 +96,31 @@ const normalizeStage = (s, i) => ({
 
 const normalizeInventory = (inv) => {
   if (!inv || typeof inv !== "object") return null;
-  const op = (o) => ({ name: str(o?.name, 128), namespace: str(o?.namespace, 128), version: str(o?.version, 64), channel: str(o?.channel, 128), source: str(o?.source, 128), phase: str(o?.phase, 64) });
+  const minor = (v) => (typeof v === "string" && /^4\.\d{1,2}$/.test(v) ? v : null);
+  const op = (o) => ({ name: str(o?.name, 128), namespace: str(o?.namespace, 128), version: str(o?.version, 64), channel: str(o?.channel, 128), source: str(o?.source, 128), phase: str(o?.phase, 64),
+    ...(o?.csvPhase !== undefined ? { csvPhase: str(o.csvPhase, 64) } : {}), ...(o?.maxOpenShiftVersion !== undefined ? { maxOpenShiftVersion: minor(o.maxOpenShiftVersion) } : {}) });
+  const conds = (l) => (Array.isArray(l) ? l.slice(0, 32).map((c) => ({ type: str(c?.type, 64), status: str(c?.status, 16), reason: str(c?.reason, 128), message: redactText(c?.message, 1000) })) : []);
+  const SECTION_STATES = ["imported", "unavailable", "missing", "invalid"];
+  // Readiness-bundle fields (owner QA P4) are kept only when present, through the same allowlist.
+  const bundle = inv.source === "bundle" ? {
+    source: "bundle",
+    collector: str(inv.collector, 64),
+    collectedAt: iso(inv.collectedAt),
+    sections: Object.fromEntries(Object.entries(inv.sections && typeof inv.sections === "object" ? inv.sections : {}).filter(([k, v]) => /^[a-z]{2,32}$/.test(k) && SECTION_STATES.includes(v?.state)).slice(0, 16)
+      .map(([k, v]) => [k, { state: v.state, ...(v.reason ? { reason: str(v.reason, 300) } : {}), ...(Number.isFinite(v.count) ? { count: v.count } : {}) }])),
+    ...(Array.isArray(inv.clusterOperators) ? { clusterOperators: inv.clusterOperators.slice(0, 128).map((co) => ({ name: str(co?.name, 128), version: str(co?.version, 64), conditions: conds(co?.conditions) })) } : {}),
+    ...(Array.isArray(inv.csvs) ? { csvs: inv.csvs.slice(0, 500).map((c) => ({ name: str(c?.name, 128), namespace: str(c?.namespace, 128), version: str(c?.version, 64), phase: str(c?.phase, 64), maxOpenShiftVersion: minor(c?.maxOpenShiftVersion) })) } : {}),
+    ...(Array.isArray(inv.apiRemovals) ? { apiRemovals: inv.apiRemovals.slice(0, 500).map((a) => ({ name: str(a?.name, 200), removedInRelease: str(a?.removedInRelease, 16), requestCount: Number.isFinite(Number(a?.requestCount)) ? Number(a.requestCount) : 0 })) } : {}),
+    ...(Array.isArray(inv.adminGates) ? { adminGates: inv.adminGates.slice(0, 64).filter((g) => /^ack-[a-z0-9.-]{1,120}$/.test(g?.key || "")).map((g) => ({ key: g.key, description: redactText(g?.description, 500), acknowledged: g?.acknowledged === true })), adminAcksRead: inv.adminAcksRead === true } : {})
+  } : {};
   return {
+    ...bundle,
     importedAt: iso(inv.importedAt),
     clusterVersion: inv.clusterVersion ? {
       version: version(inv.clusterVersion.version),
       channel: str(inv.clusterVersion.channel, 64),
       upstreamConfigured: Boolean(inv.clusterVersion.upstreamConfigured),
-      conditions: Array.isArray(inv.clusterVersion.conditions) ? inv.clusterVersion.conditions.slice(0, 32).map((c) => ({ type: str(c?.type, 64), status: str(c?.status, 16), reason: str(c?.reason, 128), message: str(c?.message, 1000) })) : [],
+      conditions: conds(inv.clusterVersion.conditions),
       conditionalUpdates: Array.isArray(inv.clusterVersion.conditionalUpdates) ? inv.clusterVersion.conditionalUpdates.slice(0, 200).map((u) => ({ version: version(u?.version), recommended: str(u?.recommended, 16), reason: str(u?.reason, 128), risks: Array.isArray(u?.risks) ? u.risks.slice(0, 16).map((x) => str(x, 128)) : [] })) : [],
       history: Array.isArray(inv.clusterVersion.history) ? inv.clusterVersion.history.slice(0, 50).map((h) => ({ version: version(h?.version), state: str(h?.state, 32), completionTime: iso(h?.completionTime) })) : []
     } : null,

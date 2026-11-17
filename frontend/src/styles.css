@@ -8341,3 +8341,27 @@ body[data-theme="dark"] .upgrade-route-strip { background: #0b1120; }
 .registry-cred-reveal { font-size: 0.8rem; flex-direction: row; align-items: center; gap: 6px; }
 .registry-cred-reveal input[type="checkbox"] { width: auto; padding: 0; margin: 0; background: none; border: none; box-shadow: none; }
 .upgrade-dl-status { font-size: 0.82rem; align-self: center; }
+
+/* Shared file drop zone (v2.3.0 owner QA P8): replaces native "Choose Files" controls. */
+.file-drop-zone {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  border: 1px dashed var(--border-color); border-radius: 8px; padding: 12px 14px;
+  background: var(--card-bg-subtle); margin: 8px 0;
+}
+.file-drop-zone[data-over="true"] { border-color: var(--accent-path); border-style: solid; }
+.file-drop-zone[data-disabled="true"] { opacity: 0.6; }
+.file-drop-zone-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }
+.file-drop-zone .field-helper { flex-basis: 100%; margin: 0; }
+
+/* Readiness: one evidence bundle and per-check guidance (owner QA P4/P5). */
+.upgrade-bundle-steps { margin: 8px 0 0; padding-left: 1.25rem; display: grid; gap: 10px; }
+.upgrade-bundle-steps > li > p { margin: 4px 0; }
+.upgrade-bundle-sections { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 6px 0 0; }
+.upgrade-guide { margin-top: 8px; border-left: 3px solid var(--border-color); padding: 2px 0 2px 12px; }
+.upgrade-guide dt { font-weight: 600; margin-top: 8px; }
+.upgrade-guide dd { margin: 2px 0 0; }
+.upgrade-guide pre { white-space: pre-wrap; word-break: break-word; margin: 4px 0; }
+.upgrade-guide ul { margin: 2px 0; padding-left: 1.1rem; }
+.upgrade-bundle { border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 14px; margin: 10px 0; background: var(--card-bg); }
+.upgrade-bundle h4 { margin: 0 0 4px; }
+.upgrade-bundle details { margin-top: 6px; }

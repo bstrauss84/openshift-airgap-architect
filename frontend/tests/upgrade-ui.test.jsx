@@ -210,9 +210,12 @@ describe("Instructions and readiness", () => {
     // The attestation checkbox sits beside its words (not a lone, stretched box).
     const box = screen.getByRole("checkbox", { name: /A current etcd backup exists/ });
     expect(box.closest("label").classList.contains("toggle-row")).toBe(true);
-    // Each evidence check opens the import with its kind preselected and the exact read-only command.
+    // Owner QA P4: each evidence check points to the one readiness bundle; one command's output
+    // stays available under Advanced, with the exact read-only command.
     const cvo = screen.getByText("Cluster version operator").closest("li");
-    fireEvent.click(within(cvo).getByRole("button", { name: "Import cluster evidence" }));
+    fireEvent.click(within(cvo).getByRole("button", { name: "Upload the readiness bundle" }));
+    expect(document.activeElement).toHaveTextContent("Download oaa-readiness-collector.sh");
+    fireEvent.click(screen.getByRole("button", { name: "Import one command's output…" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByLabelText("What you are importing", { selector: "select" })).toHaveValue("clusterversion");
     expect(within(dialog).getByText("oc get clusterversion version -o json")).toBeInTheDocument();

@@ -26,6 +26,8 @@ export const prepareStages = (id) => post(`/api/upgrade/plans/${id}/stages`, {})
 export const fetchReadiness = (id) => apiFetch(`/api/upgrade/plans/${id}/readiness`);
 export const importInventory = (id, kind, text) => post(`/api/upgrade/plans/${id}/inventory`, { kind, text });
 export const clearInventory = (id) => apiFetch(`/api/upgrade/plans/${id}/inventory`, { method: "DELETE" });
+export const importBundle = (id, text) => post(`/api/upgrade/plans/${id}/inventory/bundle`, { text });
+export const collectorScriptUrl = () => `${API_BASE}/api/upgrade/readiness-collector`;
 export const attest = (id, checkId, attested, note) => post(`/api/upgrade/plans/${id}/attest`, { checkId, attested, ...(note ? { note } : {}) });
 export const setClusterProgress = (id, stageId, state) => post(`/api/upgrade/plans/${id}/cluster-progress`, { stageId, state });
 export const fetchInstructions = (id, registry) => apiFetch(`/api/upgrade/plans/${id}/instructions${registry ? `?registry=${encodeURIComponent(registry)}` : ""}`);
