@@ -85,7 +85,18 @@ Every release the cluster passes through must be in your registry before its
 update. **Prepare N stage(s)** creates one **stage** per release (a Mirroring
 profile owned by the plan, one pinned release, that minor's operator catalog).
 
-- **Stage chips** choose which stage is shown below.
+- **Stage bar** (sticky under the route strip on wide screens): the stage
+  chips choose which stage is shown below; **Catalogs: n/N scanned** jumps to
+  the scan panel; **Import previous configuration…** is next to it.
+- **Stages always match the route.** Whether the prepared stages are stale is
+  derived from the route versus the stage releases on every read (not stored),
+  so any route change — current release, alternative route, conditional review,
+  target — shows "These stages were prepared for a different route" with the
+  prepared and required releases. Mirroring is blocked until they are prepared
+  again (sequences return `409 STAGES_STALE`). Re-preparing reports created,
+  reused, released and **carried** stages: a new stage takes the operators and
+  images of the released stage of the same minor (source
+  `upgrade:carried-from-<release>`), so a moved z-stream never empties a stage.
 - **Operators across the route** — one row per operator, one column per stage
   (its channel, or —), with its **category** (previously mirrored or selected,
   currently installed, new request, kept) and how that is known (imported preset
@@ -121,6 +132,13 @@ profile owned by the plan, one pinned release, that minor's operator catalog).
   channel is your selection only), … scanning, ! scan failed, ⚠ no version in the
   range, ✕ not in the catalog / channel missing. None of these is compatibility
   with your running cluster.
+- **Channel suggestions.** Each cell compares the stage's selected channel with
+  that stage's catalog listing from the Live catalog check (listed / listed ·
+  default / channel missing). **Check channels in every stage** runs each stage's
+  Live catalog check with the plan's pull secret. **Channel suggestions (N)**
+  lists proposed channels with the reason; only suggestions proven by the
+  listing are pre-ticked; **Apply** changes only the ticked rows and offers
+  **Undo**. Nothing is changed silently.
 - **Catalogs for this route** lists each distinct catalog minor once (all stages
   of a minor share one scan of the Red Hat, Certified and Community catalogs),
   why it is needed and whether it is cached. **Scan N catalog sets not yet
@@ -128,7 +146,12 @@ profile owned by the plan, one pinned release, that minor's operator catalog).
   **Stop** cancels the running jobs; a failure does not stop the next minor; each
   minor can be (re)scanned alone; the matrix updates as each finishes. Nothing is
   scanned without an explicit action; **Scan new stage catalogs automatically** is
-  an opt-in for this plan in this browser session. Copying operators to later
+  an opt-in for this plan in this browser session; it waits until every minor's
+  cache status is known, never rescans cached minors and tries each minor once
+  per session (a failed minor is not retried in a loop). A partly scanned minor
+  rescans only its missing catalogs. The server attaches a scan request to a
+  queued or running scan of the same catalog (minor, kind and image) instead of
+  starting another (`{jobs, reused}`). Copying operators to later
   stages reports what each target catalog's scan says about the copied channel
   and never replaces it.
 - **Import previous configuration…** (a compact dialog) loads earlier
@@ -155,12 +178,51 @@ States: **✓ Verified** (evidence), **✎ Your statement** (attested; never sho
 as verified), **⚠ Warning**, **✕ Blocked** (evidence of a problem), **○ To do**
 (work still to do in Architect, such as a stage not yet in the registry) and
 **? Not checked** (no evidence yet — missing optional evidence is not a
-failure). Evidence checks have **Import cluster evidence**, which opens the
-import with the right kind and its read-only command (`oc get clusterversion
+failure).
+
+**Check my cluster's readiness (one evidence bundle).** Architect never
+connects to a cluster. Download `oaa-readiness-collector.sh` (served by
+`GET /api/upgrade/readiness-collector`; plain bash, read it first), run it
+where `oc` is logged in (cluster-reader is enough; needs `jq`), and upload the
+one JSON file it writes. The script runs only `oc get` for ClusterVersion,
+ClusterOperators, MachineConfigPools, Subscriptions, CSVs (copies skipped;
+only `olm.maxOpenShiftVersion` kept from annotations), APIRequestCounts (only
+APIs scheduled for removal; totals only, no user names) and the
+`admin-gates` / `admin-acks` ConfigMaps. It never reads Secrets, pull secrets,
+tokens or the kubeconfig's contents, records no user name, cluster ID or
+server/upstream URL, masks credential-like text in condition messages, writes
+the file with mode 0600 and records an unreadable section only as
+`forbidden` / `not-found` / `failed`. The server projects every section
+through the same allowlists (and refuses kubeconfigs and Secrets); the upload
+**replaces** earlier evidence so every check reads one collection with one
+collection time. Sections the script could not read leave their checks
+**Not checked** — nothing is filled in.
+
+From the bundle: cluster version operator, Upgradeable, current version,
+**cluster operators** (unavailable/degraded → Blocked; `Upgradeable=False`
+blocks minor hops), machine config pools, **operator compatibility** (a CSV
+maximum below the next minor → Blocked; below a later minor → Warning; no
+maximum is never shown as support), **removed APIs** (requests in the last
+24 h to an API removed between the current and target Kubernetes versions —
+4.20 = 1.33, 4.21 = 1.34, 4.22 = 1.35 per each release's notes), **administrator
+acknowledgements** (gates for leaving the current minor; not acknowledged →
+Blocked; unreadable `admin-acks` → Not checked) and **evidence age** (older
+than a day → Warning). The etcd backup is never derived from evidence: it is
+the administrator's statement only, and Architect never asks for a restore
+test.
+
+**Advanced:** import one command's output at a time (`oc get clusterversion
 version -o json`, `oc get subscriptions.operators.coreos.com -A -o json`, `oc
-get csv -A -o json`, `oc get mcp -o json`). Only names, versions, channels,
-phases and conditions are kept; cluster ID, upstream URL, annotations and
-anything credential-like are discarded; kubeconfigs and Secrets are refused.
+get csv -A -o json`, `oc get mcp -o json`) when the script cannot run. These
+combine with each other but never with a bundle.
+
+**How to check** (every check): what it is, why it matters, exact commands
+(read-only unless marked — the admin-acks patch is marked as a cluster
+change), whether the bundle covers it, what success looks like, what to do if
+it fails, and the Red Hat book for the minor it applies to (book and section
+titles confirmed in openshift-docs `enterprise-4.20/4.21/4.22`; links open the
+book index, the section path names the page). See
+`docs/UPGRADE_OPERATOR_SEQUENCING.md` for operators across minors.
 
 ### A4. Mirror & transfer
 
@@ -333,7 +395,12 @@ removing its platform content, unlocking and deleting it (409
 `PROFILE_OWNED_BY_UPGRADE`); operator, image and run choices stay editable.
 A release that is only in fast (not stable) is refused for staging
 (`STAGE_RELEASE_NOT_IN_STABLE`). Re-preparing reuses matching stages and
-releases (never rewrites) a stage whose release left the route. Stage status
+releases (never rewrites) a stage whose release left the route; a new stage
+inherits that released same-minor stage's operators and additional images
+(`report.carried`). `stageRouteMismatch(plan)` derives `stagesStale` /
+`stagesMismatch {reason: route-changed | route-cleared, want, have, missing,
+extra}` on every read; sequence preview and start refuse a mismatched set
+(`409 STAGES_STALE`). Stage status
 comes only from evidence: mirrored to disk, transfer prepared/received, in the
 registry, registry verified (`verifyDestination`: oc-mirror's dry-run mapping,
 then a manifest fetch per image).
@@ -440,7 +507,8 @@ last stage.
 /api/upgrade/graph` · `POST /api/upgrade/graph/refresh|import` · `GET
 …/:id/targets` · `POST …/:id/solve` · `POST …/:id/stages` · `GET
 …/:id/deletion-preview` · `POST …/:id/sequence/preview|sequence` · `GET
-…/:id/readiness` · `POST|DELETE …/:id/inventory` · `POST …/:id/attest` · `POST
+…/:id/readiness` · `POST|DELETE …/:id/inventory` · `POST …/:id/inventory/bundle` ·
+`GET /api/upgrade/readiness-collector` · `GET …/:id/channel-evidence` · `POST …/:id/attest` · `POST
 …/:id/cluster-progress` · `GET …/:id/instructions` · `GET …/:id/artifacts` ·
 `GET …/:id/package.zip|package.json` · `POST /api/upgrade/import` · `POST
 …/:id/presets/analyze` · `POST …/:id/operator-intent` · `POST
@@ -449,7 +517,8 @@ last stage.
 · `POST /api/upgrade/explore` · `GET /api/start-over/preview`.
 
 Readiness checks carry `group` (`route` / `content` / `cluster`) and `action`
-(`{kind: "import", inventoryKind}` or `{kind: "step", step}`); `PENDING` marks a
+(`{kind: "import", inventoryKind}` — `"bundle"` for checks only the evidence
+bundle covers — or `{kind: "step", step}`); `PENDING` marks a
 to-do in Architect (it gates the instructions like `BLOCKED` but is not evidence
 of a problem).
 

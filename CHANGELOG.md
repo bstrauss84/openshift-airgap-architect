@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   downloads available before any update. "Import previous configuration…" replaces the Operators tab.
 - **Explore older releases** (Upgrade › Route): routes between releases from 4.1 to the newest supported minor from real
   edges of each step's stable channel, exploration only — nothing is generated for unsupported releases.
+- **Check my cluster's readiness** (Upgrade › Readiness): one read-only collector script (`oc get` only; no Secrets,
+  tokens, pull secrets, kubeconfig contents, user names, cluster ID or server URLs) and one uploaded file populate the
+  cluster checks, now including cluster operators, removed-API usage, administrator acknowledgements, operator
+  maximum OpenShift versions and evidence age. Individual exports stay available under Advanced. Every check has a
+  "How to check" guide with exact commands, success and failure guidance and version-matched Red Hat documentation.
+- Upgrade › Content: channel suggestions from each stage's own catalog listing, reviewed and applied with Undo;
+  "Check channels in every stage"; a compact sticky stage bar with catalog-scan status.
 - Mirror to mirror protects existing catalog tags: oc-mirror replaces a catalog tag's content (verified on the exact
   binary), so each existing or unchecked tag needs its own acknowledgement, or the plan writes catalogs under a
   plan-specific `targetTag`.
@@ -45,6 +52,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `POST /api/mirroring/start-over` is retired: 410 Gone, nothing changed (it had no UI caller).
 
 ### Fixed
+- Upgrade: stages prepared for an earlier route were shown and could be mirrored as the current route after the route
+  changed without a target change; staleness is now derived on every read, mirroring refuses a mismatched set, and
+  re-preparing carries the operators of a released same-minor stage into its replacement.
+- Upgrade: catalog scans restarted on revisits and duplicated (automatic scanning before the cache status loaded, no
+  in-flight guard, failed minors retried); the server also reuses a running scan of the same catalog.
+- Upgrade: the stage's "Download it" was enabled for a stage that could not generate; it now says why and enables
+  itself when the stage becomes valid. The registry credential helper no longer looks like a login form to browser
+  password managers.
 - **N4:** every oc-mirror run path re-applies the preflight's destination-credential and trust rules on the server;
   anonymous destination access is an explicit choice (`destinationAuth: "anonymous"`).
 - Runs also enforce the preflight's **source (Red Hat) pull-secret** rule on the server for Red Hat content; disk to

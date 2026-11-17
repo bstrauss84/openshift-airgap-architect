@@ -111,6 +111,10 @@ const newPlan = async () => {
 const byId = (checks) => Object.fromEntries(checks.map((c) => [c.id, c]));
 
 describe("the collector script", () => {
+  test("jq is available (the collector and these tests need it, like the release tooling and CI)", () => {
+    assert.ok(hasJq, "install jq to run the collector tests");
+  });
+
   test("contains only read-only oc calls", () => {
     // Executable lines only (comments and messages printed to the user are not commands).
     const code = fs.readFileSync(SCRIPT, "utf8").split("\n").filter((l) => !/^\s*#/.test(l) && !/\becho\b/.test(l)).join("\n");
@@ -130,7 +134,7 @@ describe("the collector script", () => {
     assert.equal(r.text, fs.readFileSync(SCRIPT, "utf8"));
   });
 
-  test("keeps no credential-bearing or identifying values, and classifies an unreadable section", { skip: !hasJq && "jq not installed" }, () => {
+  test("keeps no credential-bearing or identifying values, and classifies an unreadable section", () => {
     const { text, mode, stderr } = runCollector();
     assert.equal(mode, 0o600, "written readable by the owner only");
     assert.ok(!text.includes(CANARY), "no canary from env values, annotations, cluster ID, upstream, user names, error text");
@@ -150,7 +154,7 @@ describe("the collector script", () => {
 });
 
 describe("uploading one bundle", () => {
-  test("populates every applicable check from evidence, reports what it could not read, and invents nothing", { skip: !hasJq && "jq not installed" }, async () => {
+  test("populates every applicable check from evidence, reports what it could not read, and invents nothing", async () => {
     const p = await newPlan();
     const { text } = runCollector();
     const r = await api("POST", `/api/upgrade/plans/${p.id}/inventory/bundle`, { text });
@@ -179,7 +183,7 @@ describe("uploading one bundle", () => {
     assert.ok(!JSON.stringify((await api("GET", "/api/upgrade")).json).includes(CANARY));
   });
 
-  test("a healthy cluster's bundle verifies; an operator without a declared maximum is not claimed supported", { skip: !hasJq && "jq not installed" }, async () => {
+  test("a healthy cluster's bundle verifies; an operator without a declared maximum is not claimed supported", async () => {
     const raw = rawCluster();
     raw.clusteroperators.items[1].status.conditions = [cond("Available", "True"), cond("Degraded", "False"), cond("Upgradeable", "True")];
     raw.csv.items[0].metadata.annotations = {};
@@ -212,7 +216,7 @@ describe("uploading one bundle", () => {
     assert.equal((await api("GET", "/api/upgrade")).json.plans[0].inventory, null, "nothing saved");
   });
 
-  test("an individual import after a bundle starts the evidence over instead of mixing timestamps", { skip: !hasJq && "jq not installed" }, async () => {
+  test("an individual import after a bundle starts the evidence over instead of mixing timestamps", async () => {
     const p = await newPlan();
     await api("POST", `/api/upgrade/plans/${p.id}/inventory/bundle`, { text: runCollector().text });
     const r = await api("POST", `/api/upgrade/plans/${p.id}/inventory`, { kind: "mcp", text: JSON.stringify(rawCluster().mcp) });

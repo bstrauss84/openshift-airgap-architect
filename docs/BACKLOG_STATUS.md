@@ -66,6 +66,22 @@ RFC rev 2 and final authorization (2026-11-06); contract and user guide in `docs
   evidence. Tests: `frontend/tests/upgrade-yaml-preview.test.jsx`, `upgrade-operator-matrix.test.jsx`,
   `backend/test/upgrade-ux-plan-mirror.test.js` (preview = artifact = package parity; copy evidence). Live Red Hat
   catalog scanning remains unverified (no authorized pull secret).
+- **Owner QA round 3 (2026-11-17, `done_pending_verification`; owner walkthrough pending):** P0 stage set derived
+  from the route on every read (root cause: only a target change stored `stagesStale`; eight route recomputes left a
+  two-stage set looking current), sequences refuse it (`409 STAGES_STALE`), re-preparing carries a released
+  same-minor stage's operators (root cause of "stage 1 has 0 operators": the z-stream moved 4.20.44 → 4.20.46 and a new
+  empty profile was created); P1 scans deduplicated by catalog identity on the server and started only after cache
+  status loads, once per minor per session; P2 per-stage channel evidence from the Live catalog check listing with
+  reviewable suggestions (pre-ticked only when proven) and Undo; P3 `docs/UPGRADE_OPERATOR_SEQUENCING.md`; P4 one
+  read-only readiness evidence bundle (collector script + one upload; new checks: cluster operators, removed APIs,
+  admin acks, operator max version, evidence age); P5 "How to check" guide per check; P6 registry helper secret field
+  masked text (no password/username login signal; Chrome 157 verified, not a guarantee); P7 stage download disabled
+  with its reason; P8 sticky stage bar, scans first, one-intro import dialog with the shared `FileDropZone`. Tests:
+  `backend/test/upgrade-qa3-route-stages.test.js`, `upgrade-qa3-scan-dedupe.test.js`,
+  `upgrade-qa3-readiness-bundle.test.js`; `frontend/tests/upgrade-qa3-scan-triggers.test.jsx`,
+  `upgrade-qa3-channels.test.jsx`, `upgrade-qa3-readiness.test.jsx`, `upgrade-yaml-preview.test.jsx`,
+  `upgrade-ui.test.jsx`, `registry-credential-helper.test.jsx`. Finding (b) below is partly addressed (declared
+  maximums are now read from the bundle).
 - **Findings queue (unnumbered; not fixed in this tranche):**
   - (a) **fixed in the correction pass:** the run contract now enforces the source (Red Hat) pull-secret rule
     (fail-first `backend/test/source-credential-run-contract.test.js`, 3/5 on aee6a32).
