@@ -35,8 +35,10 @@ const prepareDocs = (m) => (m.targets.length ? m.targets : [m.current]).filter(B
  */
 export function guideFor(id, plan) {
   const m = routeMinors(plan);
-  const cur = m.current || "4.20";
-  const cli = docLink(cur, "updating_clusters", "Performing a cluster update › Updating a cluster using the CLI");
+  // No minor known (no current release yet): version-specific links are skipped, never defaulted.
+  const cur = m.current;
+  const at = (minor, book, section) => (minor ? [docLink(minor, book, section)] : []);
+  const cli = at(cur, "updating_clusters", "Performing a cluster update › Updating a cluster using the CLI");
   if (id === "cvo-health" || id === "current-version") return {
     what: id === "cvo-health" ? "The cluster version operator (CVO) runs every update. This checks it reports the cluster as available and not failing." : "Confirms the cluster really runs the release the plan starts from.",
     why: id === "cvo-health" ? "An update started while the CVO reports Failing, or while another update is still in progress, can stall halfway." : "The route, the stages and the instructions are all computed from the starting release. A different release means a different route.",
@@ -44,7 +46,7 @@ export function guideFor(id, plan) {
     commands: [{ cmd: "oc get clusterversion" }, { cmd: "oc adm upgrade", note: "read-only without arguments: shows the current version, channel and conditions" }],
     success: id === "cvo-health" ? "AVAILABLE is True, PROGRESSING is False, and there is no Failing condition." : `VERSION shows ${plan?.current || "the plan's current release"}.`,
     failure: id === "cvo-health" ? "Run `oc describe clusterversion version` and read the Failing condition's message; it names the component at fault. Fix that first. Do not start the update." : "Change the current release on the Route step, compute the route again and prepare the stages again.",
-    docs: [cli]
+    docs: [...cli]
   };
   if (id === "cvo-upgradeable") return {
     what: "The Upgradeable condition on ClusterVersion. When it is False, the cluster refuses to start a minor update (4.y to 4.y+1).",
@@ -53,7 +55,7 @@ export function guideFor(id, plan) {
     commands: [{ cmd: "oc adm upgrade" }, { cmd: "oc get clusterversion version -o jsonpath='{.status.conditions[?(@.type==\"Upgradeable\")]}{\"\\n\"}'" }],
     success: "No Upgradeable condition, or Upgradeable=True.",
     failure: "The reason and message name the cause (often an operator or an acknowledgement). Resolve it; updates within the same minor (z-stream) are still allowed meanwhile.",
-    docs: [...prepareDocs(m), cli]
+    docs: [...prepareDocs(m), ...cli]
   };
   if (id === "cluster-operators") return {
     what: "Every cluster operator (the components that make up OpenShift) is available, not degraded and not blocking updates.",
@@ -62,7 +64,7 @@ export function guideFor(id, plan) {
     commands: [{ cmd: "oc get clusteroperators" }],
     success: "Every row: AVAILABLE True, PROGRESSING False, DEGRADED False.",
     failure: "Run `oc describe clusteroperator <name>` for each problem row and follow its message. For olm with Upgradeable=False, an installed operator does not allow the next minor (see Operator compatibility).",
-    docs: [cli]
+    docs: [...cli]
   };
   if (id === "mcp-health" || id === "cpo-topology") return {
     what: id === "mcp-health" ? "Machine config pools group nodes that receive the same operating-system configuration. This checks none is degraded, paused or still updating." : "A Control Plane Only update pauses every pool except master, so the cluster needs separate worker pools.",
@@ -71,7 +73,7 @@ export function guideFor(id, plan) {
     commands: [{ cmd: "oc get mcp" }, { cmd: "oc get nodes" }],
     success: "Every pool: UPDATED True, UPDATING False, DEGRADED False, and the machine counts match.",
     failure: "Run `oc describe mcp <name>` to see which node and why. Fix the node (often a failed configuration or a drain blocked by a PodDisruptionBudget) before updating.",
-    docs: [cli, ...(id === "cpo-topology" ? [docLink(cur, "updating_clusters", "Performing a cluster update › Performing a Control Plane Only update")] : [])]
+    docs: [...cli, ...(id === "cpo-topology" ? at(cur, "updating_clusters", "Performing a cluster update › Performing a Control Plane Only update") : [])]
   };
   if (id === "operator-compat") return {
     what: "Each installed OLM operator must allow the next OpenShift minor before that minor's update. Operators do not have to be updated at every step — only those that block the next minor or whose channel is named after an OpenShift version.",
@@ -84,7 +86,7 @@ export function guideFor(id, plan) {
     ],
     success: "olm is Upgradeable, no installed operator's maximum is below the next minor, and every operator with a version-named channel (for example OpenShift Data Foundation stable-4.y) has a channel for it in the next stage's catalog.",
     failure: "Update the operator first (change its channel if the channel is version-named, then approve the update if it uses Manual approval), from the content mirrored for that stage. Some operators are updated right after each platform minor instead (for example OpenShift Virtualization and OpenShift Data Foundation) — follow that operator's documentation.",
-    docs: [docLink(m.next || cur, "operators", "Administrator tasks › Updating installed Operators"), ...prepareDocs(m)]
+    docs: [...at(m.next || cur, "operators", "Administrator tasks › Updating installed Operators"), ...prepareDocs(m)]
   };
   if (id === "api-removals") return {
     what: "Each Kubernetes version removes some old API versions. This checks no client still uses an API that is removed by a release on this route.",
@@ -125,7 +127,7 @@ export function guideFor(id, plan) {
     success: "The script reports a snapshot_<timestamp>.db and a static_kuberesources_<timestamp>.tar.gz. Copy both off the node to safe storage.",
     failure: "Do not start the update without a backup. Fix what the script reports (often disk space on the node) and take it again.",
     caution: "Architect never takes, checks or restores a backup, and never asks you to restore one to test it. Restoring a production cluster is a disaster-recovery procedure, not a check. This item is your statement only and is always shown as such. The static_kuberesources archive can contain etcd encryption keys: store it securely.",
-    docs: [docLink(cur, "etcd", "Backing up and restoring etcd data › Backing up etcd")]
+    docs: at(cur, "etcd", "Backing up and restoring etcd data › Backing up etcd")
   };
   if (id === "evidence-age") return {
     what: "How old the uploaded cluster evidence is.",
@@ -143,7 +145,7 @@ export function guideFor(id, plan) {
     commands: [{ cmd: "oc get clusterversion version -o jsonpath='{.spec.upstream}{\"\\n\"}'" }, { cmd: "oc adm upgrade", note: "lists the updates the cluster receives from it" }],
     success: "upstream points to your OSUS graph URL and `oc adm upgrade` lists the next release on the route.",
     failure: "Follow the OSUS instructions on the Update the cluster step (graph data image, policy engine route, CA trust).",
-    docs: [docLink(cur, "disconnected_environments", "Updating a cluster in a disconnected environment › Updating a cluster in a disconnected environment using OSUS")]
+    docs: at(cur, "disconnected_environments", "Updating a cluster in a disconnected environment › Updating a cluster in a disconnected environment using OSUS")
   };
   if (id === "cpo-pause-window" || id === "eus-entitlement") return {
     what: id === "eus-entitlement" ? "Control Plane Only updates between even minors rely on Extended Update Support for those releases." : "During a Control Plane Only update, worker pools stay paused across two minors.",
@@ -152,7 +154,7 @@ export function guideFor(id, plan) {
     commands: [{ cmd: "oc get mcp", note: "shows which pools are paused" }],
     success: "You confirmed it against the documentation and your subscription.",
     failure: "Use a standard update instead.",
-    docs: [docLink(cur, "updating_clusters", "Performing a cluster update › Performing a Control Plane Only update")]
+    docs: at(cur, "updating_clusters", "Performing a cluster update › Performing a Control Plane Only update")
   };
   return null;
 }
