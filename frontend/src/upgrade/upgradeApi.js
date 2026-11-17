@@ -49,3 +49,5 @@ export const exploreRoute = (body) => post("/api/upgrade/explore", body);
 export const startCatalogScan = (body) => post("/api/operators/scan", body);
 /** Cached scan results for one catalog minor (all three catalogs). */
 export const fetchCatalogStatus = (minor) => apiFetch(`/api/operators/status?version=${encodeURIComponent(minor)}`);
+/** What each stage catalog is known to list for each selected operator (cached Live-check listings; read-only). */
+export const fetchChannelEvidence = (id) => apiFetch(`/api/upgrade/plans/${id}/channel-evidence`);

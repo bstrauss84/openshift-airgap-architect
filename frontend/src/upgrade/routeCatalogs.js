@@ -80,13 +80,22 @@ const liveCheck = (op) => {
  * @returns {{ state: string, mark: string, label: string, detail: string }}
  *   state is a readiness-style token for styling: VERIFIED | BLOCKED | WARNING | NOT_CHECKED | PENDING
  */
-export function cellEvidence(op, minor, status, scan) {
+export function cellEvidence(op, minor, status, scan, details = null) {
   const ch = op.defaultChannel || null;
   const live = liveCheck(op);
-  if (live?.status === "verified") return { state: "VERIFIED", mark: "✓", label: "verified", detail: `Live catalog check: ${op.name}${ch ? ` channel ${ch}` : ""} is in the ${minor} catalog.` };
-  if (live?.status === "channel-not-found") return { state: "BLOCKED", mark: "✕", label: "channel missing", detail: `Live catalog check: the ${minor} catalog has ${op.name}, but not channel ${ch}. Choose another channel for this stage.` };
+  // The package listing the Live catalog check cached for THIS catalog image: every channel and the default.
+  const listing = details?.listing || null;
+  const listed = listing ? listing.channels.map((c) => c.name) : null;
+  const def = listing?.defaultChannel || null;
+  if (live?.status === "verified") return { state: "VERIFIED", mark: "✓", label: ch && def === ch ? "verified · default" : "verified", detail: `Live catalog check: ${op.name}${ch ? ` channel ${ch}` : ""} is in the ${minor} catalog.${listed ? ` Channels listed: ${listed.join(", ")}${def ? ` (default ${def})` : ""}.` : ""}` };
+  if (live?.status === "channel-not-found") return { state: "BLOCKED", mark: "✕", label: "channel missing", detail: `Live catalog check: the ${minor} catalog has ${op.name}, but not channel ${ch}.${listed ? ` Channels listed: ${listed.join(", ")}.` : ""} Choose another channel for this stage.`, ...(def ? { suggest: { channel: def, proven: true, why: `${ch} is not listed in the ${minor} catalog; ${def} is its default channel there` } } : {}) };
   if (live?.status === "package-not-found") return { state: "BLOCKED", mark: "✕", label: "not in catalog", detail: `Live catalog check: ${op.name} is not in the ${minor} catalog.` };
   if (live?.status === "range-empty") return { state: "WARNING", mark: "⚠", label: "no version in range", detail: `Live catalog check: no ${op.name} version in the chosen range in the ${minor} catalog.` };
+  // A cached listing without a current live verdict (e.g. the channel changed since the check).
+  if (listing && ch) {
+    if (listed.includes(ch)) return { state: "VERIFIED", mark: "✓", label: ch === def ? "listed · default" : "listed", detail: `The ${minor} catalog lists ${op.name} channel ${ch} (channels: ${listed.join(", ")}; default ${def || "unknown"}), from its last Live catalog check.` };
+    return { state: "BLOCKED", mark: "✕", label: "channel missing", detail: `The ${minor} catalog does not list ${op.name} channel ${ch} (channels: ${listed.join(", ")}).`, ...(def ? { suggest: { channel: def, proven: true, why: `${ch} is not listed in the ${minor} catalog; ${def} is its default channel there` } } : {}) };
+  }
   if (scan?.state === "running") return { state: "PENDING", mark: "…", label: "scanning", detail: `The ${minor} catalogs are being scanned.` };
   const at = scannedAt(status);
   if (!at) {
@@ -97,7 +106,7 @@ export function cellEvidence(op, minor, status, scan) {
   if (!hit) return { state: "BLOCKED", mark: "✕", label: "not in catalog", detail: `${op.name} is not in the scanned ${catalogKindLabel(op.catalog || "redhat")} catalog for ${minor}.` };
   if (!ch) return { state: "NOT_CHECKED", mark: "?", label: "no channel", detail: `${op.name} is in the ${minor} catalog (default channel ${hit.defaultChannel || "unknown"}); no channel is chosen for this stage yet.` };
   if (ch === hit.defaultChannel) return { state: "VERIFIED", mark: "✓", label: "default channel", detail: `Scanned ${minor} catalog: ${ch} is ${op.name}'s default channel.` };
-  return { state: "NOT_CHECKED", mark: "?", label: "channel not checked", detail: `${op.name} is in the ${minor} catalog, whose default channel is ${hit.defaultChannel || "unknown"}. Whether ${ch} exists there is not known from a scan: run the Live catalog check for this stage.` };
+  return { state: "NOT_CHECKED", mark: "?", label: "channel not checked", detail: `${op.name} is in the ${minor} catalog, whose default channel is ${hit.defaultChannel || "unknown"}. Whether ${ch} exists there is not known from a scan: use “Check channels in every stage”.`, ...(hit.defaultChannel ? { suggest: { channel: hit.defaultChannel, proven: false, why: `the ${minor} catalog's default channel is ${hit.defaultChannel}; whether ${ch} exists there is not yet checked` } } : {}) };
 }
 
 /** Why this operator is in a stage, from its recorded sources (never a guess about installation). */

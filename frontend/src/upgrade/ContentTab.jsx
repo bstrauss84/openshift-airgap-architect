@@ -19,12 +19,14 @@ import Modal from "../components/Modal.jsx";
 import CollapsibleSection from "../components/CollapsibleSection.jsx";
 import OperatorsSection from "../mirroring/OperatorsSection.jsx";
 import AdditionalImagesEditor from "../mirroring/AdditionalImagesEditor.jsx";
-import { fetchMirroring, updateProfile } from "../mirroring/mirroringApi.js";
+import { fetchMirroring, updateProfile, verifyCatalogs, fetchJob } from "../mirroring/mirroringApi.js";
+import { useSourceCredential } from "../mirroring/sourceCredentialSession.js";
 import PresetImporter, { CATEGORY_LABEL, CONFIDENCE_LABEL, SOURCE_TO_KIND } from "./OperatorsTab.jsx";
 import RouteCatalogScan from "./RouteCatalogScan.jsx";
 import { buildScanPlan, cellEvidence, provenanceOf, scannedAt } from "./routeCatalogs.js";
-import { prepareStages, saveOperatorIntent, copyStageOperators, fetchStageConfig, fetchCatalogStatus } from "./upgradeApi.js";
+import { prepareStages, saveOperatorIntent, copyStageOperators, fetchStageConfig, fetchCatalogStatus, fetchChannelEvidence } from "./upgradeApi.js";
 
+export const checkTiming = { pollMs: 1500 };
 export const downloadText = (name, text, type = "application/yaml") => {
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = document.createElement("a");
@@ -46,13 +48,15 @@ const UNCLASSIFIED = "";
  * category; categories already set are kept unless "Also replace categories already set" is on;
  * every bulk change can be undone.
  */
-function OperatorMatrix({ plan, views, profiles, readOnly, onSaveIntent, statusByMinor, scans }) {
+function OperatorMatrix({ plan, views, profiles, readOnly, onSaveIntent, statusByMinor, scans, detailsFor = () => null, onApplyChannels = null }) {
   const [filter, setFilter] = useState("");
   const [catFilter, setCatFilter] = useState("all");
   const [picked, setPicked] = useState(() => new Set());
   const [bulkCategory, setBulkCategory] = useState("installed");
   const [overwrite, setOverwrite] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  const [suggestPicked, setSuggestPicked] = useState(null);
+  const [channelFeedback, setChannelFeedback] = useState(null);
   const rows = useMemo(() => {
     const byKey = new Map();
     views.forEach((v, col) => {
@@ -175,7 +179,7 @@ function OperatorMatrix({ plan, views, profiles, readOnly, onSaveIntent, statusB
                   </td>
                   {r.cells.map((op, i) => {
                     if (!op) return <td key={views[i].id}><span className="subtle" aria-label="not selected for this stage">—</span></td>;
-                    const ev = cellEvidence(op, views[i].minor, statusByMinor[views[i].minor], scans[views[i].minor]);
+                    const ev = cellEvidence(op, views[i].minor, statusByMinor[views[i].minor], scans[views[i].minor], detailsFor(op));
                     return (
                       <td key={views[i].id} className="upgrade-matrix-cell">
                         <span className="upgrade-cell-mark" data-state={ev.state} title={ev.detail} aria-hidden="true">{ev.mark}</span>
@@ -192,6 +196,46 @@ function OperatorMatrix({ plan, views, profiles, readOnly, onSaveIntent, statusB
         </table>
       </div>
       {shown.length < rows.length ? <p className="subtle">{rows.length - shown.length} operator(s) hidden by the filter; the selection includes shown operators only.</p> : null}
+      {(() => {
+        // Channel suggestions from catalog evidence only; nothing changes until the user applies them.
+        const suggestions = [];
+        rows.forEach((r) => r.cells.forEach((op, i) => {
+          if (!op) return;
+          const ev = cellEvidence(op, views[i].minor, statusByMinor[views[i].minor], scans[views[i].minor], detailsFor(op));
+          if (ev.suggest && ev.suggest.channel !== op.defaultChannel) suggestions.push({ key: `${views[i].id}|${r.key}`, stage: views[i], profileId: views[i].linkedProfileId, row: r, op, ...ev.suggest });
+        }));
+        if (!suggestions.length && !channelFeedback) return null;
+        const picked = suggestPicked || new Set(suggestions.filter((x) => x.proven).map((x) => x.key));
+        const togglePick = (k) => { const n = new Set(picked); if (n.has(k)) n.delete(k); else n.add(k); setSuggestPicked(n); };
+        const apply = async () => {
+          const chosen = suggestions.filter((x) => picked.has(x.key));
+          const undo = await onApplyChannels(chosen.map((x) => ({ profileId: x.profileId, name: x.op.name, channel: x.channel })));
+          setChannelFeedback({ text: `${chosen.length} channel(s) changed. Each stage's Live catalog check re-checks them.`, undo });
+          setSuggestPicked(null);
+        };
+        return (
+          <details className="upgrade-channel-suggest" open={suggestions.some((x) => x.proven)}>
+            <summary>Channel suggestions ({suggestions.length}) <span className="subtle">— from catalog evidence; nothing changes until you apply</span></summary>
+            {channelFeedback ? <p className="upgrade-matrix-feedback" role="status">{channelFeedback.text} {channelFeedback.undo ? <Button variant="secondary" className="mini" onClick={async () => { await onApplyChannels(channelFeedback.undo); setChannelFeedback({ text: "Channel changes undone.", undo: null }); }}>Undo</Button> : null}</p> : null}
+            {suggestions.length ? (
+              <>
+                <ul className="upgrade-check-list">
+                  {suggestions.map((x) => (
+                    <li key={x.key}>
+                      <label className="toggle-row">
+                        <input type="checkbox" checked={picked.has(x.key)} disabled={readOnly} onChange={() => togglePick(x.key)} />
+                        <span>Stage {x.stage.id.slice(1)} · <strong>{x.row.display}</strong>: {x.op.defaultChannel || "no channel"} → <strong>{x.channel}</strong> <span className="subtle">({x.why}; {provenanceOf(x.op.sources || []).join(", ")})</span></span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                {!readOnly && onApplyChannels ? <div className="actions"><Button variant="primary" className="mini" disabled={!picked.size} onClick={apply}>Apply {picked.size} channel change(s)</Button></div> : null}
+                <p className="subtle">Pre-ticked: channels a stage&apos;s catalog does not list. Others only differ from the catalog&apos;s default channel, which is not evidence they are wrong — tick them if you want the default.</p>
+              </>
+            ) : null}
+          </details>
+        );
+      })()}
       <details className="upgrade-matrix-legend">
         <summary>What the marks mean</summary>
         <ul>
@@ -213,6 +257,7 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
   // Report every loaded or saved stage profile to the shell (live YAML preview), without re-running loads.
   const seenRef = useRef(onProfilesSeen);
   seenRef.current = onProfilesSeen;
+  const loadEvidenceRef = useRef(null);
   const [selected, setSelected] = useState(plan.stages[0]?.id || null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -220,6 +265,15 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
   const [importOpen, setImportOpen] = useState(false);
   const [statusByMinor, setStatusByMinor] = useState({});
   const [statusLoaded, setStatusLoaded] = useState(() => new Set());
+  const [channelEvidence, setChannelEvidence] = useState({});
+  const [checkAll, setCheckAll] = useState(null);
+  const checkCred = useSourceCredential(credentialKey, "check");
+  const loadEvidence = useCallback(async () => {
+    try {
+      const r = await fetchChannelEvidence(plan.id);
+      setChannelEvidence(Object.fromEntries((r.evidence || []).map((e) => [`${e.catalogImage}|${e.name}`, e])));
+    } catch { /* evidence stays unknown */ }
+  }, [plan.id]);
   const [scans, setScans] = useState({});
   const received = plan.kind === "received";
   const stageMinors = [...new Set((plan.stageViews || []).map((v) => v.minor).filter(Boolean))];
@@ -227,6 +281,7 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
     try { const st = await fetchCatalogStatus(minor); setStatusByMinor((all) => ({ ...all, [minor]: st })); } catch { /* shown as not scanned */ }
     setStatusLoaded((all) => (all.has(minor) ? all : new Set([...all, minor])));
   }, []);
+  loadEvidenceRef.current = loadEvidence;
   const minorsKey = stageMinors.join(",");
   useEffect(() => { for (const m of stageMinors) loadStatus(m); }, [minorsKey, loadStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -235,6 +290,7 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
       const m = await fetchMirroring();
       setProfiles(Object.fromEntries((m.profiles || []).map((p) => [p.id, p])));
       seenRef.current?.(m.profiles || []);
+      loadEvidenceRef.current?.();
     } catch (err) {
       setError(`Could not load the stage profiles: ${String(err.message || err)}`);
     }
@@ -245,6 +301,48 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
   // The live YAML preview follows the stage shown here.
   useEffect(() => { if (selected && onStageShown) onStageShown(selected); }, [selected, onStageShown]);
 
+  /** Apply reviewed channel changes, per stage profile; returns the reverse changes (Undo). */
+  const applyChannels = async (changes) => {
+    setError("");
+    const undo = [];
+    const byProfile = new Map();
+    for (const c of changes) { if (!byProfile.has(c.profileId)) byProfile.set(c.profileId, []); byProfile.get(c.profileId).push(c); }
+    try {
+      for (const [pid, list] of byProfile) {
+        const p = profiles[pid];
+        if (!p) continue;
+        const selectedOps = p.operators.selected.map((o) => {
+          const c = list.find((x) => x.name === o.name);
+          if (!c || c.channel === o.defaultChannel) return o;
+          undo.push({ profileId: pid, name: o.name, channel: o.defaultChannel || null });
+          return { ...o, defaultChannel: c.channel };
+        });
+        replaceProfile(await updateProfile(pid, { operators: { selected: selectedOps } }));
+      }
+    } catch (err) { setError(String(err.message || err)); }
+    loadEvidence();
+    return undo;
+  };
+  /** The existing Live catalog check, run for every stage with operators, one stage at a time. */
+  const checkEveryStage = async () => {
+    if (!checkCred.usable) { setError("Enter the plan's Red Hat pull secret first (Catalogs for this route, below)."); return; }
+    const targets = (plan.stageViews || []).filter((v) => profiles[v.linkedProfileId]?.content?.operators && profiles[v.linkedProfileId].operators.selected.length);
+    setError("");
+    for (const v of targets) {
+      setCheckAll({ stage: v, message: `Checking stage ${v.id.slice(1)} (${v.release})…` });
+      try {
+        const { jobId } = await verifyCatalogs(v.linkedProfileId, checkCred.body);
+        for (let i = 0; i < 2000; i += 1) {
+          const j = await fetchJob(jobId);
+          if (["completed", "completed_with_warnings", "failed", "cancelled"].includes(j.status)) break;
+          await new Promise((r) => setTimeout(r, checkTiming.pollMs));
+        }
+      } catch (err) { setError(`Stage ${v.id.slice(1)}: ${String(err.message || err)}`); }
+    }
+    setCheckAll(null);
+    await loadProfiles();
+    loadEvidence();
+  };
   const prepare = async () => {
     setBusy("prepare");
     setError("");
@@ -361,11 +459,12 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
       {views.length ? (
         <section className="card" aria-labelledby={`upgrade-matrix-${plan.id}`}>
           <h3 id={`upgrade-matrix-${plan.id}`}>Operators across the route</h3>
-          <OperatorMatrix plan={plan} views={views} profiles={profiles} readOnly={received} onSaveIntent={saveIntent} statusByMinor={statusByMinor} scans={scans} />
+          <OperatorMatrix plan={plan} views={views} profiles={profiles} readOnly={received} onSaveIntent={saveIntent} statusByMinor={statusByMinor} scans={scans} detailsFor={(op) => channelEvidence[`${op.catalogImage}|${op.name}`] || null} onApplyChannels={applyChannels} />
           <div className="actions">
             {!received && stageIndex >= 0 && stageIndex < views.length - 1 ? (
               <Button variant="secondary" disabled={busy === "copy" || !profile?.operators?.selected?.length} onClick={() => copyLater(view.id)}>Copy stage {view.id.slice(1)}&apos;s operators to later stages</Button>
             ) : null}
+            {!received ? <Button variant="secondary" disabled={Boolean(checkAll)} onClick={checkEveryStage} title="Runs each stage's Live catalog check: does each selected channel (and version range) exist in that stage's own catalog?">{checkAll ? checkAll.message : "Check channels in every stage"}</Button> : null}
             {!received && plan.inventory?.operators?.length ? <Button variant="secondary" onClick={recordInstalled}>Record the {plan.inventory.operators.length} installed operator(s) from the cluster export</Button> : null}
           </div>
           <p className="subtle">Category is what you intend for each operator; the badge says how that is known. Nothing is classified for you: imported files, Quick Picks and catalog scans are never treated as proof of what is installed.</p>

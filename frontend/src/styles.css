@@ -8333,3 +8333,5 @@ body[data-theme="dark"] .upgrade-route-strip { background: #0b1120; }
 .upgrade-scan-why { font-size: 0.82rem; margin-top: 2px; }
 .upgrade-scan-details { font-size: 0.8rem; margin-top: 4px; }
 .upgrade-scan-details code { overflow-wrap: anywhere; }
+.upgrade-channel-suggest { margin-top: 10px; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg-subtle); }
+.upgrade-channel-suggest summary { cursor: pointer; font-weight: 600; }

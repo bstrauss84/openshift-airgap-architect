@@ -6107,6 +6107,33 @@ const upgradePackageInputs = (plan) => {
   return { readiness, instructions, snapshots, stages, tools };
 };
 
+/**
+ * GET …/channel-evidence — what each stage's catalog is known to list for each selected operator
+ * (v2.3.0 owner QA P2). Read-only, no network: the package listings the Live catalog check cached
+ * (all channels with their heads, the default channel, versions checked, when). Kept separate from
+ * the selection itself and from compatibility, which this does not establish.
+ */
+app.get("/api/upgrade/plans/:id/channel-evidence", (req, res) => {
+  const plan = readUpgradeSlice().plans.find((p) => p.id === req.params.id);
+  if (!plan) return res.status(404).json({ error: "No such upgrade plan.", code: "PLAN_NOT_FOUND" });
+  const profiles = readMirroringSlice().profiles;
+  const out = [];
+  for (const stage of plan.stages) {
+    const profile = stageProfileFor(plan, stage, profiles);
+    if (!profile?.content?.operators) continue;
+    for (const op of profile.operators.selected) {
+      if (!op.catalogImage) continue;
+      const d = getPackageDetails(op.catalogImage, op.name);
+      out.push({
+        stageId: stage.id, name: op.name, catalogImage: op.catalogImage, selected: op.defaultChannel || null,
+        listing: d?.listing ? { defaultChannel: d.listing.defaultChannel || null, channels: (d.listing.channels || []).map((c) => ({ name: c.name, head: c.head || null })) } : null,
+        checkedAt: d?.checkedAt || null
+      });
+    }
+  }
+  res.json({ evidence: out });
+});
+
 /** GET …/package.zip — the small planning hand-off (never archives, never credentials). */
 app.get("/api/upgrade/plans/:id/package.zip", (req, res) => {
   const plan = readUpgradeSlice().plans.find((p) => p.id === req.params.id);

@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 
 import { app } from "../src/index.js";
 import { createTestServer, closeTestServer } from "./helpers/httpServerLifecycle.js";
+import { db } from "../src/db.js";
 import { resetMirroringForTests, resetUpgradeForTests } from "./helpers/resetWorkflowsForTests.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -136,5 +137,24 @@ describe("conditional updates", () => {
     assert.deepEqual(staged.stages.map((s) => s.release), ["4.20.18", via, "4.22.22"], "the conditional release is a stage, not dropped");
     assert.equal(staged.stagesStale, false);
     assert.ok(staged.conditionalReview.acknowledgedRisks[0].at, "the acknowledgement is a timestamped administrator judgment");
+  });
+});
+
+describe("channel evidence (owner QA P2)", () => {
+  test("returns, per stage selection, what that stage's catalog listing says — read-only, nothing invented", async () => {
+    const p = await newPlan();
+    await solve(p.id);
+    const staged = (await api("POST", `/api/upgrade/plans/${p.id}/stages`, {})).json.plan;
+    const s2 = staged.stages[1].profileId;
+    assert.equal((await api("POST", `/api/mirroring/profiles/${s2}`, { content: { platform: true, operators: true, additionalImages: false }, operators: { selected: [{ ...OP("4.21"), defaultChannel: "stable-4.20" }] } })).status, 200);
+    db.prepare("DELETE FROM operator_package_details WHERE catalog_image = ?").run("registry.redhat.io/redhat/redhat-operator-index:v4.21");
+    db.prepare("INSERT INTO operator_package_details (catalog_image, package, details_json, updated_at) VALUES (?, ?, ?, ?)").run("registry.redhat.io/redhat/redhat-operator-index:v4.21", "odf-operator", JSON.stringify({ listing: { name: "odf-operator", defaultChannel: "stable-4.21", channels: [{ name: "stable-4.21", head: "odf-operator.v4.21.3" }] }, checkedAt: 123 }), Date.now());
+    try {
+      const r = await api("GET", `/api/upgrade/plans/${p.id}/channel-evidence`);
+      assert.equal(r.status, 200, r.text);
+      assert.deepEqual(r.json.evidence, [{ stageId: "s2", name: "odf-operator", catalogImage: "registry.redhat.io/redhat/redhat-operator-index:v4.21", selected: "stable-4.20", listing: { defaultChannel: "stable-4.21", channels: [{ name: "stable-4.21", head: "odf-operator.v4.21.3" }] }, checkedAt: 123 }]);
+    } finally {
+      db.prepare("DELETE FROM operator_package_details WHERE catalog_image = ?").run("registry.redhat.io/redhat/redhat-operator-index:v4.21");
+    }
   });
 });
