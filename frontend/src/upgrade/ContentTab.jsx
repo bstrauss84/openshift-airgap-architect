@@ -219,11 +219,13 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
   const [notice, setNotice] = useState("");
   const [importOpen, setImportOpen] = useState(false);
   const [statusByMinor, setStatusByMinor] = useState({});
+  const [statusLoaded, setStatusLoaded] = useState(() => new Set());
   const [scans, setScans] = useState({});
   const received = plan.kind === "received";
   const stageMinors = [...new Set((plan.stageViews || []).map((v) => v.minor).filter(Boolean))];
   const loadStatus = useCallback(async (minor) => {
     try { const st = await fetchCatalogStatus(minor); setStatusByMinor((all) => ({ ...all, [minor]: st })); } catch { /* shown as not scanned */ }
+    setStatusLoaded((all) => (all.has(minor) ? all : new Set([...all, minor])));
   }, []);
   const minorsKey = stageMinors.join(",");
   useEffect(() => { for (const m of stageMinors) loadStatus(m); }, [minorsKey, loadStatus]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -371,7 +373,7 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
       ) : null}
 
       {views.length && !received ? (
-        <RouteCatalogScan plan={plan} scanPlan={buildScanPlan(views, profiles, statusByMinor)} credentialKey={credentialKey} scans={scans} setScans={setScans} onScanned={loadStatus} />
+        <RouteCatalogScan plan={plan} scanPlan={buildScanPlan(views, profiles, statusByMinor, statusLoaded)} credentialKey={credentialKey} scans={scans} setScans={setScans} onScanned={loadStatus} />
       ) : null}
 
       {view ? (

@@ -2077,7 +2077,24 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
   // released when the LAST scan settles. Letting each child unlink it meant
   // the first one to finish deleted the credential the other two were still
   // passing to --authfile.
-  const catalogsToScan = getCatalogs();
+  // v2.3.0 owner QA P1: never download the same catalog twice at once. A scan already queued or
+  // running for this catalog image and minor (from any caller: a stage card, the route panel,
+  // another tab, before a reload) is returned instead of a new one. An optional `catalogs` subset
+  // retries only the catalogs that failed.
+  const wanted = getCatalogs().filter((c) => !Array.isArray(req.body?.catalogs) || req.body.catalogs.includes(c.id));
+  const inFlight = {};
+  for (const j of listJobsByType("operator-scan")) {
+    if (!["queued", "running"].includes(j.status)) continue;
+    const m = getJobMetadata(j.id);
+    if (m?.catalogMinor === catalogMinor && m.catalogId && wanted.some((c) => c.id === m.catalogId && c.image(catalogMinor) === m.catalogImage)) inFlight[m.catalogId] = j.id;
+  }
+  const reused = Object.keys(inFlight);
+  for (const id of reused) jobs[id] = inFlight[id];
+  const catalogsToScan = wanted.filter((c) => !inFlight[c.id]);
+  if (!catalogsToScan.length) {
+    if (tempAuthFile) safeUnlink(tempAuthFile);
+    return res.json({ jobs, reused });
+  }
   const releaseScanAuth = createSharedAuthRelease(tempAuthFile, catalogsToScan.length);
   // Mirroring scans are listed in Mirroring Operations; the three catalog jobs of
   // one request share a scanId. Install scans carry no workflow tag (unchanged).
@@ -2101,7 +2118,7 @@ app.post("/api/operators/scan", validateBody(operatorScanSchema), async (req, re
       logger.info({ tag: "operator-scan:job-created", requestId: req.requestId, jobId, catalogId: catalog.id, version: catalogMinor }, "Operator scan job created");
     }
   }
-  res.json({ jobs });
+  res.json({ jobs, reused });
 });
 
 app.post("/api/operators/prefetch", validateBody(operatorsPrefetchSchema), async (req, res) => {

@@ -33,7 +33,7 @@ export const partlyScanned = (status) => Boolean(status && CATALOG_KINDS.some((k
  * @param {Record<string, object>} profiles - stage profiles by id
  * @param {Record<string, object>} statusByMinor - GET /api/operators/status?version=<minor> results
  */
-export function buildScanPlan(views, profiles, statusByMinor = {}) {
+export function buildScanPlan(views, profiles, statusByMinor = {}, loaded = null) {
   const byMinor = new Map();
   for (const v of views || []) {
     if (!v?.minor) continue;
@@ -49,12 +49,17 @@ export function buildScanPlan(views, profiles, statusByMinor = {}) {
   return [...byMinor.values()].map((e) => {
     const status = statusByMinor[e.minor];
     const at = scannedAt(status);
+    // Until this minor's cache status has loaded, it is neither "scanned" nor "to scan" (owner QA P1:
+    // treating unknown as unscanned started automatic rescans of cached catalogs on every mount).
+    const checking = Boolean(loaded) && !loaded.has(e.minor);
     return {
       ...e,
       operators: [...e.operators].sort(),
       scannedAt: at,
       cached: Boolean(at),
+      checking,
       partial: !at && partlyScanned(status),
+      missingCatalogs: at ? [] : CATALOG_KINDS.filter((k) => !status?.[k]?.updatedAt),
       reason: e.operators.size
         ? `${e.stages.map((s) => `stage ${s.id.slice(1)} (${s.release})`).join(", ")}: ${e.operators.size} operator${e.operators.size === 1 ? "" : "s"} to check`
         : `${e.stages.map((s) => `stage ${s.id.slice(1)} (${s.release})`).join(", ")}: no operators yet — scan to browse and choose them`

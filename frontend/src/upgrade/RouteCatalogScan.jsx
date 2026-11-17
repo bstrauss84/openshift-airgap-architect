@@ -29,7 +29,9 @@ import { catalogKindLabel, CATALOG_KINDS } from "./routeCatalogs.js";
 export const scanTiming = { pollMs: 2000, jobTimeoutMs: 45 * 60 * 1000 };
 /** planId → true: the user allowed automatic scans of new stage catalogs (memory only). */
 const autoScanAllowed = new Map();
-export const _resetAutoScanForTests = () => autoScanAllowed.clear();
+/** planId → Set(minor): minors automatic scanning already tried this session (never retried in a loop). */
+const autoTried = new Map();
+export const _resetAutoScanForTests = () => { autoScanAllowed.clear(); autoTried.clear(); };
 
 const ago = (when) => {
   const ms = Date.now() - (typeof when === "number" ? when : Date.parse(when));
@@ -43,9 +45,10 @@ export default function RouteCatalogScan({ plan, scanPlan, credentialKey, scans,
   const cred = useSourceCredential(credentialKey, "scan");
   const [error, setError] = useState("");
   const [auto, setAuto] = useState(() => autoScanAllowed.get(plan.id) === true);
-  const runRef = useRef({ stop: false, jobs: [] });
+  const runRef = useRef({ stop: false, jobs: [], active: false });
   const running = Object.values(scans).some((s) => s.state === "running" || s.state === "queued");
-  const toScan = scanPlan.filter((e) => !e.cached);
+  const checking = scanPlan.some((e) => e.checking);
+  const toScan = scanPlan.filter((e) => !e.cached && !e.checking);
 
   const setScan = useCallback((minor, patch) => setScans((all) => ({ ...all, [minor]: { ...(all[minor] || {}), ...patch } })), [setScans]);
 
@@ -53,7 +56,10 @@ export default function RouteCatalogScan({ plan, scanPlan, credentialKey, scans,
     setScan(entry.minor, { state: "running", message: "Starting…", progress: 0, catalogs: {} });
     let jobs;
     try {
-      const body = { catalogMinor: entry.minor, ...(entry.profileId ? { profileId: entry.profileId } : {}), ...(cred.mounted ? { rhAuthSource: "mounted" } : { rhAuthSource: "inline", pullSecret: cred.secret }) };
+      // A partly scanned minor retries only its missing catalogs; the server attaches to any scan of
+      // the same catalog already running instead of starting another.
+      const subset = entry.partial && entry.missingCatalogs?.length && entry.missingCatalogs.length < CATALOG_KINDS.length ? { catalogs: entry.missingCatalogs } : {};
+      const body = { catalogMinor: entry.minor, ...subset, ...(entry.profileId ? { profileId: entry.profileId } : {}), ...(cred.mounted ? { rhAuthSource: "mounted" } : { rhAuthSource: "inline", pullSecret: cred.secret }) };
       jobs = (await startCatalogScan(body)).jobs || {};
     } catch (err) {
       setScan(entry.minor, { state: "failed", message: String(err.message || err) });
@@ -101,23 +107,35 @@ export default function RouteCatalogScan({ plan, scanPlan, credentialKey, scans,
 
   const run = useCallback(async (entries) => {
     if (!entries.length) return;
+    // One run at a time per panel: a second start (StrictMode double effect, double click,
+    // automatic + manual) is ignored instead of downloading the same catalogs again.
+    if (runRef.current.active) return;
     setError("");
     if (!cred.usable) { setError("Enter the Red Hat pull secret for this plan first."); return; }
-    runRef.current = { stop: false, jobs: [] };
+    runRef.current = { stop: false, jobs: [], active: true };
     for (const e of entries) setScan(e.minor, { state: "queued", message: "Waiting", progress: 0, catalogs: {} });
-    for (const e of entries) {
-      if (runRef.current.stop) { setScan(e.minor, { state: "cancelled", message: "Not started (stopped)." }); continue; }
-      await scanOne(e); // one minor at a time; a failure is recorded and the next minor still runs
+    try {
+      for (const e of entries) {
+        if (runRef.current.stop) { setScan(e.minor, { state: "cancelled", message: "Not started (stopped)." }); continue; }
+        await scanOne(e); // one minor at a time; a failure is recorded and the next minor still runs
+      }
+    } finally {
+      runRef.current.active = false;
     }
   }, [cred.usable, scanOne, setScan]);
 
   // Opt-in only: scan catalogs of new stages automatically for this plan in this session.
   const autoKey = toScan.map((e) => e.minor).join(",");
   useEffect(() => {
-    if (!auto || running || !cred.usable || !toScan.length) return;
-    const fresh = toScan.filter((e) => !scans[e.minor] || scans[e.minor].state === "cancelled");
-    if (fresh.length) run(fresh);
-  }, [auto, autoKey, cred.usable]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Only once every minor's cache status is known, and each minor at most once per session.
+    if (!auto || running || checking || !cred.usable || !toScan.length) return;
+    const tried = autoTried.get(plan.id) || new Set();
+    const fresh = toScan.filter((e) => !tried.has(e.minor));
+    if (!fresh.length) return;
+    for (const e of fresh) tried.add(e.minor);
+    autoTried.set(plan.id, tried);
+    run(fresh);
+  }, [auto, autoKey, checking, cred.usable]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stateText = (e) => {
     const s = scans[e.minor];
@@ -125,8 +143,9 @@ export default function RouteCatalogScan({ plan, scanPlan, credentialKey, scans,
     if (s?.state === "queued") return "Waiting to start";
     if (s?.state === "failed" || s?.state === "timeout") return `Failed: ${s.message}`;
     if (s?.state === "cancelled") return s.message;
+    if (e.checking) return "Checking the cache…";
     if (e.cached) return `Scanned ${ago(e.scannedAt)}`;
-    if (e.partial) return "Partly scanned — scan again";
+    if (e.partial) return `Partly scanned — ${e.missingCatalogs.map(catalogKindLabel).join(", ")} missing`;
     return "Not scanned";
   };
   const stateToken = (e) => {
@@ -149,7 +168,7 @@ export default function RouteCatalogScan({ plan, scanPlan, credentialKey, scans,
             <div className="upgrade-scan-row-main">
               <strong>OpenShift {e.minor}</strong>
               <span className="upgrade-badge" data-state={stateToken(e)}>{stateText(e)}</span>
-              {!running ? <Button variant="secondary" className="mini" disabled={!cred.usable} onClick={() => run([e])}>{e.cached ? "Rescan" : "Scan"}</Button> : null}
+              {!running && !e.checking ? <Button variant="secondary" className="mini" disabled={!cred.usable} onClick={() => run([e])}>{e.cached ? "Rescan" : e.partial ? "Scan missing" : "Scan"}</Button> : null}
             </div>
             <div className="subtle upgrade-scan-why">{e.reason}</div>
             <details className="upgrade-scan-details">
@@ -175,7 +194,9 @@ export default function RouteCatalogScan({ plan, scanPlan, credentialKey, scans,
           <Button variant="destructive" onClick={() => { runRef.current.stop = true; }}>Stop scanning</Button>
         )}
       </div>
-      <OptionRow title="Scan new stage catalogs automatically" description="For this plan, in this browser session only: when the route gains a stage whose catalogs are not scanned, scan them without asking again. Scans download several hundred megabytes per minor.">
+      <OptionRow title="Scan new stage catalogs automatically" description={auto
+        ? "On for this plan in this browser session: a stage minor whose catalogs are not cached is scanned once, without asking again. Cached catalogs are never rescanned automatically."
+        : "Off: nothing is scanned unless you click Scan. Turn on to scan, once, catalogs of new stage minors that are not cached (this plan, this browser session). Scans download several hundred megabytes per minor."}>
         <Switch checked={auto} disabled={!cred.usable} onChange={(on) => { setAuto(on); if (on) autoScanAllowed.set(plan.id, true); else autoScanAllowed.delete(plan.id); }} aria-label="Scan new stage catalogs automatically" />
       </OptionRow>
     </section>

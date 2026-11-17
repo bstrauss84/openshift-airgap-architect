@@ -191,6 +191,8 @@ export const operatorScanSchema = z.object({
   // explicit source credential choice, the same contract as runs and live checks.
   profileId: z.string().regex(/^p-[A-Za-z0-9_-]{1,64}$/).optional(),
   rhAuthSource: z.enum(["inline", "mounted"]).optional(),
+  // v2.3.0: retry only these catalogs (e.g. the one that failed); default all.
+  catalogs: z.array(z.enum(["redhat", "certified", "community"])).min(1).max(3).optional(),
 });
 
 // ===================================================================

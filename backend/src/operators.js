@@ -149,7 +149,10 @@ const runScanJob = ({
   catalogResolver = openVerifiedCatalog
 }) => {
   const jobId = createJob(jobType, message || `Scanning ${catalogId} operators...`);
-  if (metadata) updateJobMetadata(jobId, { ...metadata, catalogId, catalogImage, catalogMinor: version });
+  // Catalog identity is recorded on every scan job (never credentials) so a second request for the
+  // same catalog and minor can attach to it instead of downloading it again (v2.3.0 owner QA P1).
+  // No workflow tag is added unless the caller gave one, so reset classification is unchanged.
+  updateJobMetadata(jobId, { ...(metadata || {}), catalogId, catalogImage, catalogMinor: version });
 
   if (process.env.NODE_ENV !== "test") {
     logger.info({ tag: "operator-scan:start", jobId, catalogId, catalogImage, version, authProvided: !!authFile }, "Operator scan started");
