@@ -475,6 +475,16 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
             {!received && plan.inventory?.operators?.length ? <Button variant="secondary" onClick={recordInstalled}>Record the {plan.inventory.operators.length} installed operator(s) from the cluster export</Button> : null}
           </div>
           <p className="subtle">Category is what you intend for each operator; the badge says how that is known. Nothing is classified for you: imported files, Quick Picks and catalog scans are never treated as proof of what is installed.</p>
+          <details className="upgrade-op-sequencing">
+            <summary>Do operators need updating at every minor?</summary>
+            <p>No. Before each minor update, every installed operator must <em>allow</em> the next minor; the others may stay where they are. Plan an operator into a stage when:</p>
+            <ul>
+              <li>it declares a maximum OpenShift version below that stage&apos;s minor (OLM blocks the update — Readiness shows it from the evidence bundle);</li>
+              <li>its channel is named after an OpenShift version (for example OpenShift Data Foundation <code>stable-4.y</code>);</li>
+              <li>its vendor ties it to the platform minor (for example OpenShift Virtualization and OpenShift Data Foundation, updated right after each platform minor).</li>
+            </ul>
+            <p className="subtle">An operator without a declared maximum is not blocked, but that does not prove it is supported on the new minor — check its documentation. Mirrored catalogs contain channel heads only; if an installed version cannot reach the head in one update path, widen that operator&apos;s version range in the stage.</p>
+          </details>
         </section>
       ) : null}
 
