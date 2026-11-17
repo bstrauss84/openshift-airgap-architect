@@ -175,7 +175,7 @@ export default function MirrorTab({ plan, highSide, onPlanChanged, credentialKey
   };
 
   const views = plan.stageViews || [];
-  const canRunAll = !received && (method === "mirrorToDisk" || method === "mirrorToMirror") && views.length > 0;
+  const canRunAll = !received && !plan.stagesStale && (method === "mirrorToDisk" || method === "mirrorToMirror") && views.length > 0;
   const needsRegistry = method !== "mirrorToDisk";
 
   const openReview = async (stageIds = null) => {
@@ -286,6 +286,9 @@ export default function MirrorTab({ plan, highSide, onPlanChanged, credentialKey
 
       <section className="card" aria-labelledby={`upgrade-stagetable-${plan.id}`}>
         <h3 id={`upgrade-stagetable-${plan.id}`}>Stages</h3>
+        {plan.stagesStale ? (
+          <Banner variant="warning">These stages were prepared for a different route, so they cannot be mirrored as this plan&apos;s content. {onGoToStep ? <Button variant="secondary" className="mini" onClick={() => onGoToStep("content")}>Prepare them again on Content</Button> : null}</Banner>
+        ) : null}
         {!views.length ? (
           <p className="subtle">No stages yet. Prepare them on the Content step. {onGoToStep ? <Button variant="secondary" className="mini" onClick={() => onGoToStep("content")}>Go to Content</Button> : null}</p>
         ) : (

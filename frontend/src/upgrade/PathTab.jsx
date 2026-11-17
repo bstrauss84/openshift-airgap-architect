@@ -346,12 +346,20 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
           {result?.alternatives?.length ? (
             <CollapsibleSection title={`Other equally short routes (${result.alternativesTotal})`} wrapInCard={false}>
               <ul>
-                {result.alternatives.map((alt) => (
-                  <li key={alt.join(">")}>
-                    {alt.join(" → ")}{" "}
-                    <Button variant="secondary" disabled={readOnly} onClick={() => solve(alt)}>Use this route</Button>
-                  </li>
-                ))}
+                {result.alternatives.map((alt) => {
+                  // Recommended vs conditional, per update, from the planning graph itself.
+                  const g = plan.planningChannel ? graphs[key(plan.planningChannel)]?.normalized : null;
+                  const condHops = g ? alt.slice(1).map((to, i) => ({ from: alt[i], to })).filter(({ from, to }) => !g.edges.some(([a, b]) => a === from && b === to) && g.conditional.some((c) => c.from === from && c.to === to)) : [];
+                  return (
+                    <li key={alt.join(">")} className="upgrade-alt-route">
+                      {alt.join(" → ")}{" "}
+                      {condHops.length
+                        ? <span className="upgrade-badge" data-state="WARNING">⚠ conditional: {condHops.map((h) => `${h.from} → ${h.to} (${g.conditional.find((c) => c.from === h.from && c.to === h.to).risks.map((r) => r.name).join(", ")})`).join("; ")}</span>
+                        : g ? <span className="upgrade-badge" data-state="VERIFIED">recommended updates only</span> : null}{" "}
+                      <Button variant="secondary" className="mini" disabled={readOnly} onClick={() => solve(alt)}>Use this route</Button>
+                    </li>
+                  );
+                })}
               </ul>
             </CollapsibleSection>
           ) : null}

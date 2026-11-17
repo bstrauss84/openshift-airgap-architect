@@ -78,7 +78,7 @@ import { trackTempArtifact, untrackTempArtifact, releaseAllTempArtifacts, listTe
 import { SERVER_OWNED_SLICES, stripServerOwnedSlices, withServerOwnedSlices, workflowOfJobMetadata, planInstallReset } from "./workflowSlices.js";
 import { normalizeUpgradeSlice, emptyUpgradeSlice, unknownUpgradeSchema, planCatalogTag } from "./upgradeState.js";
 import { registerUpgradeRoutes, upgradeImportSchema } from "./upgradeRoutes.js";
-import { stageSpecs, stageContentStatus, PROFILE_ARCH, stageProfileFor } from "./upgradeStages.js";
+import { stageRouteMismatch, stageSpecs, stageContentStatus, PROFILE_ARCH, stageProfileFor } from "./upgradeStages.js";
 import { buildPackageDocument, verifyPackageDocument, PackageError, toolAcquisition, instructionsMarkdown, exportableReadiness } from "./upgradePackage.js";
 import { evaluateReadiness } from "./upgradeReadiness.js";
 import { buildInstructions } from "./upgradeInstructions.js";
@@ -5686,6 +5686,11 @@ const materializeUpgradeStages = (plan) => {
   }
   const stages = [];
   const created = [];
+  const carried = [];
+  // A stage profile leaving the route hands its operator and image choices to the NEW stage of the
+  // same minor (same catalog), explicitly and reported — never silently dropped (owner QA P0/P2).
+  const leaving = owned.filter((p) => !specs.some((s) => s.release === p.platform.release.patchVersion));
+  const predecessorFor = (minor) => leaving.find((p) => getMinorVersion(p.platform.release.patchVersion) === minor && (p.operators.selected.length || p.additionalImages.length));
   for (const spec of specs) {
     let profile = byRelease.get(spec.release);
     if (profile) {
@@ -5701,6 +5706,14 @@ const materializeUpgradeStages = (plan) => {
         storageBase: newProfileStorageBase(mirrorStorage),
         ownedBy: { workflow: "upgrade", planId: plan.id, stageId: spec.id }
       }, id);
+      const pred = predecessorFor(spec.minor);
+      if (pred) {
+        const tag = `upgrade:carried-from-${pred.platform.release.patchVersion}`;
+        draft.content = { ...draft.content, operators: pred.content.operators && pred.operators.selected.length > 0, additionalImages: pred.content.additionalImages && pred.additionalImages.length > 0 };
+        draft.operators = { ...draft.operators, selected: pred.operators.selected.map((o) => ({ ...o, sources: [...new Set([...(o.sources || []), tag])] })) };
+        draft.additionalImages = pred.additionalImages;
+        carried.push({ stageId: spec.id, release: spec.release, from: pred.platform.release.patchVersion, fromProfileId: pred.id, operators: pred.operators.selected.length, images: pred.additionalImages.length });
+      }
       const locked = buildLockedVersionSelection(draft.platform);
       if (locked.error) return { ok: false, status: 422, json: { error: locked.error.message, code: locked.error.code } };
       profile = normalizeProfile({ ...draft, platform: { ...draft.platform, release: locked.release, version: { ...locked.version, selectedChannel: `stable-${spec.minor}` } } }, id);
@@ -5718,7 +5731,7 @@ const materializeUpgradeStages = (plan) => {
     released.push(p.id);
   }
   writeMirroringSlice(slice);
-  return { ok: true, stages, report: { created, reused: stages.filter((s) => !created.includes(s.profileId)).map((s) => s.profileId), released } };
+  return { ok: true, stages, report: { created, reused: stages.filter((s) => !created.includes(s.profileId)).map((s) => s.profileId), released, carried } };
 };
 
 const upgradeStageViews = (plan) => {
@@ -5840,6 +5853,9 @@ const checkUpgradeSequenceDestination = async (plan, input, creds) => {
   }
 };
 const previewUpgradeSequence = (plan, input) => {
+  // Owner QA P0: never mirror a stage set prepared for a different route as if it were current.
+  const mismatch = stageRouteMismatch(plan);
+  if (mismatch) return { ok: false, status: 409, json: { error: `The stages were prepared for a different route (${mismatch.have.join(", ") || "none"}); the route now needs ${mismatch.want.join(", ") || "a computed route"}. Prepare the stages again on Content before mirroring.`, code: "STAGES_STALE", mismatch } };
   if (!SEQUENCE_MODES.includes(input.mode)) return { ok: false, status: 400, json: { error: "A stage sequence runs mirror to disk or mirror to mirror. Disk to mirror runs one received transfer at a time.", code: "SEQUENCE_MODE_INVALID" } };
   const { stages, unknown } = sequenceScope(plan, input);
   if (unknown.length || !stages.length) return { ok: false, status: 400, json: { error: "Choose stages of this plan.", code: "SEQUENCE_STAGES_INVALID" } };

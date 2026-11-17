@@ -250,6 +250,12 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
       const r = await prepareStages(plan.id);
       onPlanChanged(r.plan);
       await loadProfiles();
+      const parts = [];
+      if (r.created?.length) parts.push(`${r.created.length} new stage profile(s)`);
+      if (r.reused?.length) parts.push(`${r.reused.length} kept with their operators and mirrored data`);
+      if (r.released?.length) parts.push(`${r.released.length} left the route and stay in Mirroring as ordinary profiles`);
+      for (const c of r.carried || []) parts.push(`stage ${c.stageId.slice(1)} (${c.release}) took ${c.operators} operator(s)${c.images ? ` and ${c.images} image(s)` : ""} from the ${c.from} stage it replaces — review them`);
+      if (parts.length) setNotice(`Stages prepared: ${parts.join("; ")}.`);
       setSelected(r.plan.stages[0]?.id || null);
     } catch (err) {
       setError(String(err.message || err));
@@ -322,7 +328,15 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
         <p className="subtle">
           Each release the cluster passes through ({plan.path.path.slice(1).join(", ")}) is one stage: its platform release and the operators you need from that minor&apos;s catalog.
         </p>
-        {plan.stagesStale ? <Banner variant="warning">The route changed after the stages were prepared. Prepare them again; stage profiles whose release left the route stay as ordinary Mirroring profiles with their history.</Banner> : null}
+        {plan.stagesStale ? (
+          <Banner variant="warning">
+            <strong>These stages were prepared for a different route.</strong>{" "}
+            {plan.stagesMismatch?.reason === "route-cleared"
+              ? "The route was cleared by a change on Route; compute it again, then prepare the stages."
+              : <>Prepared: {plan.stagesMismatch?.have?.join(", ")}. The route now needs: {plan.stagesMismatch?.want?.join(", ")}{plan.stagesMismatch?.missing?.length ? ` (missing ${plan.stagesMismatch.missing.join(", ")})` : ""}{plan.stagesMismatch?.extra?.length ? ` (no longer needed: ${plan.stagesMismatch.extra.join(", ")})` : ""}.</>}
+            {" "}Mirroring is blocked until you prepare them again. Stages that stay keep their operators and mirrored data; a stage leaving the route becomes an ordinary Mirroring profile (nothing is deleted), and its operators are carried into the new stage of the same minor.
+          </Banner>
+        ) : null}
         {(!plan.stages.length || plan.stagesStale) && !received ? (
           <div className="actions">
             <Button variant="primary" disabled={busy === "prepare"} onClick={prepare}>{busy === "prepare" ? "Preparing…" : plan.stages.length ? "Prepare the stages again" : `Prepare ${plan.path.path.length - 1} stage(s)`}</Button>

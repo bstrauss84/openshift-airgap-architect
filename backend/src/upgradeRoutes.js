@@ -22,6 +22,7 @@ import { getMinorVersion, compareVersions } from "../../shared/versionUtils.js";
 import { evaluateReadiness, ATTESTABLE } from "./upgradeReadiness.js";
 import { projectInventory, InventoryError, INVENTORY_KINDS, INVENTORY_COMMANDS } from "./upgradeInventory.js";
 import { buildInstructions } from "./upgradeInstructions.js";
+import { stageRouteMismatch } from "./upgradeStages.js";
 import { analyzePresetFiles, OPERATOR_CATEGORIES } from "./upgradePresets.js";
 import { normalizeRegistryReference } from "../../shared/registryReference.js";
 import { registryReferenceField } from "./schemas.js";
@@ -156,8 +157,12 @@ export function registerUpgradeRoutes(app, deps) {
   const describePlan = (plan) => {
     const planning = plan.planningChannel ? graphFor(plan, plan.planningChannel) : null;
     const freshness = describeGraphEntry(planning);
+    const mismatch = stageRouteMismatch(plan);
     return {
       ...plan,
+      // Derived (owner QA P0): stages prepared for another route are stale, whatever changed.
+      stagesStale: Boolean(mismatch),
+      stagesMismatch: mismatch,
       graph: freshness,
       // A route computed from a graph that has since changed or aged is shown "as of" its time, never as current.
       pathStatus: !plan.path ? "none"

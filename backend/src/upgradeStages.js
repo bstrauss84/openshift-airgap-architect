@@ -87,3 +87,19 @@ export const stageProfileFor = (plan, stage, profiles) => {
   const p = profiles[stage.profileId];
   return p && p.ownedBy?.planId === plan.id ? p : null;
 };
+
+/**
+ * Do the prepared stages still match the route? (v2.3.0 owner QA, P0.) The route can change —
+ * current release, target, conditional review, a chosen alternative — after the stages were
+ * prepared; stages that no longer match must never be shown or mirrored as the current route.
+ * Derived on every read, so no stored flag can go stale. null = they match (or none prepared).
+ */
+export const stageRouteMismatch = (plan) => {
+  if (!plan?.stages?.length || plan.kind === "received") return null;
+  const have = plan.stages.map((s) => s.release);
+  if (!plan.path) return { reason: "route-cleared", want: [], have, missing: [], extra: have };
+  const want = stageSpecs(plan).map((s) => s.release);
+  const missing = want.filter((r) => !have.includes(r));
+  const extra = have.filter((r) => !want.includes(r));
+  return missing.length || extra.length ? { reason: "route-changed", want, have, missing, extra } : null;
+};
