@@ -126,6 +126,18 @@ export default function UpgradeShell({ onExit, onOpenMirroring = null }) {
     ro.observe(tabs);
     return () => ro.disconnect();
   }, [status, activeId]);
+  // Content's stage selector sticks right under the route strip: measure the strip as well.
+  useEffect(() => {
+    const shell = shellRef.current;
+    const strip = shell?.querySelector(".upgrade-route-strip");
+    if (!strip) return undefined;
+    const apply = () => shell.style.setProperty("--upgrade-strip-h", `${Math.ceil(strip.getBoundingClientRect().height)}px`);
+    apply();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(apply);
+    ro.observe(strip);
+    return () => ro.disconnect();
+  }, [status, activeId, tab]);
   useLayoutEffect(() => { if (revealRequest) revealTabStart(tabAnchorRef.current); }, [revealRequest]);
 
   const showTab = (t) => {

@@ -156,11 +156,15 @@ export default function RouteCatalogScan({ plan, scanPlan, credentialKey, scans,
   return (
     <section className="card upgrade-route-scan" aria-labelledby={`upgrade-route-scan-${plan.id}`}>
       <h3 id={`upgrade-route-scan-${plan.id}`}>Catalogs for this route</h3>
-      <p className="subtle">
-        Each OpenShift minor on the route has its own operator catalogs. Scanning reads the Red Hat, Certified and Community catalog
-        images for that minor once; every stage of that minor uses the result. A scan shows which operators exist and their default
-        channel. It does not show that an operator is compatible with your running cluster.
-      </p>
+      <p className="subtle">One scan per OpenShift minor on the route; every stage of that minor uses it. Nothing is scanned unless you ask.</p>
+      <details className="upgrade-scan-about">
+        <summary>What a scan does</summary>
+        <p className="subtle">
+          Scanning reads the Red Hat, Certified and Community catalog images for that minor once (several hundred megabytes) and caches
+          the result for every stage and for Mirroring. It shows which operators exist and their default channel. It does not show that
+          an operator is compatible with your running cluster; that is a readiness check.
+        </p>
+      </details>
       {error ? <Banner variant="error">{error}</Banner> : null}
       <ul className="upgrade-scan-plan">
         {scanPlan.map((e) => (

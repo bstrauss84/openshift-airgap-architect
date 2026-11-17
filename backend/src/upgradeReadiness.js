@@ -34,7 +34,7 @@ const actionFor = (id, state) => {
 
 /** Checks an administrator may attest (things Architect cannot observe). */
 export const ATTESTABLE = Object.freeze({
-  "etcd-backup": "A current etcd backup exists and was verified to restore (per the target release's backup documentation).",
+  "etcd-backup": "A current etcd backup (snapshot and static pod resources, made with cluster-backup.sh per the backup documentation) was taken right before this update, copied off the cluster and stored securely.",
   "api-removals": "Workloads were checked for APIs removed in the target Kubernetes version (APIRequestCount review) and migrated.",
   "admin-acks": "Every administrator acknowledgement the cluster requires for this update (admin-gates) has been reviewed and given.",
   "osus-health": "The OpenShift Update Service is installed, its graph URL answers, and ClusterVersion's upstream points to it.",

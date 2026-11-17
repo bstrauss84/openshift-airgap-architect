@@ -307,6 +307,25 @@ const openImporter = async () => {
 };
 
 describe("Import previous configuration (Content step)", () => {
+  it("owner QA P8: one introduction (not two) and the shared drop zone instead of the native file control", async () => {
+    const input = await openImporter();
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getAllByText(/imported preset — unverified/).length).toBe(1);
+    expect(input.hidden).toBe(true);
+    expect(within(dialog).getByRole("button", { name: /Choose files: ImageSetConfiguration files/ })).toBeInTheDocument();
+    expect(within(dialog).getByText(/Drop files here/)).toBeInTheDocument();
+  });
+
+  it("owner QA P8: the stage selector is one compact bar with catalog status and the import action", async () => {
+    sessionStorage.setItem("oaa.upgrade.step.v2", "content");
+    mock(STAGED());
+    render(<UpgradeShell onExit={() => {}} />);
+    const bar = await screen.findByRole("navigation", { name: "Stages" });
+    expect(within(bar).getByRole("button", { name: /^Stage 1 · 4\.20\.44/ })).toHaveAttribute("aria-pressed", "true");
+    expect(within(bar).getByRole("button", { name: /^Catalogs: .*Go to the catalog scans/ })).toBeInTheDocument();
+    expect(within(bar).getByRole("button", { name: "Import previous configuration…" })).toBeInTheDocument();
+  });
+
   it("a compact action, not a whole page: reviewed per file, conflicts shown, accepted as unverified presets and added to stages", async () => {
     const input = await openImporter();
     const f1 = new File(["apiVersion: mirror.openshift.io/v2alpha1"], "a.yaml", { type: "text/yaml" });

@@ -8365,3 +8365,17 @@ body[data-theme="dark"] .upgrade-route-strip { background: #0b1120; }
 .upgrade-bundle { border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 14px; margin: 10px 0; background: var(--card-bg); }
 .upgrade-bundle h4 { margin: 0 0 4px; }
 .upgrade-bundle details { margin-top: 6px; }
+/* Content: compact sticky stage selector under the route strip (owner QA P8). */
+.upgrade-stage-bar {
+  position: sticky; top: calc(var(--mirroring-header-h, 0px) + var(--upgrade-tabs-h, 46px) + var(--upgrade-strip-h, 32px));
+  z-index: 3; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between;
+  margin: 0 0 12px; padding: 6px 2px; background: #f5f6f8; border-bottom: 1px solid var(--border-color);
+}
+body[data-theme="dark"] .upgrade-stage-bar { background: #0b1120; }
+.upgrade-stage-bar .upgrade-stage-chip { padding: 4px 10px; font-size: 0.875rem; }
+.upgrade-stage-bar-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 600px) {
+  .upgrade-stage-bar { position: static; }
+}
+.upgrade-content [id] { scroll-margin-top: calc(var(--mirroring-header-h, 0px) + var(--upgrade-tabs-h, 46px) + var(--upgrade-strip-h, 32px) + 56px); }
+.file-drop-zone .field-helper { font-size: 0.8125rem; color: var(--text-subtle); }

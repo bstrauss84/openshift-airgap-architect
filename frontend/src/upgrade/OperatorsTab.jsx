@@ -24,8 +24,7 @@ import React, { useState } from "react";
 import Button from "../components/Button.jsx";
 import Banner from "../components/Banner.jsx";
 import Modal from "../components/Modal.jsx";
-import FieldLabelWithInfo from "../components/FieldLabelWithInfo.jsx";
-import { PRESET_FILES_HINT } from "./upgradeCopy.js";
+import FileDropZone from "../components/FileDropZone.jsx";
 import { analyzePresets, saveOperatorIntent, applyIntentToStages, updatePlan } from "./upgradeApi.js";
 
 export const CATEGORY_LABEL = {
@@ -123,29 +122,13 @@ export default function PresetImporter({ plan, onPlanChanged, onClose = null }) 
       {notice ? <Banner variant="info">{notice}</Banner> : null}
       <div className="upgrade-presets" aria-labelledby={`upgrade-presets-${plan.id}`}>
         <p className="subtle">
-          Load one or more ImageSetConfiguration files you used before. They suggest operators, images and release hints you can
-          review and edit. A configuration file says what was <em>asked</em> to be mirrored — not what is installed in the cluster,
-          what was mirrored successfully, or what is in your registry — so everything here stays labelled “imported preset — unverified”.
+          Load ImageSetConfiguration files you used before to get suggested operators, images and release hints. A file says what
+          was <em>asked</em> to be mirrored — not what is installed, what was mirrored successfully, or what is in your registry — so
+          everything stays labelled “imported preset — unverified”.
         </p>
-        <div className="field-control-stack">
-          <FieldLabelWithInfo label="ImageSetConfiguration files" hint={PRESET_FILES_HINT}>
-            <input
-              id={`upgrade-presets-files-${plan.id}`}
-              type="file"
-              multiple
-              accept=".yaml,.yml,text/yaml,application/yaml,text/plain"
-              disabled={readOnly || busy === "analyze"}
-              onChange={(e) => { readFiles(e.target.files); e.target.value = ""; }}
-            />
-          </FieldLabelWithInfo>
-          <div className="field-control-support">
-            <span className="field-helper"
-              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-              onDrop={(e) => { e.preventDefault(); if (!readOnly) readFiles(e.dataTransfer.files); }}>
-              Up to 10 files, 1 MiB each. oc-mirror v2 files are checked against the v2 schema; v1 files are read for platform channels, operator packages and additional images only.
-            </span>
-          </div>
-        </div>
+        <FileDropZone id={`upgrade-presets-files-${plan.id}`} label="ImageSetConfiguration files" multiple accept=".yaml,.yml,text/yaml,application/yaml,text/plain"
+          disabled={readOnly || busy === "analyze"} onFiles={readFiles}
+          help="Up to 10 files, 1 MiB each. oc-mirror v2 files are checked against the v2 schema; v1 files are read for platform channels, operator packages and additional images only." />
         {busy === "analyze" ? <div className="loading" role="status">Reading the files…</div> : null}
 
         {analysis ? (

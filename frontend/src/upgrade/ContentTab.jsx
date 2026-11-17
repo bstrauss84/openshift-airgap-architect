@@ -449,19 +449,37 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
             <Button variant="primary" disabled={busy === "prepare"} onClick={prepare}>{busy === "prepare" ? "Preparing…" : plan.stages.length ? "Prepare the stages again" : `Prepare ${plan.path.path.length - 1} stage(s)`}</Button>
           </div>
         ) : null}
-        {views.length ? (
-          <div className="upgrade-stage-chips-row">
-            <div className="upgrade-stage-chips" role="group" aria-label="Stage shown below">
-              {views.map((s) => (
-                <button key={s.id} type="button" className={`upgrade-stage-chip${selected === s.id ? " selected" : ""}`} aria-pressed={selected === s.id} onClick={() => setSelected(s.id)}>
-                  Stage {s.id.slice(1)} · {s.release}{s.operatorsSelected ? <span className="subtle"> · {s.operatorsSelected} operator{s.operatorsSelected === 1 ? "" : "s"}</span> : null}
-                </button>
-              ))}
-            </div>
-            {!received ? <Button variant="secondary" onClick={() => setImportOpen(true)}>Import previous configuration…</Button> : null}
-          </div>
-        ) : null}
       </section>
+
+      {views.length ? (
+        <nav className="upgrade-stage-bar" aria-label="Stages">
+          <div className="upgrade-stage-chips" role="group" aria-label="Stage shown below">
+            {views.map((s) => (
+              <button key={s.id} type="button" className={`upgrade-stage-chip${selected === s.id ? " selected" : ""}`} aria-pressed={selected === s.id} onClick={() => setSelected(s.id)}>
+                Stage {s.id.slice(1)} · {s.release}{s.operatorsSelected ? <span className="subtle"> · {s.operatorsSelected} operator{s.operatorsSelected === 1 ? "" : "s"}</span> : null}
+              </button>
+            ))}
+          </div>
+          <div className="upgrade-stage-bar-tools">
+            {!received ? (() => {
+              const sp = buildScanPlan(views, profiles, statusByMinor, statusLoaded);
+              const busyScan = Object.values(scans).some((x) => x.state === "running" || x.state === "queued");
+              const done = sp.filter((e) => e.cached).length;
+              return (
+                <Button variant="secondary" className="mini" onClick={() => document.getElementById(`upgrade-route-scan-${plan.id}`)?.scrollIntoView?.({ behavior: "smooth", block: "start" })}
+                  aria-label={`Catalogs: ${busyScan ? "scanning" : `${done} of ${sp.length} minors scanned`}. Go to the catalog scans.`}>
+                  {busyScan ? "Catalogs: scanning…" : `Catalogs: ${done}/${sp.length} scanned`}
+                </Button>
+              );
+            })() : null}
+            {!received ? <Button variant="secondary" className="mini" onClick={() => setImportOpen(true)}>Import previous configuration…</Button> : null}
+          </div>
+        </nav>
+      ) : null}
+
+      {views.length && !received ? (
+        <RouteCatalogScan plan={plan} scanPlan={buildScanPlan(views, profiles, statusByMinor, statusLoaded)} credentialKey={credentialKey} scans={scans} setScans={setScans} onScanned={loadStatus} />
+      ) : null}
 
       {views.length ? (
         <section className="card" aria-labelledby={`upgrade-matrix-${plan.id}`}>
@@ -486,10 +504,6 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
             <p className="subtle">An operator without a declared maximum is not blocked, but that does not prove it is supported on the new minor — check its documentation. Mirrored catalogs contain channel heads only; if an installed version cannot reach the head in one update path, widen that operator&apos;s version range in the stage.</p>
           </details>
         </section>
-      ) : null}
-
-      {views.length && !received ? (
-        <RouteCatalogScan plan={plan} scanPlan={buildScanPlan(views, profiles, statusByMinor, statusLoaded)} credentialKey={credentialKey} scans={scans} setScans={setScans} onScanned={loadStatus} />
       ) : null}
 
       {view ? (
@@ -534,7 +548,6 @@ export default function ContentTab({ plan, onPlanChanged, onShowOperation = null
 
       <Modal isOpen={importOpen} onClose={() => setImportOpen(false)} ariaLabelledBy={`upgrade-import-config-${plan.id}`}>
         <h3 id={`upgrade-import-config-${plan.id}`}>Import previous configuration</h3>
-        <p className="modal-copy subtle">Load one or more ImageSetConfiguration files you used before. They suggest operators, images and release hints. A file says what was asked to be mirrored — not what is installed or in your registry — so everything stays “imported preset — unverified”.</p>
         <PresetImporter plan={plan} onPlanChanged={(p) => { onPlanChanged(p); loadProfiles(); }} onClose={() => setImportOpen(false)} />
       </Modal>
     </div>
