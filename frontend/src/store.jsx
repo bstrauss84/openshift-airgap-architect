@@ -143,12 +143,7 @@ const useAppProvider = () => {
   useEffect(() => {
     if (!state) return;
     const toPersist = getStateForPersistence(state);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toPersist));
-    const timeout = setTimeout(() => {
-      apiFetch("/api/state", { method: "POST", body: JSON.stringify(toPersist) })?.catch(() => {});
-    }, 600);
-    return () => clearTimeout(timeout);
-  }, [state]);    const body = JSON.stringify(toPersist);
+    const body = JSON.stringify(toPersist);
     localStorage.setItem(STORAGE_KEY, body);
 
     const generation = generationRef.current + 1;
