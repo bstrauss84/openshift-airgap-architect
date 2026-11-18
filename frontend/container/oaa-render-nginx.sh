@@ -94,13 +94,17 @@ if [ -n "${OAA_REQUIRE_PROXY_SECRET:-}" ] && [ "$LISTEN_ADDRESS" != "127.0.0.1" 
        caller would be proxied as an authenticated one. Set OAA_NGINX_LISTEN_ADDRESS=127.0.0.1."
 fi
 
-# Detect whether IPv6 is available. When /proc/sys/net/ipv6/conf/all/disable_ipv6
-# exists and reads "1" the kernel has IPv6 disabled; binding [::] or [::1] will
-# fail and nginx will refuse to start. Skip the IPv6 directives in that case so
-# the config is valid on IPv4-only (hardened / airgapped) hosts.
+# Detect whether IPv6 is available. Two distinct failure modes:
+#   1. IPv6 module not loaded at all — /proc/sys/net/ipv6 does not exist;
+#      nginx gets EAFNOSUPPORT (97) trying to bind [::].
+#   2. IPv6 loaded but disabled via sysctl disable_ipv6=1 — nginx gets
+#      EADDRNOTAVAIL (99).
+# Skip IPv6 listen directives for both so the config is valid on
+# IPv4-only (hardened / airgapped) hosts.
 _ipv6_available() {
+  [ -d /proc/sys/net/ipv6 ] || return 1   # module not loaded → not available
   local knob=/proc/sys/net/ipv6/conf/all/disable_ipv6
-  [ -f "$knob" ] || return 0          # no disable knob → IPv6 is available
+  [ -f "$knob" ] || return 0              # no disable knob → available
   [ "$(cat "$knob" 2>/dev/null)" != "1" ]
 }
 

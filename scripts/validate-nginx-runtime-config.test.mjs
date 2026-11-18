@@ -55,12 +55,14 @@ function nonLoopbackAddress() {
 }
 const LAN = nonLoopbackAddress();
 
-/** True when the kernel has IPv6 enabled (same knob the render script reads). */
+/** True when the kernel has IPv6 enabled (mirrors _ipv6_available() in the render script). */
 function ipv6Available() {
+  // Module not loaded at all — /proc/sys/net/ipv6 directory absent → EAFNOSUPPORT
+  if (!fs.existsSync("/proc/sys/net/ipv6")) return false;
   try {
     return fs.readFileSync("/proc/sys/net/ipv6/conf/all/disable_ipv6", "utf8").trim() !== "1";
   } catch {
-    return true; // no knob → IPv6 is available
+    return true; // knob absent but module present → IPv6 available
   }
 }
 const IPV6 = ipv6Available();
