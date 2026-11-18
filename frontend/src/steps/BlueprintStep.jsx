@@ -71,6 +71,7 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
   const locked = blueprint?.confirmed;
   const releaseLocked = getVersionLocked(state);
   const mirrorBundleDetected = blueprint?.mirrorBundleDetected ?? false;
+  const mirrorConfigPreloaded = state?.ui?.mirrorConfigPreloaded === true;
 
   // Release selection is shared with Mirroring (useOpenShiftRelease). This
   // adapter reproduces Blueprint's previous writes exactly, including the
@@ -108,12 +109,16 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
   // method — Nutanix, AWS GovCloud, Azure Government and IBM Cloud — and a null
   // scenario resolves to "no answer", which renders as every architecture
   // greyed out, x86_64 included. See listArchSupportForBlueprint.
+  // In preloaded mode (ISO-generation only), skip the arch matrix entirely —
+  // no catalog data exists for extra versions (e.g. 4.18). Auto-select x86_64.
   const archSupport = useMemo(
-    () => listArchSupportForBlueprint(state),
+    () => mirrorConfigPreloaded
+      ? { cells: archOptions.map((o) => ({ architecture: o.value, offered: o.value === "x86_64", resolved: true })) }
+      : listArchSupportForBlueprint(state),
     // Only the inputs the matrix is keyed by. Re-resolving on every state change
     // would rebuild the cells on each keystroke elsewhere in the step.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [blueprint?.platform, state.methodology?.method, version?.selectedMinor, version?.selectedVersion, release?.channel, release?.patchVersion]
+    [mirrorConfigPreloaded, blueprint?.platform, state.methodology?.method, version?.selectedMinor, version?.selectedVersion, release?.channel, release?.patchVersion]
   );
   const archSupportByValue = useMemo(
     () => new Map(archSupport.cells.map((c, i) => [c.architecture ?? archOptions[i].value, c])),
@@ -121,14 +126,12 @@ const BlueprintStep = ({ onRequestChangeRelease }) => {
   );
   const allowedArchs = archSupport.cells.filter((c) => c.offered).map((c, i) => c.architecture ?? archOptions[i].value);
 
-  // Cards to render at all. Derived from the canonical matrix, not from a list
-  // of architecture names here: an architecture no supported minor offers on
-  // any modelled scenario cannot be enabled by any user action, so it is not
-  // drawn. Independent of the current platform — see the header comment.
+  // Cards to render at all. In preloaded mode show only x86_64 (no matrix data).
   const visibleArchOptions = useMemo(() => {
+    if (mirrorConfigPreloaded) return archOptions.filter((o) => o.value === "x86_64");
     const renderable = new Set(renderableArchitectures());
     return archOptions.filter((option) => renderable.has(option.value));
-  }, []);
+  }, [mirrorConfigPreloaded]);
 
   /**
    * Selecting a platform also reconciles the installation method.

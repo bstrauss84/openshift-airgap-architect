@@ -263,6 +263,10 @@ const assertTargetArchitectureSupported = (state, selectedMinor) => {
     });
   }
   const doc = dataset?.[selectedMinor];
+  // No arch-support matrix for this minor — only possible for extra minors added
+  // via OAA_EXTRA_SUPPORTED_MINORS (dev/test environments, preloaded wizard flow).
+  // Skip the matrix check; the architecture was already validated as a known value above.
+  if (!doc) return;
   const offeredAnywhere = (doc?.matrix ?? []).some(
     (row) => row.architectures?.[architecture]?.disposition === "supported"
   );

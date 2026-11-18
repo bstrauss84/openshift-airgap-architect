@@ -220,6 +220,14 @@ export const VersionSupportGate = ({ children, onOpenMirroring }) => {
   const { state, startOver, updateState } = useApp();
   const selectedMinor = getOpenShiftMinorFromState(state);
 
+  // In the preloaded wizard flow the only goal is generating an agent ISO —
+  // catalog data, docs-index, and arch-support matrices are irrelevant.
+  // Skip all versioned-data loading and pass through directly.
+  const mirrorConfigPreloaded = state?.ui?.mirrorConfigPreloaded === true;
+  if (mirrorConfigPreloaded && selectedMinor) {
+    return children;
+  }
+
   // FQ-10: versioned catalog and docs-index data is loaded per minor, on demand, so the
   // initial chunk does not carry every supported minor's data. This gate is the right
   // place for the load because it is already the single version boundary: nothing
