@@ -14,7 +14,26 @@ import { getOpenShiftMinorFromState } from "./openShiftMinor.js";
 
 // Application-supported OpenShift minors (requires audited catalogs, Field Guide, validation, generation contract)
 // Cincinnati availability is NOT the same as application support
-const SUPPORTED_MINORS = Object.freeze(["4.20", "4.21", "4.22"]);
+const _PRODUCTION_MINORS = Object.freeze(["4.20", "4.21", "4.22"]);
+
+// OAA_EXTRA_SUPPORTED_MINORS — comma-separated list of additional minors to allow at runtime.
+// Intended for dev/test environments running versions older than the production support window.
+// Extra minors bypass the version gate but have NO audited catalogs or Field Guide content;
+// generation quality is best-effort using the nearest production minor's catalog data.
+// Example: OAA_EXTRA_SUPPORTED_MINORS=4.18,4.19
+const _EXTRA_MINORS = (process.env.OAA_EXTRA_SUPPORTED_MINORS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter((s) => /^\d+\.\d+$/.test(s) && !_PRODUCTION_MINORS.includes(s));
+
+if (_EXTRA_MINORS.length > 0) {
+  console.warn(
+    `[versionPolicy] OAA_EXTRA_SUPPORTED_MINORS active: ${_EXTRA_MINORS.join(", ")} — ` +
+    `no audited catalogs; generation quality is best-effort`
+  );
+}
+
+const SUPPORTED_MINORS = Object.freeze([..._PRODUCTION_MINORS, ..._EXTRA_MINORS]);
 
 const TRUST_BUNDLE_POLICY_ALLOWLIST = {
   "4.20": ["Proxyonly", "Always"],
@@ -70,4 +89,4 @@ function assertSupportedOpenShiftMinorForGeneration(state) {
   return minor;
 }
 
-export { SUPPORTED_MINORS, getMinorVersion, isSupportedMinor, getTrustBundlePolicies, buildUnsupportedVersionError, assertSupportedOpenShiftMinorForGeneration };
+export { SUPPORTED_MINORS, _PRODUCTION_MINORS, getMinorVersion, isSupportedMinor, getTrustBundlePolicies, buildUnsupportedVersionError, assertSupportedOpenShiftMinorForGeneration };
