@@ -15,7 +15,18 @@ import { compareVersions } from '../../../shared/versionUtils.js';
 
 // Application-supported OpenShift minors (requires audited catalogs, Field Guide, validation, generation contract)
 // Cincinnati availability is NOT the same as application support
-const SUPPORTED_MINORS = Object.freeze(["4.20", "4.21", "4.22"]);
+const _PRODUCTION_MINORS = Object.freeze(["4.20", "4.21", "4.22"]);
+
+// Runtime override: OAA_EXTRA_SUPPORTED_MINORS injected via window.__OAA_RUNTIME_CONFIG__.extraSupportedMinors
+// (set by oaa-entrypoint.sh from the env var). Intended for dev/test environments only.
+const _runtimeExtras = (
+  typeof window !== "undefined" &&
+  window.__OAA_RUNTIME_CONFIG__?.extraSupportedMinors
+) || [];
+const _EXTRA_MINORS = _runtimeExtras
+  .filter((m) => /^\d+\.\d+$/.test(m) && !_PRODUCTION_MINORS.includes(m));
+
+const SUPPORTED_MINORS = Object.freeze([..._PRODUCTION_MINORS, ..._EXTRA_MINORS]);
 
 const TRUST_BUNDLE_POLICY_ALLOWLIST = {
   "4.20": ["Proxyonly", "Always"],

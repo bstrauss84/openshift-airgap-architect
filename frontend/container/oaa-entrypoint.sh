@@ -52,10 +52,29 @@ case "$API_BASE" in
     ;;
 esac
 
+# Build extraSupportedMinors JSON array from OAA_EXTRA_SUPPORTED_MINORS env var
+_oaa_extra_minors_json() {
+  local input="${OAA_EXTRA_SUPPORTED_MINORS:-}"
+  local json="["
+  local first=true
+  local IFS=','
+  for m in $input; do
+    m="${m// /}"  # trim spaces
+    # Validate minor format (digit.digit)
+    case "$m" in [0-9]*.[0-9]*)
+      [ "$first" = true ] || json="${json},"
+      json="${json}\"${m}\""
+      first=false
+      ;;
+    esac
+  done
+  echo "${json}]"
+}
+
 cat > "$RUNTIME_DIR/runtime-config.js" <<CONFIG
 // Generated at container start by frontend/container/oaa-entrypoint.sh.
 // Empty apiBase means "fall back to the build-time default" — see src/api.js.
-window.__OAA_RUNTIME_CONFIG__ = { "apiBase": "${API_BASE}" };
+window.__OAA_RUNTIME_CONFIG__ = { "apiBase": "${API_BASE}", "extraSupportedMinors": $(_oaa_extra_minors_json) };
 CONFIG
 
 # ---------------------------------------------------------------------------
