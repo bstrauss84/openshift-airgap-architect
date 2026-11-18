@@ -1,0 +1,12 @@
+apiVersion: config.openshift.io/v1
+kind: ImageTagMirrorSet
+metadata:
+  name: oc-mirror
+spec:
+  imageTagMirrors:
+    - source: registry.redhat.io/ubi9
+      mirrors:
+        - registry.example.com:8443/ubi9
+    - source: registry.redhat.io/rhel9
+      mirrors:
+        - registry.example.com:8443/rhel9
