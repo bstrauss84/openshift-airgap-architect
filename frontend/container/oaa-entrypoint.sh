@@ -95,33 +95,6 @@ else
   echo "WARNING: ${NGINX_TEMPLATE} is not readable; using the config baked at build time" >&2
 fi
 
-# ---------------------------------------------------------------------------
-# Strip [::] listen directives from the base image's own nginx configs when
-# IPv6 is unavailable. The UBI nginx-124 image ships a default server block
-# that listens on [::]:8080 — nginx fails with EAFNOSUPPORT (97) or
-# EADDRNOTAVAIL (99) on hosts where the IPv6 module is not loaded or is
-# disabled. The OAA template is handled by oaa-render-nginx.sh; this covers
-# all other nginx conf files the base image provides.
-# ---------------------------------------------------------------------------
-_oaa_ipv6_ok() {
-  [ -d /proc/sys/net/ipv6 ] || return 1
-  local knob=/proc/sys/net/ipv6/conf/all/disable_ipv6
-  [ -f "$knob" ] || return 0
-  [ "$(cat "$knob" 2>/dev/null)" != "1" ]
-}
-if ! _oaa_ipv6_ok; then
-  for _f in \
-      /etc/nginx/nginx.conf \
-      /opt/app-root/etc/nginx.conf \
-      /opt/app-root/etc/nginx.d/nginx.conf \
-      /opt/app-root/etc/nginx.d/*.conf; do
-    [ -f "$_f" ] || continue
-    # -i is not POSIX but is available on both GNU sed (Linux containers) and
-    # macOS sed; use a temp-file swap as a fallback if it somehow fails.
-    sed -i '/listen[[:space:]]*\[::/d' "$_f" 2>/dev/null || true
-  done
-  echo "OAA frontend: IPv6 unavailable — stripped [::] listen directives from base nginx config"
-fi
 
 echo "OAA frontend: serving static build on :5173 (apiBase=${API_BASE:-<same origin>}, probe listener on :8081/healthz)"
 

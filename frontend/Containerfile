@@ -120,6 +120,7 @@ RUN chmod 0755 /opt/app-root/bin/oaa-entrypoint.sh /opt/app-root/bin/oaa-render-
          /opt/app-root/etc/nginx.d/oaa.conf \
     && chown 1001:0 /opt/app-root/etc/nginx.d/oaa.conf \
     && chmod g+w /opt/app-root/etc/nginx.d /opt/app-root/etc/nginx.d/oaa.conf \
+    && sed -i '/listen[[:space:]]*\[::/d' /etc/nginx/nginx.conf \
     && nginx -t -c /etc/nginx/nginx.conf \
     && rm -f /run/nginx.pid
 USER 1001
