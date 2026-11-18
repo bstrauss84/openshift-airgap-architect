@@ -185,8 +185,7 @@ OAA_LISTEN_DIRECTIVES
 # fixed string and every other path returns 404. Nothing reachable through it
 # discloses anything a connection refusal would not.
 server {
-    listen       0.0.0.0:8081;
-    listen       [::]:8081;
+OAA_PROBE_LISTEN_DIRECTIVES
     server_name  _;
     access_log   off;
 
