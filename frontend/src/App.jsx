@@ -222,22 +222,22 @@ export const VersionSupportGate = ({ children, onOpenMirroring }) => {
 
   // In the preloaded wizard flow the only goal is generating an agent ISO —
   // catalog data, docs-index, and arch-support matrices are irrelevant.
-  // Skip all versioned-data loading and pass through directly.
   const mirrorConfigPreloaded = state?.ui?.mirrorConfigPreloaded === true;
-  if (mirrorConfigPreloaded && selectedMinor) {
-    return children;
-  }
 
   // FQ-10: versioned catalog and docs-index data is loaded per minor, on demand, so the
   // initial chunk does not carry every supported minor's data. This gate is the right
   // place for the load because it is already the single version boundary: nothing
   // catalog-dependent mounts above it.
+  // Hooks must all be called unconditionally (Rules of Hooks) — the preloaded
+  // bypass is applied in the render return below, not as an early return here.
   const [dataMinor, setDataMinor] = useState(() =>
     selectedMinor && isVersionedDataReady(selectedMinor) ? selectedMinor : null
   );
   const [dataError, setDataError] = useState(null);
 
   useEffect(() => {
+    // Skip catalog loading entirely in preloaded mode.
+    if (mirrorConfigPreloaded) return undefined;
     if (!selectedMinor || !SUPPORTED_MINORS.includes(selectedMinor)) return undefined;
     if (dataMinor === selectedMinor) return undefined;
 
@@ -281,6 +281,11 @@ export const VersionSupportGate = ({ children, onOpenMirroring }) => {
 
   // No version selected yet - let app proceed normally
   if (!selectedMinor) {
+    return children;
+  }
+
+  // Preloaded wizard: skip all catalog/version gates — ISO generation only.
+  if (mirrorConfigPreloaded) {
     return children;
   }
 
