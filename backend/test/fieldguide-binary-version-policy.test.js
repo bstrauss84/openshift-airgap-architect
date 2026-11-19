@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { compartments_v420 } from "../src/fieldGuide/v4.20/index.js";
 import { compartments_v421 } from "../src/fieldGuide/v4.21/index.js";
+import { compartments_v422 } from "../src/fieldGuide/v4.22/index.js";
 import { render } from "../src/fieldGuide/template.js";
 
 const ctx = { version: "4.21.8", versionMajorMinor: "4.21" };
@@ -15,7 +16,7 @@ function getCompartmentItems(compartments, id) {
   }));
 }
 
-for (const [label, compartments] of [["v4.20", compartments_v420], ["v4.21", compartments_v421]]) {
+for (const [label, compartments] of [["v4.20", compartments_v420], ["v4.21", compartments_v421], ["v4.22", compartments_v422]]) {
   describe(`Field Guide binary version policy — ${label}`, () => {
     const prereqItems = getCompartmentItems(compartments, "global-prereqs");
     const toolsItems = getCompartmentItems(compartments, "tools-and-creds");
@@ -48,25 +49,33 @@ for (const [label, compartments] of [["v4.20", compartments_v420], ["v4.21", com
       );
     });
 
-    it("oc-mirror uses the globally latest v2 release, not a release-specific one", () => {
+    it("oc-mirror uses the latest v2 release for the guide's minor, not a release-specific one", () => {
+      // A guide never names another minor (version-safety rule), so since
+      // 2026-11-19 the manual download follows the guide's own minor.
       const allText = [...prereqItems, ...toolsItems].map((i) => i.text).join("\n");
       assert.ok(
         allText.includes("latest available oc-mirror v2 release"),
         "should state oc-mirror uses the latest available v2 release"
       );
       assert.ok(
-        allText.includes("independent of the target OpenShift minor"),
-        "should state oc-mirror is independent of the target minor"
+        allText.includes("latest available release for the same minor (OpenShift " + ctx.versionMajorMinor + ")"),
+        "should state oc-mirror comes from the guide's own minor"
       );
     });
 
-    it("oc-mirror download URL uses /latest/ not /version/", () => {
+    it("oc-mirror download URL uses the guide minor's latest channel, not the global /latest/ and not /version/", () => {
+      // 2026-11-19: clients/ocp/latest moved to OpenShift 5.0.1, which publishes
+      // no oc-mirror, so the old /latest/oc-mirror.tar.gz instruction is a 404.
       const allCmds = toolsItems.map((i) => i.cmd).join("\n");
       const ocMirrorDownload = allCmds.match(/curl.*oc-mirror\.tar\.gz/);
       assert.ok(ocMirrorDownload, "should have an oc-mirror download command");
       assert.ok(
-        ocMirrorDownload[0].includes("/latest/"),
-        "oc-mirror download should use /latest/ path, not release-specific"
+        ocMirrorDownload[0].includes(`/clients/ocp/latest-${ctx.versionMajorMinor}/oc-mirror.tar.gz`),
+        "oc-mirror download should use the clients/ocp/latest-<minor> channel"
+      );
+      assert.ok(
+        !ocMirrorDownload[0].includes("/clients/ocp/latest/"),
+        "oc-mirror download must NOT use the global latest channel (OpenShift 5 has no oc-mirror)"
       );
       assert.ok(
         !ocMirrorDownload[0].includes("/" + ctx.version + "/"),

@@ -15,6 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
+import { SUPPORTED_MINORS } from "./versionPolicy.js";
 
 const MIRROR_BASE = "https://mirror.openshift.com/pub/openshift-v4";
 const BAKED_IN_OC = "/usr/local/bin/oc";
@@ -61,13 +62,21 @@ function getMirrorArchCandidates(normalizedArch) {
 }
 
 // Tool acquisition policy (see CLAUDE.md "External tool version policy"):
-//   oc-mirror = GLOBAL latest official release, independent of target OCP minor
-//               (Red Hat directs users to the latest oc-mirror v2 regardless of
-//               which OCP versions are being mirrored).
+//   oc-mirror = newest patch of the NEWEST SUPPORTED 4.x minor
+//               (`latest-<highest SUPPORTED_MINORS entry>`), independent of the
+//               selected target minor. It was the GLOBAL `latest` until
+//               2026-11-19, when Red Hat's global channel moved to OpenShift
+//               5.0.1, which publishes no oc-mirror artifact, so every
+//               resolution failed closed ("no SHA256 for oc-mirror.tar.gz").
 //   oc        = latest patch WITHIN the selected supported target minor.
 // Both are checksum-verified against Red Hat's own sha256sum.txt and their
 // resolved version/hash is recorded. No z-stream is hardcoded.
-const OC_MIRROR_CHANNEL = "latest";
+const NEWEST_SUPPORTED_MINOR = [...SUPPORTED_MINORS].sort((a, b) => {
+  const [am, an] = a.split(".").map(Number);
+  const [bm, bn] = b.split(".").map(Number);
+  return am - bm || an - bn;
+})[SUPPORTED_MINORS.length - 1];
+const OC_MIRROR_CHANNEL = `latest-${NEWEST_SUPPORTED_MINOR}`;
 const OC_TARBALL = "openshift-client-linux.tar.gz";
 const OC_MIRROR_TARBALL = "oc-mirror.tar.gz";
 
@@ -431,7 +440,9 @@ function getLocalBinaryPaths() {
  *
  * Deliberately asymmetric (see CLAUDE.md "External tool version policy"):
  *   oc        → latest patch within `targetMinor` (must match the target cluster)
- *   oc-mirror → current global latest (vendor directs latest regardless of target)
+ *   oc-mirror → newest patch of the newest supported minor, regardless of target
+ *               (OC_MIRROR_CHANNEL; never the global `latest`, which is OpenShift 5
+ *               and publishes no oc-mirror)
  *
  * The baked-in `oc` is NOT reused here: it belongs to whichever minor the image
  * was built against, which is not necessarily the selected target minor.

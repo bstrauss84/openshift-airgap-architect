@@ -55,6 +55,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `POST /api/mirroring/start-over` is retired: 410 Gone, nothing changed (it had no UI caller).
 
 ### Fixed
+- **Backend image build failed with `FATAL: no SHA256 for oc-mirror.tar.gz` (Tekton and local Podman).** Red Hat's global
+  channel `clients/ocp/latest` moved to OpenShift 5.0.1, whose `sha256sum.txt` publishes no oc-mirror artifact on any
+  architecture. oc-mirror is now resolved from `latest-<newest supported minor>` (today `latest-4.22`) in the image and
+  for downloaded bundles. A new resolver (`backend/scripts/resolve-ocp-tool.sh`):
+  - binds `release.txt` to the same `sha256sum.txt` as the tarball;
+  - checks that the version belongs to the channel's minor, and that the checksum exists and is 64 hex digits;
+  - verifies `--strict`;
+  - extracts only the expected regular file, at mode 0755;
+  - checks the ELF architecture and runs the binary.
+
+  The image also runs `oc` and `oc-mirror` as UID 1001 during the build. Nothing falls back to unverified bytes, and TLS
+  verification is unchanged. See `docs/BUILD_TROUBLESHOOTING.md`. (Same fix as the maintenance branch
+  `fix/oc-mirror-channel-5.0`.)
+- The Field Guide's oc-mirror download command (`…/clients/ocp/latest/oc-mirror.tar.gz`) became a 404 for the same
+  reason. It now uses the guide's own minor (`latest-<minor>`).
 - Upgrade: stages prepared for an earlier route were shown and could be mirrored as the current route after the route
   changed without a target change; staleness is now derived on every read, mirroring refuses a mismatched set, and
   re-preparing carries the operators of a released same-minor stage into its replacement.

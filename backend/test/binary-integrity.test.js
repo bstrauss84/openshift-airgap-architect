@@ -3,7 +3,9 @@
  *
  * Policy under test (see CLAUDE.md "External tool version policy"):
  *   oc        → latest patch WITHIN the selected target minor  (latest-<minor>)
- *   oc-mirror → current GLOBAL latest                          (latest)
+ *   oc-mirror → newest patch of the newest SUPPORTED minor     (latest-<newest supported minor>)
+ *               (was the global `latest` until 2026-11-19; that channel is now
+ *               OpenShift 5.0.1 and publishes no oc-mirror)
  *
  * Hermetic: global fetch is stubbed; no external network is used.
  */
@@ -154,15 +156,15 @@ test("R2.3/R2.4 oc never silently resolves another minor or the global channel",
   assert.match(oc21.version, /^4\.21\./);
   assert.notEqual(oc21.version, CHANNEL_VERSION.latest);
 
-  // 4.22 is the interesting case after the support flip: the global oc-mirror
-  // channel ALSO resolves 4.22.16 here, so `oc` landing on the right version
-  // is not sufficient evidence — the CHANNEL it came from is what proves the
-  // per-minor rule still applies rather than the global one.
+  // 4.22: since 2026-11-19 oc-mirror's channel is latest-<newest supported
+  // minor>, which for a 4.22 target is the SAME channel as oc's per-minor one.
+  // That coincidence is legitimate; the per-minor rule for oc is proven by its
+  // channel equalling ocChannelForMinor(target) here and by the 4.20/4.21 cases.
   const b22 = await getBinariesForExportArch("x86_64", path.join(fixtureDir, "d22"), "4.22");
   const oc22 = b22.provenance.find((p) => p.tool === "oc");
-  assert.equal(oc22.channel, "latest-4.22");
+  assert.equal(oc22.channel, ocChannelForMinor("4.22"));
   assert.match(oc22.version, /^4\.22\./);
-  assert.notEqual(oc22.channel, OC_MIRROR_CHANNEL);
+  assert.notEqual(oc22.channel, "latest", "oc never comes from the global channel");
 });
 
 test("ocChannelForMinor rejects malformed minors (fail closed)", () => {
@@ -174,12 +176,44 @@ test("ocChannelForMinor rejects malformed minors (fail closed)", () => {
 
 // --------------------------------------------------------- oc-mirror policy
 
-test("R2.11 oc-mirror resolves the GLOBAL latest channel regardless of target minor", async () => {
+test("R2.11 oc-mirror resolves the newest SUPPORTED minor's channel regardless of target minor — never the global latest", async () => {
+  assert.equal(OC_MIRROR_CHANNEL, "latest-4.22");
   for (const minor of ["4.20", "4.21", "4.22"]) {
     const b = await getBinariesForExportArch("x86_64", path.join(fixtureDir, `m${minor}`), minor);
     const om = b.provenance.find((p) => p.tool === "oc-mirror");
-    assert.equal(om.channel, "latest");
-    assert.equal(om.version, CHANNEL_VERSION.latest);
+    assert.equal(om.channel, OC_MIRROR_CHANNEL);
+    assert.equal(om.version, CHANNEL_VERSION[OC_MIRROR_CHANNEL]);
+    assert.notEqual(om.channel, "latest");
+  }
+});
+
+test("R2.11b 2026-11-19 regression: the global latest channel is OpenShift 5.0.1 and publishes no oc-mirror, yet bundle export still resolves a verified oc-mirror", async () => {
+  // Upstream state reproduced: clients/ocp/latest → 5.0.1 with no oc-mirror entry.
+  const realStub = globalThis.fetch;
+  const requested = [];
+  globalThis.fetch = async (url) => {
+    const p = parseUrl(url);
+    requested.push(p ? `${p.channel}/${p.file}` : String(url));
+    if (p?.channel === "latest") {
+      if (p.file === "release.txt") return textResponse("Name:           5.0.1\n");
+      if (p.file === "sha256sum.txt") return textResponse(`${tarballs["openshift-client-linux.tar.gz"].sha}  openshift-client-linux.tar.gz\n`);
+      return notFound(url);
+    }
+    return realStub(url);
+  };
+  try {
+    const b = await getBinariesForExportArch("x86_64", path.join(fixtureDir, "five"), "4.21");
+    const om = b.provenance.find((p) => p.tool === "oc-mirror");
+    assert.equal(om.channel, "latest-4.22");
+    assert.equal(om.sha256, tarballs["oc-mirror.tar.gz"].sha);
+    assert.ok(!requested.some((r) => r.startsWith("latest/")), `the global channel was consulted: ${requested.join(", ")}`);
+    // And resolving oc-mirror from the global channel itself fails closed, never silently.
+    await assert.rejects(
+      acquireVerifiedTool({ archDir: "x86_64", channel: "latest", fileName: "oc-mirror.tar.gz", member: "oc-mirror", finalPath: path.join(fixtureDir, "five-global", "oc-mirror") }),
+      /No SHA256 entry/
+    );
+  } finally {
+    globalThis.fetch = realStub;
   }
 });
 

@@ -13,9 +13,12 @@
  * external tool version policy makes `oc` and `oc-mirror` different on purpose,
  * and a third axis — which tool a USER receives — is different again:
  *
- *   1. oc-mirror channel is GLOBAL `latest`, independent of target minor,
- *      because operator discovery (`--v2 list operators`) does not exist in
- *      4.21.x. Asserted in both the image and the runtime.
+ *   1. oc-mirror channel is `latest-<newest SUPPORTED minor>`, independent of
+ *      the selected target minor, because operator discovery (`--v2 list
+ *      operators`) does not exist in 4.21.x. It was the GLOBAL `latest` until
+ *      2026-11-19, when that channel moved to OpenShift 5.0.1, which publishes
+ *      no oc-mirror, and every image build failed with "no SHA256 for
+ *      oc-mirror.tar.gz". Asserted in both the image and the runtime.
  *   2. oc channel is per-target-minor `latest-<minor>`, because oc carries a
  *      client/server compatibility expectation. At RUNTIME this is resolved
  *      from the user's selected minor, which is the only place it can be
@@ -37,7 +40,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 import { SUPPORTED_MINORS } from "../src/versionPolicy.js";
-import { ocChannelForMinor } from "../src/ocMirrorRuntime.js";
+import { ocChannelForMinor, OC_MIRROR_CHANNEL } from "../src/ocMirrorRuntime.js";
 
 const CONTAINERFILE = fs.readFileSync(new URL("../Containerfile", import.meta.url), "utf8");
 /** Directive lines only — the comments discuss the old idiom by name. */
@@ -46,23 +49,32 @@ const DIRECTIVES = CONTAINERFILE.split("\n")
   .join("\n");
 
 /**
- * Just the tool-acquisition RUN, so assertions about fetch hygiene do not
- * accidentally police unrelated layers (the `useradd ... || true` idempotency
- * line further down is legitimate and must not be caught here).
+ * The Containerfile RUN that acquires the tools, located by content (it calls
+ * the resolver script), so assertions do not police unrelated layers (the
+ * `useradd ... || true` idempotency line further down is legitimate).
  */
-const TOOL_BLOCK = (() => {
-  // Located by content (the RUN that fetches from mirror.openshift.com), not
-  // by its first line: M7 put an optional build-secret mount in front.
+const TOOL_RUN = (() => {
   const lines = DIRECTIVES.split("\n");
   for (let start = 0; start < lines.length; start++) {
     if (!lines[start].startsWith("RUN ")) continue;
     let end = start;
     while (end < lines.length && lines[end].trimEnd().endsWith("\\")) end += 1;
     const block = lines.slice(start, end + 1).join("\n");
-    if (block.includes("mirror.openshift.com")) return block;
+    if (block.includes("resolve-ocp-tool.sh")) return block;
   }
   assert.fail("tool-acquisition RUN not found");
 })();
+
+/**
+ * Since the 2026-11-19 fix the fetch/verify/extract logic lives in
+ * backend/scripts/resolve-ocp-tool.sh (executable lines only; its comments
+ * discuss the old idioms by name). Every fetch-hygiene assertion below now
+ * polices this script, which is where the curl calls are.
+ */
+const TOOL_BLOCK = fs.readFileSync(new URL("../scripts/resolve-ocp-tool.sh", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trim().startsWith("#"))
+  .join("\n");
 
 /** Highest supported minor, by numeric comparison rather than sort order. */
 const HIGHEST = [...SUPPORTED_MINORS].sort((a, b) => {
@@ -76,8 +88,10 @@ const HIGHEST = [...SUPPORTED_MINORS].sort((a, b) => {
 /* ------------------------------------------------------------------ */
 
 describe("T7C — the image's baked tool channels", () => {
-  it("oc-mirror is pinned to the GLOBAL latest channel, with no minor", () => {
-    assert.match(DIRECTIVES, /^ARG OC_MIRROR_CHANNEL=latest$/m);
+  it("oc-mirror tracks the newest SUPPORTED minor, never the global latest (OpenShift 5.0 publishes no oc-mirror)", () => {
+    assert.match(DIRECTIVES, new RegExp(`^ARG OC_MIRROR_CHANNEL=latest-${HIGHEST.replace(".", "\\.")}$`, "m"));
+    assert.doesNotMatch(DIRECTIVES, /^ARG OC_MIRROR_CHANNEL=latest$/m);
+    assert.equal(OC_MIRROR_CHANNEL, `latest-${HIGHEST}`, "the runtime follows the same rule");
   });
 
   it("oc tracks the highest SUPPORTED minor, not a frozen one", () => {
@@ -95,10 +109,18 @@ describe("T7C — the image's baked tool channels", () => {
     );
   });
 
-  it("the two channels are not collapsed into one value", () => {
+  it("the two policies are not collapsed: separate build args, and different runtime behaviour", () => {
+    // Since 2026-11-19 both IMAGE defaults are latest-<newest supported minor>,
+    // so the values coincide there. The policies still differ, and must stay two
+    // separately overridable args: at runtime oc follows the user's selected
+    // minor, oc-mirror does not.
     const oc = DIRECTIVES.match(/^ARG OC_CHANNEL=(.+)$/m)?.[1];
     const mirror = DIRECTIVES.match(/^ARG OC_MIRROR_CHANNEL=(.+)$/m)?.[1];
-    assert.notEqual(oc, mirror, "oc and oc-mirror channel policies are deliberately different");
+    assert.ok(oc && mirror, "both OC_CHANNEL and OC_MIRROR_CHANNEL are declared");
+    assert.match(TOOL_RUN, /--channel "\$\{OC_CHANNEL\}"/);
+    assert.match(TOOL_RUN, /--channel "\$\{OC_MIRROR_CHANNEL\}"/);
+    const oldest = SUPPORTED_MINORS.find((m) => m !== HIGHEST);
+    assert.notEqual(ocChannelForMinor(oldest), OC_MIRROR_CHANNEL, "an older selected minor changes oc, never oc-mirror");
   });
 
   it("no hardcoded z-stream appears in either channel", () => {
@@ -179,14 +201,17 @@ describe("T7C — build-time fetches let curl finish and honour its exit status"
     // An invocation is `curl -…`; "(curl $rc)" in the failure messages is text.
     const wrapper = TOOL_BLOCK.split("\n").filter((l) => /(^|[\s;&|({])curl\s+-/.test(l));
     assert.equal(wrapper.length, 1, "curl is called only by the fetch wrapper");
-    assert.match(wrapper[0], /curl [^|]*"\$@" \|\| \{ rc=\$\?;/, "the wrapper keeps curl's exit status");
+    // Since 2026-11-19 the wrapper (in resolve-ocp-tool.sh) always downloads to
+    // a file: `curl … "$1" -o "$2" || { rc=$?`.
+    assert.match(wrapper[0], /curl [^|]*"\$1" -o "\$2" \|\| \{ rc=\$\?/, "the wrapper keeps curl's exit status");
     assert.match(TOOL_BLOCK, /return \$rc; \}/, "and returns it");
-    const offenders = TOOL_BLOCK.split("\n")
-      .filter((l) => /\bfetch "/.test(l))
-      .filter((l) => !/-o\s+\S+/.test(l))
-      .filter((l) => !/="\$\(fetch [^|]*\)"/.test(l));
-    assert.deepEqual(offenders, [], "a fetch whose status cannot be observed");
-    assert.ok(TOOL_BLOCK.split("\n").filter((l) => /\bfetch "/.test(l)).length >= 6, "release, checksum and tarball fetches all go through it");
+    const calls = TOOL_BLOCK.split("\n").filter((l) => /^\s*fetch "/.test(l));
+    const offenders = calls.filter((l) => !/^\s*fetch "[^"]+" "\$WORK\/[^"]+"\s*$/.test(l));
+    assert.deepEqual(offenders, [], "a fetch whose status cannot be observed (not a plain download to a work file)");
+    assert.ok(calls.length >= 3, "checksum, release and tarball fetches all go through it");
+    // Both tools are acquired through it.
+    assert.match(TOOL_RUN, /--artifact openshift-client-linux\.tar\.gz/);
+    assert.match(TOOL_RUN, /--artifact oc-mirror\.tar\.gz/);
   });
 
   it("the parsers consume the whole stream (END-block form)", () => {
@@ -199,9 +224,12 @@ describe("T7C — build-time fetches let curl finish and honour its exit status"
   });
 
   it("the emptiness guards are kept — an exit code cannot catch a 200 with junk", () => {
-    for (const v of ["_oc_ver", "_mirror_ver", "_oc_check", "_mirror_check"]) {
-      assert.match(TOOL_BLOCK, new RegExp(`\\[ -n "\\$\\{${v}\\}" \\] \\|\\|`), `missing guard for ${v}`);
+    // Resolver variables: release.txt's own checksum, the version, the artifact checksum.
+    for (const v of ["rel_sha", "VERSION"]) {
+      assert.match(TOOL_BLOCK, new RegExp(`\\[ -n "\\$${v}" \\] \\|\\| die`), `missing guard for ${v}`);
     }
+    assert.match(TOOL_BLOCK, /if \[ -z "\$SHA" \]; then\s*\n\s*die "no SHA256 for/, "missing guard for the artifact checksum");
+    assert.match(TOOL_BLOCK, /grep -Eq '\^\[0-9a-f\]\{64\}\$'/, "the checksum must be 64 lowercase hex digits");
   });
 
   it("the downloaded tarballs are still checksum-verified strictly", () => {
@@ -222,13 +250,18 @@ describe("v2.2.1: the baked tools are readable by the app user", () => {
   // root with the archive's owner kept, `chmod +x` gave 0751: uid 1001 could run
   // it but not read it, and hashing it for the execution plan failed (EACCES),
   // so every Mirroring run in the v2.2.0 container stopped before oc-mirror.
+  // Since 2026-11-19 extraction happens in resolve-ocp-tool.sh: the same rules,
+  // checked there, plus each tool must be installed to /usr/local/bin by it and
+  // must run as UID 1001 during the build.
+  it("the resolver extracts without the archive's owner and installs 0755 (never just +x)", () => {
+    assert.match(TOOL_BLOCK, /tar --no-same-owner /, "extract with --no-same-owner");
+    assert.match(TOOL_BLOCK, /install -m 0755 "\$bin" "\$DEST"/, "mode 0755, not just +x");
+    assert.doesNotMatch(TOOL_BLOCK, /chmod \+x/, "+x keeps the tarball's unreadable 0640 base");
+  });
   for (const tool of ["oc", "oc-mirror"]) {
-    it(`${tool} is extracted without the archive's owner and made 0755`, () => {
-      const line = DIRECTIVES.split("\n").find((l) => new RegExp(`tar .*-C /usr/local/bin ${tool}\\b`).test(l));
-      assert.ok(line, `no extraction line for ${tool}`);
-      assert.match(line, /tar --no-same-owner /, `${tool}: extract with --no-same-owner`);
-      assert.match(line, new RegExp(`chmod 0755 /usr/local/bin/${tool}\\b`), `${tool}: mode 0755, not just +x`);
-      assert.doesNotMatch(line, /chmod \+x/, `${tool}: +x keeps the tarball's unreadable 0640 base`);
+    it(`${tool} is installed by the resolver into /usr/local/bin and runs as UID 1001 at build time`, () => {
+      assert.match(TOOL_RUN, new RegExp(`--member ${tool} --dest /usr/local/bin/${tool}\\b`));
+      assert.match(DIRECTIVES, new RegExp(`setpriv --reuid=1001 --regid=0 --clear-groups /usr/local/bin/${tool}\\b`));
     });
   }
 });

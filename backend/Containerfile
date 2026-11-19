@@ -79,8 +79,13 @@ RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
 # Bake oc and oc-mirror, resolved from Red Hat release channels (no hardcoded
 # z-stream) and verified against each channel's own sha256sum.txt.
 #
-#   oc-mirror -> "latest"       global latest; required because operator listing
-#                               ("--v2 list operators") does not exist in 4.21.x.
+#   oc-mirror -> "latest-4.22"  newest patch of the newest SUPPORTED 4.x minor.
+#                               It read "latest" (global) until 2026-11-19, when
+#                               Red Hat's global channel moved to OpenShift 5.0.1,
+#                               which publishes NO oc-mirror artifact, and every
+#                               build failed with "no SHA256 for oc-mirror.tar.gz".
+#                               4.22.z still has "--v2 list operators" (absent in
+#                               4.21.x), which operator discovery requires.
 #   oc        -> "latest-4.22"  highest supported target minor; convenience only.
 #                               Downloadable bundles resolve oc per selected
 #                               target minor at request time, not from this layer
@@ -95,43 +100,28 @@ RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
 # Custom URL overrides require a matching SHA256 arg — never silently skip verification.
 # The resolved versions/digests are written to /app/tools-provenance.env.
 ARG OC_CHANNEL=latest-4.22
-ARG OC_MIRROR_CHANNEL=latest
-# Each fetch is CAPTURED FIRST and parsed afterwards, never piped straight into
-# awk. Two reasons, both load-bearing:
-#   1. `curl ... | awk '/^Name:/{print $2; exit}'` made awk close the pipe after
-#      the first match, so curl died with EPIPE and printed
-#      "curl: (23) Failure writing output to destination" on every single build
-#      (observed: "passed 8192 returned 3583" against a 33 KB release.txt).
-#   2. Worse than the noise: in a pipeline without pipefail the exit status is
-#      awk's, so curl's status — 23, or a real 404/TLS/network failure — was
-#      DISCARDED and `set -e` never saw it. The [ -n "$var" ] guards below are a
-#      proxy for "did it work", and they cannot distinguish a TLS failure from a
-#      404. A plain assignment from a non-pipelined substitution takes curl's own
-#      status, so a genuine failure now aborts the build with curl's own message.
-# The sha256sum.txt fetches used the same idiom and only escaped (23) because
-# those files fit in the 64 KiB pipe buffer — latent, not safe. Do not
-# reintroduce `| awk '...; exit'`, `| head -1` or `| grep -m1` here: all three
-# close the pipe early and recreate this.
+ARG OC_MIRROR_CHANNEL=latest-4.22
+# Every fetch writes to a FILE (curl -o) and is parsed afterwards, never piped
+# straight into awk: `curl ... | awk '...; exit'` closed the pipe early (curl 23 on
+# every build) and, without pipefail, discarded curl's own exit status, so a real
+# 404/TLS/network failure slipped past `set -e`. Do not reintroduce
+# `| awk '...; exit'`, `| head -1` or `| grep -m1` around curl.
 # Downloads retry transient failures only (curl --retry: timeouts, 408/429/5xx;
 # never TLS or other 4xx), bounded, and a failure says what kind it was.
+# Resolution, verification and installation of each tool is one script
+# (backend/scripts/resolve-ocp-tool.sh; regression-tested with upstream-shaped
+# metadata for every architecture): release.txt is bound to the same
+# sha256sum.txt as the tarball, the version must match the channel's minor, the
+# checksum must exist and is checked --strict, only the expected regular file is
+# extracted (0755), its ELF architecture must match, and the binary must run.
+COPY backend/scripts/resolve-ocp-tool.sh /tmp/resolve-ocp-tool.sh
 RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
     set -e && \
     if [ -s /run/secrets/oaa_build_ca ]; then \
       cat /etc/pki/tls/certs/ca-bundle.crt /run/secrets/oaa_build_ca > /tmp/oaa-build-ca.pem && \
-      export CURL_CA_BUNDLE=/tmp/oaa-build-ca.pem SSL_CERT_FILE=/tmp/oaa-build-ca.pem \
-             NODE_EXTRA_CA_CERTS=/run/secrets/oaa_build_ca npm_config_cafile=/tmp/oaa-build-ca.pem && \
-      OAA_DNF_CA="$(for r in $(sed -n 's/^\[\(.*\)\]$/\1/p' /etc/yum.repos.d/*.repo); do printf -- '--setopt=%s.sslcacert=/tmp/oaa-build-ca.pem ' "$r"; done)" && \
+      export CURL_CA_BUNDLE=/tmp/oaa-build-ca.pem SSL_CERT_FILE=/tmp/oaa-build-ca.pem && \
       echo "build CA: using the oaa_build_ca build secret for this step (not stored in the image)"; \
     fi && \
-    fetch() { \
-      curl -fsSL --proto '=https' --retry 4 --retry-delay 5 --retry-connrefused --connect-timeout 30 "$@" || { rc=$?; \
-        case $rc in \
-          35|51|53|54|58|59|60|66|77|80|82|83|90|91) echo "FATAL: TLS verification failed for $* (curl $rc). Behind an HTTPS-inspecting proxy, supply its CA as the oaa_build_ca build secret (README: Corporate CA and proxy)." >&2 ;; \
-          5|6|7|28|97) echo "FATAL: could not connect for $* (curl $rc): check HTTPS_PROXY / NO_PROXY and that mirror.openshift.com is allowed." >&2 ;; \
-          22) echo "FATAL: HTTP error for $* (curl 22) — not a TLS or proxy problem; a 407 means the proxy needs credentials in HTTPS_PROXY." >&2 ;; \
-          *) echo "FATAL: download failed for $* (curl $rc)." >&2 ;; \
-        esac; return $rc; }; \
-    } && \
     _arch="$(uname -m)" && \
     case "$_arch" in \
       x86_64)        _dir="x86_64" ;; \
@@ -140,49 +130,25 @@ RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
       s390x)         _dir="s390x" ;; \
       *) echo "FATAL: unsupported build architecture $_arch"; exit 1 ;; \
     esac && \
-    if [ -n "${OCP_CLIENT_URL}" ] && [ -z "${OCP_CLIENT_SHA256}" ]; then \
-      echo "FATAL: OCP_CLIENT_URL requires OCP_CLIENT_SHA256"; exit 1; \
-    fi && \
-    if [ -n "${OCP_MIRROR_URL}" ] && [ -z "${OCP_MIRROR_SHA256}" ]; then \
-      echo "FATAL: OCP_MIRROR_URL requires OCP_MIRROR_SHA256"; exit 1; \
-    fi && \
-    _cbase="https://mirror.openshift.com/pub/openshift-v4/${_dir}/clients/ocp" && \
-    _oc_base="${_cbase}/${OC_CHANNEL}" && \
-    _mirror_base="${_cbase}/${OC_MIRROR_CHANNEL}" && \
-    _oc_rel="$(fetch "${_oc_base}/release.txt")" && \
-    _mirror_rel="$(fetch "${_mirror_base}/release.txt")" && \
-    _oc_ver="$(printf '%s\n' "${_oc_rel}" | awk '/^Name:/{v=$2} END{print v}')" && \
-    _mirror_ver="$(printf '%s\n' "${_mirror_rel}" | awk '/^Name:/{v=$2} END{print v}')" && \
-    [ -n "${_oc_ver}" ] || { echo "FATAL: could not resolve oc version from ${_oc_base}"; exit 1; } && \
-    [ -n "${_mirror_ver}" ] || { echo "FATAL: could not resolve oc-mirror version from ${_mirror_base}"; exit 1; } && \
-    if [ -n "${OCP_CLIENT_SHA256}" ]; then _oc_check="${OCP_CLIENT_SHA256}"; else \
-      _oc_sums="$(fetch "${_oc_base}/sha256sum.txt")" && \
-      _oc_check="$(printf '%s\n' "${_oc_sums}" | awk '$2=="openshift-client-linux.tar.gz"{v=$1} END{print v}')"; fi && \
-    if [ -n "${OCP_MIRROR_SHA256}" ]; then _mirror_check="${OCP_MIRROR_SHA256}"; else \
-      _mirror_sums="$(fetch "${_mirror_base}/sha256sum.txt")" && \
-      _mirror_check="$(printf '%s\n' "${_mirror_sums}" | awk '$2=="oc-mirror.tar.gz"{v=$1} END{print v}')"; fi && \
-    [ -n "${_oc_check}" ] || { echo "FATAL: no SHA256 for openshift-client-linux.tar.gz"; exit 1; } && \
-    [ -n "${_mirror_check}" ] || { echo "FATAL: no SHA256 for oc-mirror.tar.gz"; exit 1; } && \
-    _oc_url="${OCP_CLIENT_URL:-${_oc_base}/openshift-client-linux.tar.gz}" && \
-    _mirror_url="${OCP_MIRROR_URL:-${_mirror_base}/oc-mirror.tar.gz}" && \
-    echo "Downloading oc ${_oc_ver} (${_dir}) from: ${_oc_url}" && \
-    fetch "${_oc_url}" -o /tmp/oc.tgz && \
-    echo "${_oc_check}  /tmp/oc.tgz" | sha256sum --check --strict && \
-    tar --no-same-owner -xzf /tmp/oc.tgz -C /usr/local/bin oc && chmod 0755 /usr/local/bin/oc && rm -f /tmp/oc.tgz && \
-    echo "Downloading oc-mirror ${_mirror_ver} (${_dir}) from: ${_mirror_url}" && \
-    fetch "${_mirror_url}" -o /tmp/oc-mirror.tgz && \
-    echo "${_mirror_check}  /tmp/oc-mirror.tgz" | sha256sum --check --strict && \
-    tar --no-same-owner -xzf /tmp/oc-mirror.tgz -C /usr/local/bin oc-mirror && chmod 0755 /usr/local/bin/oc-mirror && rm -f /tmp/oc-mirror.tgz && \
+    _oc="$(sh /tmp/resolve-ocp-tool.sh --arch-dir "$_dir" --channel "${OC_CHANNEL}" \
+            --artifact openshift-client-linux.tar.gz --member oc --dest /usr/local/bin/oc \
+            ${OCP_CLIENT_SHA256:+--sha "${OCP_CLIENT_SHA256}"} ${OCP_CLIENT_URL:+--url "${OCP_CLIENT_URL}"} \
+            --run "version --client")" && \
+    _mirror="$(sh /tmp/resolve-ocp-tool.sh --arch-dir "$_dir" --channel "${OC_MIRROR_CHANNEL}" \
+            --artifact oc-mirror.tar.gz --member oc-mirror --dest /usr/local/bin/oc-mirror \
+            ${OCP_MIRROR_SHA256:+--sha "${OCP_MIRROR_SHA256}"} ${OCP_MIRROR_URL:+--url "${OCP_MIRROR_URL}"} \
+            --run "--v2 list operators --help")" && \
+    _get() { printf '%s\n' "$1" | sed -n "s/^$2=//p"; } && \
     mkdir -p /app && { \
-      echo "OC_RESOLVED_VERSION=${_oc_ver}"; \
-      echo "OC_RESOLVED_SHA256=${_oc_check}"; \
+      echo "OC_RESOLVED_VERSION=$(_get "$_oc" VERSION)"; \
+      echo "OC_RESOLVED_SHA256=$(_get "$_oc" SHA256)"; \
       echo "OC_RESOLVED_CHANNEL=${OC_CHANNEL}"; \
-      echo "OC_MIRROR_RESOLVED_VERSION=${_mirror_ver}"; \
-      echo "OC_MIRROR_RESOLVED_SHA256=${_mirror_check}"; \
+      echo "OC_MIRROR_RESOLVED_VERSION=$(_get "$_mirror" VERSION)"; \
+      echo "OC_MIRROR_RESOLVED_SHA256=$(_get "$_mirror" SHA256)"; \
       echo "OC_MIRROR_RESOLVED_CHANNEL=${OC_MIRROR_CHANNEL}"; \
       echo "TOOLS_RESOLVED_ARCH=${_dir}"; \
     } > /app/tools-provenance.env && cat /app/tools-provenance.env && \
-    rm -f /tmp/oaa-build-ca.pem
+    rm -f /tmp/oaa-build-ca.pem /tmp/resolve-ocp-tool.sh
 
 WORKDIR /app
 COPY backend/package.json backend/package-lock.json* ./
@@ -290,6 +256,11 @@ RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
 # v2.2.1 regression QA against the v2.2.0 image).
 COPY --from=builder /usr/local/bin/oc /usr/local/bin/oc-mirror /usr/local/bin/
 COPY --from=builder /app/tools-provenance.env /app/tools-provenance.env
+# The baked tools must run as the runtime user (UID 1001, GID 0), not only as root:
+# fail the build here rather than at a user's first mirroring run.
+RUN setpriv --reuid=1001 --regid=0 --clear-groups /usr/local/bin/oc version --client >/dev/null \
+    && setpriv --reuid=1001 --regid=0 --clear-groups /usr/local/bin/oc-mirror version --output=json >/dev/null \
+    && setpriv --reuid=1001 --regid=0 --clear-groups /usr/local/bin/oc-mirror --v2 list operators --help >/dev/null
 
 WORKDIR /app
 # Only the production dependency tree crosses over — it was installed with
