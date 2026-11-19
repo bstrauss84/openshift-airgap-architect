@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cluster checks, now including cluster operators, removed-API usage, administrator acknowledgements, operator
   maximum OpenShift versions and evidence age. Individual exports stay available under Advanced. Every check has a
   "How to check" guide with exact commands, success and failure guidance and version-matched Red Hat documentation.
+- Upgrade › Content: one catalog workspace ("Catalogs for this route") for scans, channel checks and the plan's pull
+  secret; the operator table is one aligned matrix with per-row details; the operator "category" is replaced by an
+  optional installed/new note (it changed nothing Architect generates); clearer secondary and tertiary buttons.
 - Upgrade › Content: channel suggestions from each stage's own catalog listing, reviewed and applied with Undo;
   "Check channels in every stage"; a compact sticky stage bar with catalog-scan status.
 - Mirror to mirror protects existing catalog tags: oc-mirror replaces a catalog tag's content (verified on the exact
@@ -59,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   earlier minor's channel verbatim, so later stages' ImageSetConfigurations asked for e.g. ODF `stable-4.20` from
   the 4.22 catalog; channels now resolve against each stage's own catalog, and the operator table shows each stage's
   selected channel, its catalog default and the verdict separately, flagging earlier copies for review.
+- Upgrade: among equally short conditional routes the solver ignored risk; it now prefers routes whose risks apply only
+  to matching clusters over risks that apply to every cluster, and target labels and a note on Route explain why a
+  target is reachable only through a conditional update (verified against the live graph, 2026-11-19).
 - Upgrade: catalog scans restarted on revisits and duplicated (automatic scanning before the cache status loaded, no
   in-flight guard, failed minors retried); the server also reuses a running scan of the same catalog.
 - Upgrade: the stage's "Download it" was enabled for a stage that could not generate; it now says why and enables

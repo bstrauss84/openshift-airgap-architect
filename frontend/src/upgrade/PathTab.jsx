@@ -23,7 +23,7 @@ import ExploreHistory from "./ExploreHistory.jsx";
 import { getMinorVersion } from "../../../shared/versionUtils.js";
 import { ARCH_HINT, POLICY_HINT, SOURCE_HINT, CURRENT_CHANNEL_HINT, CURRENT_RELEASE_HINT, TARGET_HINT, CHANNEL_STRATEGY_HINT, IMPORT_CHANNEL_HINT, IMPORT_ORIGIN_HINT, JSON_INPUT_HINT } from "./upgradeCopy.js";
 import { fetchGraph, refreshGraph, importGraph, updatePlan, solvePlan } from "./upgradeApi.js";
-import { classifyTargets } from "../../../shared/upgradePath.js";
+import { classifyTargets, minorGates } from "../../../shared/upgradePath.js";
 
 const ARCHES = [["amd64", "x86_64"], ["arm64", "aarch64 (arm64)"], ["s390x", "s390x"], ["ppc64le", "ppc64le"], ["multi", "multi (heterogeneous)"]];
 const ago = (iso) => {
@@ -108,6 +108,12 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
     if (!plan.current || !g) return null;
     if (!g.nodes?.[plan.current]) return [];
     return classifyTargets(g, plan.current, { supportedMinors });
+  }, [plan.current, targetGraph, supportedMinors]);
+
+  const gates = useMemo(() => {
+    const g = targetGraph?.normalized;
+    if (!plan.current || !g?.nodes?.[plan.current]) return [];
+    return minorGates(g, plan.current, { supportedMinors });
   }, [plan.current, targetGraph, supportedMinors]);
 
   const save = async (patch) => {
@@ -230,7 +236,7 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
                 </optgroup>
                 {plan.conditionalReview?.enabled ? (
                   <optgroup label="Only through conditional updates">
-                    {conditionalTargets.map((t) => <option key={t.version} value={t.version}>{t.version} (conditional)</option>)}
+                    {conditionalTargets.map((t) => <option key={t.version} value={t.version}>{t.version} — via a conditional update ({t.alwaysRisk ? "a risk applies to every cluster" : "risk applies only to some clusters"})</option>)}
                   </optgroup>
                 ) : null}
               </select>
@@ -241,7 +247,6 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
                   ? <span className="field-helper">Targets are computed in {newest}. <Button variant="secondary" onClick={() => refresh(newest)} disabled={Boolean(busy)}>{busy === `refresh:${newest}` ? "Loading…" : `Load ${newest}`}</Button></span>
                   : <span className="field-helper">Import the {newest} graph to list targets. <Button variant="secondary" onClick={() => { setImportChannel(newest); setImportOpen(true); }}>Import graph…</Button></span>
               ) : null}
-              {targets && conditionalTargets.length && !plan.conditionalReview?.enabled ? <span className="field-helper">{conditionalTargets.length} more release(s) are reachable only through conditional updates.</span> : null}
               {targets && unreachable.length ? <span className="field-helper">{unreachable.length} newer release(s) are not reachable from {plan.current} in this graph.</span> : null}
             </div>
           </div>
@@ -258,6 +263,7 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
             </div>
           </div>
         </div>
+        {targets && conditionalTargets.length ? <ConditionalTargetsNote current={plan.current} targets={conditionalTargets} gates={gates} reviewOn={Boolean(plan.conditionalReview?.enabled)} /> : null}
         <CollapsibleSection title="Advanced" subtitle={cpoEligible ? "Control Plane Only, channel strategy, conditional updates" : "Channel strategy and conditional updates"} wrapInCard={false}>
           {cpoEligible ? (
             <OptionRow title="Control Plane Only update" description="4.20 → 4.22 through 4.21 on eus-4.22; worker pools stay paused until the end. Its steps are generated only once the documented prerequisites are verified or attested on the Readiness step.">
@@ -403,6 +409,66 @@ export default function PathTab({ plan, supportedMinors, highSide, onPlanChanged
 }
 
 /** Paste, upload or drop a JSON document (non-secret; nothing is masked or stored in the browser). */
+/** "4.21.39, 4.21.40, 4.21.41" → "4.21.39–4.21.41" (consecutive z-streams compressed). */
+export const versionRanges = (list) => {
+  const out = [];
+  for (const v of list) {
+    const [mj, mn, z] = v.split(".").map(Number);
+    const last = out[out.length - 1];
+    if (last && last.mj === mj && last.mn === mn && last.z2 + 1 === z) last.z2 = z;
+    else out.push({ mj, mn, z1: z, z2: z });
+  }
+  return out.map((r) => (r.z1 === r.z2 ? `${r.mj}.${r.mn}.${r.z1}` : `${r.mj}.${r.mn}.${r.z1}–${r.mj}.${r.mn}.${r.z2}`)).join(", ");
+};
+
+/**
+ * Owner QA 4: "every 4.22 target is conditional" — true in the live graph (2026-11-19), but the
+ * label hid why. A target is not conditional itself: every route to it passes at least one
+ * conditional update. Say where the recommended routes stop, which risks the least-risk routes
+ * carry, and whether each applies to every cluster ("Always") or only to matching clusters.
+ */
+export function ConditionalTargetsNote({ current, targets, gates, reviewOn }) {
+  const byMinor = new Map();
+  for (const t of targets) { const m = getMinorVersion(t.version); byMinor.set(m, (byMinor.get(m) || 0) + 1); }
+  const blocked = (gates || []).find((g) => g.reachableRecommended.length === 0);
+  // Per individual risk: how many targets' least-risk route passes it; every-cluster risks first.
+  const byRisk = new Map();
+  for (const t of targets) {
+    for (const r of new Map((t.via || []).flatMap((h) => h.risks).map((x) => [x.name, x])).values()) {
+      if (!byRisk.has(r.name)) byRisk.set(r.name, { ...r, count: 0 });
+      byRisk.get(r.name).count += 1;
+    }
+  }
+  const risks = [...byRisk.values()].sort((a, b) => Number(b.always) - Number(a.always) || b.count - a.count || a.name.localeCompare(b.name));
+  return (
+    <div className="upgrade-cond-note" role="note" aria-label="Why some targets need a conditional update">
+      <p>
+        <strong>{targets.length} release{targets.length === 1 ? "" : "s"}</strong> ({[...byMinor].map(([m, n]) => `${n} in ${m}`).join(", ")}) can be reached from {current} only through a <strong>conditional update</strong> — an update Red Hat lists with a known risk.
+        {blocked ? (blocked.recommendedFrom.length
+          ? <> Red Hat recommends updating from {blocked.from} to {blocked.to} only from {versionRanges(blocked.recommendedFrom)}, and {current} reaches {blocked.recommendedFrom.length === 1 ? "that release" : "those releases"} only through a conditional update.</>
+          : <> The graph has no recommended update from {blocked.from} into {blocked.to} at all.</>) : null}
+      </p>
+      <details>
+        <summary>Which risks, and do they apply to my cluster?</summary>
+        <table className="upgrade-cond-risks">
+          <thead><tr><th scope="col">Risk on the least-risk route</th><th scope="col">Applies to</th><th scope="col">Targets</th></tr></thead>
+          <tbody>
+            {risks.map((r) => (
+              <tr key={r.name}>
+                <th scope="row">{r.url ? <a href={r.url} target="_blank" rel="noopener noreferrer">{r.name}</a> : r.name}</th>
+                <td>{r.always ? <span className="upgrade-badge" data-state="BLOCKED">every cluster</span> : <span className="upgrade-badge" data-state="WARNING">only matching clusters</span>}</td>
+                <td>{r.count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p>A risk that applies only to matching clusters is evaluated by the cluster itself: <code>oc adm upgrade</code> shows whether the update is recommended for it. Upload the readiness bundle on Readiness (Check my cluster&apos;s readiness) to see that evaluation here. Acknowledging a risk records your judgment; it never makes the update safe, and Architect never generates a command that forces a conditional update.</p>
+      </details>
+      {!reviewOn ? <p>To choose one of them, turn on <strong>Review conditional updates</strong> under Advanced below.</p> : null}
+    </div>
+  );
+}
+
 export function JsonDocumentInput({ id, label, value, onChange, hint = JSON_INPUT_HINT }) {
   const onFile = async (file) => { if (file) onChange(await file.text()); };
   return (

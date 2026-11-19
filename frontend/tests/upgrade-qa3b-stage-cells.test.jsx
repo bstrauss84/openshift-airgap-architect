@@ -88,7 +88,7 @@ afterEach(cleanup);
 
 const mount = () => render(<ContentTab plan={plan} onPlanChanged={() => {}} credentialKey={planCredentialKey(plan.id)} />);
 const matrix = () => screen.getByRole("table", { name: /Operators on each stage of the route/ });
-const cells = (name) => within(within(matrix()).getByRole("rowheader", { name: new RegExp(name) }).closest("tr")).getAllByRole("cell").slice(1);
+const cells = (name) => within(within(matrix()).getByRole("rowheader", { name: new RegExp(name) }).closest("tr")).getAllByRole("cell").filter((td) => td.classList.contains("upgrade-matrix-cell"));
 
 describe("stage cells after every catalog is scanned (owner QA 3b)", () => {
   it("each later stage shows its own catalog default next to the copied channel; nothing claims the copy is that stage's result", async () => {
@@ -98,9 +98,10 @@ describe("stage cells after every catalog is scanned (owner QA 3b)", () => {
     expect(c1.textContent).toMatch(/stable-4\.20.*verified · default/);
     expect(c1.textContent).not.toMatch(/Catalog default/);
     expect(c2.dataset.state).toBe("WARNING");
-    expect(c2.textContent).toMatch(/stable-4\.20.*copied from stage 1.*not this catalog's default.*Catalog default: stable-4\.21 \(live check\)/);
+    expect(c2.textContent).toMatch(/stable-4\.20.*not this catalog's default.*Catalog default: stable-4\.21 \(live check\)/);
+    expect(c2.querySelector(".upgrade-cell-channel").title).toMatch(/copied from stage 1/);
     expect(c2.textContent).not.toMatch(/✓/);
-    expect(c3.textContent).toMatch(/stable-4\.20.*copied from stage 1.*not confirmed here/);
+    expect(c3.textContent).toMatch(/stable-4\.20.*not confirmed here.*Catalog default: stable-4\.22 \(scan\)/);
     expect(c3.textContent).not.toMatch(/channel not checked/);
     // A channel that is every catalog's default is simply the default in each stage.
     for (const c of cells("local-storage-operator")) expect(c.textContent).toMatch(/stable.*(catalog default|default)/);
@@ -123,18 +124,34 @@ describe("stage cells after every catalog is scanned (owner QA 3b)", () => {
     expect(byProfile).toEqual({ "p-s2": "stable-4.21", "p-s3": "stable-4.22" });
   });
 
-  it("the toolbar is two clear groups: find, and a framed bulk-category panel", async () => {
+  it("the toolbar: find first; the optional note and its bulk panel appear only when asked for (owner QA 4)", async () => {
     mount();
     const find = await screen.findByRole("search", { name: "Find operators" });
     expect(within(find).getByRole("searchbox", { name: "Filter operators" })).toBeInTheDocument();
-    expect(within(find).getByRole("combobox", { name: "Show category" })).toBeInTheDocument();
     expect(within(find).getByText("2 operators")).toBeInTheDocument();
-    const bulk = screen.getByRole("group", { name: "Set the category of several operators" });
+    expect(screen.queryByRole("group", { name: "Note several operators at once" })).toBeNull();
+    fireEvent.click(screen.getByRole("switch", { name: "Note which operators are already installed" }));
+    expect(within(find).getByRole("combobox", { name: "Show note" })).toBeInTheDocument();
+    const bulk = screen.getByRole("group", { name: "Note several operators at once" });
     expect(within(bulk).getByText(/Tick operators in the table/)).toBeInTheDocument();
-    expect(within(bulk).getByRole("combobox", { name: "Category for the selected operators" })).toBeDisabled();
-    expect(within(bulk).getByRole("button", { name: "Set for 0 selected" })).toBeDisabled();
+    expect(within(bulk).getByRole("combobox", { name: "Note for the selected operators" })).toBeDisabled();
+    expect(within(bulk).getByRole("button", { name: "Note 0 selected" })).toBeDisabled();
     fireEvent.click(within(bulk).getByRole("button", { name: "Select shown (2)" }));
     expect(within(bulk).getByText("2 selected")).toBeInTheDocument();
-    expect(within(bulk).getByRole("button", { name: "Set for 2 selected" })).toBeEnabled();
+    expect(within(bulk).getByRole("button", { name: "Note 2 selected" })).toBeEnabled();
+  });
+
+  it("each operator is one row: every stage cell has the same three lines, and explanations open in one detail row", async () => {
+    mount();
+    await waitFor(() => expect(cells("odf-operator")[2].textContent).toMatch(/Catalog default/));
+    for (const c of [...cells("odf-operator"), ...cells("local-storage-operator")]) expect(c.querySelector(".upgrade-cell").children.length).toBe(3);
+    expect(document.querySelector("details.upgrade-cell-why")).toBeNull();
+    const btn = screen.getByRole("button", { name: "Show details for odf-operator" });
+    expect(btn).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(btn);
+    const detail = document.getElementById(btn.getAttribute("aria-controls"));
+    expect(detail.tagName).toBe("TR");
+    expect(detail.textContent).toMatch(/Stage 3 · 4\.22\.22.*not the 4\.22 catalog's default/);
+    expect(screen.getByRole("button", { name: "Hide details for odf-operator" })).toHaveAttribute("aria-expanded", "true");
   });
 });

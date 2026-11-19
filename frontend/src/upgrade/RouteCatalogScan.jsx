@@ -41,7 +41,7 @@ const ago = (when) => {
 };
 const TERMINAL = new Set(["completed", "completed_with_warnings", "failed", "cancelled", "error"]);
 
-export default function RouteCatalogScan({ plan, scanPlan, credentialKey, scans, setScans, onScanned }) {
+export default function RouteCatalogScan({ plan, scanPlan, credentialKey, scans, setScans, onScanned, onCheckChannels = null, checkStatus = null, hasSelections = false }) {
   const cred = useSourceCredential(credentialKey, "scan");
   const [error, setError] = useState("");
   const [auto, setAuto] = useState(() => autoScanAllowed.get(plan.id) === true);
@@ -156,15 +156,19 @@ export default function RouteCatalogScan({ plan, scanPlan, credentialKey, scans,
   return (
     <section className="card upgrade-route-scan" aria-labelledby={`upgrade-route-scan-${plan.id}`}>
       <h3 id={`upgrade-route-scan-${plan.id}`}>Catalogs for this route</h3>
-      <p className="subtle">One scan per OpenShift minor on the route; every stage of that minor uses it. Nothing is scanned unless you ask.</p>
+      <p className="subtle">The one place for this plan&apos;s operator catalogs and its Red Hat pull secret. Every stage uses what is scanned and checked here.</p>
       <details className="upgrade-scan-about">
-        <summary>What a scan does</summary>
-        <p className="subtle">
-          Scanning reads the Red Hat, Certified and Community catalog images for that minor once (several hundred megabytes) and caches
-          the result for every stage and for Mirroring. It shows which operators exist and their default channel. It does not show that
-          an operator is compatible with your running cluster; that is a readiness check.
-        </p>
+        <summary>What each action does (and what it downloads)</summary>
+        <ul>
+          <li><strong>Scan</strong> — downloads the Red Hat, Certified and Community catalog indexes for one OpenShift minor (several hundred megabytes) and records every operator and its <em>default</em> channel. Cached on this server for every stage of that minor and for Mirroring; rescan only to refresh.</li>
+          <li><strong>Check channels in every stage</strong> — asks each stage&apos;s catalog whether the channels (and version ranges) you selected exist. The first check of a catalog downloads that catalog image once; it is verified and reused until Red Hat publishes a new catalog. Results appear in the operator table.</li>
+          <li><strong>Already known</strong> — each minor below says when it was scanned; table cells say whether a channel was confirmed by a check or only by a scan. Neither says an operator is compatible with your running cluster; that is a readiness item.</li>
+        </ul>
       </details>
+      <div className="upgrade-scan-cred">
+        <h4>Red Hat pull secret for this plan</h4>
+        <SourceCredentialField profileId={credentialKey} site="scan" idPrefix={`upgrade-route-scan-cred-${plan.id}`} label="Red Hat pull secret" />
+      </div>
       {error ? <Banner variant="error">{error}</Banner> : null}
       <ul className="upgrade-scan-plan">
         {scanPlan.map((e) => (
@@ -186,9 +190,6 @@ export default function RouteCatalogScan({ plan, scanPlan, credentialKey, scans,
           </li>
         ))}
       </ul>
-      {!cred.usable ? (
-        <SourceCredentialField profileId={credentialKey} site="scan" idPrefix={`upgrade-route-scan-cred-${plan.id}`} label="Red Hat pull secret" />
-      ) : null}
       <div className="actions">
         {!running ? (
           <Button variant="primary" disabled={!cred.usable || !toScan.length} onClick={() => run(toScan)}>
@@ -197,7 +198,14 @@ export default function RouteCatalogScan({ plan, scanPlan, credentialKey, scans,
         ) : (
           <Button variant="destructive" onClick={() => { runRef.current.stop = true; }}>Stop scanning</Button>
         )}
+        {onCheckChannels ? (
+          <Button variant="secondary" disabled={Boolean(checkStatus) || !hasSelections || !cred.usable} onClick={onCheckChannels}
+            title="Asks each stage's catalog whether every selected channel (and version range) exists.">
+            {checkStatus ? checkStatus.message : "Check channels in every stage"}
+          </Button>
+        ) : null}
       </div>
+      {onCheckChannels && !hasSelections ? <p className="subtle">Choose operators for a stage before checking channels.</p> : null}
       <OptionRow title="Scan new stage catalogs automatically" description={auto
         ? "On for this plan in this browser session: a stage minor whose catalogs are not cached is scanned once, without asking again. Cached catalogs are never rescanned automatically."
         : "Off: nothing is scanned unless you click Scan. Turn on to scan, once, catalogs of new stage minors that are not cached (this plan, this browser session). Scans download several hundred megabytes per minor."}>

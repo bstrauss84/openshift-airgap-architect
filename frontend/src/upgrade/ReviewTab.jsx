@@ -52,6 +52,13 @@ export default function ReviewTab({ plan, onPreviewArtifacts, onGoToStep = null 
       <section className="card" aria-labelledby={`upgrade-handoff-${plan.id}`}>
         <h3 id={`upgrade-handoff-${plan.id}`}>Handoff</h3>
         <p className="upgrade-handoff-route">{plan.path ? plan.path.path.join(" → ") : "No route yet"} <span className="subtle">· {plan.channelPolicy} · {plan.arch}{plan.strategy === "cpo" ? " · Control Plane Only" : ""}</span></p>
+        {plan.path?.conditional ? (
+          <Banner variant="warning">
+            <strong>This route includes {plan.path.hops.filter((h) => h.conditional).length === 1 ? "a conditional update" : `${plan.path.hops.filter((h) => h.conditional).length} conditional updates`}:</strong>{" "}
+            {plan.path.hops.filter((h) => h.conditional).map((h) => `${h.from} → ${h.to} (${(h.risks || []).map((r) => `${r.name}${(r.ruleTypes || []).includes("Always") ? ", applies to every cluster" : ", applies only to matching clusters"}`).join("; ")})`).join(" · ")}.
+            {" "}The instructions give no command for {plan.path.hops.filter((h) => h.conditional).length === 1 ? "it" : "them"}; the cluster evaluates whether each risk applies (<code>oc adm upgrade</code>). Acknowledged risks are your judgment, not proof of safety.
+          </Banner>
+        ) : null}
         <ul className="upgrade-summary-tiles">
           <li><span className="upgrade-tile-label">Content in the registry</span><span className="upgrade-tile-value">{views.length ? `${inRegistry} of ${views.length} stages` : "no stages"}</span></li>
           <li><span className="upgrade-tile-label">Operators</span><span className="upgrade-tile-value">{operators ? `${operators} across ${views.length} stages` : "none chosen"}</span></li>
@@ -62,7 +69,7 @@ export default function ReviewTab({ plan, onPreviewArtifacts, onGoToStep = null 
           <div className="upgrade-todo">
             <h4>Still to do</h4>
             <ul>
-              {todo.map((t) => <li key={t.text}>{t.text}{onGoToStep ? <> <Button variant="secondary" className="mini" onClick={() => onGoToStep(t.step)}>Go</Button></> : null}</li>)}
+              {todo.map((t) => <li key={t.text}>{t.text}{onGoToStep ? <> <Button variant="tertiary" className="mini" onClick={() => onGoToStep(t.step)}>Go</Button></> : null}</li>)}
             </ul>
           </div>
         ) : <p className="subtle">Nothing left to prepare in Architect. The updates themselves are run by an administrator (Update the cluster).</p>}

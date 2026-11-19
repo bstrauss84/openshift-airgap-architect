@@ -118,21 +118,27 @@ function Host() {
 const mount = () => render(<Host />);
 const matrix = () => screen.getByRole("table", { name: /Operators on each stage of the route/ });
 const row = (name) => within(matrix()).getByRole("rowheader", { name: new RegExp(name) }).closest("tr");
-const cells = (name) => within(row(name)).getAllByRole("cell").slice(1);
+const cells = (name) => within(row(name)).getAllByRole("cell").filter((td) => td.classList.contains("upgrade-matrix-cell"));
+const notesOn = () => fireEvent.click(screen.getByRole("switch", { name: "Note which operators are already installed" }));
 
-describe("default classification and provenance", () => {
-  it("never asserts “New” by default: unknown operators are “Not classified yet”, with the reason they are in the stage", async () => {
+describe("the optional “on the cluster” note (owner QA 4: categories changed nothing Architect generates)", () => {
+  it("is off by default; provenance stays visible; turned on, nothing is assumed and cluster evidence is told apart from a statement", async () => {
     mount();
     await waitFor(() => expect(within(matrix()).getAllByRole("row").length).toBe(3));
+    expect(within(matrix()).queryByRole("columnheader", { name: "On the cluster" })).toBeNull();
+    expect(screen.getByText(/does not change what is mirrored, the channels, readiness or the update instructions/)).toBeInTheDocument();
     const odf = row("odf-operator");
-    expect(within(odf).getByRole("combobox", { name: /odf-operator category/ })).toHaveValue("");
-    expect(within(odf).getByRole("combobox", { name: /odf-operator category/ }).selectedOptions[0].textContent).toBe("Not classified yet");
     expect(odf.textContent).toMatch(/Quick Pick · copied from stage 1/);
+    notesOn();
+    expect(within(matrix()).getByRole("columnheader", { name: "On the cluster" })).toBeInTheDocument();
+    expect(within(row("odf-operator")).getByRole("combobox", { name: /odf-operator on the cluster/ })).toHaveValue("");
+    expect(within(row("odf-operator")).getByRole("combobox", { name: /odf-operator on the cluster/ }).selectedOptions[0].textContent).toBe("Not noted");
     const kiali = row("kiali-ossm");
-    expect(within(kiali).getByRole("combobox", { name: /kiali-ossm category/ })).toHaveValue("installed");
-    expect(kiali.textContent).toMatch(/imported cluster export/);
+    expect(within(kiali).getByRole("combobox", { name: /kiali-ossm on the cluster/ })).toHaveValue("installed");
+    expect(kiali.textContent).toMatch(/from cluster evidence/);
     expect(kiali.textContent).toMatch(/added by you/);
-    expect(matrix().textContent).not.toMatch(/chosen here/);
+    expect(screen.getByText(/does not stop OLM from updating it/)).toBeInTheDocument();
+    expect(matrix().textContent).not.toMatch(/kept without an update/);
   });
 });
 
@@ -142,7 +148,8 @@ describe("per-stage catalog evidence", () => {
     await waitFor(() => expect(cells("kiali-ossm")[1].textContent).toMatch(/catalog default/));
     expect(cells("kiali-ossm")[0].textContent).toMatch(/stable.*not scanned/);
     // Owner QA 3b: the selected channel, the stage catalog's default and the verdict are kept apart.
-    expect(cells("odf-operator")[1].textContent).toMatch(/stable-4\.20.*copied from stage 1.*not confirmed here.*Catalog default: stable-4\.21 \(scan\)/);
+    expect(cells("odf-operator")[1].textContent).toMatch(/stable-4\.20.*not confirmed here.*Catalog default: stable-4\.21 \(scan\)/);
+    expect(cells("odf-operator")[1].querySelector(".upgrade-cell-channel").title).toMatch(/copied from stage 1/);
     expect(cells("odf-operator")[2].textContent).toMatch(/—/);
     expect(cells("kiali-ossm")[2].textContent).toMatch(/verified/);
     expect(cells("odf-operator")[1].querySelector(".sr-only").textContent).toMatch(/not the 4\.21 catalog's default \(stable-4\.21\).*whether stable-4\.20 exists in the 4\.21 catalog is not known/);
@@ -153,36 +160,39 @@ describe("per-stage catalog evidence", () => {
   });
 });
 
-describe("bulk classification", () => {
-  it("applies to the selected operators, keeps categories already set, reports the count, and can be undone", async () => {
+describe("noting several operators at once", () => {
+  it("applies to the selected operators, keeps notes already set, reports the count, and can be undone", async () => {
     mount();
     await waitFor(() => expect(within(matrix()).getAllByRole("row").length).toBe(3));
+    notesOn();
     fireEvent.click(screen.getByRole("button", { name: "Select shown (2)" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Category for the selected operators" }), { target: { value: "requested" } });
-    fireEvent.click(screen.getByRole("button", { name: "Set for 2 selected" }));
-    expect(await screen.findByText(/1 operator\(s\) set to “New: requested for installation”\. 1 kept \(already classified\)/)).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Note for the selected operators" }), { target: { value: "requested" } });
+    fireEvent.click(screen.getByRole("button", { name: "Note 2 selected" }));
+    expect(await screen.findByText(/1 operator\(s\) noted as “New — not installed yet”\. 1 kept \(already noted\)/)).toBeInTheDocument();
     expect(fake.intentPosts.at(-1).entries.map((e) => [e.name, e.category, e.confidence])).toEqual([["odf-operator", "requested", "user-entered"]]);
-    await waitFor(() => expect(within(row("kiali-ossm")).getByRole("combobox", { name: /category/ })).toHaveValue("installed"));
+    await waitFor(() => expect(within(row("kiali-ossm")).getByRole("combobox", { name: /on the cluster/ })).toHaveValue("installed"));
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(fake.intentPosts.at(-1)).toEqual({ remove: ["redhat|odf-operator"], replaceConfirmed: true }));
-    await waitFor(() => expect(within(row("odf-operator")).getByRole("combobox", { name: /category/ })).toHaveValue(""));
+    await waitFor(() => expect(within(row("odf-operator")).getByRole("combobox", { name: /on the cluster/ })).toHaveValue(""));
   });
-  it("replaces existing categories only when asked, keeping how each was known", async () => {
+  it("changes notes already set only when asked; changing cluster evidence makes it the user's statement", async () => {
     mount();
     await waitFor(() => expect(within(matrix()).getAllByRole("row").length).toBe(3));
+    notesOn();
     fireEvent.click(screen.getByRole("checkbox", { name: "Select kiali-ossm" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Also replace categories already set" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Category for the selected operators" }), { target: { value: "retained" } });
-    fireEvent.click(screen.getByRole("button", { name: "Set for 1 selected" }));
-    await screen.findByText(/1 operator\(s\) set to “Installed, kept without an update”/);
-    expect(fake.intentPosts.at(-1).entries[0]).toMatchObject({ name: "kiali-ossm", category: "retained", confidence: "cluster-export" });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Also change operators already noted" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Note for the selected operators" }), { target: { value: "requested" } });
+    fireEvent.click(screen.getByRole("button", { name: "Note 1 selected" }));
+    await screen.findByText(/1 operator\(s\) noted as “New — not installed yet”/);
+    expect(fake.intentPosts.at(-1).entries[0]).toMatchObject({ name: "kiali-ossm", category: "requested", confidence: "user-confirmed" });
   });
   it("the selection never includes rows a filter hides", async () => {
     mount();
     await waitFor(() => expect(within(matrix()).getAllByRole("row").length).toBe(3));
+    notesOn();
     fireEvent.click(screen.getByRole("button", { name: "Select shown (2)" }));
     fireEvent.change(screen.getByRole("searchbox", { name: "Filter operators" }), { target: { value: "odf" } });
-    expect(screen.getByRole("button", { name: "Set for 1 selected" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Note 1 selected" })).toBeInTheDocument();
     expect(screen.getByText(/1 operator\(s\) hidden by the filter/)).toBeInTheDocument();
   });
 });

@@ -109,7 +109,7 @@ const useNarrow = (query = "(max-width: 900px)") => {
   return narrow;
 };
 
-const OperatorsSection = ({ profile, onProfileChanged, onProfilesChanged = null, onShowOperations = null, onShowOperation = null, credentialKey = null }) => {
+const OperatorsSection = ({ profile, onProfileChanged, onProfilesChanged = null, onShowOperations = null, onShowOperation = null, credentialKey = null, catalogManagedBy = null }) => {
   // v2.3.0 D-2: an Upgrade plan passes its one credential context; Mirroring keeps the profile's own.
   const credKey = credentialKey || profile.id;
   const followsPlatform = profile.content.platform === true;
@@ -408,7 +408,19 @@ const OperatorsSection = ({ profile, onProfileChanged, onProfilesChanged = null,
         </div>
       ) : null}
 
-      {catalogMinor && !conflict ? (
+      {catalogMinor && !conflict && catalogManagedBy ? (
+        // Upgrade (owner QA 4): scanning and the plan's pull secret are managed in ONE place;
+        // this stage shows what is loaded and links there instead of a second scan form.
+        <div className="mirroring-catalog-managed" role="status">
+          <span>
+            <strong>Catalogs for OpenShift {catalogMinor}:</strong>{" "}
+            {hasCatalogs ? `scanned${cat.cachedAt ? ` ${new Date(cat.cachedAt).toLocaleString()}` : ""}.` : cat.loadingCached ? "checking…" : "not scanned yet."}
+            {" "}Scans and the Red Hat pull secret are managed in <em>{catalogManagedBy.label}</em>.
+          </span>
+          <Button variant="secondary" className="mini" onClick={catalogManagedBy.onOpen}>Go to {catalogManagedBy.label}</Button>
+        </div>
+      ) : null}
+      {catalogMinor && !conflict && !catalogManagedBy ? (
         <CollapsibleSection title="Catalog discovery" defaultCollapsed={Boolean(hasCatalogs)} wrapInCard={false}>
           <p className="subtle" style={{ marginTop: 0 }}>
             {hasCatalogs
@@ -474,7 +486,7 @@ const OperatorsSection = ({ profile, onProfileChanged, onProfilesChanged = null,
             onToggle={togglePick}
             notReadyTitle={`Scan the OpenShift ${catalogMinor} catalogs first`}
           />
-          {!picksReady ? <p className="note subtle">Quick Picks become available once the OpenShift {catalogMinor} catalogs are scanned (Catalog discovery above).</p> : null}
+          {!picksReady ? <p className="note subtle">Quick Picks become available once the OpenShift {catalogMinor} catalogs are scanned ({catalogManagedBy ? catalogManagedBy.label : "Catalog discovery above"}).</p> : null}
           {pickNotice ? <p className="note warning" role="status">{pickNotice}</p> : null}
         </div>
       ) : null}
@@ -497,12 +509,13 @@ const OperatorsSection = ({ profile, onProfileChanged, onProfilesChanged = null,
               title={`Available operators (OpenShift ${cat.catalogsMinor || catalogMinor})`}
             />
           ) : (
-            <p className="note subtle">{conflict ? "Resolve the catalog minor above first." : catalogMinor ? "Scan the catalogs (Catalog discovery above) to browse the operators they contain." : "Choose the catalog minor first."}</p>
+            <p className="note subtle">{conflict ? "Resolve the catalog minor above first." : catalogMinor ? `Scan the catalogs (${catalogManagedBy ? catalogManagedBy.label : "Catalog discovery above"}) to browse the operators they contain.` : "Choose the catalog minor first."}</p>
           )}
         </div>
         <div className="mirroring-operator-selected" hidden={narrow && pane !== "selected"}>
           <SelectedOperatorsPanel
             credentialKey={credKey}
+            credentialManagedBy={catalogManagedBy}
             id={`mirroring-selected-${profile.id}`}
             profile={profile}
             selected={selected}

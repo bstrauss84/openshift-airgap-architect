@@ -8411,3 +8411,90 @@ body[data-theme="dark"] .upgrade-stage-bar { background: #0b1120; }
 .upgrade-cell-why summary { cursor: pointer; color: var(--text-subtle); }
 .upgrade-cell-why p { white-space: normal; max-width: 22rem; margin: 4px 0 0; }
 .upgrade-table-scroll { position: relative; } /* keeps absolutely positioned sr-only text inside the scroll box (no page-wide horizontal scroll) */
+.upgrade-cond-note { display: block; border-left: 3px solid var(--state-warning); padding: 2px 0 2px 10px; margin-top: 4px; }
+.upgrade-cond-note p { margin: 4px 0; }
+.upgrade-cond-note ul { margin: 4px 0; padding-left: 1.1rem; }
+
+/* ===== Upgrade button standard (owner QA 4) =====
+   Primary = the existing Install blue (unchanged). Secondary = a clear blue outline that stands out
+   from the card in both themes (the global secondary used the card's own colours). Tertiary = a
+   link-style minor action. Destructive = the existing red. Focus is always visible. Scoped to the
+   Upgrade workflow so Install and Mirroring keep their look. */
+.upgrade-shell .ghost {
+  background: #ffffff;
+  border: 1px solid #2563eb;
+  color: #1d4ed8;
+  box-shadow: none;
+}
+.upgrade-shell .ghost:hover:not(:disabled) { background: #eff6ff; border-color: #1d4ed8; color: #1e40af; }
+.upgrade-shell .ghost:disabled { border-color: #c7d2fe; color: #94a3b8; background: #f8fafc; cursor: not-allowed; }
+body[data-theme="dark"] .upgrade-shell .ghost { background: transparent; border-color: #60a5fa; color: #bfdbfe; box-shadow: none; }
+body[data-theme="dark"] .upgrade-shell .ghost:hover:not(:disabled) { background: rgba(96, 165, 250, 0.14); border-color: #93c5fd; color: #dbeafe; }
+body[data-theme="dark"] .upgrade-shell .ghost:disabled { border-color: #334155; color: #64748b; background: transparent; }
+.tertiary {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #1d4ed8;
+  padding: 0.25rem 0.5rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: rgba(29, 78, 216, 0.4);
+}
+.tertiary:hover:not(:disabled) { background: #eff6ff; text-decoration-color: currentColor; }
+.tertiary:disabled { color: #94a3b8; cursor: not-allowed; text-decoration: none; }
+.tertiary.mini { padding: 2px 6px; font-size: 12px; }
+body[data-theme="dark"] .tertiary { color: #93c5fd; text-decoration-color: rgba(147, 197, 253, 0.45); }
+body[data-theme="dark"] .tertiary:hover:not(:disabled) { background: rgba(96, 165, 250, 0.14); }
+body[data-theme="dark"] .tertiary:disabled { color: #64748b; }
+.upgrade-shell button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+body[data-theme="dark"] .upgrade-shell button:focus-visible { outline-color: #93c5fd; }
+.upgrade-shell .primary:disabled { cursor: not-allowed; }
+
+/* ===== Operators across the route — one coherent matrix (owner QA 4) =====
+   Every column shares the row's boundaries; every stage cell is the same three lines; the operator
+   column stays visible while the stages scroll sideways; explanations open in a full-width detail
+   row instead of growing individual cells. */
+.upgrade-operator-matrix { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.875rem; }
+.upgrade-operator-matrix th, .upgrade-operator-matrix td { padding: 8px 10px; border-bottom: 1px solid var(--border-color); vertical-align: top; text-align: left; }
+.upgrade-operator-matrix thead th { position: sticky; top: 0; background: var(--card-bg-subtle); font-weight: 600; border-bottom-width: 2px; z-index: 2; }
+.upgrade-operator-matrix .upgrade-mx-op { position: sticky; left: 0; z-index: 1; background: var(--card-bg); min-width: 13rem; max-width: 17rem; box-shadow: 1px 0 0 var(--border-color); }
+.upgrade-operator-matrix thead .upgrade-mx-op { z-index: 3; background: var(--card-bg-subtle); }
+.upgrade-mx-row:hover > td, .upgrade-mx-row:hover > th { background: var(--card-bg-subtle); }
+.upgrade-mx-row[data-selected="true"] > td, .upgrade-mx-row[data-selected="true"] > th { background: rgba(37, 99, 235, 0.07); }
+.upgrade-mx-opgrid { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); column-gap: 8px; row-gap: 2px; align-items: center; }
+.upgrade-mx-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upgrade-operator-matrix .upgrade-matrix-why { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; font-weight: 400; }
+.upgrade-mx-details { justify-self: start; margin-left: -6px; }
+.upgrade-shell .upgrade-matrix-pick { width: 1rem; height: 1rem; margin: 0; }
+.upgrade-mx-note { min-width: 11rem; }
+.upgrade-shell .upgrade-mx-note select { width: 100%; max-width: 13rem; }
+.upgrade-mx-note-src { display: block; font-size: 0.72rem; margin-top: 2px; min-height: 1.1em; }
+.upgrade-operator-matrix .upgrade-matrix-cell { min-width: 9.5rem; }
+.upgrade-cell { display: grid; grid-template-rows: 1.5rem 1.1rem 1.1rem; row-gap: 2px; }
+.upgrade-operator-matrix .upgrade-cell-sel { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; white-space: nowrap; min-width: 0; }
+.upgrade-operator-matrix .upgrade-cell-channel { overflow: hidden; text-overflow: ellipsis; }
+.upgrade-operator-matrix .upgrade-cell-mark { margin-right: 0; flex: 0 0 auto; }
+.upgrade-operator-matrix .upgrade-cell-label, .upgrade-operator-matrix .upgrade-cell-default { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.75rem; margin: 0; }
+.upgrade-operator-matrix .upgrade-cell-default { color: var(--text-subtle); }
+.upgrade-operator-matrix .upgrade-cell-default code { color: var(--code-color); font-weight: 600; }
+.upgrade-mx-empty { color: var(--text-subtle); }
+.upgrade-mx-detail > td { background: var(--card-bg-subtle); padding: 10px 14px; }
+.upgrade-mx-detail-list { display: grid; grid-template-columns: minmax(9rem, max-content) minmax(0, 1fr); gap: 4px 14px; margin: 0; font-size: 0.85rem; position: sticky; left: 14px; max-width: min(64rem, calc(100vw - 6rem)); }
+.upgrade-mx-detail-list dt { font-weight: 600; }
+.upgrade-mx-detail-list dd { margin: 0; }
+.upgrade-matrix-notes-toggle { display: flex; align-items: flex-start; gap: 10px; }
+.upgrade-matrix-notes-toggle > span { display: flex; flex-direction: column; gap: 2px; }
+.upgrade-matrix-notes-why { display: block; font-size: 0.8rem; }
+.mirroring-catalog-managed { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 12px; margin: 8px 0; background: var(--card-bg-subtle); font-size: 0.875rem; }
+.upgrade-scan-cred { margin: 10px 0; }
+.upgrade-scan-cred h4 { margin: 0 0 4px; font-size: 0.9rem; }
+.upgrade-scan-about ul { margin: 6px 0; padding-left: 1.1rem; }
+.upgrade-scan-about li { margin: 4px 0; }
+@media (max-width: 600px) {
+  .upgrade-operator-matrix .upgrade-mx-op { min-width: 10rem; max-width: 11rem; }
+  .upgrade-mx-detail-list { grid-template-columns: minmax(0, 1fr); max-width: calc(100vw - 4rem); }
+}
+.upgrade-cond-note { font-size: 0.875rem; margin: 10px 0 4px; max-width: 60rem; }
+.upgrade-cond-risks { border-collapse: collapse; margin: 6px 0; font-size: 0.85rem; }
+.upgrade-cond-risks th, .upgrade-cond-risks td { padding: 4px 10px 4px 0; text-align: left; border-bottom: 1px solid var(--border-color); vertical-align: top; }
+.upgrade-cond-risks tbody th { font-weight: 600; word-break: break-word; }

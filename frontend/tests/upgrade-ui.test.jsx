@@ -150,13 +150,15 @@ describe("Path", () => {
     render(<UpgradeShell onExit={() => {}} />);
     const target = await screen.findByLabelText("Target release", { selector: "select" });
     await waitFor(() => expect(within(target).getByRole("option", { name: /4.22.22/ })).toBeInTheDocument());
-    expect(within(target).queryByRole("option", { name: /4.22.1 \(conditional\)/ })).toBeNull();
-    expect(screen.getByText(/1 more release\(s\) are reachable only through conditional updates/)).toBeInTheDocument();
+    expect(within(target).queryByRole("option", { name: /4.22.1 — via a conditional update/ })).toBeNull();
+    // Owner QA 4: says the target is reached THROUGH a conditional update, and how to choose it.
+    expect(screen.getByRole("note", { name: "Why some targets need a conditional update" }).textContent).toMatch(/1 release \(1 in 4\.22\) can be reached from .* only through a conditional update/);
+    expect(screen.getByRole("note", { name: "Why some targets need a conditional update" }).textContent).toMatch(/turn on Review conditional updates/);
     cleanup();
     mock(basePlan({ conditionalReview: { enabled: true, acknowledgedRisks: [] } }));
     render(<UpgradeShell onExit={() => {}} />);
     const t2 = await screen.findByLabelText("Target release", { selector: "select" });
-    await waitFor(() => expect(within(t2).getByRole("option", { name: /4.22.1 \(conditional\)/ })).toBeInTheDocument());
+    await waitFor(() => expect(within(t2).getByRole("option", { name: /4.22.1 — via a conditional update \((a risk applies to every cluster|risk applies only to some clusters)\)/ })).toBeInTheDocument());
   });
 
   it("the channel graph has an accessible table and keyboard zoom", () => {

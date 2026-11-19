@@ -78,8 +78,8 @@ function CheckRow({ c, onAction, onAttest, attestText, readOnly, plan }) {
         <span className="upgrade-check-actions">
           {c.action?.kind === "import" ? <Button variant="secondary" className="mini" onClick={() => onAction(c.action)} disabled={readOnly}>{c.action.inventoryKind === "bundle" || guide?.bundle ? "Upload the readiness bundle" : "Import cluster evidence"}</Button> : null}
           {c.action?.kind === "step" ? <Button variant="secondary" className="mini" onClick={() => onAction(c.action)}>Go to {STEP_LABEL[c.action.step] || c.action.step}</Button> : null}
-          {hasDetails ? <Button variant="secondary" className="mini" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? "Hide details" : "Details"}</Button> : null}
-          {guide ? <Button variant="secondary" className="mini" aria-expanded={guideOpen} onClick={() => setGuideOpen((v) => !v)} aria-label={`${guideOpen ? "Hide" : "How to check"}: ${c.title}`}>{guideOpen ? "Hide guide" : "How to check"}</Button> : null}
+          {hasDetails ? <Button variant="tertiary" className="mini" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{open ? "Hide details" : "Details"}</Button> : null}
+          {guide ? <Button variant="tertiary" className="mini" aria-expanded={guideOpen} onClick={() => setGuideOpen((v) => !v)} aria-label={`${guideOpen ? "Hide" : "How to check"}: ${c.title}`}>{guideOpen ? "Hide guide" : "How to check"}</Button> : null}
         </span>
       </div>
       <p className="upgrade-check-detail">{c.detail}</p>

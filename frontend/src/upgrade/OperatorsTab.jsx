@@ -10,13 +10,13 @@
  *     once asked oc-mirror to mirror. Reviewed, edited and accepted by the
  *     user; always labelled "imported preset (unverified)" with the file(s)
  *     each item came from. Never presented as installed, mirrored or current.
- *  2. The plan's OPERATOR INTENT: each operator's category (previously
- *     mirrored / currently installed / newly requested / kept as is) and how
- *     we know it (imported preset, imported cluster export, confirmed by you,
- *     entered by you).
+ *  2. The plan's operator list: accepted operators are recorded with where they
+ *     came from (imported preset — unverified). Owner QA 4: no category is asked
+ *     for here; it changed nothing Architect generates. Whether an operator is
+ *     installed is an optional note on Content (cluster evidence vs. statement).
  * Accepted operators are added to each stage's operator selection, where the
  * existing Mirroring operator browser, constraints and live catalog check
- * apply (Content & runs). No second operator catalog UI.
+ * apply, each stage resolving the channel against its own catalog.
  *
  * Developed with AI assistance from Claude (Anthropic).
  */
@@ -27,18 +27,6 @@ import Modal from "../components/Modal.jsx";
 import FileDropZone from "../components/FileDropZone.jsx";
 import { analyzePresets, saveOperatorIntent, applyIntentToStages, updatePlan } from "./upgradeApi.js";
 
-export const CATEGORY_LABEL = {
-  "preset-mirrored": "Previously mirrored or selected (from files)",
-  installed: "Currently installed",
-  requested: "New: requested for installation",
-  retained: "Installed, kept without an update"
-};
-export const CONFIDENCE_LABEL = {
-  "imported-preset": "imported preset — unverified",
-  "cluster-export": "imported cluster export",
-  "user-confirmed": "confirmed by you",
-  "user-entered": "entered by you"
-};
 export const SOURCE_TO_KIND = { "redhat-operators": "redhat", "certified-operators": "certified", "community-operators": "community" };
 const MAX_FILE_BYTES = 1024 * 1024;
 
@@ -163,8 +151,8 @@ export default function PresetImporter({ plan, onPlanChanged, onClose = null }) 
               <>
                 <h4>Operators found</h4>
                 <table className="upgrade-graph-table">
-                  <caption className="subtle">Tick what to add to the plan. Channel and category can be changed now or later. Confidence: {analysis.confidence}.</caption>
-                  <thead><tr><th scope="col">Add</th><th scope="col">Operator</th><th scope="col">Channel</th><th scope="col">Category</th><th scope="col">From</th><th scope="col">Notes</th></tr></thead>
+                  <caption className="subtle">Tick what to add to the plan. The channel can be changed now or later; each stage then resolves it against its own catalog. Confidence: {analysis.confidence}.</caption>
+                  <thead><tr><th scope="col">Add</th><th scope="col">Operator</th><th scope="col">Channel</th><th scope="col">From</th><th scope="col">Notes</th></tr></thead>
                   <tbody>
                     {analysis.operators.map((o) => {
                       const c = choices[o.key] || {};
@@ -181,11 +169,6 @@ export default function PresetImporter({ plan, onPlanChanged, onClose = null }) 
                             ) : (
                               <input type="text" aria-label={`${o.name} channel`} value={c.channel || ""} placeholder="catalog default" onChange={(e) => set({ channel: e.target.value.trim() })} />
                             )}
-                          </td>
-                          <td>
-                            <select aria-label={`${o.name} category`} value={c.category || "preset-mirrored"} onChange={(e) => set({ category: e.target.value })}>
-                              {Object.entries(CATEGORY_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                            </select>
                           </td>
                           <td>{sourcesText(o.sources)}{o.duplicates ? ` (in ${o.duplicates} files)` : ""}</td>
                           <td>{o.conflicts.length ? <span className="upgrade-badge" data-state="WARNING">⚠ {o.conflicts.join(" ")}</span> : "—"}</td>

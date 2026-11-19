@@ -128,10 +128,11 @@ describe("scans start only when they should", () => {
     await waitFor(() => expect(fake.scanPosts[0]).toMatchObject({ catalogMinor: "4.22", catalogs: ["community"] }));
   });
 
-  it("changing an operator's category never starts a scan", async () => {
+  it("changing an operator's “on the cluster” note never starts a scan", async () => {
     fake.status = {};
     render(<ContentTab plan={plan} onPlanChanged={() => {}} credentialKey={planCredentialKey(plan.id)} />);
-    const sel = await screen.findByRole("combobox", { name: /kiali-ossm category/ });
+    fireEvent.click(await screen.findByRole("switch", { name: "Note which operators are already installed" }));
+    const sel = await screen.findByRole("combobox", { name: /kiali-ossm on the cluster/ });
     fireEvent.change(sel, { target: { value: "installed" } });
     await waitFor(() => expect(fake.intentPosts.length).toBe(1));
     await settle(300);

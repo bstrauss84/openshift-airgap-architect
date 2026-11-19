@@ -173,6 +173,76 @@ const permittedEdges = (graph, supportedMinors, includeConditional) => {
 };
 
 /**
+ * Risk facts per conditional edge: `${from}>${to}` → { risks: [{ name, always, url }], always }.
+ * "Always" (matchingRules type Always) applies to every cluster; other rule types (PromQL) apply
+ * only to clusters matching the condition, which Architect cannot evaluate offline.
+ */
+export const conditionalEdgeRisks = (graph) => {
+  const out = new Map();
+  for (const c of graph?.conditional || []) {
+    const risks = (c.risks || []).map((r) => ({ name: r.name, always: (r.ruleTypes || []).includes("Always"), url: r.url || null }));
+    out.set(`${c.from}>${c.to}`, { risks, always: risks.some((r) => r.always) });
+  }
+  return out;
+};
+
+/**
+ * The least-risk route from `source` to every reachable version when conditional edges are
+ * allowed: a conditional edge whose risks include an "Always" rule costs 100, any other
+ * conditional edge 1, a recommended edge 0; ties go to fewer updates. Returns
+ * version → { cost, hops, via: [{ from, to, risks, always }] } (via = the conditional hops only).
+ */
+export function leastRiskRoutes(graph, source, { supportedMinors }) {
+  const all = permittedEdges(graph, supportedMinors, true);
+  const facts = conditionalEdgeRisks(graph);
+  const best = new Map([[source, { cost: 0, hops: 0, prev: null, edge: null }]]);
+  const done = new Set();
+  for (;;) {
+    let u = null;
+    for (const [k, v] of best) {
+      if (done.has(k)) continue;
+      const b = u ? best.get(u) : null;
+      if (!b || v.cost < b.cost || (v.cost === b.cost && v.hops < b.hops)) u = k;
+    }
+    if (!u) break;
+    done.add(u);
+    for (const e of all.forward.get(u) || []) {
+      const f = e.conditional ? facts.get(`${u}>${e.to}`) : null;
+      const w = !e.conditional ? 0 : f?.always ? 100 : 1;
+      const cand = { cost: best.get(u).cost + w, hops: best.get(u).hops + 1, prev: u, edge: e.conditional ? { from: u, to: e.to, risks: f?.risks || [], always: Boolean(f?.always) } : null };
+      const o = best.get(e.to);
+      if (!o || cand.cost < o.cost || (cand.cost === o.cost && cand.hops < o.hops)) best.set(e.to, cand);
+    }
+  }
+  const out = new Map();
+  for (const [v, b] of best) {
+    const via = [];
+    for (let cur = v; best.get(cur)?.prev; cur = best.get(cur).prev) if (best.get(cur).edge) via.unshift(best.get(cur).edge);
+    out.set(v, { cost: b.cost, hops: b.hops, via });
+  }
+  return out;
+}
+
+/**
+ * Why later releases are conditional-only: for each minor boundary above the source's minor, the
+ * releases from which the graph RECOMMENDS an update into the next minor, and which of those the
+ * source reaches through recommended updates alone.
+ */
+export function minorGates(graph, source, { supportedMinors }) {
+  const rec = permittedEdges(graph, supportedMinors, false);
+  const reach = bfsDistances(source, (u) => (rec.forward.get(u) || []).map((e) => e.to));
+  const startIdx = supportedMinors.indexOf(minorOf(source));
+  const gates = [];
+  for (let i = Math.max(0, startIdx); i < supportedMinors.length - 1; i += 1) {
+    const from = supportedMinors[i];
+    const to = supportedMinors[i + 1];
+    const entries = graph.versions.filter((v) => minorOf(v) === from && (rec.forward.get(v) || []).some((e) => minorOf(e.to) === to));
+    gates.push({ from, to, recommendedFrom: entries, reachableRecommended: entries.filter((v) => reach.has(v)) });
+  }
+  return gates;
+}
+
+/**
  * Classify every supported version above `source`: reachable through
  * recommended updates, reachable only through conditional updates, or not
  * reachable in this graph.
@@ -182,13 +252,21 @@ export function classifyTargets(graph, source, { supportedMinors }) {
   const all = permittedEdges(graph, supportedMinors, true);
   const recDist = bfsDistances(source, (u) => (rec.forward.get(u) || []).map((e) => e.to));
   const allDist = bfsDistances(source, (u) => (all.forward.get(u) || []).map((e) => e.to));
+  const least = leastRiskRoutes(graph, source, { supportedMinors });
   return graph.versions
     .filter((v) => compareVersions(v, source) > 0)
-    .map((v) => ({
-      version: v,
-      status: recDist.has(v) ? "recommended" : allDist.has(v) ? "conditional-only" : "unreachable",
-      hops: recDist.get(v) ?? allDist.get(v) ?? null
-    }));
+    .map((v) => {
+      const status = recDist.has(v) ? "recommended" : allDist.has(v) ? "conditional-only" : "unreachable";
+      // A conditional-only target is not "conditional" itself: name the least-risk conditional
+      // hop(s) on the way, and whether a risk there applies to every cluster.
+      const lr = status === "conditional-only" ? least.get(v) : null;
+      return {
+        version: v,
+        status,
+        hops: recDist.get(v) ?? allDist.get(v) ?? null,
+        ...(lr ? { via: lr.via, alwaysRisk: lr.via.some((h) => h.always) } : {})
+      };
+    });
 }
 
 const reason = (code, message, extra = {}) => ({ code, message, ...extra });
@@ -259,18 +337,32 @@ export function solvePath({ graph, source, target, supportedMinors, strategy = "
       .filter((e) => fromSrc.has(e.to) && onShortest(u, e.to))
       .sort((x, y) => compareVersions(y.to, x.to) || Number(x.conditional) - Number(y.conditional));
     // Enumerate shortest routes in convention order (highest version first at each step).
-    const routes = [];
+    let routes = [];
     let count = 0;
+    const keep = withConditional ? 5000 : maxAlternatives + 1;
     const walk = (u, acc) => {
       if (u === dst) {
         count += 1;
-        if (routes.length < maxAlternatives + 1) routes.push(acc.slice());
+        if (routes.length < keep) routes.push(acc.slice());
         return;
       }
       if (count > 5000) return;
       for (const e of nextOptions(u)) { acc.push(e); walk(e.to, acc); acc.pop(); }
     };
     walk(src, []);
+    if (withConditional) {
+      // Among equally short routes, prefer fewer updates whose risk applies to EVERY cluster
+      // ("Always"), then fewer conditional updates; the convention order breaks ties (stable sort).
+      const facts = conditionalEdgeRisks(graph);
+      const score = (r) => {
+        let always = 0;
+        let cond = 0;
+        let prev = src;
+        for (const e of r) { if (e.conditional) { cond += 1; if (facts.get(`${prev}>${e.to}`)?.always) always += 1; } prev = e.to; }
+        return [always, cond];
+      };
+      routes = routes.map((r, i) => ({ r, i, s: score(r) })).sort((a, b) => a.s[0] - b.s[0] || a.s[1] - b.s[1] || a.i - b.i).map((x) => x.r).slice(0, maxAlternatives + 1);
+    }
     return { routes, count, total };
   };
 

@@ -2,7 +2,8 @@
  * OpenShift Airgap Architect - Button Component
  *
  * Premium button with 3D hover/pressed animation.
- * Variants: primary (Install blue), secondary (neutral), destructive.
+ * Variants: primary (Install blue), secondary (neutral outline), tertiary (link-style minor
+ * action), destructive.
  *
  * @author Bill Strauss
  *
@@ -30,7 +31,9 @@ function Button({
       ? "primary"
       : variant === "destructive"
         ? "danger"
-        : "ghost";
+        : variant === "tertiary"
+          ? "tertiary"
+          : "ghost";
 
   return (
     <button

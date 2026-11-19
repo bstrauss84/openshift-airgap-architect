@@ -79,6 +79,19 @@ supported part** fills Cluster today and Update to from its first supported
 release. When no route can be shown, the exact reason and a next step are shown
 (for example, a release Red Hat no longer lists).
 
+**Conditional targets (owner QA 4).** A target is labelled "via a conditional
+update (risk applies only to some clusters | a risk applies to every cluster)"
+when no route to it uses recommended updates only. The label is per target, but
+the cause is usually shared: the note under the fields says where recommended
+routes stop (for example, from 4.20.8 the live graph of 2026-11-19 recommends
+4.21 → 4.22 only from 4.21.39–4.21.42, which 4.20.8 reaches only conditionally,
+so all 23 releases of 4.22 are conditional-only) and lists the risks on the
+least-risk routes, "every cluster" (rule `Always`) first. Among equally short
+conditional routes the solver prefers fewer every-cluster risks, then fewer
+conditional updates. A conditional hop is labelled on the route rail, in
+Readiness (per risk), in Update the cluster (no command) and in Handoff; an
+acknowledgement is judgment only and no force command is ever generated.
+
 ### A2. Content
 
 Every release the cluster passes through must be in your registry before its
@@ -97,17 +110,22 @@ profile owned by the plan, one pinned release, that minor's operator catalog).
   reused, released and **carried** stages: a new stage takes the operators and
   images of the released stage of the same minor (source
   `upgrade:carried-from-<release>`), so a moved z-stream never empties a stage.
-- **Operators across the route** — one row per operator, one column per stage
-  (its channel, or —), with its **category** (previously mirrored or selected,
-  currently installed, new request, kept) and how that is known (imported preset
-  — unverified, imported cluster export, confirmed by you, chosen here).
-  **Confirm installed** turns a preset into your statement. **Copy stage N's
-  operators to later stages** adds the same packages to each later stage from
-  its own minor's catalog; existing selections are never changed.
-- The stage card embeds Mirroring's own operator experience: catalog scan,
-  **Quick Picks**, browse and search, selected operators, version constraints,
-  the **Live catalog check**, and **Additional images**. The Red Hat pull
-  secret is the plan's (entered once; see A4).
+- **Operators across the route** — one row per operator, one column per stage;
+  every column shares the row's boundaries and every stage cell has the same
+  three lines (selected channel · verdict · catalog default or "copied from
+  stage N"). **Details** on a row opens one full-width row with every stage's
+  explanation and where the operator came from. The operator column stays
+  visible while stages scroll sideways on narrow screens. **Copy stage N's
+  operators to later stages** adds the same packages to each later stage,
+  resolving channels against that stage's own catalog; existing selections are
+  never changed.
+- The stage card embeds Mirroring's own operator experience: **Quick Picks**,
+  browse and search, selected operators, version constraints, the **Live catalog
+  check**, and **Additional images**. In Upgrade it has no scan form or
+  pull-secret field of its own: a one-line status ("Catalogs for OpenShift 4.21:
+  scanned …") links to **Catalogs for this route**, the single place for the
+  plan's catalogs and its memory-only Red Hat pull secret (the Mirror & transfer
+  setup card shows the same credential).
 - **Preview this stage's ImageSetConfiguration** / **Download it** — available
   at any time. **Show YAML** (header) opens the live preview of one stage, chosen
   in the drawer and following the stage shown on Content; it updates by itself
@@ -115,16 +133,19 @@ profile owned by the plan, one pinned release, that minor's operator catalog).
   validated file as the stage's download and the Handoff package (one generator,
   `POST /api/mirroring/profiles/:id/preview`). A stage that cannot generate yet
   says why; nothing is downloadable then.
-- **Category is never assumed.** An operator without a recorded classification
-  is **Not classified yet**; under its name the matrix says why it is in the
-  stage (added by you, Quick Pick, copied from stage N, from an imported
-  configuration, from the plan's operator list). **Bulk edit:** tick operators
-  (or **Select shown** — the selection never includes rows the filter hides),
-  choose a category and **Set for N selected**; categories already set are kept
-  unless **Also replace categories already set** is on; the result says how many
-  changed and offers **Undo**. Imported files, Quick Picks and catalog scans are
-  never proof of what is installed; "Currently installed" chosen by you is your
-  statement, distinct from an imported cluster export.
+- **Optional note: which operators are already installed** (off by default).
+  Owner QA 4 audit: the former four-way category (previously mirrored, currently
+  installed, new request, kept without update) changed nothing Architect
+  generates — not the ImageSetConfigurations, package or channel selection,
+  catalogs, readiness, operator-compatibility guidance or instructions; it was
+  descriptive metadata saved in the plan (and its export). It is now a note:
+  **Installed (your statement)** or **New — not installed yet**, with
+  "from cluster evidence" when it came from the readiness bundle. Turned on, it
+  adds an **On the cluster** column and **Note several operators at once**
+  (Select shown, Note, Also change operators already noted, Undo). Noting an
+  operator as installed never stops OLM from updating it; "kept without an
+  update" is gone (stored values map to Installed). The import dialog no longer
+  asks for a category.
 - **Each stage cell shows evidence from that stage's own catalog:** ✓ verified
   (Live catalog check, or the scanned catalog's default channel), ? channel not
   checked (the package is in the scanned catalog, but a scan records only the
@@ -153,7 +174,13 @@ profile owned by the plan, one pinned release, that minor's operator catalog).
   lists proposed channels with the reason; only suggestions proven by the
   listing are pre-ticked; **Apply** changes only the ticked rows and offers
   **Undo**. Nothing is changed silently.
-- **Catalogs for this route** lists each distinct catalog minor once (all stages
+- **Catalogs for this route** is the one catalog workspace: the plan's Red Hat
+  pull secret (Replace / Forget), **Scan** per minor (downloads the three catalog
+  indexes, several hundred MB per minor; records operators and default channels;
+  cached for every stage and Mirroring), **Check channels in every stage** (each
+  stage's Live catalog check: do the selected channels and version ranges exist;
+  the first check of a catalog downloads that image once, verified and reused
+  until Red Hat publishes a new catalog), and what is already known. It lists each distinct catalog minor once (all stages
   of a minor share one scan of the Red Hat, Certified and Community catalogs),
   why it is needed and whether it is cached. **Scan N catalog sets not yet
   scanned** runs them one minor at a time with the plan's Red Hat pull secret;
@@ -478,7 +505,9 @@ Analysis is pure (nothing stored): shared safe YAML parser (size, encoding,
 depth, aliases), v2alpha1 through the shared structural validator, v1alpha2
 field by field; per-file provenance (base name + SHA-256); duplicates merged;
 differing channels and unsupported minors reported; nothing widens support.
-`operatorIntent` entries carry category, confidence and sources; an
+`operatorIntent` entries carry category (shown as the optional installed/new
+note; `preset-mirrored` and `retained` are legacy values), confidence and
+sources; an
 `imported-preset` entry never replaces a `cluster-export`/`user-confirmed` one
 without `replaceConfirmed`. Applying to stages adds packages at each stage's
 catalog minor and never changes existing selections; preset images go to the

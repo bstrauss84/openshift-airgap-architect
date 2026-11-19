@@ -17,7 +17,7 @@ import {
   refreshPublicGraph, importGraph, readCachedGraph, describeGraphEntry, assertGraphRequest, UpdateGraphError, GRAPH_STALE_MS,
   explorationGraph, exploreMinors
 } from "./updateGraph.js";
-import { solvePath, classifyTargets, validateRoute, buildHops, channelPrefix, PLANNING_CHANNEL_RE, GRAPH_ARCHES, gaVersion, exploreRoute } from "../../shared/upgradePath.js";
+import { solvePath, classifyTargets, minorGates, validateRoute, buildHops, channelPrefix, PLANNING_CHANNEL_RE, GRAPH_ARCHES, gaVersion, exploreRoute } from "../../shared/upgradePath.js";
 import { getMinorVersion, compareVersions } from "../../shared/versionUtils.js";
 import { evaluateReadiness, ATTESTABLE } from "./upgradeReadiness.js";
 import { projectInventory, projectBundle, InventoryError, INVENTORY_KINDS, INVENTORY_COMMANDS, COLLECTOR_SCRIPT } from "./upgradeInventory.js";
@@ -581,7 +581,7 @@ export function registerUpgradeRoutes(app, deps) {
     const entry = graphFor(plan, channel);
     if (!entry) return res.status(409).json({ error: `Load the ${channel} graph first.`, code: "GRAPH_NOT_LOADED" });
     if (!entry.normalized.nodes[plan.current]) return res.status(409).json({ error: `${plan.current} is not in the ${channel} graph for ${plan.arch}.`, code: "SOURCE_NOT_IN_GRAPH" });
-    res.json({ channel, graph: describeGraphEntry(entry), targets: classifyTargets(entry.normalized, plan.current, { supportedMinors: SUPPORTED_MINORS }) });
+    res.json({ channel, graph: describeGraphEntry(entry), targets: classifyTargets(entry.normalized, plan.current, { supportedMinors: SUPPORTED_MINORS }), gates: minorGates(entry.normalized, plan.current, { supportedMinors: SUPPORTED_MINORS }) });
   });
 
   app.post("/api/upgrade/plans/:id/solve", validateBody(upgradeSolveSchema), async (req, res) => {

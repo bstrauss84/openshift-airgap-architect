@@ -88,6 +88,14 @@ RFC rev 2 and final authorization (2026-11-06); contract and user guide in `docs
   (live check | scan) and verdict; earlier copies flagged and pre-ticked; operator-table toolbar regrouped (find /
   bulk-category panel); page-wide horizontal scroll on phones from sr-only text in the table fixed. Tests:
   `backend/test/upgrade-qa3b-stage-channels.test.js`, `frontend/tests/upgrade-qa3b-stage-cells.test.jsx`.
+- **Owner QA 4 (2026-11-19, `done_pending_verification`; consolidated owner walkthrough pending):** operator matrix
+  re-laid out (shared row boundaries, three-line cells, detail rows); category audit — no operational effect, replaced
+  by an optional installed/new note; one catalog workspace and one plan pull-secret place in Content (stage panels
+  link to it); Upgrade button standard (blue primary, outlined secondary, link-style tertiary); conditional targets
+  verified against the live graph (all 4.22 targets from 4.20.8 are genuinely conditional-only; label/note now say
+  why) and solver risk preference fixed. Tests: `backend/test/upgrade-qa4-conditional-targets.test.js` (live fixture
+  `stable-4.22-amd64-live-20261119.json`), `frontend/tests/upgrade-qa3b-stage-cells.test.jsx`,
+  `upgrade-operator-matrix.test.jsx`, `upgrade-ui.test.jsx`.
 - **Findings queue (unnumbered; not fixed in this tranche):**
   - (a) **fixed in the correction pass:** the run contract now enforces the source (Red Hat) pull-secret rule
     (fail-first `backend/test/source-credential-run-contract.test.js`, 3/5 on aee6a32).

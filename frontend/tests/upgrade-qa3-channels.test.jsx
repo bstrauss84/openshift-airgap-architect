@@ -80,7 +80,7 @@ afterEach(cleanup);
 
 const mount = () => render(<ContentTab plan={plan} onPlanChanged={() => {}} credentialKey={planCredentialKey(plan.id)} />);
 const matrix = () => screen.getByRole("table", { name: /Operators on each stage of the route/ });
-const cells = (name) => within(within(matrix()).getByRole("rowheader", { name: new RegExp(name) }).closest("tr")).getAllByRole("cell").slice(1);
+const cells = (name) => within(within(matrix()).getByRole("rowheader", { name: new RegExp(name) }).closest("tr")).getAllByRole("cell").filter((td) => td.classList.contains("upgrade-matrix-cell"));
 
 describe("per-stage channel evidence", () => {
   it("uses each stage catalog's listing: listed, missing (with the catalog default suggested), or not checked", async () => {

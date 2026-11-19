@@ -62,7 +62,7 @@ const ACTION = {
   "range-empty": (n) => `${n} with no version in the minimum/maximum you set: adjust the range or check the listed versions.`
 };
 
-export default function SelectedOperatorsPanel({ profile, selected, onRemove, mountedAvailable = false, onProfilesChanged = null, onShowOperation = null, catalogMinor, id, credentialKey = null }) {
+export default function SelectedOperatorsPanel({ profile, selected, onRemove, mountedAvailable = false, onProfilesChanged = null, onShowOperation = null, catalogMinor, id, credentialKey = null, credentialManagedBy = null }) {
   const idPrefix = `mirroring-selected-${profile.id}`;
   const cred = useSourceCredential(credentialKey || profile.id, "check");
   const [verifyJobId, setVerifyJobId] = useState(null);
@@ -127,7 +127,14 @@ export default function SelectedOperatorsPanel({ profile, selected, onRemove, mo
             Scan catalogs lists what the OpenShift {catalogMinor || ""} catalogs offer. Check catalogs asks the live catalogs, right now,
             whether each selected package and channel exists. Runs are blocked for operators found missing; every check is kept in Operations.
           </p>
-          <SourceCredentialField profileId={credentialKey || profile.id} site="check" idPrefix={`${idPrefix}-check`} label="Red Hat pull secret" hint={RUN_PULL_SECRET_HINT} mountedAvailable={mountedAvailable} rows={3} />
+          {credentialManagedBy ? (
+            <p className="note subtle" role="note">
+              {cred.usable ? "Uses the Red Hat pull secret entered for this plan" : "Enter the plan's Red Hat pull secret first"} (in <em>{credentialManagedBy.label}</em>).{" "}
+              <Button variant="tertiary" className="mini" onClick={credentialManagedBy.onOpen}>Go there</Button>
+            </p>
+          ) : (
+            <SourceCredentialField profileId={credentialKey || profile.id} site="check" idPrefix={`${idPrefix}-check`} label="Red Hat pull secret" hint={RUN_PULL_SECRET_HINT} mountedAvailable={mountedAvailable} rows={3} />
+          )}
           <div className="actions mirroring-check-actions">
             <FieldLabelWithInfo label={`Check the ${checkable.length} resolved operator(s)`} hint={CATALOG_CHECK_HINT}>
               <Button variant="secondary" onClick={start} disabled={verifying || !checkable.length} aria-label={verifying ? "Checking catalogs" : "Check catalogs"}>
