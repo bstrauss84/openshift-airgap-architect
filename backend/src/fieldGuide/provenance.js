@@ -19,6 +19,8 @@
  */
 
 import { FIELD_GUIDE_SUPPORTED_MINORS } from "./versionResolution.js";
+import { compartments_v418 } from "./v4.18/index.js";
+import { compartments_v419 } from "./v4.19/index.js";
 import { compartments_v420 } from "./v4.20/index.js";
 import { compartments_v421 } from "./v4.21/index.js";
 import { compartments_v422 } from "./v4.22/index.js";
@@ -45,6 +47,8 @@ function getAuthoritativeExport(minor) {
   if (minor === '4.22') return compartments_v422;
   if (minor === '4.21') return compartments_v421;
   if (minor === '4.20') return compartments_v420;
+  if (minor === '4.19') return compartments_v419;
+  if (minor === '4.18') return compartments_v418;
   return null;
 }
 
