@@ -83,7 +83,18 @@ FROM registry.access.redhat.com/ubi9/nginx-124:latest
 # 1.21.1-10.el9_9.2, already published in the UBI 9 BaseOS repository. Take only
 # that package from the image's own GPG-checked UBI repositories (nothing else is
 # upgraded); the optional build CA follows the same pattern as the other steps.
+#
+# /run MUST keep the base image's owner and mode (1001:0 0775). Under Podman/Buildah,
+# a RUN with --mount=type=secret creates the /run/secrets mountpoint, and the
+# committed layer gets /run recreated as root:root 0755. nginx (UID 1001, or an
+# arbitrary OpenShift UID with gid 0) then cannot write /run/nginx.pid and exits at
+# start. Docker BuildKit does not do this, so CI's Docker smoke test passed; the
+# v2.2.2 Podman release gate caught it. /run is therefore recorded in a plain RUN
+# before the secret-mount step and restored in a plain RUN after it (inside the
+# secret-mount step /run is a temporary mount, so a fix there would not persist),
+# and the build fails if it differs or group 0 cannot write it.
 USER root
+RUN stat -c '%u:%g %a' /run > /tmp/oaa-run-state && echo "/run before update: $(cat /tmp/oaa-run-state)"
 RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
     set -e && OAA_DNF_CA="" && \
     if [ -s /run/secrets/oaa_build_ca ]; then \
@@ -94,6 +105,11 @@ RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
     dnf -y ${OAA_DNF_CA} --setopt=install_weak_deps=0 update krb5-libs && \
     echo "krb5-libs now $(rpm -q krb5-libs)" && \
     dnf clean all && rm -rf /var/cache/dnf /var/cache/yum /tmp/oaa-build-ca.pem
+RUN set -e && OAA_RUN_STATE="$(cat /tmp/oaa-run-state)" && \
+    chown "${OAA_RUN_STATE% *}" /run && chmod "${OAA_RUN_STATE#* }" /run && \
+    test "$(stat -c '%u:%g %a' /run)" = "${OAA_RUN_STATE}" && \
+    test "$(stat -c '%g' /run)" = 0 && test -n "$(find /run -maxdepth 0 -perm -g=w)" && \
+    rm -f /tmp/oaa-run-state && echo "/run restored: $(stat -c '%u:%g %a' /run)"
 USER 1001
 
 # Only the build output crosses the stage boundary. No node_modules, no
