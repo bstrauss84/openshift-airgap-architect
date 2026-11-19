@@ -5755,8 +5755,9 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
     previewState.reviewFlags = null;
     previewState.fieldManual = { enabled: false };
 
-    // Inject ephemeral pull secret if available (from mirror registry config)
-    if (mountedMirrorPullSecret && state.credentials?.usingMirrorRegistry) {
+    // Inject ephemeral pull secret if available (from mirror registry config).
+    // Trigger on either usingMirrorRegistry or mirrorConfigPreloaded (preloaded wizard flow).
+    if (mountedMirrorPullSecret && (state.credentials?.usingMirrorRegistry || state.ui?.mirrorConfigPreloaded)) {
       if (!previewState.credentials) previewState.credentials = {};
       previewState.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
     }
