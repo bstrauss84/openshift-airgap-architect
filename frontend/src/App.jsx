@@ -236,8 +236,6 @@ export const VersionSupportGate = ({ children, onOpenMirroring }) => {
   const [dataError, setDataError] = useState(null);
 
   useEffect(() => {
-    // Skip catalog loading entirely in preloaded mode.
-    if (mirrorConfigPreloaded) return undefined;
     if (!selectedMinor || !SUPPORTED_MINORS.includes(selectedMinor)) return undefined;
     if (dataMinor === selectedMinor) return undefined;
 
@@ -284,10 +282,6 @@ export const VersionSupportGate = ({ children, onOpenMirroring }) => {
     return children;
   }
 
-  // Preloaded wizard: skip all catalog/version gates — ISO generation only.
-  if (mirrorConfigPreloaded) {
-    return children;
-  }
 
   // Check if selected version is supported
   const isSupported = SUPPORTED_MINORS.includes(selectedMinor);
