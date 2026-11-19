@@ -22,6 +22,7 @@
 import crypto from "node:crypto";
 import { SUPPORTED_MINORS } from "./versionPolicy.js";
 import { versionedSourceUrl } from "./ocMirrorIdentity.js";
+import { OC_MIRROR_CHANNEL } from "./ocMirrorRuntime.js";
 import { gaVersion, PLANNING_CHANNEL_RE, GRAPH_ARCHES } from "../../shared/upgradePath.js";
 import { getMinorVersion } from "../../shared/versionUtils.js";
 
@@ -58,8 +59,10 @@ export const toolAcquisition = (plan, recordedOcMirror) => {
       verify: "sha256sum --ignore-missing -c sha256sum.txt"
     } : null,
     ocMirror: {
-      policy: "oc-mirror v2: the build the stages ran (so disk-to-mirror uses the same tool); otherwise the latest release.",
-      directory: exactOcMirror || `https://mirror.openshift.com/pub/openshift-v4/${arch}/clients/ocp/latest/`,
+      // Fallback = the runtime's own oc-mirror channel (latest-<newest supported minor>), never the
+      // global `latest`: since 2026-11-19 that is OpenShift 5.0.1, which publishes no oc-mirror.
+      policy: `oc-mirror v2: the build the stages ran (so disk-to-mirror uses the same tool); otherwise the latest release of the newest supported minor (${OC_MIRROR_CHANNEL}).`,
+      directory: exactOcMirror || `https://mirror.openshift.com/pub/openshift-v4/${arch}/clients/ocp/${OC_MIRROR_CHANNEL}/`,
       exact: Boolean(exactOcMirror),
       ...(recordedOcMirror ? { recorded: { version: recordedOcMirror.version || null, binarySha256: recordedOcMirror.sha256 || null, tarballSha256: recordedOcMirror.tarballSha256 || null } } : {}),
       files: ["oc-mirror.tar.gz (or oc-mirror.rhel9.tar.gz)", "sha256sum.txt"],
