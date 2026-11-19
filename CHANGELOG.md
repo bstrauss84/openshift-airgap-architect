@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `verify-release-closeout.mjs` refuses a release without `docs/releases/build-matrix/v<version>.json` for the tagged
   commit.
 
+### Security
+- The frontend image installs `krb5-libs` `1.21.1-10.el9_9.2` from the UBI 9 repositories. The `ubi9/nginx-124` base
+  image ships `1.21.1-10.el9_8.1` (14 HIGH CVEs).
+
 ## [2.2.1] - 2026-11-06
 
 > Detailed notes: [docs/releases/v2.2.1.md](docs/releases/v2.2.1.md)
