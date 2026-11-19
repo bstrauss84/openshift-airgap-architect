@@ -39,6 +39,14 @@ update — follow [docs/BACKUP_RESTORE.md](BACKUP_RESTORE.md).
 > instance is working. Imports from v1.x and v2.x into the current schema are
 > migrated and are covered by tests.
 
+## Updating from v2.2.1 to v2.2.2
+
+v2.2.2 fixes backend image builds (`FATAL: no SHA256 for oc-mirror.tar.gz`) and updates `krb5-libs` in the frontend
+image. Both fixes are in the images, so **rebuild** after updating the source:
+`podman compose up --build -d` (or `docker compose up --build -d`). Data is kept. On Kubernetes or OpenShift, rebuild
+and push both images, and deploy `manifests/openshift/` on OpenShift. Details:
+[v2.2.2 release notes](releases/v2.2.2.md).
+
 ## Updating from v2.2.0 to v2.2.1
 
 v2.2.1 fixes Mirroring in the backend container (v2.2.0 known issue: every Mirroring run failed with `EACCES` on the

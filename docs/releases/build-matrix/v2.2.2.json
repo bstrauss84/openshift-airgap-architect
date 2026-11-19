@@ -1,0 +1,34 @@
+{
+  "schema": "oaa.release.build-matrix/v1",
+  "version": "2.2.2",
+  "commit": "8ae7fff7cdbba2a60298642077b9511e911c4864",
+  "recordedOn": "2026-11-19",
+  "host": "Fedora Linux 44 (Workstation Edition), x86_64",
+  "methods": {
+    "local-npm": {
+      "result": "PASS",
+      "environment": "node v22.23.3, npm 10.9.9",
+      "started": "2026-11-19T20:28:22Z",
+      "evidence": "frontend 4808 tests, backend 3702/0, tooling 1375, release-docs 41, production build, isolated backend /api/health and /api/ready",
+      "notes": "Attempt 1 (2026-11-19T20:17Z) failed on one intermittent Vitest worker-teardown error with 4808/4808 tests passing; the commit changes no frontend code; the full gate was re-run."
+    },
+    "podman-backend": {
+      "result": "PASS",
+      "environment": "podman 5.8.9, podman-compose 1.6.0",
+      "uncached": true,
+      "imageId": "sha256:47cf27550896df38fb182740765115c45ee9c6bc37e27a6f9efe1463d0369036",
+      "toolsAsUid1001": "PASS",
+      "identityMatrix": "PASS",
+      "evidence": "repository-root --no-cache build; oc and oc-mirror 4.22.22 SHA-256 verified, x86_64 ELF, mode 0755, read/hash/execute as 1001:0; identity matrix ALL PASS incl. PVC group cases (kubelet fsGroup emulated with --group-add); compose runtime with UI reaching the API; Mirroring preflight; failure paths (global latest, URL without checksum); oaa-deploy.sh all"
+    },
+    "podman-frontend": {
+      "result": "PASS",
+      "environment": "podman 5.8.9 (Buildah)",
+      "uncached": true,
+      "imageId": "sha256:30f58cea3d73f09baa875447ff11ec0c708ed0ab77d11a7a4f686a9a975b54cd",
+      "startsNonRoot": "PASS",
+      "evidence": "repository-root --no-cache build; started and served HTTP 200 as UID 1001 and as 12345:0 with /run 1001:0 0775; UI loaded in a browser"
+    }
+  },
+  "notInScope": "No Kubernetes or OpenShift cluster deployment; no native aarch64/ppc64le/s390x build (real tools executed under qemu emulation only)."
+}

@@ -21,6 +21,24 @@ not include the transfer companions (`feat/v2.2.2-transfer-companions`) or any v
 - **Evidence:** reproduced on `617d037`, and a clean `--no-cache` backend build succeeded with the fix. See
   `docs/BUILD_TROUBLESHOOTING.md`.
 
+**Published 2026-11-19.** The signed tag `v2.2.2` (`f32c8d37`) points to `8ae7fff`; the GitHub Release has 16 assets.
+- **Certification of record:** `20261119T204029Z-0fbe02b74363`, RED 11/2/2. The owner accepted all 7 scope items for
+  v2.2.2 only.
+- **Candidates not released:**
+  - `cb63ba8`: SCOPE-VULN rejected until krb5-libs was fixed.
+  - `f76afc0`: failed the Podman gate (frontend `/run`).
+  - `052e6b1`: superseded by the deployment assessment.
+- **Added during the release:** frontend `krb5-libs` update; frontend `/run` fix; in-cluster startup diagnostics;
+  identity-matrix PVC group cases; Podman frontend start and identity matrix in CI; README OpenShift quick start
+  corrected.
+- **Open, not verified:**
+  - no deployment to a real Kubernetes or OpenShift cluster;
+  - base manifests on runtimes without container marker files (for example containerd with cgroup v2);
+  - a real Red Hat mirror run;
+  - customer RHEL / FIPS / proxy-CA hosts.
+- Intermittent Vitest worker-teardown error seen once in gate A (`t7c-cold-start-catalog-lifecycle`; all tests
+  passed); unresolved.
+
 **Release gates (owner requirement, permanent):**
 - CI builds the backend image on every push to `main` and `develop`.
 - The non-containerized local build and the local Podman build of both images are mandatory for every release.
