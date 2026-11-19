@@ -71,8 +71,27 @@ Release documentation follows a fixed lifecycle, checked by `scripts/check-relea
 
 ### Build methods tested for every release
 
-Every release candidate is built and run with **every supported build method**, not only the certification
-build, and the results are recorded with the release evidence. The minimum matrix, run from the exact
+**Two gates are mandatory for every release (owner requirement since v2.2.2), and a release that fails either one
+is not certified or published:**
+
+1. **Non-containerized local build.** In a clean checkout of the exact candidate commit: `npm ci` (root, backend,
+   frontend) with the supported Node, the complete frontend, backend, tooling and documentation tests, the
+   production frontend build (`npm run build`), and the backend started in an isolated environment, answering
+   `/api/health` and `/api/ready`.
+2. **Local Podman container build of BOTH images** from the repository-root context (as compose and Tekton use):
+   at least one clean `--no-cache` build of each; `oc` and `oc-mirror` downloaded, SHA-256-verified and built for
+   the build architecture; both readable, hashable and executable as UID 1001 / GID 0; backend and frontend
+   containers started together, healthy, with the UI reaching the API; a representative Mirroring preflight.
+
+Record the results in `docs/releases/build-matrix/v<version>.json` (schema `oaa.release.build-matrix/v1`: the
+tagged commit, and `local-npm`, `podman-backend`, `podman-frontend` each with `result: "PASS"`; the container
+methods with `uncached: true` and their `imageId`; `podman-backend` with `toolsAsUid1001: "PASS"`).
+`scripts/release/verify-release-closeout.mjs` refuses to close a release without a passing record for the tagged
+commit. CI also builds the backend image on every push to main and develop
+(`scripts/smoke-backend-container.sh`), so a broken backend image build cannot go unnoticed between releases.
+
+Beyond those two gates, every release candidate is built and run with **every supported build method**, not
+only the certification build, and the results are recorded with the release evidence. The minimum matrix, run from the exact
 candidate source in isolated container storage, with its own project names and ports (never the
 maintainer's running app or its images):
 

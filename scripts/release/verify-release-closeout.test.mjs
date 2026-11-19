@@ -7,17 +7,29 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { verifyReleaseCloseout, repoSlugOf, parseSums } from "./verify-release-closeout.mjs";
+import { verifyReleaseCloseout, repoSlugOf, parseSums, checkBuildMatrix, buildMatrixRequired, BUILD_MATRIX_SCHEMA } from "./verify-release-closeout.mjs";
 
 const HEAD = "1".repeat(40), TAGOBJ = "2".repeat(40), TAGCOMMIT = "3".repeat(40), SHA = (c) => c.repeat(64);
 
-function tree() {
+/** A build-matrix record proving both mandatory build methods passed at the tagged commit. */
+const goodMatrix = (over = {}) => ({
+  schema: BUILD_MATRIX_SCHEMA, version: "9.8.0", commit: TAGCOMMIT,
+  methods: {
+    "local-npm": { result: "PASS" },
+    "podman-backend": { result: "PASS", uncached: true, imageId: `sha256:${SHA("d")}`, toolsAsUid1001: "PASS" },
+    "podman-frontend": { result: "PASS", uncached: true, imageId: `sha256:${SHA("e")}` }
+  },
+  ...over
+});
+
+function tree({ matrix = goodMatrix() } = {}) {
   const root = mkdtempSync(join(tmpdir(), "closeout-"));
-  mkdirSync(join(root, "docs/releases"), { recursive: true });
+  mkdirSync(join(root, "docs/releases/build-matrix"), { recursive: true });
   writeFileSync(join(root, "VERSION"), "9.8.0\n");
   writeFileSync(join(root, "CHANGELOG.md"), "## [9.8.0] - 2026-11-05\n");
   writeFileSync(join(root, "docs/releases/v9.8.0.md"), "# v9.8.0\n");
   writeFileSync(join(root, "README.md"), "- [n](docs/releases/v9.8.0.md)\n| [n](docs/releases/v9.8.0.md) |\n- **v9.8.0** — x\n");
+  if (matrix) writeFileSync(join(root, "docs/releases/build-matrix/v9.8.0.json"), JSON.stringify(matrix));
   return root;
 }
 
@@ -114,4 +126,33 @@ test("refused: no allowed-signers file (the tag signature is mandatory)", () => 
 test("refused: a tag signature that does not verify", () => {
   const r = verifyReleaseCloseout({ root: tree(), allowedSigners: "/tmp/allowed", run: world({ "verify-tag": { status: 1, stderr: "Could not verify signature." } }).run });
   assert.match(r.problems.join("\n"), /signature did not verify/);
+});
+
+// Mandatory build gates (v2.2.2 onward): local build + Podman build of both images.
+test("refused: no build-matrix record — both local and Podman builds are mandatory release gates", () => {
+  const r = verifyReleaseCloseout({ root: tree({ matrix: null }), allowedSigners: "/tmp/allowed", run: world().run });
+  assert.equal(r.ok, false);
+  assert.match(r.problems.join("\n"), /build gates: no build-matrix record for v9\.8\.0/);
+});
+
+test("build-matrix record: every mandatory method must PASS at the tagged commit, with uncached image builds and the UID 1001 tool probe", () => {
+  const ok = { version: "9.8.0", commit: TAGCOMMIT };
+  assert.deepEqual(checkBuildMatrix(goodMatrix(), ok), []);
+  assert.match(checkBuildMatrix(goodMatrix({ commit: HEAD }), ok).join("\n"), /tested 1{40}, not the tagged commit 3{40}/);
+  const failedLocal = goodMatrix(); failedLocal.methods["local-npm"].result = "FAIL";
+  assert.match(checkBuildMatrix(failedLocal, ok).join("\n"), /"local-npm" is FAIL, not PASS/);
+  const noFrontend = goodMatrix(); delete noFrontend.methods["podman-frontend"];
+  assert.match(checkBuildMatrix(noFrontend, ok).join("\n"), /no "podman-frontend" result/);
+  const cached = goodMatrix(); cached.methods["podman-backend"].uncached = false;
+  assert.match(checkBuildMatrix(cached, ok).join("\n"), /"podman-backend" must include at least one clean, uncached build/);
+  const noProbe = goodMatrix(); delete noProbe.methods["podman-backend"].toolsAsUid1001;
+  assert.match(checkBuildMatrix(noProbe, ok).join("\n"), /UID 1001/);
+  assert.match(checkBuildMatrix(goodMatrix({ schema: "x" }), ok).join("\n"), /schema/);
+});
+
+test("the build gates apply from 2.2.2 on; earlier releases keep their recorded closeouts", () => {
+  assert.equal(buildMatrixRequired("2.2.1"), false);
+  assert.equal(buildMatrixRequired("2.2.2"), true);
+  assert.equal(buildMatrixRequired("2.3.0"), true);
+  assert.equal(buildMatrixRequired("3.0.0"), true);
 });
