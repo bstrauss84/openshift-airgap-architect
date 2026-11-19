@@ -28,3 +28,22 @@ test("the update runs as root and the stage returns to UID 1001 before serving",
   assert.match(after, /^USER 1001$/m);
   assert.match(directives.trimEnd().split("\n").filter((l) => l.startsWith("USER ")).pop(), /^USER 1001$/);
 });
+
+test("/run keeps the base image's owner and mode across the secret-mount update step", () => {
+  // Buildah recreates /run as root:root 0755 when a RUN uses --mount=type=secret,
+  // and /run is a temporary mount inside that step. nginx as UID 1001 (or an
+  // arbitrary OpenShift UID with gid 0) then cannot write /run/nginx.pid and exits.
+  // Record and restore must therefore be separate plain RUN steps around it.
+  const runs = runtime.slice(0, runtime.indexOf("COPY --from=builder")).split(/\n(?=RUN |USER |COPY |FROM )/);
+  const iUpd = runs.findIndex((r) => r.includes("update krb5-libs"));
+  assert.match(runs[iUpd], /^RUN --mount=type=secret/);
+  const rec = runs.findIndex((r) => r.includes("> /tmp/oaa-run-state"));
+  const res = runs.findIndex((r) => r.includes('OAA_RUN_STATE="$(cat /tmp/oaa-run-state)"'));
+  assert.ok(rec >= 0 && rec < iUpd, "/run state is recorded before the update step");
+  assert.ok(res > iUpd, "/run is restored after the update step");
+  for (const k of [rec, res]) assert.doesNotMatch(runs[k], /--mount/, "record/restore steps have no mounts");
+  assert.match(runs[res], /chown "\$\{OAA_RUN_STATE% \*\}" \/run/);
+  assert.match(runs[res], /chmod "\$\{OAA_RUN_STATE#\* \}" \/run/);
+  assert.match(runs[res], /test "\$\(stat -c '%u:%g %a' \/run\)" = "\$\{OAA_RUN_STATE\}"/, "build fails if /run differs");
+  assert.match(runs[res], /-perm -g=w/, "build fails unless group 0 can write /run");
+});
