@@ -110,6 +110,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/MIRRORING_WORKFLOW.md`: M1–M7 recorded as released in v2.2.0; v2.3.0 changes affecting Mirroring.
 - `docs/N5_TOOL_REDISTRIBUTION_ASSESSMENT.md`: third-party notice assessment for oc/oc-mirror (no redistribution enabled).
 
+### Security
+- The frontend image installs `krb5-libs` `1.21.1-10.el9_9.2` from the UBI 9 repositories. The `ubi9/nginx-124` base
+  image ships `1.21.1-10.el9_8.1` (14 HIGH CVEs).
+
 ## [2.2.1] - 2026-11-06
 
 > Detailed notes: [docs/releases/v2.2.1.md](docs/releases/v2.2.1.md)

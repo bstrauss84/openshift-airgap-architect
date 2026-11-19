@@ -78,6 +78,24 @@ RUN npm run build && test -f dist/index.html
 # ---------------------------------------------------------------------------
 FROM registry.access.redhat.com/ubi9/nginx-124:latest
 
+# Security update (v2.2.2, owner decision): the 2026-11-12 ubi9/nginx-124 base image
+# ships krb5-libs 1.21.1-10.el9_8.1, which has 14 HIGH CVEs fixed in
+# 1.21.1-10.el9_9.2, already published in the UBI 9 BaseOS repository. Take only
+# that package from the image's own GPG-checked UBI repositories (nothing else is
+# upgraded); the optional build CA follows the same pattern as the other steps.
+USER root
+RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
+    set -e && OAA_DNF_CA="" && \
+    if [ -s /run/secrets/oaa_build_ca ]; then \
+      cat /etc/pki/tls/certs/ca-bundle.crt /run/secrets/oaa_build_ca > /tmp/oaa-build-ca.pem && \
+      OAA_DNF_CA="$(for r in $(sed -n 's/^\[\(.*\)\]$/\1/p' /etc/yum.repos.d/*.repo); do printf -- '--setopt=%s.sslcacert=/tmp/oaa-build-ca.pem ' "$r"; done)" && \
+      echo "build CA: using the oaa_build_ca build secret for this step (not stored in the image)"; \
+    fi && \
+    dnf -y ${OAA_DNF_CA} --setopt=install_weak_deps=0 update krb5-libs && \
+    echo "krb5-libs now $(rpm -q krb5-libs)" && \
+    dnf clean all && rm -rf /var/cache/dnf /var/cache/yum /tmp/oaa-build-ca.pem
+USER 1001
+
 # Only the build output crosses the stage boundary. No node_modules, no
 # package.json, no Node.js runtime.
 COPY --from=builder --chown=1001:0 /build/frontend/dist/ /opt/app-root/src/
