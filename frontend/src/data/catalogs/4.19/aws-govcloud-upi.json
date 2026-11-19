@@ -22,7 +22,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -48,7 +48,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -71,7 +71,7 @@
         }
       ],
       "supportStatus": "supported-derived",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -94,7 +94,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -117,7 +117,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -140,7 +140,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -168,7 +168,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -191,7 +191,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -219,7 +219,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -245,7 +245,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -268,7 +268,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -296,7 +296,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -319,7 +319,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -342,7 +342,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -365,7 +365,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -394,7 +394,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -417,7 +417,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -446,7 +446,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -474,7 +474,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -500,7 +500,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -523,7 +523,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -551,7 +551,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -579,7 +579,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -605,7 +605,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -633,7 +633,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -656,7 +656,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -679,7 +679,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -705,7 +705,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -728,7 +728,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -751,7 +751,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -774,7 +774,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -797,7 +797,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -820,7 +820,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -843,7 +843,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -866,7 +866,7 @@
         }
       ],
       "supportStatus": "supported-derived",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -889,7 +889,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -912,7 +912,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -935,7 +935,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -958,7 +958,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -981,7 +981,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1004,7 +1004,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1027,7 +1027,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1050,7 +1050,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1073,7 +1073,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1096,7 +1096,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1119,7 +1119,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1142,7 +1142,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1171,7 +1171,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1194,7 +1194,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1223,7 +1223,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1253,7 +1253,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1276,7 +1276,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1299,7 +1299,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1326,7 +1326,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1349,7 +1349,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1372,7 +1372,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1395,7 +1395,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1405,7 +1405,7 @@
       "allowed": "list of objects with id (optional roles per 4.20 doc)",
       "default": "not specified in docs",
       "required": false,
-      "description": "Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id and optional roles[] per 4.20. Required for UPI in existing VPC. If any role is set, each subnet must have ≥1 role and required role coverage applies.",
+      "description": "Existing VPC subnets: emitted as platform.aws.vpc.subnets[] with id and optional roles[] per 4.20. Required for UPI in existing VPC. If any role is set, each subnet must have \u22651 role and required role coverage applies.",
       "applies_to": [
         "aws-govcloud-upi"
       ],
@@ -1418,7 +1418,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1441,7 +1441,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1470,7 +1470,7 @@
         }
       ],
       "supportStatus": "supported-backend-only",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1499,7 +1499,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1522,7 +1522,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1545,7 +1545,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1568,7 +1568,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1594,7 +1594,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1617,7 +1617,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     },
     {
@@ -1640,7 +1640,7 @@
         }
       ],
       "supportStatus": "supported-ui",
-      "minVersion": "4.20",
+      "minVersion": "4.19",
       "maxVersion": null
     }
   ]
