@@ -11,7 +11,7 @@
  */
 import "./configureFetchProxy.js";
 import express from "express";
-import { installAccessControl } from "./accessControl.js";
+import { installAccessControl, kubernetesLoopbackWarning } from "./accessControl.js";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -7767,6 +7767,8 @@ if (process.env.NODE_ENV !== "test") {
     );
     // Use process.stdout.write for startup banner (visual output, not a log event)
     process.stdout.write(bannerLines.join("\n") + "\n");
+    const k8sLoopbackWarning = kubernetesLoopbackWarning(process.env, accessControlConfig.bindLoopbackOnly);
+    if (k8sLoopbackWarning) logger.warn({ tag: "startup" }, k8sLoopbackWarning);
     logger.info(
       {
         tag: "startup",

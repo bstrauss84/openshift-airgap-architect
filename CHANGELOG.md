@@ -110,6 +110,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/MIRRORING_WORKFLOW.md`: M1–M7 recorded as released in v2.2.0; v2.3.0 changes affecting Mirroring.
 - `docs/N5_TOOL_REDISTRIBUTION_ASSESSMENT.md`: third-party notice assessment for oc/oc-mirror (no redistribution enabled).
 
+### Deployment diagnostics and documentation
+- In a Kubernetes pod (`KUBERNETES_SERVICE_HOST` set), a loopback-only backend bind now logs a warning that the
+  probes and the Service will get "connection refused", and names the fix. What is bound is unchanged.
+- `DATA_DIR … is not writable` now explains the common OpenShift case: the volume is group-writable for a GID the
+  pod does not carry, so there is no fsGroup. It points to the OpenShift overlay or a pod-level `fsGroup`. The check
+  still fails closed.
+- The README's production quick start applied the base manifests on OpenShift too. It now separates
+  `oc apply -k manifests/openshift/` from the plain-Kubernetes base. `manifests/README.md` gains
+  "Troubleshooting in-cluster startup".
+- No release has been validated on a real Kubernetes or OpenShift cluster; see the release notes.
+
+### Release tooling
+- CI builds the backend image on every push to `main` and `develop` (`scripts/smoke-backend-container.sh`) and checks
+  `oc` / `oc-mirror` as UID 1001; it used to build only the frontend image.
+- Every release must pass both the non-containerized local build and the local Podman build of both images;
+  `verify-release-closeout.mjs` refuses a release without `docs/releases/build-matrix/v<version>.json` for the tagged
+  commit. The record must also show the frontend image starting as UID 1001 and as an arbitrary UID
+  (`startsNonRoot`), and `identity-matrix.sh` passing (`identityMatrix`).
+- CI also builds and starts the frontend image with Podman/Buildah, not only Docker. It runs the backend
+  startup-identity matrix, which now includes PVC group cases (a `0:G 2775` volume with and without the kubelet's
+  fsGroup, emulated with `--group-add`), under Podman.
+
 ### Security
 - The frontend image installs `krb5-libs` `1.21.1-10.el9_9.2` from the UBI 9 repositories. The `ubi9/nginx-124` base
   image ships `1.21.1-10.el9_8.1` (14 HIGH CVEs).

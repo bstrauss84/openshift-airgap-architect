@@ -81,14 +81,33 @@ is not certified or published:**
 2. **Local Podman container build of BOTH images** from the repository-root context (as compose and Tekton use):
    at least one clean `--no-cache` build of each; `oc` and `oc-mirror` downloaded, SHA-256-verified and built for
    the build architecture; both readable, hashable and executable as UID 1001 / GID 0; backend and frontend
-   containers started together, healthy, with the UI reaching the API; a representative Mirroring preflight.
+   containers started together, healthy, with the UI reaching the API; a representative Mirroring preflight;
+   the frontend image started and serving as UID 1001 **and** as an arbitrary UID with GID 0; and
+   `backend/test/deployment-identity/identity-matrix.sh <backend-image>` ALL PASS. The matrix covers root, UID
+   1001, an arbitrary UID, and the PVC group cases: a `0:G 2775` volume with and without the kubelet's fsGroup,
+   emulated with `--group-add`. A built image is not a working image: candidate f76afc0 built cleanly, and its
+   frontend exited at start.
 
-Record the results in `docs/releases/build-matrix/v<version>.json` (schema `oaa.release.build-matrix/v1`: the
-tagged commit, and `local-npm`, `podman-backend`, `podman-frontend` each with `result: "PASS"`; the container
-methods with `uncached: true` and their `imageId`; `podman-backend` with `toolsAsUid1001: "PASS"`).
+Record the results in `docs/releases/build-matrix/v<version>.json`, schema `oaa.release.build-matrix/v1`:
+
+- the tagged commit;
+- `local-npm`, `podman-backend` and `podman-frontend`, each with `result: "PASS"`;
+- for the container methods, `uncached: true` and their `imageId`;
+- for `podman-backend`, `toolsAsUid1001: "PASS"` and `identityMatrix: "PASS"`;
+- for `podman-frontend`, `startsNonRoot: "PASS"`.
+
 `scripts/release/verify-release-closeout.mjs` refuses to close a release without a passing record for the tagged
-commit. CI also builds the backend image on every push to main and develop
-(`scripts/smoke-backend-container.sh`), so a broken backend image build cannot go unnoticed between releases.
+commit.
+
+CI also runs on every push to main and develop:
+
+- it builds the backend image (`scripts/smoke-backend-container.sh`);
+- it builds and starts the frontend image with both Docker and Podman/Buildah (`scripts/smoke-frontend-container.sh`);
+- it runs the identity matrix under Podman.
+
+So a broken image build or start cannot go unnoticed between releases. **All of this is Podman/Docker evidence.
+Nothing here deploys to a Kubernetes or OpenShift cluster**, and the rendered manifests are checked only
+statically (`scripts/validate-openshift-manifests.test.mjs`).
 
 Beyond those two gates, every release candidate is built and run with **every supported build method**, not
 only the certification build, and the results are recorded with the release evidence. The minimum matrix, run from the exact

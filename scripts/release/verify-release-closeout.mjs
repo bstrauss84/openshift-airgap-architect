@@ -78,6 +78,10 @@ export function checkBuildMatrix(record, { version, commit }) {
   }
   const be = methods["podman-backend"];
   if (be && be.toolsAsUid1001 !== "PASS") errors.push(`build method "podman-backend" must prove oc and oc-mirror are readable, hashable and executable as UID 1001 (toolsAsUid1001: PASS)`);
+  // A built image is not a working image: f76afc0 built cleanly and its frontend exited at start.
+  if (be && be.identityMatrix !== "PASS") errors.push(`build method "podman-backend" must pass backend/test/deployment-identity/identity-matrix.sh, including the PVC group cases (identityMatrix: PASS)`);
+  const fe = methods["podman-frontend"];
+  if (fe && fe.startsNonRoot !== "PASS") errors.push(`build method "podman-frontend" must prove the image starts and serves as UID 1001 and as an arbitrary UID with GID 0 (startsNonRoot: PASS)`);
   return errors;
 }
 const SHA_RE = /^[0-9a-f]{40}$/;

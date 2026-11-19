@@ -16,8 +16,8 @@ const goodMatrix = (over = {}) => ({
   schema: BUILD_MATRIX_SCHEMA, version: "9.8.0", commit: TAGCOMMIT,
   methods: {
     "local-npm": { result: "PASS" },
-    "podman-backend": { result: "PASS", uncached: true, imageId: `sha256:${SHA("d")}`, toolsAsUid1001: "PASS" },
-    "podman-frontend": { result: "PASS", uncached: true, imageId: `sha256:${SHA("e")}` }
+    "podman-backend": { result: "PASS", uncached: true, imageId: `sha256:${SHA("d")}`, toolsAsUid1001: "PASS", identityMatrix: "PASS" },
+    "podman-frontend": { result: "PASS", uncached: true, imageId: `sha256:${SHA("e")}`, startsNonRoot: "PASS" }
   },
   ...over
 });
@@ -147,6 +147,10 @@ test("build-matrix record: every mandatory method must PASS at the tagged commit
   assert.match(checkBuildMatrix(cached, ok).join("\n"), /"podman-backend" must include at least one clean, uncached build/);
   const noProbe = goodMatrix(); delete noProbe.methods["podman-backend"].toolsAsUid1001;
   assert.match(checkBuildMatrix(noProbe, ok).join("\n"), /UID 1001/);
+  const noIdentity = goodMatrix(); noIdentity.methods["podman-backend"].identityMatrix = "FAIL";
+  assert.match(checkBuildMatrix(noIdentity, ok).join("\n"), /identity-matrix\.sh, including the PVC group cases/);
+  const noStart = goodMatrix(); delete noStart.methods["podman-frontend"].startsNonRoot;
+  assert.match(checkBuildMatrix(noStart, ok).join("\n"), /"podman-frontend" must prove the image starts and serves/);
   assert.match(checkBuildMatrix(goodMatrix({ schema: "x" }), ok).join("\n"), /schema/);
 });
 
