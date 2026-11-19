@@ -5754,6 +5754,10 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
     const previewState = JSON.parse(JSON.stringify(state));
     previewState.reviewFlags = null;
     previewState.fieldManual = { enabled: false };
+    // Agent ISO always needs credentials in install-config.yaml (the ISO carries them into the cluster).
+    // exportOptions.includeCredentials gates credential inclusion in buildInstallConfig — force it on.
+    if (!previewState.exportOptions) previewState.exportOptions = {};
+    previewState.exportOptions.includeCredentials = true;
 
     // Inject ephemeral pull secret if available (from mirror registry config).
     // Trigger on either usingMirrorRegistry or mirrorConfigPreloaded (preloaded wizard flow).
