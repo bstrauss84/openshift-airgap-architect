@@ -423,7 +423,7 @@ describe('Export Integrity Helper', () => {
         () => assertSupportedOpenShiftMinorForGeneration(result.migrated),
         (err) => {
           assert.strictEqual(err.code, 'UNSUPPORTED_VERSION');
-          assert.deepStrictEqual(err.supportedVersions, ['4.20', '4.21', '4.22']);
+          assert.deepStrictEqual(err.supportedVersions, ['4.18', '4.19', '4.20', '4.21', '4.22']);
           return true;
         }
       );

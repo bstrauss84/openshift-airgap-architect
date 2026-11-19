@@ -197,6 +197,8 @@ import {
 import { validateAllFiles } from "./yamlValidator.js";
 import { detectScenarioId } from "./catalogValidator.js";
 import { assertCanonicalDataAvailable } from "./canonicalDataIntegrity.js";
+import { loadMirrorRegistryConfig } from "./mirrorRegistryConfigLoader.js";
+import { loadImageSetConfig } from "./imageSetConfigParser.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -420,6 +422,20 @@ const purgeExpiredBundleStates = () => {
 // Mounted Red Hat pull secret — detected at startup, held in memory only, never persisted.
 let mountedRhPullSecret = null;
 
+// Mounted mirror registry pull secret — loaded from config, held in memory only, never persisted.
+let mountedMirrorPullSecret = null;
+
+// Mirror registry config loaded at module init so it's available for every ensureState() call,
+// not just the first defaultState() call. This ensures IDMS sources are re-applied on restart
+// even when the DB already has state from a previous run.
+const _mirrorConfigAtInit = (() => {
+  const cfg = loadMirrorRegistryConfig();
+  if (cfg) {
+    mountedMirrorPullSecret = cfg.pullSecret;
+  }
+  return cfg;
+})();
+
 const RH_REGISTRIES = ["registry.redhat.io", "quay.io", "cloud.openshift.com", "registry.connect.redhat.com"];
 
 /**
@@ -511,16 +527,17 @@ if (process.env.NODE_ENV !== "test") {
   logFeedbackStartupStatus();
 }
 
-const defaultState = () => ({
-  runId: nanoid(),
-  blueprint: {
-    arch: "x86_64",
-    platform: "Bare Metal",
-    baseDomain: "example.com",
-    clusterName: "airgap-cluster",
-    confirmed: false,
-    confirmationTimestamp: null
-  },
+const defaultState = () => {
+  const baseState = {
+    runId: nanoid(),
+    blueprint: {
+      arch: "x86_64",
+      platform: "Bare Metal",
+      baseDomain: "example.com",
+      clusterName: "airgap-cluster",
+      confirmed: false,
+      confirmationTimestamp: null
+    },
   release: {
     channel: null,
     patchVersion: null,
@@ -711,13 +728,41 @@ const defaultState = () => ({
     strictArchive: false,
     lastRunJobId: null
   },
-  ui: {
-    activeStepId: "blueprint",
-    visitedSteps: {},
-    completedSteps: {},
-    segmentedFlowV1: true
+    ui: {
+      activeStepId: "blueprint",
+      visitedSteps: {},
+      completedSteps: {},
+      segmentedFlowV1: true
+    }
+  };
+
+  // Apply mirror registry config (loaded at module init)
+  if (_mirrorConfigAtInit) {
+    baseState.credentials = { ...baseState.credentials, ..._mirrorConfigAtInit.state.credentials };
+    baseState.trust = { ...baseState.trust, ..._mirrorConfigAtInit.state.trust };
+    baseState.globalStrategy.mirroring = {
+      ...baseState.globalStrategy.mirroring,
+      ..._mirrorConfigAtInit.state.globalStrategy.mirroring
+    };
+    baseState.ui = { ...baseState.ui, ..._mirrorConfigAtInit.state.ui };
   }
-});
+
+  // Pre-load imageset config if mounted
+  const imagesetConfig = loadImageSetConfig();
+  if (imagesetConfig) {
+    baseState.release = { ...baseState.release, ...imagesetConfig.release };
+    baseState.version = { ...baseState.version, ...imagesetConfig.version };
+    baseState.blueprint = { ...baseState.blueprint, ...imagesetConfig.blueprint };
+    if (imagesetConfig.mirrorWorkflow) {
+      baseState.mirrorWorkflow = {
+        ...baseState.mirrorWorkflow,
+        ...imagesetConfig.mirrorWorkflow
+      };
+    }
+  }
+
+  return baseState;
+};
 
 const ensureState = () => {
   const existing = getState();
@@ -734,6 +779,28 @@ const ensureState = () => {
     if (!Object.prototype.hasOwnProperty.call(next.trust, "reducedSelection")) {
       next.trust.reducedSelection = null;
       changed = true;
+    }
+    // Re-apply IDMS/ITMS mirror sources from mounted config on every call.
+    // The mounted files are the source of truth — DB state may have stale defaults
+    // from a previous run or from frontend state patches.
+    if (_mirrorConfigAtInit) {
+      const mounted = _mirrorConfigAtInit.state.globalStrategy?.mirroring;
+      if (mounted?.sources?.length) {
+        if (!next.globalStrategy) next.globalStrategy = {};
+        if (!next.globalStrategy.mirroring) next.globalStrategy.mirroring = {};
+        next.globalStrategy = { ...next.globalStrategy };
+        next.globalStrategy.mirroring = {
+          ...next.globalStrategy.mirroring,
+          sources: mounted.sources,
+          registryFqdn: mounted.registryFqdn
+        };
+        changed = true;
+      }
+      if (!next.ui) next.ui = {};
+      if (!next.ui.mirrorConfigPreloaded) {
+        next.ui = { ...next.ui, mirrorConfigPreloaded: true };
+        changed = true;
+      }
     }
     if (changed) {
       setState(next);
@@ -1337,10 +1404,18 @@ app.get("/api/schema/stepMap", (req, res) => {
 });
 
 app.get("/api/state", (req, res) => {
-  // Security: Never expose credentials via GET endpoint
   const state = ensureState();
-  const sanitized = sanitizeStateForExport(state, { includeCredentials: false });
-  res.json(sanitized);
+
+  // Inject mounted mirror pull secret (held in memory, never persisted to database)
+  if (mountedMirrorPullSecret && state.ui?.mirrorConfigPreloaded) {
+    state.credentials = state.credentials || {};
+    state.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+  }
+
+  // Don't sanitize credentials for GET /api/state - the frontend needs them during the session
+  // Pull secrets are never persisted to disk (stripped by getStateForPersistence)
+  // Sanitization only happens for export bundles
+  res.json(state);
 });
 
 app.post("/api/state", validateBody(stateUpdateSchema), (req, res) => {
@@ -5563,6 +5638,356 @@ const resolveDocsMinor = (state, res) => {
   }
   return minor;
 };
+// ===================================================================
+// AGENT ISO GENERATION
+// ===================================================================
+
+app.post("/api/agent-iso/generate", async (req, res) => {
+  const state = ensureState();
+  const methodology = state?.methodology?.method;
+  const platform = state?.blueprint?.platform;
+
+  // Validate methodology and platform
+  if (methodology !== "Agent-Based Installer") {
+    return res.status(400).json({
+      error: "Agent ISO generation only available for Agent-Based Installer deployments"
+    });
+  }
+
+  if (platform !== "Bare Metal" && platform !== "VMware vSphere") {
+    return res.status(400).json({
+      error: "Agent ISO generation only available for Bare Metal or VMware vSphere platforms"
+    });
+  }
+
+  // Create job and return immediately
+  const jobId = createJob("agent-iso-generate", "Initializing agent ISO generation...");
+  res.status(202).json({ jobId });
+
+  // Run generation in background
+  setImmediate(() => {
+    generateAgentIsoBackgroundJob(jobId, state).catch((err) => {
+      appendJobOutput(jobId, `\nUnexpected error: ${err.message}\n`);
+      updateJob(jobId, {
+        status: "failed",
+        progress: 100,
+        message: `Generation failed: ${err.message}`
+      });
+    });
+  });
+});
+
+app.get("/api/agent-iso/download/:jobId", async (req, res) => {
+  const { jobId } = req.params;
+  const job = getJob(jobId);
+
+  if (!job) {
+    return res.status(404).json({ error: "Job not found" });
+  }
+
+  if (job.status !== "completed") {
+    return res.status(400).json({ error: "ISO generation not completed yet" });
+  }
+
+  let meta = null;
+  try {
+    meta = job.metadata_json ? JSON.parse(job.metadata_json) : null;
+  } catch (err) {
+    logger.error({ tag: "agent-iso:download", err, jobId }, "Failed to parse job metadata");
+    return res.status(500).json({ error: "Failed to parse job metadata" });
+  }
+
+  if (!meta || !meta.isoPath) {
+    return res.status(404).json({ error: "ISO file path not found in job metadata" });
+  }
+
+  const isoPath = meta.isoPath;
+  const tmpAgentIsoBase = path.join(dataDir, "tmp");
+
+  // Security: Validate that isoPath is within allowed tmp directory
+  const realIsoPath = fs.existsSync(isoPath) ? fs.realpathSync(isoPath) : null;
+  if (!realIsoPath || !realIsoPath.startsWith(tmpAgentIsoBase)) {
+    logger.warn({ tag: "agent-iso:download", jobId, isoPath, realIsoPath }, "Invalid ISO path - directory traversal attempt");
+    return res.status(403).json({ error: "Invalid ISO file path" });
+  }
+
+  if (!fs.existsSync(isoPath)) {
+    return res.status(404).json({ error: "ISO file not found on disk" });
+  }
+
+  const stats = fs.statSync(isoPath);
+  const isoName = meta.isoName || path.basename(isoPath);
+
+  logger.info({ tag: "agent-iso:download", jobId, isoPath, size: stats.size }, "Streaming ISO download");
+
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("Content-Disposition", `attachment; filename="${isoName}"`);
+  res.setHeader("Content-Length", stats.size);
+
+  const stream = fs.createReadStream(isoPath);
+  stream.pipe(res);
+
+  stream.on("error", (err) => {
+    logger.error({ tag: "agent-iso:download", err, jobId }, "Failed to stream ISO file");
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to stream ISO file" });
+    }
+  });
+});
+
+async function generateAgentIsoBackgroundJob(jobId, state) {
+  const tmpDir = path.join(dataDir, "tmp");
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  const workDir = path.join(tmpDir, `agent-iso-${jobId}`);
+  fs.mkdirSync(workDir, { recursive: true });
+
+  logger.info({ tag: "agent-iso:generate", jobId, workDir }, "Starting agent ISO generation");
+
+  try {
+    updateJob(jobId, { status: "running", progress: 10, message: "Preparing configuration files..." });
+    appendJobOutput(jobId, "=== OpenShift Agent ISO Generation ===\n");
+    appendJobOutput(jobId, `Work directory: ${workDir}\n\n`);
+
+    // Generate install-config.yaml
+    appendJobOutput(jobId, "Generating install-config.yaml...\n");
+    const previewState = JSON.parse(JSON.stringify(state));
+    previewState.reviewFlags = null;
+    previewState.fieldManual = { enabled: false };
+    // Agent ISO always needs credentials in install-config.yaml (the ISO carries them into the cluster).
+    // exportOptions.includeCredentials gates credential inclusion in buildInstallConfig — force it on.
+    if (!previewState.exportOptions) previewState.exportOptions = {};
+    previewState.exportOptions.includeCredentials = true;
+
+    // Inject ephemeral pull secret if available (from mirror registry config).
+    // Trigger on either usingMirrorRegistry or mirrorConfigPreloaded (preloaded wizard flow).
+    if (mountedMirrorPullSecret && (state.credentials?.usingMirrorRegistry || state.ui?.mirrorConfigPreloaded)) {
+      if (!previewState.credentials) previewState.credentials = {};
+      previewState.credentials.mirrorRegistryPullSecret = mountedMirrorPullSecret;
+    }
+
+    const installConfig = buildInstallConfig(previewState);
+    if (!installConfig) {
+      throw new Error("Failed to generate install-config.yaml");
+    }
+
+    const installConfigPath = path.join(workDir, "install-config.yaml");
+    fs.writeFileSync(installConfigPath, installConfig, "utf8");
+    appendJobOutput(jobId, `✓ Wrote install-config.yaml (${Buffer.byteLength(installConfig)} bytes)\n`);
+
+    // Generate agent-config.yaml
+    appendJobOutput(jobId, "Generating agent-config.yaml...\n");
+    const agentConfig = buildAgentConfig(previewState);
+    if (!agentConfig) {
+      throw new Error("Failed to generate agent-config.yaml - agent-config not supported for this configuration");
+    }
+
+    const agentConfigPath = path.join(workDir, "agent-config.yaml");
+    fs.writeFileSync(agentConfigPath, agentConfig, "utf8");
+    appendJobOutput(jobId, `✓ Wrote agent-config.yaml (${Buffer.byteLength(agentConfig)} bytes)\n\n`);
+
+    updateJob(jobId, { progress: 30, message: "Resolving openshift-install binary..." });
+
+    // Check for pre-mounted openshift-install binary (high-side / import-script bundle scenario)
+    const mountedInstallerPath = path.join(dataDir, "openshift-install");
+    let installerPath;
+
+    if (fs.existsSync(mountedInstallerPath)) {
+      appendJobOutput(jobId, `✓ Using pre-mounted openshift-install binary: ${mountedInstallerPath}\n\n`);
+      installerPath = mountedInstallerPath;
+    } else {
+      // Fallback to downloading (low-side scenario with internet access)
+      // v3 state schema: version lives at state.version.selectedPatch / state.release.patchVersion
+      const version = state.version?.selectedPatch || state.release?.patchVersion
+        || state.blueprint?.version || state.release?.version;
+      if (!version) {
+        throw new Error("OpenShift version not configured");
+      }
+
+      const cpuArch = state.blueprint?.cpuArch || "linux-amd64";
+      const useFips = state.blueprint?.fipsMode === true;
+
+      appendJobOutput(jobId, `Resolving openshift-install binary...\n`);
+      appendJobOutput(jobId, `  Version: ${version}\n`);
+      appendJobOutput(jobId, `  Platform/Arch: ${cpuArch}\n`);
+      appendJobOutput(jobId, `  FIPS: ${useFips ? "enabled" : "disabled"}\n\n`);
+
+      const installerInfo = await ensureOpenshiftInstaller(version, cpuArch, useFips, dataDir);
+      installerPath = installerInfo.path;
+
+      if (!installerPath || !fs.existsSync(installerPath)) {
+        throw new Error(`openshift-install binary not found at ${installerPath || 'undefined'}`);
+      }
+
+      appendJobOutput(jobId, `✓ Using binary: ${installerPath}\n\n`);
+    }
+
+    // Generic bootstrap manifest injection — operator-agnostic.
+    // Silvermatic or any other operator sets BOOTSTRAP_MANIFESTS_DIR to a path
+    // containing YAML files. We copy them into openshift/ so openshift-install
+    // picks them up as extra manifests during agent ISO creation.
+    // The 00-/01-/02-/99- filename prefix convention controls apply order.
+    const bootstrapManifestsDir = process.env.BOOTSTRAP_MANIFESTS_DIR;
+    if (bootstrapManifestsDir && fs.existsSync(bootstrapManifestsDir)) {
+      const openshiftDir = path.join(workDir, "openshift");
+      fs.mkdirSync(openshiftDir, { recursive: true });
+      try {
+        const manifestFiles = fs.readdirSync(bootstrapManifestsDir)
+          .filter(f => f.endsWith(".yaml") || f.endsWith(".yml"));
+        for (const file of manifestFiles) {
+          fs.copyFileSync(
+            path.join(bootstrapManifestsDir, file),
+            path.join(openshiftDir, file)
+          );
+        }
+        logger.info({ tag: "agent-iso:manifests", count: manifestFiles.length, dir: bootstrapManifestsDir }, "Injected bootstrap manifests into agent ISO");
+        appendJobOutput(jobId, `✓ Injected ${manifestFiles.length} bootstrap manifest(s) from ${bootstrapManifestsDir}\n\n`);
+      } catch (manifestErr) {
+        logger.warn({ tag: "agent-iso:manifests", err: manifestErr }, "BOOTSTRAP_MANIFESTS_DIR set but could not read manifests");
+        appendJobOutput(jobId, `Warning: Could not read bootstrap manifests from ${bootstrapManifestsDir}: ${manifestErr.message}\n`);
+      }
+    }
+
+    updateJob(jobId, { progress: 50, message: "Running openshift-install agent create image..." });
+    appendJobOutput(jobId, `Executing: ${installerPath} agent create image --dir ${workDir}\n`);
+    appendJobOutput(jobId, `---\n\n`);
+
+    // Spawn openshift-install agent create image
+    // HOME must point to a writable directory — the default /opt/app-root/src
+    // may not be writable for the runtime user (uid 1001 in the container).
+    // Use the work directory itself as the HOME so .cache/agent lands there.
+    const child = spawn(installerPath, ["agent", "create", "image", "--dir", workDir], {
+      env: {
+        ...process.env,
+        PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+        HOME: workDir,
+        XDG_CACHE_HOME: path.join(workDir, ".cache"),
+      }
+    });
+
+    activeProcesses.set(jobId, child);
+
+    child.stdout.on("data", (data) => {
+      appendJobOutput(jobId, data.toString());
+    });
+
+    child.stderr.on("data", (data) => {
+      appendJobOutput(jobId, data.toString());
+    });
+
+    child.on("error", (err) => {
+      appendJobOutput(jobId, `\nProcess error: ${err.message}\n`);
+      updateJob(jobId, {
+        status: "failed",
+        progress: 100,
+        message: "Failed to spawn openshift-install process"
+      });
+      activeProcesses.delete(jobId);
+    });
+
+    child.on("close", (code) => {
+      activeProcesses.delete(jobId);
+      appendJobOutput(jobId, `\n---\nProcess exited with code ${code}\n`);
+
+      if (code === 0) {
+        try {
+          // Read auth files
+          const authDir = path.join(workDir, "auth");
+          const passwordPath = path.join(authDir, "kubeadmin-password");
+          const kubeconfigPath = path.join(authDir, "kubeconfig");
+
+          if (!fs.existsSync(passwordPath)) {
+            throw new Error("kubeadmin-password file not found in auth directory");
+          }
+          if (!fs.existsSync(kubeconfigPath)) {
+            throw new Error("kubeconfig file not found in auth directory");
+          }
+
+          const kubeadminPassword = fs.readFileSync(passwordPath, "utf8").trim();
+          const kubeconfig = fs.readFileSync(kubeconfigPath, "utf8");
+
+          appendJobOutput(jobId, `✓ Read kubeadmin-password (${kubeadminPassword.length} chars)\n`);
+          appendJobOutput(jobId, `✓ Read kubeconfig (${kubeconfig.length} bytes)\n`);
+
+          // Find ISO file
+          const isoFiles = fs.readdirSync(workDir).filter(f => f.endsWith(".iso"));
+          if (isoFiles.length === 0) {
+            throw new Error("No ISO file found in work directory");
+          }
+
+          const isoName = isoFiles[0];
+          const isoPath = path.join(workDir, isoName);
+          const isoSize = fs.statSync(isoPath).size;
+          const isoSizeMB = Math.round(isoSize / 1024 / 1024);
+
+          appendJobOutput(jobId, `✓ Found ISO: ${isoName} (${isoSizeMB}MB)\n\n`);
+          appendJobOutput(jobId, `=== Generation Complete ===\n`);
+
+          logger.info({
+            tag: "agent-iso:generate",
+            jobId,
+            isoPath,
+            isoSize,
+            workDir
+          }, "Agent ISO generated successfully");
+
+          // Store metadata WITHOUT logging sensitive credentials
+          updateJobMetadata(jobId, {
+            isoPath,
+            isoName,
+            isoSize,
+            kubeadminPassword, // Stored in encrypted DB, never logged
+            kubeconfig, // Stored in encrypted DB, never logged
+            workDir,
+            exitCode: code,
+            finishedAt: Date.now()
+          });
+
+          updateJob(jobId, {
+            status: "completed",
+            progress: 100,
+            message: `ISO generated successfully (${isoSizeMB}MB)`
+          });
+        } catch (err) {
+          logger.error({ tag: "agent-iso:generate", err, jobId }, "Failed to read generated files");
+          appendJobOutput(jobId, `\nError reading generated files: ${err.message}\n`);
+          updateJob(jobId, {
+            status: "failed",
+            progress: 100,
+            message: `Generation completed but files missing: ${err.message}`
+          });
+        }
+      } else {
+        // Parse output for common error patterns
+        const output = getJob(jobId)?.output || "";
+        let errorMessage = `openshift-install exited with code ${code}`;
+
+        if (output.includes("validation failed") || output.includes("invalid")) {
+          errorMessage = "Configuration validation failed - check install-config.yaml and agent-config.yaml";
+        } else if (output.includes("not found")) {
+          errorMessage = "Binary or dependency missing";
+        } else if (output.includes("permission denied")) {
+          errorMessage = "Permission denied - check file/directory permissions";
+        }
+
+        logger.warn({ tag: "agent-iso:generate", jobId, exitCode: code }, errorMessage);
+        updateJob(jobId, {
+          status: "failed",
+          progress: 100,
+          message: errorMessage
+        });
+      }
+    });
+  } catch (err) {
+    logger.error({ tag: "agent-iso:generate", err, jobId }, "Agent ISO generation failed");
+    appendJobOutput(jobId, `\nError: ${err.message}\n${err.stack}\n`);
+    updateJob(jobId, {
+      status: "failed",
+      progress: 100,
+      message: `Generation failed: ${err.message}`
+    });
+  }
+}
 
 app.get("/api/docs", (req, res) => {
   const state = ensureState();

@@ -94,14 +94,43 @@ if [ -n "${OAA_REQUIRE_PROXY_SECRET:-}" ] && [ "$LISTEN_ADDRESS" != "127.0.0.1" 
        caller would be proxied as an authenticated one. Set OAA_NGINX_LISTEN_ADDRESS=127.0.0.1."
 fi
 
+# Detect whether IPv6 is available. Two distinct failure modes:
+#   1. IPv6 module not loaded at all — /proc/sys/net/ipv6 does not exist;
+#      nginx gets EAFNOSUPPORT (97) trying to bind [::].
+#   2. IPv6 loaded but disabled via sysctl disable_ipv6=1 — nginx gets
+#      EADDRNOTAVAIL (99).
+# Skip IPv6 listen directives for both so the config is valid on
+# IPv4-only (hardened / airgapped) hosts.
+_ipv6_available() {
+  [ -d /proc/sys/net/ipv6 ] || return 1   # module not loaded → not available
+  local knob=/proc/sys/net/ipv6/conf/all/disable_ipv6
+  [ -f "$knob" ] || return 0              # no disable knob → available
+  [ "$(cat "$knob" 2>/dev/null)" != "1" ]
+}
+
+PROBE_PORT=8081
 if [ "$LISTEN_ADDRESS" = "127.0.0.1" ]; then
   # Both families: oauth-proxy connects to the name `localhost`, which may
-  # resolve to ::1 before 127.0.0.1.
-  LISTEN_DIRECTIVES="    listen       127.0.0.1:${PORT};
+  # resolve to ::1 before 127.0.0.1.  Skip [::1] when IPv6 is disabled.
+  if _ipv6_available; then
+    LISTEN_DIRECTIVES="    listen       127.0.0.1:${PORT};
     listen       [::1]:${PORT};"
+    PROBE_LISTEN_DIRECTIVES="    listen       0.0.0.0:${PROBE_PORT};
+    listen       [::]:${PROBE_PORT};"
+  else
+    LISTEN_DIRECTIVES="    listen       127.0.0.1:${PORT};"
+    PROBE_LISTEN_DIRECTIVES="    listen       0.0.0.0:${PROBE_PORT};"
+  fi
 else
-  LISTEN_DIRECTIVES="    listen       0.0.0.0:${PORT};
+  if _ipv6_available; then
+    LISTEN_DIRECTIVES="    listen       0.0.0.0:${PORT};
     listen       [::]:${PORT};"
+    PROBE_LISTEN_DIRECTIVES="    listen       0.0.0.0:${PROBE_PORT};
+    listen       [::]:${PROBE_PORT};"
+  else
+    LISTEN_DIRECTIVES="    listen       0.0.0.0:${PORT};"
+    PROBE_LISTEN_DIRECTIVES="    listen       0.0.0.0:${PROBE_PORT};"
+  fi
 fi
 
 # --- the resolver -----------------------------------------------------------
@@ -171,6 +200,10 @@ while IFS= read -r line || [ -n "$line" ]; do
       printf '%s\n' "$LISTEN_DIRECTIVES" >> "$tmp"
       continue
       ;;
+    *OAA_PROBE_LISTEN_DIRECTIVES*)
+      printf '%s\n' "$PROBE_LISTEN_DIRECTIVES" >> "$tmp"
+      continue
+      ;;
     *OAA_RESOLVER_DIRECTIVE*)
       # Keep the template's indentation.
       printf '%s%s\n' "${line%%OAA_RESOLVER_DIRECTIVE*}" "$RESOLVER_DIRECTIVE" >> "$tmp"
@@ -182,7 +215,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   printf '%s\n' "$line" >> "$tmp"
 done < "$TEMPLATE"
 
-if grep -qE 'OAA_(LISTEN_DIRECTIVES|RESOLVER_DIRECTIVE|BACKEND_ORIGIN|PROXY_SHARED_SECRET)' "$tmp"; then
+if grep -qE 'OAA_(LISTEN_DIRECTIVES|PROBE_LISTEN_DIRECTIVES|RESOLVER_DIRECTIVE|BACKEND_ORIGIN|PROXY_SHARED_SECRET)' "$tmp"; then
   rm -f "$tmp"
   fatal "rendered config still contains an unsubstituted placeholder; refusing to install it"
 fi
@@ -190,4 +223,4 @@ fi
 mv "$tmp" "$OUTPUT"
 
 # Deliberately reports the decisions, never the secret.
-echo "OAA nginx config rendered: listen=${LISTEN_ADDRESS}:${PORT} resolver=${RESOLVER} (from ${RESOLVER_SOURCE}) backend=${BACKEND_ORIGIN} proxyAuth=$([ -n "$PROXY_SECRET" ] && echo configured || echo absent)"
+echo "OAA nginx config rendered: listen=${LISTEN_ADDRESS}:${PORT} ipv6=$(_ipv6_available && echo enabled || echo disabled) resolver=${RESOLVER} (from ${RESOLVER_SOURCE}) backend=${BACKEND_ORIGIN} proxyAuth=$([ -n "$PROXY_SECRET" ] && echo configured || echo absent)"

@@ -262,11 +262,11 @@ describe('Import Integrity Validator', () => {
       });
     });
 
-    it('rejects 4.19 with UNSUPPORTED_VERSION', () => {
-      const manifest = validManifest({ openshift: { selectedMinor: '4.19' } });
+    it('rejects 4.17 with UNSUPPORTED_VERSION', () => {
+      const manifest = validManifest({ openshift: { selectedMinor: '4.17' } });
       assert.throws(() => validateArchiveManifest(manifest, {}), (err) => {
         assert.strictEqual(err.code, 'UNSUPPORTED_VERSION');
-        assert.strictEqual(err.details.received, '4.19');
+        assert.strictEqual(err.details.received, '4.17');
         return true;
       });
     });

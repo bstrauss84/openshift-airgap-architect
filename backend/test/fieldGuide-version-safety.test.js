@@ -55,10 +55,10 @@ const assertThrowsFieldGuide = (state, pattern, label) => {
 // --- Tests ---
 
 describe("FIELD_GUIDE_SUPPORTED_MINORS policy", () => {
-  it("contains exactly 4.20, 4.21 and 4.22", () => {
+  it("contains exactly 4.18, 4.19, 4.20, 4.21 and 4.22", () => {
     assert.deepStrictEqual(
       [...FIELD_GUIDE_SUPPORTED_MINORS],
-      ["4.20", "4.21", "4.22"]
+      ["4.18", "4.19", "4.20", "4.21", "4.22"]
     );
   });
 

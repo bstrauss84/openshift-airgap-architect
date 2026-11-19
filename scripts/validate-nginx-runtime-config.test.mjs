@@ -55,6 +55,18 @@ function nonLoopbackAddress() {
 }
 const LAN = nonLoopbackAddress();
 
+/** True when the kernel has IPv6 enabled (mirrors _ipv6_available() in the render script). */
+function ipv6Available() {
+  // Module not loaded at all — /proc/sys/net/ipv6 directory absent → EAFNOSUPPORT
+  if (!fs.existsSync("/proc/sys/net/ipv6")) return false;
+  try {
+    return fs.readFileSync("/proc/sys/net/ipv6/conf/all/disable_ipv6", "utf8").trim() !== "1";
+  } catch {
+    return true; // knob absent but module present → IPv6 available
+  }
+}
+const IPV6 = ipv6Available();
+
 let seq = 0;
 /** Render the real template with the real script. Throws with stderr on failure. */
 function render(env, { resolvConf = "nameserver 172.30.0.10\n" } = {}) {
@@ -176,17 +188,27 @@ const COMPOSE_ENV = {
 };
 
 describe("AUTH-03 — the authenticated topology serves 5173 on loopback only", () => {
-  test("renders loopback listen directives for BOTH address families", () => {
+  test("renders loopback listen directives for BOTH address families (IPv6-conditional)", (t) => {
     // oauth-proxy's upstream is the NAME `localhost`, which can resolve to ::1
     // first. A 127.0.0.1-only bind would have been a working bypass fix and a
-    // broken deployment.
+    // broken deployment. When IPv6 is disabled at the kernel level the [::1]
+    // directive is omitted so nginx can start on IPv4-only hosts.
     const { conf } = render(PROXY_ENV);
     const app = listenDirectives(conf).filter((d) => d.port === 5173);
-    assert.deepEqual(
-      app.map((d) => d.host).sort(),
-      ["127.0.0.1", "::1"],
-      "the serving port must be bound on loopback only, in both families"
-    );
+    if (IPV6) {
+      assert.deepEqual(
+        app.map((d) => d.host).sort(),
+        ["127.0.0.1", "::1"],
+        "the serving port must be bound on loopback only, in both families"
+      );
+    } else {
+      t.diagnostic("IPv6 disabled on this host — only IPv4 loopback directive expected");
+      assert.deepEqual(
+        app.map((d) => d.host).sort(),
+        ["127.0.0.1"],
+        "the serving port must be bound on IPv4 loopback when IPv6 is disabled"
+      );
+    }
   });
 
   test("a socket bound as rendered REFUSES this host's own interface address", async (t) => {
@@ -232,7 +254,8 @@ describe("AUTH-03 — the authenticated topology serves 5173 on loopback only", 
     const { conf } = render(PROXY_ENV);
     const probe = listenDirectives(conf).filter((d) => d.port === 8081);
     assert.ok(probe.length > 0, "a loopback-bound app port needs a probe port the kubelet can reach");
-    assert.deepEqual(probe.map((d) => d.host).sort(), ["0.0.0.0", "::"]);
+    const expectedProbeHosts = IPV6 ? ["0.0.0.0", "::"] : ["0.0.0.0"];
+    assert.deepEqual(probe.map((d) => d.host).sort(), expectedProbeHosts);
 
     // It must not be a second way in: no proxying, no identity, no secret, no
     // static root inside that server block.
@@ -285,7 +308,8 @@ describe("AUTH-03 — local Compose is unchanged", () => {
   test("defaults to every interface, because the container boundary is the boundary there", async (t) => {
     const { conf } = render(COMPOSE_ENV);
     const app = listenDirectives(conf).filter((d) => d.port === 5173);
-    assert.deepEqual(app.map((d) => d.host).sort(), ["0.0.0.0", "::"]);
+    const expectedHosts = IPV6 ? ["0.0.0.0", "::"] : ["0.0.0.0"];
+    assert.deepEqual(app.map((d) => d.host).sort(), expectedHosts);
 
     if (!LAN) {
       t.diagnostic("no non-loopback IPv4 interface");
@@ -320,7 +344,7 @@ describe("AUTH-03 — local Compose is unchanged", () => {
 
   test("renders no unsubstituted placeholder, and no secret when none is given", () => {
     const { conf } = render(COMPOSE_ENV);
-    assert.doesNotMatch(conf, /OAA_LISTEN_DIRECTIVES|OAA_RESOLVER_DIRECTIVE/);
+    assert.doesNotMatch(conf, /OAA_LISTEN_DIRECTIVES|OAA_PROBE_LISTEN_DIRECTIVES|OAA_RESOLVER_DIRECTIVE/);
     assert.doesNotMatch(conf, /"OAA_BACKEND_ORIGIN"|"OAA_PROXY_SHARED_SECRET"/);
     assert.match(conf, /X-OAA-Proxy-Auth\s+"";/, "no secret configured must render an empty header, not a placeholder");
   });

@@ -1,0 +1,12 @@
+apiVersion: config.openshift.io/v1
+kind: ImageDigestMirrorSet
+metadata:
+  name: oc-mirror
+spec:
+  imageDigestMirrors:
+    - source: quay.io/openshift-release-dev/ocp-release
+      mirrors:
+        - registry.example.com:8443/openshift/release
+    - source: quay.io/openshift-release-dev/ocp-v4.0-art-dev
+      mirrors:
+        - registry.example.com:8443/openshift/art-dev

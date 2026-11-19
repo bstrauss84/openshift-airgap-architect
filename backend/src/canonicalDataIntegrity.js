@@ -23,7 +23,7 @@
 import fs from "fs";
 import path from "path";
 
-import { SUPPORTED_MINORS } from "./versionPolicy.js";
+import { SUPPORTED_MINORS, _PRODUCTION_MINORS } from "./versionPolicy.js";
 import { canonicalDataRoot } from "./canonicalDataRoot.js";
 import { loadArchSupportDataset } from "./archSupportData.js";
 
@@ -62,8 +62,11 @@ export function checkCanonicalDataAvailable() {
     return { ok: false, root, problems };
   }
 
+  // Only check minors with audited catalog data. Extras added via
+  // OAA_EXTRA_SUPPORTED_MINORS are allowed at the version gate but have no
+  // shipped catalog; checking them here would cause a false startup failure.
   const dataset = loadArchSupportDataset();
-  for (const minor of SUPPORTED_MINORS) {
+  for (const minor of _PRODUCTION_MINORS) {
     const doc = Object.prototype.hasOwnProperty.call(dataset, minor) ? dataset[minor] : null;
     if (!doc) {
       problems.push(`no architecture-support matrix loaded for supported minor ${minor}`);

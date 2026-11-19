@@ -31,6 +31,7 @@ import GlobalStrategyStep from "./steps/GlobalStrategyStep.jsx";
 import OperatorsStep from "./steps/OperatorsStep.jsx";
 import ReviewStep from "./steps/ReviewStep.jsx";
 import RunOcMirrorStep from "./steps/RunOcMirrorStep.jsx";
+import GenerateAgentIsoStep from "./steps/GenerateAgentIsoStep.jsx";
 import OperationsStep from "./steps/OperationsStep.jsx";
 import IdentityAccessStep from "./steps/IdentityAccessStep.jsx";
 import NetworkingV2Step from "./steps/NetworkingV2Step.jsx";
@@ -104,6 +105,7 @@ const COMPONENT_MAP = {
   operators: OperatorsStep,
   "review-generate": ReviewStep,
   review: ReviewStep,
+  "generate-agent-iso": GenerateAgentIsoStep,
   "run-oc-mirror": RunOcMirrorStep,
   operations: OperationsStep,
   "identity-access": IdentityAccessStep,
@@ -218,10 +220,16 @@ export const VersionSupportGate = ({ children, onOpenMirroring }) => {
   const { state, startOver, updateState } = useApp();
   const selectedMinor = getOpenShiftMinorFromState(state);
 
+  // In the preloaded wizard flow the only goal is generating an agent ISO —
+  // catalog data, docs-index, and arch-support matrices are irrelevant.
+  const mirrorConfigPreloaded = state?.ui?.mirrorConfigPreloaded === true;
+
   // FQ-10: versioned catalog and docs-index data is loaded per minor, on demand, so the
   // initial chunk does not carry every supported minor's data. This gate is the right
   // place for the load because it is already the single version boundary: nothing
   // catalog-dependent mounts above it.
+  // Hooks must all be called unconditionally (Rules of Hooks) — the preloaded
+  // bypass is applied in the render return below, not as an early return here.
   const [dataMinor, setDataMinor] = useState(() =>
     selectedMinor && isVersionedDataReady(selectedMinor) ? selectedMinor : null
   );
@@ -273,6 +281,7 @@ export const VersionSupportGate = ({ children, onOpenMirroring }) => {
   if (!selectedMinor) {
     return children;
   }
+
 
   // Check if selected version is supported
   const isSupported = SUPPORTED_MINORS.includes(selectedMinor);

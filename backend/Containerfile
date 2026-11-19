@@ -270,7 +270,7 @@ RUN --mount=type=secret,id=oaa_build_ca,required=false,mode=0444 \
       echo "build CA: using the oaa_build_ca build secret for this step (not stored in the image)"; \
     fi && \
     microdnf install -y --nodocs --setopt=install_weak_deps=0 ${OAA_DNF_CA} \
-    util-linux openssh-clients \
+    util-linux openssh-clients nmstate \
     && if rpm -q nodejs-nodemon >/dev/null 2>&1; then microdnf remove -y nodejs-nodemon; fi \
     && ! rpm -q nodejs-nodemon >/dev/null 2>&1 \
     && node --version && npm --version \

@@ -1,3 +1,6 @@
+# Silvermatic handoff document — local reference only, not for PR
+docs/SILVERMATIC_INTEGRATION_HANDOFF.md
+
 node_modules/
 **/node_modules/
 .env
@@ -28,6 +31,7 @@ registry-auth.json
 kubeconfig
 **/kubeconfig
 *.pem
+!backend/test/fixtures/*.pem
 **/secrets/
 **/.secrets/
 *.key

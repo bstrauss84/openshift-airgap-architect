@@ -472,7 +472,7 @@ test("validateAllFiles: unsupported 4.23 throws UNSUPPORTED_VERSION", () => {
     (err) => {
       assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
       assert.strictEqual(err.requestedVersion, "4.23");
-      assert.deepStrictEqual(err.supportedVersions, ["4.20", "4.21", "4.22"]);
+      assert.deepStrictEqual(err.supportedVersions, ["4.18", "4.19", "4.20", "4.21", "4.22"]);
       return true;
     }
   );
@@ -657,7 +657,7 @@ test("bypass boundary: unsupported version with non-YAML-only files throws UNSUP
     (err) => {
       assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
       assert.strictEqual(err.requestedVersion, "4.23");
-      assert.deepStrictEqual(err.supportedVersions, ["4.20", "4.21", "4.22"]);
+      assert.deepStrictEqual(err.supportedVersions, ["4.18", "4.19", "4.20", "4.21", "4.22"]);
       return true;
     }
   );
