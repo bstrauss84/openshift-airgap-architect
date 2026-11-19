@@ -33,6 +33,53 @@ import { checkReleaseDocStatus, checkCloseoutClaims } from "../check-release-doc
 
 export const CLOSEOUT_SCHEMA = "oaa.release.closeout/v1";
 export const closeoutRecordPath = (root, version) => join(root, "docs", "releases", "closeout", `v${version}.json`);
+
+/**
+ * Mandatory release build gates (owner requirement, v2.2.2 onward): every release is
+ * built and run with BOTH the non-containerized local build and the local Podman
+ * container build of BOTH images, from the exact tagged commit, before it can be
+ * recorded as closed. The evidence is docs/releases/build-matrix/v<version>.json
+ * (docs/CONTRIBUTING.md "Build methods tested for every release").
+ */
+export const BUILD_MATRIX_SCHEMA = "oaa.release.build-matrix/v1";
+export const BUILD_MATRIX_SINCE = "2.2.2";
+export const REQUIRED_BUILD_METHODS = Object.freeze(["local-npm", "podman-backend", "podman-frontend"]);
+export const buildMatrixRecordPath = (root, version) => join(root, "docs", "releases", "build-matrix", `v${version}.json`);
+const versionAtLeast = (v, min) => {
+  const a = String(v).split(".").map(Number);
+  const b = String(min).split(".").map(Number);
+  for (let i = 0; i < 3; i += 1) { if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0); }
+  return true;
+};
+export const buildMatrixRequired = (version) => versionAtLeast(version, BUILD_MATRIX_SINCE);
+
+/**
+ * Validate a build-matrix record for the release commit. Returns a list of problems
+ * (empty when the record proves both mandatory build methods passed).
+ * @param {object|null} record parsed docs/releases/build-matrix/v<version>.json
+ * @param {{ version: string, commit: string }} expected
+ */
+export function checkBuildMatrix(record, { version, commit }) {
+  const errors = [];
+  if (!record || typeof record !== "object") return [`no build-matrix record for v${version} (docs/releases/build-matrix/v${version}.json): both the local build and the Podman container build are mandatory release gates`];
+  if (record.schema !== BUILD_MATRIX_SCHEMA) errors.push(`build-matrix record schema is ${JSON.stringify(record.schema)}, not ${BUILD_MATRIX_SCHEMA}`);
+  if (record.version !== version) errors.push(`build-matrix record is for ${record.version}, not ${version}`);
+  if (!SHA_RE.test(String(record.commit || "")) || record.commit !== commit) errors.push(`build-matrix record tested ${record.commit || "no commit"}, not the tagged commit ${commit}`);
+  const methods = record.methods && typeof record.methods === "object" ? record.methods : {};
+  for (const name of REQUIRED_BUILD_METHODS) {
+    const m = methods[name];
+    if (!m) { errors.push(`build-matrix record has no "${name}" result`); continue; }
+    if (m.result !== "PASS") errors.push(`build method "${name}" is ${m.result || "unrecorded"}, not PASS`);
+  }
+  for (const name of ["podman-backend", "podman-frontend"]) {
+    const m = methods[name];
+    if (m && m.uncached !== true) errors.push(`build method "${name}" must include at least one clean, uncached build (uncached: true)`);
+    if (m && !/^sha256:[0-9a-f]{64}$/.test(String(m.imageId || ""))) errors.push(`build method "${name}" records no image id (sha256:…)`);
+  }
+  const be = methods["podman-backend"];
+  if (be && be.toolsAsUid1001 !== "PASS") errors.push(`build method "podman-backend" must prove oc and oc-mirror are readable, hashable and executable as UID 1001 (toolsAsUid1001: PASS)`);
+  return errors;
+}
 const SHA_RE = /^[0-9a-f]{40}$/;
 const BRANCHES = ["main", "develop"];
 
@@ -99,6 +146,15 @@ export function verifyReleaseCloseout(opts) {
       const v = sh("git", ["-c", `gpg.ssh.allowedSignersFile=${resolve(allowedSigners)}`, "verify-tag", tag]);
       record.tag.signature = v.status === 0 ? "verified" : "failed";
       if (v.status !== 0) problems.push(`${tag}: signature did not verify against ${allowedSigners}`);
+    }
+    // Mandatory build gates: local build + Podman build of both images, at the tagged commit.
+    if (buildMatrixRequired(version)) {
+      const file = buildMatrixRecordPath(root, version);
+      let bm = null;
+      if (existsSync(file)) { try { bm = JSON.parse(readFileSync(file, "utf8")); } catch { problems.push(`${file} is not valid JSON`); } }
+      const errs = bm || !existsSync(file) ? checkBuildMatrix(bm, { version, commit: tagCommit || "" }) : [];
+      record.buildMatrix = { required: true, ok: errs.length === 0 && Boolean(bm), errors: errs };
+      problems.push(...errs.map((e) => `build gates: ${e}`));
     }
     // Closure claims are judged against the record this run writes; every other version's must already hold.
     const docs = checkReleaseDocStatus(root, { phase: "post", tagDate: tagDate || null, closeoutClaims: false });

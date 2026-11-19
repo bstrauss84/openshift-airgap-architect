@@ -215,6 +215,17 @@ jobs:
         env:
           SMOKE_PORT: 5174
 
+      # Permanent build gate (v2.2.2): build the BACKEND image from the repository-root
+      # context and prove oc / oc-mirror run, hash and resolve correctly as UID 1001.
+      # The 2026-11-19 regression ("FATAL: no SHA256 for oc-mirror.tar.gz") broke every
+      # backend image build while CI built only the frontend image.
+      - name: Backend container smoke test (repository-root build, tools as UID 1001)
+        run: |
+          set -o pipefail
+          CONTAINER_ENGINE=docker bash scripts/smoke-backend-container.sh 2>&1 | tee /tmp/oaa-backend-container-smoke.log
+        env:
+          SMOKE_PORT: 4999
+
       - name: Upload container smoke logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -222,6 +233,7 @@ jobs:
           name: container-smoke-logs
           path: |
             /tmp/oaa-frontend-container-smoke.log
+            /tmp/oaa-backend-container-smoke.log
           retention-days: 7
 
   secrets:
