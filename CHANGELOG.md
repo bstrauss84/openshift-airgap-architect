@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.2.2] - Unreleased
+
+> Detailed notes: [docs/releases/v2.2.2.md](docs/releases/v2.2.2.md)
+>
+> An emergency PATCH release on top of 2.2.1: backend image builds failed because Red Hat's global `latest` client
+> channel (now OpenShift 5.0.1) publishes no oc-mirror. OpenShift support is unchanged (4.20, 4.21, 4.22), and so are
+> dependencies and base images. Rebuild the images with `podman compose up --build -d` / `docker compose up --build -d`.
 
 ### Fixed
 - **Backend image build failed with `FATAL: no SHA256 for oc-mirror.tar.gz` (Tekton and local Podman).** Red Hat's global
@@ -22,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   verification is unchanged. See `docs/BUILD_TROUBLESHOOTING.md`.
 - The Field Guide's oc-mirror download command (`…/clients/ocp/latest/oc-mirror.tar.gz`) became a 404 for the same
   reason. It now uses the guide's own minor (`latest-<minor>`).
+
+### Release tooling
+- CI builds the backend image on every push to `main` and `develop` (`scripts/smoke-backend-container.sh`) and checks
+  `oc` / `oc-mirror` as UID 1001; it used to build only the frontend image.
+- Every release must pass both the non-containerized local build and the local Podman build of both images;
+  `verify-release-closeout.mjs` refuses a release without `docs/releases/build-matrix/v<version>.json` for the tagged
+  commit.
 
 ## [2.2.1] - 2026-11-06
 

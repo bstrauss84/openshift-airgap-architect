@@ -4,6 +4,28 @@ This file is the canonical, tracked source of truth for project backlog and impl
 
 Do not use local-only files (for example `LOCAL_BACKLOG.md`) as canonical status references in committed docs.
 
+## v2.2.2 emergency maintenance patch (opened 2026-11-19), unnumbered — awaiting owner ID allocation
+
+Branch `fix/oc-mirror-channel-5.0`, cut from `main` (`617d037`). Scope is limited to oc-mirror channel and artifact
+acquisition, its regression tests, the permanent release build gates, and version and release documentation. It does
+not include the transfer companions (`feat/v2.2.2-transfer-companions`) or any v2.3.0 Upgrade work.
+
+**P0 — backend image build fails: `FATAL: no SHA256 for oc-mirror.tar.gz` (`done_pending_verification`).**
+- **Confirmed cause (2026-11-19):** Red Hat's global `clients/ocp/latest` moved to OpenShift 5.0.1, whose
+  `sha256sum.txt` lists no oc-mirror artifact on x86_64, aarch64, ppc64le or s390x.
+- **Also affected:** the runtime bundle download and the Field Guide's `…/latest/oc-mirror.tar.gz` command, which
+  became a 404.
+- **Fix:** oc-mirror comes from `latest-<newest supported minor>` (image and runtime), and the Field Guide uses
+  `latest-<guide minor>`. A resolver script verifies `release.txt`, the checksum, the archive member, the ELF
+  architecture and execution, and the image runs the tools as UID 1001.
+- **Evidence:** reproduced on `617d037`, and a clean `--no-cache` backend build succeeded with the fix. See
+  `docs/BUILD_TROUBLESHOOTING.md`.
+
+**Release gates (owner requirement, permanent):**
+- CI builds the backend image on every push to `main` and `develop`.
+- The non-containerized local build and the local Podman build of both images are mandatory for every release.
+  `verify-release-closeout.mjs` refuses a release without `docs/releases/build-matrix/v<version>.json`.
+
 ## v2.2.1 corrective patch (opened 2026-11-06), unnumbered — awaiting owner ID allocation
 
 Recorded under CLAUDE.md rule 11 (no invented IDs; highest allocated `DOC-` is still **DOC-230**, highest `PROD-`
