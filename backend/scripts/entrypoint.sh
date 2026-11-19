@@ -66,6 +66,17 @@ if ! ( umask 077 && touch "$DATA_DIR/.write-probe" ) 2>/dev/null; then
   echo "       The container runs non-root and cannot chown it. Set spec.securityContext.fsGroup" >&2
   echo "       on the pod so the kubelet makes the volume group-writable, or pre-create the" >&2
   echo "       volume owned by this UID." >&2
+  # The common OpenShift case: an earlier pod's fsGroup left the volume
+  # group-writable for ITS group, and this pod does not carry that group (no
+  # fsGroup, e.g. runAsUser pinned under an SCC that does not assign one).
+  dgid="$(stat -c '%g' "$DATA_DIR" 2>/dev/null || true)"
+  dmode="$(stat -c '%a' "$DATA_DIR" 2>/dev/null || true)"
+  gw="$(find "$DATA_DIR" -maxdepth 0 -perm -g=w 2>/dev/null || true)"
+  if [ -n "$dgid" ] && [ "$dgid" != 0 ] && [ -n "$gw" ] && ! id -G | tr ' ' '\n' | grep -qx "$dgid"; then
+    echo "       Diagnosis: $DATA_DIR is group-writable (mode $dmode) for GID $dgid, but this process is not" >&2
+    echo "       in GID $dgid. On OpenShift, deploy manifests/openshift/ unchanged so restricted-v2 assigns" >&2
+    echo "       both the UID and fsGroup, or set pod spec.securityContext.fsGroup: $dgid. Do not chmod 777." >&2
+  fi
   exit 1
 fi
 rm -f "$DATA_DIR/.write-probe"

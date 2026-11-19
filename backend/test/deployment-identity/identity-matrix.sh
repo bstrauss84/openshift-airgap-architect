@@ -104,6 +104,49 @@ run_case "non-root, DATA_DIR not writable"      "$EP_COPY" fail \
 run_case "non-root, DATA_DIR missing"           "$EP_COPY" fail \
          --user 1001 $NONROOT -e DATA_DIR=/nonexistent
 
+# --- PVC group permissions, as the kubelet leaves them (v2.2.2) -------------
+# The cases above give each run a world-writable volume, which hides every
+# group problem. A volume the kubelet has prepared for an fsGroup is
+# root-owned, group-owned by that GID, setgid and group-writable (0:G 2775),
+# and the process can write it ONLY if it carries G as a supplementary group.
+# --group-add G emulates the kubelet adding the pod's fsGroup to the process.
+# This is EMULATION under Podman, not a Kubernetes or OpenShift run: it proves
+# the image and entrypoint behave correctly for each identity/group
+# combination, not that a given cluster, SCC or storage class produces it.
+FG="${OAA_IDENTITY_FSGROUP:-5000}"   # stand-in for a namespace-range GID (e.g. 1001040000)
+FDATA="$SCRATCH/data-fsgroup"
+run_fsgroup_case() { # label, expect(start|fail), require-in-log, podman args...
+  local label="$1" expect="$2" need="$3"; shift 3
+  local cname="oaa-identity-$$-$RANDOM"
+  podman unshare rm -rf "$FDATA" 2>/dev/null || true
+  mkdir -p "$FDATA"
+  if ! podman unshare sh -c "chown 0:$FG '$FDATA' && chmod 2775 '$FDATA'"; then
+    printf '  %-44s %-5s FAIL  (could not prepare 0:%s 2775 volume)\n' "$label" "-" "$FG"
+    FAILURES=$((FAILURES + 1)); return
+  fi
+  if ! podman run -d --name "$cname" -v "$EP_COPY":/app/entrypoint.sh:ro,Z \
+        $NONROOT -e DATA_DIR=/data -v "$FDATA":/data:Z "$@" "$IMG" >/dev/null 2>&1; then
+    printf '  %-44s %-5s FAIL  (container could not be created)\n' "$label" "-"
+    FAILURES=$((FAILURES + 1)); return
+  fi
+  local got; if ready "$cname"; then got=start; else got=fail; fi
+  local log; log="$(podman logs "$cname" 2>&1)"
+  podman rm -f "$cname" >/dev/null 2>&1
+  local why; why="$(printf '%s\n' "$log" | grep -E '^FATAL|Diagnosis' | head -2 | tr '\n' ' ')"
+  if [ "$got" = "$expect" ] && { [ -z "$need" ] || printf '%s\n' "$log" | grep -q -- "$need"; }; then
+    printf '  %-44s %-5s PASS  %s\n' "$label" "$got" "$why"
+  else
+    printf '  %-44s %-5s FAIL  (expected %s%s) %s\n' "$label" "$got" "$expect" "${need:+ with \"$need\"}" "$why"
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+echo
+echo "PVC group permissions (volume 0:$FG mode 2775; --group-add emulates the kubelet's fsGroup):"
+run_fsgroup_case "1001:0 without the volume's group"        fail "for GID $FG, but this process is not" --user 1001:0
+run_fsgroup_case "1001:0 + fsGroup $FG"                     start "" --user 1001:0 --group-add "$FG"
+run_fsgroup_case "arbitrary 12345:0 without fsGroup"        fail "for GID $FG, but this process is not" --user 12345:0
+run_fsgroup_case "arbitrary 12345:0 + fsGroup $FG (restricted-v2 shape)" start "" --user 12345:0 --group-add "$FG"
+
 if [ -n "$CONTROL" ] && [ -r "$CONTROL" ]; then
   CTL="$SCRATCH/control.sh"; cp "$CONTROL" "$CTL"; chmod 755 "$CTL"
   echo

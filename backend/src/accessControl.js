@@ -276,6 +276,24 @@ export function resolveBindAddress(env = process.env, probe = detectContainerRun
 }
 
 /**
+ * Diagnostic only: a loopback bind inside a Kubernetes pod has no reachable
+ * endpoint, so kubelet probes and the Service get "connection refused" while
+ * the process looks healthy from inside. The kubelet sets
+ * KUBERNETES_SERVICE_HOST in every pod: a good hint for a message, a weak
+ * proof, so it changes nothing about what is bound. Returns text or null.
+ */
+export function kubernetesLoopbackWarning(env = process.env, bindLoopbackOnly = false) {
+  if (!bindLoopbackOnly || !String(env.KUBERNETES_SERVICE_HOST || "").trim()) return null;
+  return (
+    "WARNING: this looks like a Kubernetes pod (KUBERNETES_SERVICE_HOST is set) but the API is bound to " +
+    "loopback only, so readiness/liveness probes and the Service will get \"connection refused\". " +
+    "On OpenShift deploy with the shipped overlay (oc apply -k manifests/openshift/, OAA_AUTH_MODE=proxy " +
+    "behind oauth-proxy). Otherwise set BIND_ADDRESS=0.0.0.0 and OAA_CONTAINER_NETWORK=isolated as " +
+    "manifests/base does, only behind an access boundary you provide: OAA_AUTH_MODE=disabled has no login."
+  );
+}
+
+/**
  * Validate the access-control configuration, or throw.
  *
  * Called at startup so a dangerous or incoherent combination stops the

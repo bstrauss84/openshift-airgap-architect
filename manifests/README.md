@@ -501,6 +501,55 @@ Record the results against **PROD-039** before describing the deployment as
 
 ## Troubleshooting
 
+### Troubleshooting in-cluster startup
+
+Both messages below come from a Deployment that does not carry what these manifests
+set, most often a hand-written one. Neither is fixed by widening permissions: no
+`chmod 777`, no privileged container, no `anyuid`.
+
+**`FATAL: DATA_DIR /data is not writable by UID 1001 (groups: 0)`**, with the volume
+shown as, for example, `0:1001040000 mode=2775`:
+
+- The kubelet made the volume group-writable for an earlier pod's fsGroup
+  (1001040000). This pod is not in that group: `groups: 0` means it has **no**
+  fsGroup. That happens when `runAsUser` is pinned and the pod is admitted under an
+  SCC that does not assign an fsGroup, or the fsGroup was removed.
+- **OpenShift fix:** deploy `manifests/openshift/` unchanged. It sets neither
+  `runAsUser` nor `fsGroup`, so `restricted-v2` assigns both from the namespace range
+  and the kubelet makes the PVC writable for that group. If you must pin an
+  identity, set the pod-level `spec.template.spec.securityContext.fsGroup`; it is not
+  valid in a container's `securityContext`. Use the volume's group (`1001040000`
+  here), or `1001` together with `runAsUser: 1001` under an SCC that admits them. Under
+  `restricted-v2`, 1001 is outside the namespace range and the pod is rejected.
+- Check what was applied:
+  `oc get pod <pod> -o jsonpath='{.metadata.annotations.openshift\.io/scc}{"\n"}{.spec.securityContext}{"\n"}'`.
+  On `restricted-v2` with the overlay, expect an assigned `fsGroup` and no
+  `runAsUser: 1001`.
+
+**`Readiness probe failed: dial tcp <pod-ip>:4000: connect: connection refused`**,
+with `Listening on: 127.0.0.1:4000 (loopback only)` in the backend log (since v2.2.2
+also a `WARNING: this looks like a Kubernetes pod` line):
+
+- With `OAA_AUTH_MODE=disabled` and no `BIND_ADDRESS`, the backend binds loopback by
+  design, so nothing outside the container can reach it.
+- **OpenShift fix:** deploy `manifests/openshift/`. It runs the backend with
+  `OAA_AUTH_MODE=proxy` behind oauth-proxy, listening on the pod network.
+- **Plain Kubernetes:** `manifests/base` sets `BIND_ADDRESS=0.0.0.0` and
+  `OAA_CONTAINER_NETWORK=isolated`. That exposes an **unauthenticated** API to anything
+  that can reach the Service, so supply your own access boundary.
+- **Not verified on a real cluster:** with `OAA_CONTAINER_NETWORK=isolated`, the
+  backend must confirm it is inside a container before binding a network interface.
+  It looks for `/run/.containerenv`, `/.dockerenv` or a container cgroup path. Under
+  cgroup v2 namespaces the cgroup path is `0::/`, so on a runtime that creates
+  neither marker file (for example containerd), this base configuration may refuse
+  to start, with a message saying so. The OpenShift overlay does not depend on this
+  check.
+
+These behaviours are covered under Podman by
+`backend/test/deployment-identity/identity-matrix.sh`: the PVC group cases emulate
+the kubelet's fsGroup with `--group-add`. That is not a Kubernetes or OpenShift
+run, and no release has been validated on a real cluster.
+
 ### Pods stuck in Pending
 
 ```bash

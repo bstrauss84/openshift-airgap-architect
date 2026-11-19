@@ -226,6 +226,28 @@ jobs:
         env:
           SMOKE_PORT: 4999
 
+      # Permanent gate (v2.2.2): build and START the frontend image with Podman/Buildah.
+      # Candidate f76afc0 built fine with Docker (the step above passed) but under
+      # Buildah its runtime /run was committed root:root 0755 and nginx exited at start.
+      # Podman is the primary documented engine, and OpenShift builds use Buildah.
+      - name: Frontend container smoke test (Podman/Buildah build and start)
+        run: |
+          set -o pipefail
+          podman --version
+          CONTAINER_ENGINE=podman bash scripts/smoke-frontend-container.sh 2>&1 | tee /tmp/oaa-frontend-container-smoke-podman.log
+        env:
+          SMOKE_PORT: 5175
+
+      # Permanent gate (v2.2.2): startup identities the PLATFORM chooses, including PVC
+      # group permissions (0:G 2775 volume, kubelet fsGroup emulated with --group-add).
+      # Podman EMULATION of the pod identities; not a Kubernetes or OpenShift run.
+      - name: Backend startup identity and PVC group matrix (Podman emulation)
+        run: |
+          set -o pipefail
+          IMG="localhost/oaa-identity-smoke-${GITHUB_RUN_ID}:ci"
+          podman build -q -t "$IMG" -f backend/Containerfile . 2>&1 | tail -3
+          bash backend/test/deployment-identity/identity-matrix.sh "$IMG" 2>&1 | tee /tmp/oaa-backend-identity-matrix.log
+
       - name: Upload container smoke logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -234,6 +256,8 @@ jobs:
           path: |
             /tmp/oaa-frontend-container-smoke.log
             /tmp/oaa-backend-container-smoke.log
+            /tmp/oaa-frontend-container-smoke-podman.log
+            /tmp/oaa-backend-identity-matrix.log
           retention-days: 7
 
   secrets:

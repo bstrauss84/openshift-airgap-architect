@@ -478,22 +478,30 @@ For production deployment to Kubernetes or OpenShift clusters, comprehensive man
 
 ### Quick Start
 
-Deploy to an existing Kubernetes or OpenShift cluster:
+Pick the manifest set for your platform. They are **not** interchangeable: see
+[`manifests/README.md`](manifests/README.md) before deploying.
 
 ```bash
-# 1. Review and customize manifests (see manifests/README.md)
-cd manifests/
+# OpenShift: the overlay (oauth-proxy login, NetworkPolicy, a Route, and no pinned
+# UID/fsGroup, so restricted-v2 assigns both). Do NOT apply manifests/ on OpenShift.
+oc new-project airgap-architect
+oc apply -k manifests/openshift/
+oc get pods,routes
 
-# 2. Create namespace (optional)
+# Plain Kubernetes: the base (pins UID 1001 / fsGroup 1001; NO authentication,
+# so put it behind an access boundary you provide).
 kubectl create namespace airgap-architect
-
-# 3. Apply manifests using Kustomize
-kubectl apply -k . -n airgap-architect
-
-# 4. Verify deployment
+kubectl apply -k manifests/ -n airgap-architect
 kubectl get pods -n airgap-architect
-kubectl get routes -n airgap-architect  # OpenShift only
 ```
+
+A hand-written Deployment must carry what these manifests set: a pod `fsGroup` (or an
+SCC that assigns one) and, for the backend, `BIND_ADDRESS` with `OAA_AUTH_MODE` or
+`OAA_CONTAINER_NETWORK`. Without them the backend stops with `DATA_DIR … is not
+writable`, or binds loopback and fails its readiness probe. See
+[Troubleshooting in-cluster startup](manifests/README.md#troubleshooting-in-cluster-startup).
+**No release has been validated by deploying to a real cluster;** the manifests are
+checked statically and the image identities under Podman emulation.
 
 ### What's Included
 
@@ -615,7 +623,7 @@ See `manifests/README.md` for complete configuration reference.
 
 **Container security:**
 - UBI 9 base images (Red Hat Universal Base Image)
-- Non-root execution (UID 1001, fsGroup 1001)
+- Non-root execution (base: UID 1001, fsGroup 1001; OpenShift overlay: UID and fsGroup assigned by restricted-v2)
 - No privileged escalation required
 
 > **The UID differs between the two deployment models, on purpose.**
