@@ -5853,10 +5853,15 @@ async function generateAgentIsoBackgroundJob(jobId, state) {
     appendJobOutput(jobId, `---\n\n`);
 
     // Spawn openshift-install agent create image
+    // HOME must point to a writable directory — the default /opt/app-root/src
+    // may not be writable for the runtime user (uid 1001 in the container).
+    // Use the work directory itself as the HOME so .cache/agent lands there.
     const child = spawn(installerPath, ["agent", "create", "image", "--dir", workDir], {
       env: {
         ...process.env,
-        PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin"
+        PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
+        HOME: workDir,
+        XDG_CACHE_HOME: path.join(workDir, ".cache"),
       }
     });
 
