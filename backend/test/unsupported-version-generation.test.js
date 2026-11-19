@@ -49,8 +49,8 @@ describe('Unsupported Version - Shared Assertion Logic', () => {
     assert.strictEqual(minor, '4.22');
   });
 
-  it('SUPPORTED_MINORS contains exactly 4.20, 4.21 and 4.22', () => {
-    assert.deepStrictEqual(SUPPORTED_MINORS, ['4.20', '4.21', '4.22']);
+  it('SUPPORTED_MINORS contains exactly 4.18, 4.19, 4.20, 4.21 and 4.22', () => {
+    assert.deepStrictEqual(SUPPORTED_MINORS, ['4.18', '4.19', '4.20', '4.21', '4.22']);
   });
 
   it('SUPPORTED_MINORS does not include 4.23', () => {

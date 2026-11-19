@@ -238,11 +238,6 @@ export function getCatalogForScenario(scenarioId, version) {
   // satisfy this call (FQ-10 stale-result isolation).
   const bucket = catalogsByMinor.get(minorVersion);
   if (!bucket) {
-    // Extra minors (added via OAA_EXTRA_SUPPORTED_MINORS / preloaded wizard flow)
-    // have no shipped catalog data. Return an empty array so callers that use the
-    // result for field-visibility decisions degrade gracefully instead of crashing.
-    const isExtraMinor = !["4.20", "4.21", "4.22"].includes(minorVersion);
-    if (isExtraMinor) return [];
     throw new CatalogNotLoadedError(minorVersion);
   }
 

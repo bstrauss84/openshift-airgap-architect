@@ -128,14 +128,14 @@ describe("assertSupportedOpenShiftMinorForGeneration", () => {
     );
   });
 
-  it("rejects unsupported older 4.19", () => {
+  it("rejects unsupported older 4.17", () => {
     const state = makeState({
-      version: { selectedMinor: "4.19", selectedPatch: "4.19.0" },
-      release: { channel: "4.19", patchVersion: "4.19.0" },
+      version: { selectedMinor: "4.17", selectedPatch: "4.17.0" },
+      release: { channel: "4.17", patchVersion: "4.17.0" },
     });
     assert.throws(
       () => assertSupportedOpenShiftMinorForGeneration(state),
-      (err) => err.code === "UNSUPPORTED_VERSION" && err.requestedVersion === "4.19"
+      (err) => err.code === "UNSUPPORTED_VERSION" && err.requestedVersion === "4.17"
     );
   });
 
@@ -269,12 +269,14 @@ describe("buildInstallConfig version boundary", () => {
   });
 
   it("SUPPORTED_MINORS is the only authority for supported versions", () => {
-    assert.deepStrictEqual(SUPPORTED_MINORS, ["4.20", "4.21", "4.22"]);
+    assert.deepStrictEqual(SUPPORTED_MINORS, ["4.18", "4.19", "4.20", "4.21", "4.22"]);
     assert.strictEqual(isSupportedMinor("4.20"), true);
     assert.strictEqual(isSupportedMinor("4.21"), true);
     assert.strictEqual(isSupportedMinor("4.22"), true);
+    assert.strictEqual(isSupportedMinor("4.19"), true);
+    assert.strictEqual(isSupportedMinor("4.18"), true);
     assert.strictEqual(isSupportedMinor("4.23"), false);
-    assert.strictEqual(isSupportedMinor("4.19"), false);
+    assert.strictEqual(isSupportedMinor("4.17"), false);
   });
 
   it("4.22 generates real install-config now that it is supported", () => {
@@ -446,11 +448,11 @@ describe("buildUnsupportedVersionError canonical helper", () => {
   });
 
   it("produces error with correct shape for specific version", () => {
-    const err = buildUnsupportedVersionError("4.19");
+    const err = buildUnsupportedVersionError("4.17");
     assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
-    assert.strictEqual(err.requestedVersion, "4.19");
+    assert.strictEqual(err.requestedVersion, "4.17");
     assert.deepStrictEqual(err.supportedVersions, SUPPORTED_MINORS);
-    assert.ok(err.message.includes("4.19"));
+    assert.ok(err.message.includes("4.17"));
   });
 
   it("route-level and generation-level assertions share the same error shape", () => {

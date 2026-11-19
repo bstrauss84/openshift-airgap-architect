@@ -168,7 +168,7 @@ test("getCatalog: unsupported 4.23 throws UNSUPPORTED_VERSION", () => {
     (err) => {
       assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
       assert.strictEqual(err.requestedVersion, "4.23");
-      assert.deepStrictEqual(err.supportedVersions, ["4.20", "4.21", "4.22"]);
+      assert.deepStrictEqual(err.supportedVersions, ["4.18", "4.19", "4.20", "4.21", "4.22"]);
       return true;
     }
   );
@@ -183,7 +183,7 @@ test("getCatalog: omitted version throws CATALOG_VERSION_REQUIRED", () => {
     () => getCatalog("bare-metal-agent"),
     (err) => {
       assert.strictEqual(err.code, "CATALOG_VERSION_REQUIRED");
-      assert.deepStrictEqual(err.supportedVersions, ["4.20", "4.21", "4.22"]);
+      assert.deepStrictEqual(err.supportedVersions, ["4.18", "4.19", "4.20", "4.21", "4.22"]);
       return true;
     }
   );
@@ -544,7 +544,7 @@ test("validateState: unsupported 4.23 throws UNSUPPORTED_VERSION", () => {
     (err) => {
       assert.strictEqual(err.code, "UNSUPPORTED_VERSION");
       assert.strictEqual(err.requestedVersion, "4.23");
-      assert.deepStrictEqual(err.supportedVersions, ["4.20", "4.21", "4.22"]);
+      assert.deepStrictEqual(err.supportedVersions, ["4.18", "4.19", "4.20", "4.21", "4.22"]);
       return true;
     }
   );

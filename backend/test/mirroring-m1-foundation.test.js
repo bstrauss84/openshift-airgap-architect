@@ -171,12 +171,12 @@ describe("supported-minor boundaries (No Fallback)", () => {
       { content: { platform: true }, platform: { release: { channel: "4.22", patchVersion: "4.23.1" } } },
       { content: { operators: true }, operators: { catalogMinor: "4.23" } },
       // A deselected section is retained, so it may not hold an unsupported version either.
-      { content: { additionalImages: true }, additionalImages: ["quay.io/a/b:1"], operators: { catalogMinor: "4.19" } }
+      { content: { additionalImages: true }, additionalImages: ["quay.io/a/b:1"], operators: { catalogMinor: "4.17" } }
     ]) {
       const res = await api("POST", "/api/mirroring/profiles", body);
       assert.equal(res.status, 422, JSON.stringify(body));
       assert.equal(res.json.code, "UNSUPPORTED_VERSION");
-      assert.deepEqual(res.json.supportedVersions, ["4.20", "4.21", "4.22"]);
+      assert.deepEqual(res.json.supportedVersions, ["4.18", "4.19", "4.20", "4.21", "4.22"]);
     }
     const listed = await api("GET", "/api/mirroring");
     assert.equal(listed.json.profiles.length, 0, "nothing was stored");
