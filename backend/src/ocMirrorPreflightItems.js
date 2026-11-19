@@ -83,7 +83,7 @@ export const describeTrust = (env = process.env) => {
 
 /** The oc-mirror binary a run would use, as found without downloading anything. */
 export const toolItem = (peek) => {
-  if (!peek) return item("tool", "warn", "oc-mirror binary", "No local oc-mirror binary is available. The run downloads the latest release from mirror.openshift.com (clients/ocp/latest) and verifies it against that channel's sha256sum.txt first, which needs access to mirror.openshift.com.");
+  if (!peek) return item("tool", "warn", "oc-mirror binary", "No local oc-mirror binary is available. The run downloads the newest release of the newest supported minor from mirror.openshift.com (clients/ocp/latest-<minor>) and verifies it against that channel's sha256sum.txt first, which needs access to mirror.openshift.com.");
   if (peek.error) return item("tool", "block", "oc-mirror binary", peek.error);
   const t = peek.tool;
   const version = t?.version || "unknown";

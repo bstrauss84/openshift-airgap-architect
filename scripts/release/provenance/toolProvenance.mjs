@@ -96,7 +96,7 @@ export const BAKED_TOOLS = Object.freeze([
     versionField: "OC_MIRROR_RESOLVED_VERSION",
     sha256Field: "OC_MIRROR_RESOLVED_SHA256",
     channelField: "OC_MIRROR_RESOLVED_CHANNEL",
-    policy: "latest available release GLOBALLY, independent of target minor (CLAUDE.md external tool version policy)",
+    policy: "latest patch of the NEWEST SUPPORTED minor, independent of target minor (CLAUDE.md external tool version policy; the global `latest` channel publishes no oc-mirror since OpenShift 5.0.1)",
   },
 ]);
 

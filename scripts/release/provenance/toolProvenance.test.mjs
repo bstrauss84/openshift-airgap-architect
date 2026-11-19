@@ -151,7 +151,10 @@ describe("record shape", () => {
     const oc = built.records.find((r) => r.tool === "oc");
     const mirror = built.records.find((r) => r.tool === "oc-mirror");
     assert.match(oc.versionPolicy, /WITHIN the selected supported target minor/);
-    assert.match(mirror.versionPolicy, /GLOBALLY/);
+    // 2026-11-19: oc-mirror follows the newest SUPPORTED minor (the global
+    // `latest` channel is OpenShift 5.0.1 and publishes no oc-mirror).
+    assert.match(mirror.versionPolicy, /NEWEST SUPPORTED minor, independent of target minor/);
+    assert.doesNotMatch(mirror.versionPolicy, /latest available release GLOBALLY/);
     assert.notEqual(oc.versionPolicy, mirror.versionPolicy);
   });
 });

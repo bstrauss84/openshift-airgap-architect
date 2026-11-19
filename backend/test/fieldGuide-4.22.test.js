@@ -218,9 +218,12 @@ describe("Field Guide v4.22 — source tree and runtime wiring (Tranche 2 author
       assert.deepEqual(cmds(tools422), cmds(tools421));
     });
 
-    it("oc-mirror is still resolved from clients/ocp/latest, not pinned to a minor", () => {
+    it("oc-mirror is resolved from the templated latest-<minor> channel — never the global latest (OpenShift 5, no oc-mirror) and never a literal minor", () => {
+      // Until 2026-11-19 this asserted clients/ocp/latest/oc-mirror.tar.gz; that
+      // channel moved to OpenShift 5.0.1, which publishes no oc-mirror (a 404).
       const all = tools422.items.map((i) => i.cmd || "").join("\n");
-      assert.match(all, /clients\/ocp\/latest\/oc-mirror\.tar\.gz/);
+      assert.match(all, /clients\/ocp\/latest-\{\{versionMajorMinor\}\}\/oc-mirror\.tar\.gz/);
+      assert.doesNotMatch(all, /clients\/ocp\/latest\/oc-mirror/);
       assert.doesNotMatch(all, /clients\/ocp\/(latest-)?4\.\d+\/oc-mirror/);
     });
 

@@ -565,7 +565,7 @@ oc-mirror is a platform-specific binary. The backend container may run on x86_64
    - Preflight check ensures usability
 
 3. **Mirror download** (runtime arch)
-   - Download from `https://mirror.openshift.com/pub/openshift-v4/{arch}/clients/ocp/latest/oc-mirror.tar.gz`
+   - Download from `https://mirror.openshift.com/pub/openshift-v4/{arch}/clients/ocp/latest-<newest supported minor>/oc-mirror.tar.gz` (the global `clients/ocp/latest` is OpenShift 5.0.1 since 2026-11-19 and publishes no oc-mirror; see `docs/BUILD_TROUBLESHOOTING.md`)
    - Try arch candidates: `x86_64`/`amd64`, `aarch64`/`arm64`
    - Extract to `${DATA_DIR}/tools/bin/oc-mirror`
    - Preflight check before use

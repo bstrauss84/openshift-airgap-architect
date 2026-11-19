@@ -76,10 +76,10 @@ Unknown schemas block at all boundaries:
 
 | Tool | Policy | Channel |
 |---|---|---|
-| `oc-mirror` | Latest available release **globally**, independent of target minor | `clients/ocp/latest` |
+| `oc-mirror` | Latest patch of the **newest supported minor**, independent of target minor | `clients/ocp/latest-<newest SUPPORTED_MINORS entry>` |
 | `oc` | Latest patch **within the selected supported target minor** | `clients/ocp/latest-<minor>` |
 
-Rationale: Red Hat directs users to the latest `oc-mirror` v2 regardless of which OpenShift versions are mirrored, whereas `oc` carries a client/server compatibility expectation tied to the target cluster release. Operator discovery additionally *requires* a recent `oc-mirror`: `--v2 list operators` does not exist in 4.21.x.
+Rationale: Red Hat directs users to a recent `oc-mirror` v2 regardless of which OpenShift versions are mirrored, whereas `oc` carries a client/server compatibility expectation tied to the target cluster release. Operator discovery additionally *requires* a recent `oc-mirror`: `--v2 list operators` does not exist in 4.21.x. Do **not** use the global `clients/ocp/latest`: on 2026-11-19 it moved to OpenShift 5.0.1, which publishes no oc-mirror artifact, and every image build failed (`docs/BUILD_TROUBLESHOOTING.md`). The oc-mirror channel is derived from `SUPPORTED_MINORS`, so it advances when a new minor is onboarded.
 
 Both tools must always be:
 
